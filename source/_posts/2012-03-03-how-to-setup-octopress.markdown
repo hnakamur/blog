@@ -182,8 +182,8 @@ sudo vi /etc/apache2/other/blog.conf
 ```
 と実行して、以下の内容で作成します(hnakamurの部分は自分のアカウント名で置換してください)。
 ```
-Alias /blog /Users/hnakamur/octopress/public/blog
-<Directory /Users/hnakamur/octopress/public/blog>
+Alias /blog /Users/hnakamur/octopress/public
+<Directory /Users/hnakamur/octopress/public>
 	AllowOverride None
   DirectoryIndex index.html
 	Order allow,deny
