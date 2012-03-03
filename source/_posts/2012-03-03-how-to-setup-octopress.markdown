@@ -96,13 +96,37 @@ Enter the read/write url for your repository: git@github.com:hnakamur/blog.git
 vi _config.yml
 ```
 
-```
+``` text _config.yml
+url: http://hnakamur.github.com/blog
 title: "hnakamur's blog at github"
 subtitle: my trial and error log
 author: Hiroaki Nakamura
 …(略)…
 date_format: "%Y-%m-%d"
+…(略)…
 ```
+
+さらに
+``` text _config.yml (before edit)
+permalink: /blog/:year/:month/:day/:title/
+…(略)…
+category_dir: blog/categories
+…(略)…
+titlecase: true       # Converts page and post titles to titlecase
+```
+を以下のように変更します。
+``` text _config.yml (before edit)
+permalink: /:year/:month/:day/:title/
+…(略)…
+category_dir: categories
+…(略)…
+titlecase: false      # Converts page and post titles to titlecase
+```
+これは記事のパーマリンクやカテゴリページのURLが/blog/blog/…のようになってしまうのを/blog/…のようにするためです。
+
+またタイトルの先頭を大文字にするのもオフにしています。
+
+なお、アーカイブのページのURLは/blog/blog/archiveになってしまっていますが、変更方法をまだ見つけられていません。
 
 ## 記事の作成と投稿
 
@@ -182,8 +206,8 @@ sudo vi /etc/apache2/other/blog.conf
 ```
 と実行して、以下の内容で作成します(hnakamurの部分は自分のアカウント名で置換してください)。
 ```
-Alias /blog /Users/hnakamur/octopress/public
-<Directory /Users/hnakamur/octopress/public>
+Alias /blog /Users/hnakamur/octopress/public/blog
+<Directory /Users/hnakamur/octopress/public/blog>
 	AllowOverride None
   DirectoryIndex index.html
 	Order allow,deny
