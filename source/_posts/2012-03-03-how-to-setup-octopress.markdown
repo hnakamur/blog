@@ -167,6 +167,12 @@ git commit -m 'Modify config. Add source and sass'
 git push origin HEAD:source
 ```
 
+github上でのブランチ名をsourceではなくmasterにしてよければ、単に
+```
+git push
+```
+でOKです。
+
 ## ローカルのApacheでプレビュー
 
 Apacheは事前にセットアップ済みという前提で、プレビュー用の設定を追加します。
@@ -230,10 +236,7 @@ error: src refspec source does not match any.
 error: failed to push some refs to 'git@github.com:hnakamur/blog.git'
 ```
 
-ググって
-Error when "git push" to github - Stack Overflow
-http://stackoverflow.com/questions/959477/error-when-git-push-to-github
-を発見。
+ググって [Error when "git push" to github - Stack Overflow](http://stackoverflow.com/questions/959477/error-when-git-push-to-github) を発見。
 
 ```
 git push origin HEAD:source
