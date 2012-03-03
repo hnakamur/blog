@@ -96,6 +96,7 @@ Enter the read/write url for your repository: git@github.com:hnakamur/blog.git
 vi _config.yml
 ```
 
+ブログタイトルなどを編集します。
 ``` text _config.yml
 url: http://hnakamur.github.com/blog
 title: "hnakamur's blog at github"
