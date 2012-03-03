@@ -164,7 +164,7 @@ git config branch.master.remote origin
 ```
 git add .
 git commit -m 'Modify config. Add source and sass'
-git push origin source
+git push origin HEAD:source
 ```
 
 ## ローカルのApacheでプレビュー
