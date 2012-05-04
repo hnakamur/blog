@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "/etc/sudoers.d/を使う→やっぱ止めた"
+title: "/etc/sudoers.d/を使う"
 date: 2012-05-04 11:16
 comments: true
 categories: [CentOS, sudo]
@@ -34,7 +34,8 @@ chmod 0440 /etc/sudoers.d/hnakamur
 
 visudoではこのファイルは編集対象ではないので、複数人で同時に編集しないよう連絡しあうなどの運用が別途必要です。このせいでみんな使ってないんだろうか？
 
-## /etc/sudoers.d/\* の罠にはまった (2012-05-05 追記)
+## /etc/sudoers.d/\* の罠にはまった
+(2012-05-05 追記)
 
 使うべきでない理由がわかりました！
 
@@ -48,3 +49,8 @@ sudo: no valid sudoers sources found, quitting
 ```
 
 こうなるとsu -でrootになるしかないです。/etc/sudoers.d/*を使わずvisudoで編集する場合は、保存時に文法エラーがある場合は抜けずに再編集が可能なので安全です。
+
+## visudoを使えば/etc/sudoers.d/\* でも大丈夫
+(2012-05-05 追記)
+
+さらに追記。visudoは/etc/sudoers.d/*に文法がエラーがある場合も抜ける前にプロンプトが出ました。人手で編集するときは必ずvisudoを使うよう肝に銘じます。
