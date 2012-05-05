@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "/etc/sudoers.d/を使う"
+title: "/etc/sudoers.d/を使う→やっぱり止め"
 date: 2012-05-04 11:16
 comments: true
 categories: [CentOS, sudo]
@@ -54,3 +54,11 @@ sudo: no valid sudoers sources found, quitting
 (2012-05-05 追記)
 
 さらに追記。visudoは/etc/sudoers.d/*に文法がエラーがある場合も抜ける前にプロンプトが出ました。人手で編集するときは必ずvisudoを使うよう肝に銘じます。
+
+## /etc/sudoers.d/\* だとvisudoでもダメなパターンがありました
+(2012-05-05 追記)
+
+さらに追記。
+visudoで起動して:e /etc/sudoers.d/hnakamurと切り替えて編集して:wqで保存して抜けると、文法エラーがあってもスルーしてしまいました。rootでもう一度起動して何も変更せずに:qで終わると文法エラーに反応してくれるのですが。
+
+ということで、結論としては/etc/sudoers.d/\*は私は使わないことにしました。
