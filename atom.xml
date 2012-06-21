@@ -4,7 +4,7 @@
   <title><![CDATA[hnakamur's blog at github]]></title>
   <link href="http://hnakamur.github.com/blog/atom.xml" rel="self"/>
   <link href="http://hnakamur.github.com/blog/"/>
-  <updated>2012-05-05T10:13:55+09:00</updated>
+  <updated>2012-06-21T17:59:18+09:00</updated>
   <id>http://hnakamur.github.com/blog/</id>
   <author>
     <name><![CDATA[Hiroaki Nakamura]]></name>
@@ -12,6 +12,151 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[daemontoolsの使い方]]></title>
+    <link href="http://hnakamur.github.com/blog/2012/06/21/how-to-use-daemontools/"/>
+    <updated>2012-06-21T17:48:00+09:00</updated>
+    <id>http://hnakamur.github.com/blog/2012/06/21/how-to-use-daemontools</id>
+    <content type="html"><![CDATA[<p><a href="http://www.nslabs.jp/daemontools.rhtml">daemontoolsを使う | Netsphere Laboratories</a>を参考にしました。ありがとうございます。</p>
+
+<h2>私的ルール</h2>
+
+<h3>無効化したサービスは/service/.disabled/に移動</h3>
+
+<p>/service/以下に.で始まるフォルダ名にすると無視されるということですが、my_service_nameを.my_service_nameと変えるのはタイプが面倒なので、/service/.disabledというフォルダを作って無効化するときはその下に移動することにしました。</p>
+
+<h3>作業するときは/serviceに移動</h3>
+
+<p>svcやsvstatにフルパスを指定しても動くのですが、/service/と/service/.disabled間で移動するときにタイプ量が増えるので、最初にcd /serviceしてから作業することにしました。</p>
+
+<h2>手順</h2>
+
+<h3>サービス追加</h3>
+
+<p>node-virtualhost1.example.comという名前でサービスを追加する例。
+exec -cの後はサービスに応じて変更します。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>cd /service
+</span><span class='line'>mkdir -p .disabled/node-virtualhost1.example.com
+</span><span class='line'>cat &lt;&lt;EOF &gt; .disabled/node-virtualhost1.example.com/run
+</span><span class='line'>#!/bin/sh
+</span><span class='line'>exec -c /usr/local/node-v0.6.19/bin/node /var/www/app/virtualhost1.example.com/hello.js
+</span><span class='line'>EOF
+</span><span class='line'>chmod 755 .disabled/node-virtualhost1.example.com/run</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>サービス有効化</h3>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>cd /service
+</span><span class='line'>mv .disabled/node-virtualhost1.example.com .</span></code></pre></td></tr></table></div></figure>
+
+
+<h4>状態確認</h4>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'># svstat node-virtualhost1.example.com/
+</span><span class='line'>node-virtualhost1.example.com/: up (pid 1493) 3 seconds</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>サービス無効化</h3>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>cd /service
+</span><span class='line'>mv node-virtualhost1.example.com .disabled/
+</span><span class='line'>svc -tx .disabled/node-virtualhost1.example.com</span></code></pre></td></tr></table></div></figure>
+
+
+<h4>状態確認</h4>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'># svstat .disabled/node-virtualhost1.example.com/
+</span><span class='line'>.disabled/node-virtualhost1.example.com/: supervise not running</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>サービス一時停止(Down)</h3>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>cd /service
+</span><span class='line'>svc -d node-virtualhost1.example.com</span></code></pre></td></tr></table></div></figure>
+
+
+<h4>状態確認</h4>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'># svstat node-virtualhost1.example.com/
+</span><span class='line'>node-virtualhost1.example.com/: down 1 seconds, normally up</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>サービス一時停止からの再開(Up)</h3>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>cd /service
+</span><span class='line'>svc -u node-virtualhost1.example.com</span></code></pre></td></tr></table></div></figure>
+
+
+<h4>状態確認</h4>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'># svstat node-virtualhost1.example.com/
+</span><span class='line'>node-virtualhost1.example.com/: up (pid 1512) 1 seconds</span></code></pre></td></tr></table></div></figure>
+
+
+
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[daemontoolsのインストール手順]]></title>
+    <link href="http://hnakamur.github.com/blog/2012/06/21/how-to-install-daemontools/"/>
+    <updated>2012-06-21T17:36:00+09:00</updated>
+    <id>http://hnakamur.github.com/blog/2012/06/21/how-to-install-daemontools</id>
+    <content type="html"><![CDATA[<p>CentOS6.2で確認。</p>
+
+<p>OS起動時にdaemontoolsを起動する設定は<a href="http://cr.yp.to/daemontools/start.html">How to start daemontools</a>を参照。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>yum install -y make gcc rpm-build &&
+</span><span class='line'>rpm -ivh http://mirrors.qmailtoaster.com/daemontools-toaster-0.76-1.3.6.src.rpm &&
+</span><span class='line'>rpmbuild -ba /root/rpmbuild/SPECS/daemontools-toaster.spec &&
+</span><span class='line'>rpm -ivh /root/rpmbuild/RPMS/x86_64/daemontools-toaster-0.76-1.3.6.x86_64.rpm &&
+</span><span class='line'>cat &gt; /etc/init/svscan.conf &lt;&lt;EOF &&
+</span><span class='line'>start on runlevel [12345]
+</span><span class='line'>stop on runlevel [^12345]
+</span><span class='line'>respawn
+</span><span class='line'>exec /command/svscanboot
+</span><span class='line'>EOF
+</span><span class='line'>/command/svscanboot &</span></code></pre></td></tr></table></div></figure>
+
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[CentOS6でchef-soloとknife-soloをセットアップ]]></title>
