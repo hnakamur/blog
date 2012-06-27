@@ -4,7 +4,7 @@
   <title><![CDATA[hnakamur's blog at github]]></title>
   <link href="http://hnakamur.github.com/blog/atom.xml" rel="self"/>
   <link href="http://hnakamur.github.com/blog/"/>
-  <updated>2012-06-21T20:10:50+09:00</updated>
+  <updated>2012-06-27T11:51:38+09:00</updated>
   <id>http://hnakamur.github.com/blog/</id>
   <author>
     <name><![CDATA[Hiroaki Nakamura]]></name>
@@ -12,6 +12,114 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[node-http-proxyでバーチャルホストで振り分けつつhttp/https->websocketリバースプロキシの実験]]></title>
+    <link href="http://hnakamur.github.com/blog/2012/06/27/node-http-proxydebatiyaruhosutodezhen-rifen-ketutuhttp-slash-https-%3Ewebsocketribasupurokisifalseshi-yan/"/>
+    <updated>2012-06-27T11:36:00+09:00</updated>
+    <id>http://hnakamur.github.com/blog/2012/06/27/node-http-proxydebatiyaruhosutodezhen-rifen-ketutuhttp-slash-https->websocketribasupurokisifalseshi-yan</id>
+    <content type="html"><![CDATA[<p>以下の2つのページを参考に、node-http-proxyでバーチャルホストで振り分けつつ
+http/httpsからwebsocketにリバースプロキシする実験をしてみました。
+環境はCentOS 6.2です。ソースは<a href="https://github.com/hnakamur/node-http-proxy-websocket-sample">hnakamur/node-http-proxy-websocket-sample</a>にあります。</p>
+
+<ul>
+<li><a href="http://d.hatena.ne.jp/replication/20111108/1320762287">５分くらいで出来るnode.js(0.6) + socket.io(0.8x)のサンプルプログラム - 大人になったら肺呼吸</a></li>
+<li><a href="https://github.com/nodejitsu/node-http-proxy">nodejitsu/node-http-proxy</a></li>
+</ul>
+
+
+<pre>
+                              +---------------+
+                       +------+ VHost1App/app |
+                       |      | port 3000     |
+ +--------------+      |      +---------------+
+-+ proxy-vhost  +------+
+ | port 80, 443 |      |      +---------------+
+ +--------------+      +------+ VHost2App/app |
+                              | port 3001     |
+                              +---------------+
+</pre>
+
+
+<p>上記の構成で、
+vhost1.example.comというホスト名でアクセスしたらVHost1/app、
+vhost2.example.comというホスト名でアクセスしたらVHost2/app
+にリバースプロキシするようにします。
+*.example.comというワイルドカードの自己証明書でproxy-vhostにてSSLを処理します。</p>
+
+<h2>実行手順</h2>
+
+<h3>自己証明書とパスフレーズ無しの秘密鍵を生成。</h3>
+
+<p>以下、ドメインexample.comの部分は適宜変更してください。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>openssl req -new -newkey rsa:2048 -x509 -nodes -days 365 -set_serial 0 \
+</span><span class='line'>  -subj '/C=JP/ST=Kanagawa/L=Yokohama City/CN=*.example.com' \
+</span><span class='line'>  -out /etc/pki/tls/certs/wildcard.example.com.crt \
+</span><span class='line'>  -keyout /etc/pki/tls/private/wildcard.example.com.key</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>nodeモジュールインストール</h3>
+
+<p>私の環境では/usr/local/node-v0.6.19にnode.jsをインストールしているのでPATHを通してから実行します。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>export PATH=/usr/local/node-v0.6.19/bin:$PATH</span></code></pre></td></tr></table></div></figure>
+
+
+
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>npm install socket.io -g
+</span><span class='line'>npm install express@2.5.10 -g
+</span><span class='line'>npm install ejs -g
+</span><span class='line'>npm install http-proxy -g</span></code></pre></td></tr></table></div></figure>
+
+
+<p>なお、モジュールをグルーバルにインストールしているのは<a href="https://github.com/hnakamur/node-http-proxy-websocket-sample">hnakamur/node-http-proxy-websocket-sample</a>にモジュールを含めたくないからで、実際はローカルにインストールしても構いません。</p>
+
+<h3>サーバ起動</h3>
+
+<p>私の環境では/usr/local/node-v0.6.19にnode.jsをインストールしているのでNODE_PATHを通してから実行します。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>export NODE_PATH=/usr/local/node-v0.6.19/lib/node_modules</span></code></pre></td></tr></table></div></figure>
+
+
+
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>node VHost1App/app &
+</span><span class='line'>node VHost2App/app &
+</span><span class='line'>node proxy-vhost &</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>ローカルマシンの/etc/hostsに以下のエントリ追加</h3>
+
+<p>IPアドレスは実際のサーバに合わせて変更してください。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>192.0.2.2 vhost1.example.com vhost2.example.com</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>ブラウザでアクセス</h3>
+
+<p>https://vhost1.example.com/
+や
+https://vhost2.example.com/
+にアクセスします。自己証明書なのでエラーになりますが受け入れて進んでください。
+バーチャルホスト毎にそれぞれ内容が異なることを確認します。</p>
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[パスフレーズ無しの秘密鍵と自己証明書をコマンド一発で作る]]></title>

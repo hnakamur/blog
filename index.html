@@ -9,10 +9,9 @@
   <meta name="author" content="Hiroaki Nakamura">
 
   
-  <meta name="description" content="以下はワイルドカード証明書の例です。適宜変更して使います。 1
-2
-3
-openssl req -new -newkey rsa:2048 -x509 -nodes -days 365 -set_serial 0 \ -subj '/C=JP/ST=Kanagawa/L=Yokohama City &hellip;">
+  <meta name="description" content="以下の2つのページを参考に、node-http-proxyでバーチャルホストで振り分けつつ
+http/httpsからwebsocketにリバースプロキシする実験をしてみました。
+環境はCentOS 6.2です。ソースはhnakamur/node-http-proxy-websocket- &hellip;">
   
 
   <!-- http://t.co/dKP3o1e -->
@@ -67,6 +66,141 @@ openssl req -new -newkey rsa:2048 -x509 -nodes -days 365 -set_serial 0 \ -subj '
     <div id="content">
       <div class="blog-index">
   
+  
+  
+    <article>
+      
+  <header>
+    
+      <h1 class="entry-title"><a href="/blog/2012/06/27/node-http-proxydebatiyaruhosutodezhen-rifen-ketutuhttp-slash-https-%3Ewebsocketribasupurokisifalseshi-yan/">node-http-proxyでバーチャルホストで振り分けつつhttp/https->websocketリバースプロキシの実験</a></h1>
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-06-27T11:36:00+09:00" pubdate data-updated="true">2012-06-27</time>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p>以下の2つのページを参考に、node-http-proxyでバーチャルホストで振り分けつつ
+http/httpsからwebsocketにリバースプロキシする実験をしてみました。
+環境はCentOS 6.2です。ソースは<a href="https://github.com/hnakamur/node-http-proxy-websocket-sample">hnakamur/node-http-proxy-websocket-sample</a>にあります。</p>
+
+<ul>
+<li><a href="http://d.hatena.ne.jp/replication/20111108/1320762287">５分くらいで出来るnode.js(0.6) + socket.io(0.8x)のサンプルプログラム - 大人になったら肺呼吸</a></li>
+<li><a href="https://github.com/nodejitsu/node-http-proxy">nodejitsu/node-http-proxy</a></li>
+</ul>
+
+
+<pre>
+                              +---------------+
+                       +------+ VHost1App/app |
+                       |      | port 3000     |
+ +--------------+      |      +---------------+
+-+ proxy-vhost  +------+
+ | port 80, 443 |      |      +---------------+
+ +--------------+      +------+ VHost2App/app |
+                              | port 3001     |
+                              +---------------+
+</pre>
+
+
+<p>上記の構成で、
+vhost1.example.comというホスト名でアクセスしたらVHost1/app、
+vhost2.example.comというホスト名でアクセスしたらVHost2/app
+にリバースプロキシするようにします。
+*.example.comというワイルドカードの自己証明書でproxy-vhostにてSSLを処理します。</p>
+
+<h2>実行手順</h2>
+
+<h3>自己証明書とパスフレーズ無しの秘密鍵を生成。</h3>
+
+<p>以下、ドメインexample.comの部分は適宜変更してください。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>openssl req -new -newkey rsa:2048 -x509 -nodes -days 365 -set_serial 0 \
+</span><span class='line'>  -subj '/C=JP/ST=Kanagawa/L=Yokohama City/CN=*.example.com' \
+</span><span class='line'>  -out /etc/pki/tls/certs/wildcard.example.com.crt \
+</span><span class='line'>  -keyout /etc/pki/tls/private/wildcard.example.com.key</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>nodeモジュールインストール</h3>
+
+<p>私の環境では/usr/local/node-v0.6.19にnode.jsをインストールしているのでPATHを通してから実行します。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>export PATH=/usr/local/node-v0.6.19/bin:$PATH</span></code></pre></td></tr></table></div></figure>
+
+
+
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>npm install socket.io -g
+</span><span class='line'>npm install express@2.5.10 -g
+</span><span class='line'>npm install ejs -g
+</span><span class='line'>npm install http-proxy -g</span></code></pre></td></tr></table></div></figure>
+
+
+<p>なお、モジュールをグルーバルにインストールしているのは<a href="https://github.com/hnakamur/node-http-proxy-websocket-sample">hnakamur/node-http-proxy-websocket-sample</a>にモジュールを含めたくないからで、実際はローカルにインストールしても構いません。</p>
+
+<h3>サーバ起動</h3>
+
+<p>私の環境では/usr/local/node-v0.6.19にnode.jsをインストールしているのでNODE_PATHを通してから実行します。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>export NODE_PATH=/usr/local/node-v0.6.19/lib/node_modules</span></code></pre></td></tr></table></div></figure>
+
+
+
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>node VHost1App/app &
+</span><span class='line'>node VHost2App/app &
+</span><span class='line'>node proxy-vhost &</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>ローカルマシンの/etc/hostsに以下のエントリ追加</h3>
+
+<p>IPアドレスは実際のサーバに合わせて変更してください。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>192.0.2.2 vhost1.example.com vhost2.example.com</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>ブラウザでアクセス</h3>
+
+<p>https://vhost1.example.com/
+や
+https://vhost2.example.com/
+にアクセスします。自己証明書なのでエラーになりますが受け入れて進んでください。
+バーチャルホスト毎にそれぞれ内容が異なることを確認します。</p>
+</div>
+  
+  
+
+
+    </article>
   
   
     <article>
@@ -1089,146 +1223,6 @@ visudoで起動して:e /etc/sudoers.d/hnakamurと切り替えて編集して:wq
 
     </article>
   
-  
-    <article>
-      
-  <header>
-    
-      <h1 class="entry-title"><a href="/blog/2012/03/03/delete-on-close-using-mod-xsendfile/">mod_xsendfileでダウンロード後にサーバ上のファイル自動削除</a></h1>
-    
-    
-      <p class="meta">
-        
-
-
-
-
-
-
-
-
-  
-
-
-<time datetime="2012-03-03T20:26:00+09:00" pubdate data-updated="true">2012-03-03</time>
-        
-      </p>
-    
-  </header>
-
-
-  <div class="entry-content"><p><a href="https://tn123.org/mod_xsendfile/">mod_xsendfile</a>のホームページ上でリリースされているバージョン0.12には含まれていませんが、<a href="https://github.com/nmaier/mod_xsendfile/commit/f6b853ce0e555b61f83f928d9f927349346018b4">Githubのレポジトリのソース</a>ではX-Sendfile-Temporaryという拡張ヘッダに対応しています。</p>
-
-<p>Scientific Linux 6.1で実験しました。</p>
-
-<h2>mod_xsendfileのインストール</h2>
-
-<p>以下の手順でインストールします。</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-</pre></td><td class='code'><pre><code class='bash'><span class='line'>yum install -y httpd-devel
-</span><span class='line'>git clone https://github.com/nmaier/mod_xsendfile.git
-</span><span class='line'><span class="nb">cd </span>mod_xsendfile
-</span><span class='line'>apxs -cia mod_xsendfile.c
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>実験スクリプト用にApacheの設定ファイルを作成します。</p>
-
-<figure class='code'><figcaption><span>/etc/httpd/conf.d/xsendfile_test.conf</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-</pre></td><td class='code'><pre><code class='text'><span class='line'>&lt;Directory /var/www/html/xsendfile&gt;
-</span><span class='line'>    XSendFilePath /var/www/html/xsendfile/data AllowFileDelete
-</span><span class='line'>    &lt;Files out.php&gt;
-</span><span class='line'>      XSendFile on
-</span><span class='line'>    &lt;/Files&gt;
-</span><span class='line'>&lt;/Directory&gt;
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>Apache再起動。</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class='bash'><span class='line'>/etc/init.d/httpd graceful
-</span></code></pre></td></tr></table></div></figure>
-
-
-<h2>実験</h2>
-
-<p>実験スクリプト用のフォルダを作ります。</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-</pre></td><td class='code'><pre><code class='bash'><span class='line'>mkdir /var/www/html/xsendfile/data/
-</span><span class='line'>chown -R apache:apache /var/www/html/xsendfile
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>実験用のPHPスクリプトを作成します。</p>
-
-<figure class='code'><figcaption><span>/var/www/html/xsendfile/out.php</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-</pre></td><td class='code'><pre><code class='php'><span class='line'><span class="cp">&lt;?php</span>
-</span><span class='line'><span class="nv">$path</span> <span class="o">=</span> <span class="s1">&#39;/var/www/html/xsendfile/data/file1.txt&#39;</span><span class="p">;</span>
-</span><span class='line'><span class="nv">$fname</span> <span class="o">=</span> <span class="nb">basename</span><span class="p">(</span><span class="nv">$path</span><span class="p">);</span>
-</span><span class='line'><span class="nb">header</span><span class="p">(</span><span class="s2">&quot;X-Sendfile-Temporary: </span><span class="si">$path</span><span class="s2">&quot;</span><span class="p">);</span>
-</span><span class='line'><span class="nb">header</span><span class="p">(</span><span class="s2">&quot;Content-Type: application/octet-stream&quot;</span><span class="p">);</span>
-</span><span class='line'><span class="nb">header</span><span class="p">(</span><span class="s2">&quot;Content-Disposition: attachment; filename=</span><span class="se">\&quot;</span><span class="si">$fname</span><span class="se">\&quot;</span><span class="s2">&quot;</span><span class="p">);</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>実験用のダウンロードファイルを作成します。</p>
-
-<figure class='code'><figcaption><span>/var/www/html/xsendfile/data/file1.txt</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class='text'><span class='line'>Hello, X-Sendfile-Temporary!
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>これで、ブラウザで http://your_host_here/xsendfile/out.php を開くとダウンロード後にサーバ上のファイルが削除されました。</p>
-
-<h2>今回のはまりポイント</h2>
-
-<figure class='code'><figcaption><span>/etc/httpd/conf.d/xsendfile_test.conf</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-</pre></td><td class='code'><pre><code class='text'><span class='line'>&lt;Directory /var/www/html/xsendfile&gt;
-</span><span class='line'>    XSendFilePath /var/www/html/xsendfile/data
-</span><span class='line'>    &lt;Files out.php&gt;
-</span><span class='line'>      XSendFile on
-</span><span class='line'>    &lt;/Files&gt;
-</span><span class='line'>&lt;/Directory&gt;
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>のようにAllowFileDeleteを忘れていたら、out.phpを開いた時に404 Not Foundエラーになり、Apacheのエラーログには以下のようなエラーが出ていました。</p>
-
-<figure class='code'><figcaption><span>/var/log/httpd/error_log</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class='text'><span class='line'>[Sat Mar 03 15:57:07 2012] [error] [client 192.168.11.3] (14)Bad address: xsendfile: cannot open file: (null)
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>AllowFileDeleteをつければOKでした。</p>
-</div>
-  
-  
-
-
-    </article>
-  
   <div class="pagination">
     
       <a class="prev" href="/blog/blog/page/2/">&larr; Older</a>
@@ -1244,6 +1238,10 @@ visudoで起動して:e /etc/sudoers.d/hnakamurと切り替えて編集して:wq
   <ul id="recent_posts">
     
       <li class="post">
+        <a href="/blog/2012/06/27/node-http-proxydebatiyaruhosutodezhen-rifen-ketutuhttp-slash-https-%3Ewebsocketribasupurokisifalseshi-yan/">node-http-proxyでバーチャルホストで振り分けつつhttp/https->websocketリバースプロキシの実験</a>
+      </li>
+    
+      <li class="post">
         <a href="/blog/2012/06/21/how-to-create-self-signed-certificate/">パスフレーズ無しの秘密鍵と自己証明書をコマンド一発で作る</a>
       </li>
     
@@ -1257,10 +1255,6 @@ visudoで起動して:e /etc/sudoers.d/hnakamurと切り替えて編集して:wq
     
       <li class="post">
         <a href="/blog/2012/05/04/setup-chef-solo-and-knife-solo-on-centos6/">CentOS6でchef-soloとknife-soloをセットアップ</a>
-      </li>
-    
-      <li class="post">
-        <a href="/blog/2012/05/04/use-slash-etc-slash-sudoers-dot-d-slash/">/etc/sudoers.d/を使う→やっぱり止め</a>
       </li>
     
   </ul>

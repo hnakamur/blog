@@ -5,11 +5,13 @@
 <!--[if (gt IE 8)|(gt IEMobile 7)|!(IEMobile)|!(IE)]><!--><html class="no-js" lang="en"><!--<![endif]-->
 <head>
   <meta charset="utf-8">
-  <title>daemontoolsの使い方 - hnakamur's blog at github</title>
+  <title>node-http-proxyでバーチャルホストで振り分けつつhttp/https->websocketリバースプロキシの実験 - hnakamur's blog at github</title>
   <meta name="author" content="Hiroaki Nakamura">
 
   
-  <meta name="description" content="daemontoolsを使う | Netsphere Laboratoriesを参考にしました。ありがとうございます。 私的ルール 無効化したサービスは/service/.disabled/に移動 /service/以下に.で始まるフォルダ名にすると無視されるということですが、 &hellip;">
+  <meta name="description" content="以下の2つのページを参考に、node-http-proxyでバーチャルホストで振り分けつつ
+http/httpsからwebsocketにリバースプロキシする実験をしてみました。
+環境はCentOS 6.2です。ソースはhnakamur/node-http-proxy-websocket- &hellip;">
   
 
   <!-- http://t.co/dKP3o1e -->
@@ -18,7 +20,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   
-  <link rel="canonical" href="http://hnakamur.github.com/blog/2012/06/21/how-to-use-daemontools">
+  <link rel="canonical" href="http://hnakamur.github.com/blog/2012/06/27/node-http-proxydebatiyaruhosutodezhen-rifen-ketutuhttp-slash-https-%3Ewebsocketribasupurokisifalseshi-yan">
   <link href="/blog/favicon.png" rel="icon">
   <link href="/blog/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
   <script src="/blog/javascripts/modernizr-2.0.js"></script>
@@ -67,7 +69,7 @@
   
   <header>
     
-      <h1 class="entry-title">daemontoolsの使い方</h1>
+      <h1 class="entry-title">node-http-proxyでバーチャルホストで振り分けつつhttp/https->websocketリバースプロキシの実験</h1>
     
     
       <p class="meta">
@@ -83,115 +85,113 @@
   
 
 
-<time datetime="2012-06-21T17:48:00+09:00" pubdate data-updated="true">2012-06-21</time>
+<time datetime="2012-06-27T11:36:00+09:00" pubdate data-updated="true">2012-06-27</time>
         
       </p>
     
   </header>
 
 
-<div class="entry-content"><p><a href="http://www.nslabs.jp/daemontools.rhtml">daemontoolsを使う | Netsphere Laboratories</a>を参考にしました。ありがとうございます。</p>
+<div class="entry-content"><p>以下の2つのページを参考に、node-http-proxyでバーチャルホストで振り分けつつ
+http/httpsからwebsocketにリバースプロキシする実験をしてみました。
+環境はCentOS 6.2です。ソースは<a href="https://github.com/hnakamur/node-http-proxy-websocket-sample">hnakamur/node-http-proxy-websocket-sample</a>にあります。</p>
 
-<h2>私的ルール</h2>
+<ul>
+<li><a href="http://d.hatena.ne.jp/replication/20111108/1320762287">５分くらいで出来るnode.js(0.6) + socket.io(0.8x)のサンプルプログラム - 大人になったら肺呼吸</a></li>
+<li><a href="https://github.com/nodejitsu/node-http-proxy">nodejitsu/node-http-proxy</a></li>
+</ul>
 
-<h3>無効化したサービスは/service/.disabled/に移動</h3>
 
-<p>/service/以下に.で始まるフォルダ名にすると無視されるということですが、my_service_nameを.my_service_nameと変えるのはタイプが面倒なので、/service/.disabledというフォルダを作って無効化するときはその下に移動することにしました。</p>
+<pre>
+                              +---------------+
+                       +------+ VHost1App/app |
+                       |      | port 3000     |
+ +--------------+      |      +---------------+
+-+ proxy-vhost  +------+
+ | port 80, 443 |      |      +---------------+
+ +--------------+      +------+ VHost2App/app |
+                              | port 3001     |
+                              +---------------+
+</pre>
 
-<h3>作業するときは/serviceに移動</h3>
 
-<p>svcやsvstatにフルパスを指定しても動くのですが、/service/と/service/.disabled間で移動するときにタイプ量が増えるので、最初にcd /serviceしてから作業することにしました。</p>
+<p>上記の構成で、
+vhost1.example.comというホスト名でアクセスしたらVHost1/app、
+vhost2.example.comというホスト名でアクセスしたらVHost2/app
+にリバースプロキシするようにします。
+*.example.comというワイルドカードの自己証明書でproxy-vhostにてSSLを処理します。</p>
 
-<h2>手順</h2>
+<h2>実行手順</h2>
 
-<h3>サービス追加</h3>
+<h3>自己証明書とパスフレーズ無しの秘密鍵を生成。</h3>
 
-<p>node-virtualhost1.example.comという名前でサービスを追加する例。
-exec -cの後はサービスに応じて変更します。</p>
+<p>以下、ドメインexample.comの部分は適宜変更してください。</p>
 
 <figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
 <span class='line-number'>2</span>
 <span class='line-number'>3</span>
 <span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>cd /service
-</span><span class='line'>mkdir -p .disabled/node-virtualhost1.example.com
-</span><span class='line'>cat &lt;&lt;EOF &gt; .disabled/node-virtualhost1.example.com/run
-</span><span class='line'>#!/bin/sh
-</span><span class='line'>exec -c /usr/local/node-v0.6.19/bin/node /var/www/app/virtualhost1.example.com/hello.js
-</span><span class='line'>EOF
-</span><span class='line'>chmod 755 .disabled/node-virtualhost1.example.com/run</span></code></pre></td></tr></table></div></figure>
+</pre></td><td class='code'><pre><code class=''><span class='line'>openssl req -new -newkey rsa:2048 -x509 -nodes -days 365 -set_serial 0 \
+</span><span class='line'>  -subj '/C=JP/ST=Kanagawa/L=Yokohama City/CN=*.example.com' \
+</span><span class='line'>  -out /etc/pki/tls/certs/wildcard.example.com.crt \
+</span><span class='line'>  -keyout /etc/pki/tls/private/wildcard.example.com.key</span></code></pre></td></tr></table></div></figure>
 
 
-<h3>サービス有効化</h3>
+<h3>nodeモジュールインストール</h3>
+
+<p>私の環境では/usr/local/node-v0.6.19にnode.jsをインストールしているのでPATHを通してから実行します。</p>
 
 <figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>cd /service
-</span><span class='line'>mv .disabled/node-virtualhost1.example.com .</span></code></pre></td></tr></table></div></figure>
+</pre></td><td class='code'><pre><code class=''><span class='line'>export PATH=/usr/local/node-v0.6.19/bin:$PATH</span></code></pre></td></tr></table></div></figure>
 
 
-<h4>状態確認</h4>
 
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'># svstat node-virtualhost1.example.com/
-</span><span class='line'>node-virtualhost1.example.com/: up (pid 1493) 3 seconds</span></code></pre></td></tr></table></div></figure>
-
-
-<h3>サービス無効化</h3>
 
 <figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
 <span class='line-number'>2</span>
 <span class='line-number'>3</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>cd /service
-</span><span class='line'>mv node-virtualhost1.example.com .disabled/
-</span><span class='line'>svc -tx .disabled/node-virtualhost1.example.com</span></code></pre></td></tr></table></div></figure>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>npm install socket.io -g
+</span><span class='line'>npm install express@2.5.10 -g
+</span><span class='line'>npm install ejs -g
+</span><span class='line'>npm install http-proxy -g</span></code></pre></td></tr></table></div></figure>
 
 
-<h4>状態確認</h4>
+<p>なお、モジュールをグルーバルにインストールしているのは<a href="https://github.com/hnakamur/node-http-proxy-websocket-sample">hnakamur/node-http-proxy-websocket-sample</a>にモジュールを含めたくないからで、実際はローカルにインストールしても構いません。</p>
+
+<h3>サーバ起動</h3>
+
+<p>私の環境では/usr/local/node-v0.6.19にnode.jsをインストールしているのでNODE_PATHを通してから実行します。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>export NODE_PATH=/usr/local/node-v0.6.19/lib/node_modules</span></code></pre></td></tr></table></div></figure>
+
+
+
 
 <figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
 <span class='line-number'>2</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'># svstat .disabled/node-virtualhost1.example.com/
-</span><span class='line'>.disabled/node-virtualhost1.example.com/: supervise not running</span></code></pre></td></tr></table></div></figure>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>node VHost1App/app &
+</span><span class='line'>node VHost2App/app &
+</span><span class='line'>node proxy-vhost &</span></code></pre></td></tr></table></div></figure>
 
 
-<h3>サービス一時停止(Down)</h3>
+<h3>ローカルマシンの/etc/hostsに以下のエントリ追加</h3>
 
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>cd /service
-</span><span class='line'>svc -d node-virtualhost1.example.com</span></code></pre></td></tr></table></div></figure>
-
-
-<h4>状態確認</h4>
+<p>IPアドレスは実際のサーバに合わせて変更してください。</p>
 
 <figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'># svstat node-virtualhost1.example.com/
-</span><span class='line'>node-virtualhost1.example.com/: down 1 seconds, normally up</span></code></pre></td></tr></table></div></figure>
+</pre></td><td class='code'><pre><code class=''><span class='line'>192.0.2.2 vhost1.example.com vhost2.example.com</span></code></pre></td></tr></table></div></figure>
 
 
-<h3>サービス一時停止からの再開(Up)</h3>
+<h3>ブラウザでアクセス</h3>
 
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>cd /service
-</span><span class='line'>svc -u node-virtualhost1.example.com</span></code></pre></td></tr></table></div></figure>
-
-
-<h4>状態確認</h4>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'># svstat node-virtualhost1.example.com/
-</span><span class='line'>node-virtualhost1.example.com/: up (pid 1512) 1 seconds</span></code></pre></td></tr></table></div></figure>
-
-
-
+<p>https://vhost1.example.com/
+や
+https://vhost2.example.com/
+にアクセスします。自己証明書なのでエラーになりますが受け入れて進んでください。
+バーチャルホスト毎にそれぞれ内容が異なることを確認します。</p>
 </div>
 
 
@@ -214,12 +214,12 @@ exec -cの後はサービスに応じて変更します。</p>
   
 
 
-<time datetime="2012-06-21T17:48:00+09:00" pubdate data-updated="true">2012-06-21</time>
+<time datetime="2012-06-27T11:36:00+09:00" pubdate data-updated="true">2012-06-27</time>
       
 
 <span class="categories">
   
-    <a class='category' href='/blog/categories/centos/'>CentOS</a>, <a class='category' href='/blog/categories/daemontools/'>daemontools</a>
+    <a class='category' href='/blog/categories/node-js/'>node.js</a>, <a class='category' href='/blog/categories/proxy/'>proxy</a>, <a class='category' href='/blog/categories/websocket/'>websocket</a>
   
 </span>
 
@@ -228,7 +228,7 @@ exec -cの後はサービスに応じて変更します。</p>
     
       <div class="sharing">
   
-  <a href="http://twitter.com/share" class="twitter-share-button" data-url="http://hnakamur.github.com/blog/2012/06/21/how-to-use-daemontools/" data-via="hnakamur2" data-counturl="http://hnakamur.github.com/blog/2012/06/21/how-to-use-daemontools/" >Tweet</a>
+  <a href="http://twitter.com/share" class="twitter-share-button" data-url="http://hnakamur.github.com/blog/2012/06/27/node-http-proxydebatiyaruhosutodezhen-rifen-ketutuhttp-slash-https-%3Ewebsocketribasupurokisifalseshi-yan/" data-via="hnakamur2" data-counturl="http://hnakamur.github.com/blog/2012/06/27/node-http-proxydebatiyaruhosutodezhen-rifen-ketutuhttp-slash-https-%3Ewebsocketribasupurokisifalseshi-yan/" >Tweet</a>
   
   
   
@@ -237,10 +237,8 @@ exec -cの後はサービスに応じて変更します。</p>
     
     <p class="meta">
       
-        <a class="basic-alignment left" href="/blog/2012/06/21/how-to-install-daemontools/" title="Previous Post: daemontoolsのインストール手順">&laquo; daemontoolsのインストール手順</a>
+        <a class="basic-alignment left" href="/blog/2012/06/21/how-to-create-self-signed-certificate/" title="Previous Post: パスフレーズ無しの秘密鍵と自己証明書をコマンド一発で作る">&laquo; パスフレーズ無しの秘密鍵と自己証明書をコマンド一発で作る</a>
       
-      
-        <a class="basic-alignment right" href="/blog/2012/06/21/how-to-create-self-signed-certificate/" title="Next Post: パスフレーズ無しの秘密鍵と自己証明書をコマンド一発で作る">パスフレーズ無しの秘密鍵と自己証明書をコマンド一発で作る &raquo;</a>
       
     </p>
   </footer>
