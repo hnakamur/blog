@@ -4,7 +4,7 @@
   <title><![CDATA[Category: node.js | hnakamur's blog at github]]></title>
   <link href="http://hnakamur.github.com/blog/categories/node-js/atom.xml" rel="self"/>
   <link href="http://hnakamur.github.com/blog/"/>
-  <updated>2012-06-27T11:51:38+09:00</updated>
+  <updated>2012-06-27T14:38:56+09:00</updated>
   <id>http://hnakamur.github.com/blog/</id>
   <author>
     <name><![CDATA[Hiroaki Nakamura]]></name>
@@ -12,6 +12,99 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[node.jsのfs.watch()で設定ファイルが更新されたらリロード]]></title>
+    <link href="http://hnakamur.github.com/blog/2012/06/27/node-dot-jsfalsefs-dot-watch-deshe-ding-huairugageng-xin-saretararirodo/"/>
+    <updated>2012-06-27T14:25:00+09:00</updated>
+    <id>http://hnakamur.github.com/blog/2012/06/27/node-dot-jsfalsefs-dot-watch-deshe-ding-huairugageng-xin-saretararirodo</id>
+    <content type="html"><![CDATA[<p><a href="http://stackoverflow.com/questions/1972242/auto-reload-of-files-in-node-js">javascript - Auto-reload of files in Node.js - Stack Overflow</a>によると、モジュールをリロードするには<a href="https://github.com/isaacs/node-supervisor">isaacs/node-supervisor</a>がよさそうです。</p>
+
+<p>が、今回は設定ファイルのリロードなのでfs.watch(filename, [options], [listener]) で十分ということで試してみました。
+<a href="http://nodejs.org/api/fs.html#fs_fs_watch_filename_options_listener">File System Node.js v0.8.0 Manual &amp; Documentation</a>
+によると環境によっては使えないそうなので注意が必要です。</p>
+
+<p>CentOS 6.2では使えました。</p>
+
+<p>watch.js
+```
+var fs = require('fs');
+fs.watch('router.json', function(ev, filename) {
+  if (filename) {</p>
+
+<pre><code>fs.readFile(filename, function(err, data) {
+  if (err) throw err;
+  var router = JSON.parse(data);
+  console.log(router);
+});
+</code></pre>
+
+<p>  }
+});
+```</p>
+
+<p>router.json
+<code>
+{
+  "vhost1.example.com": "127.0.0.1:3000",
+  "vhost2.example.com": "127.0.0.1:3001",
+  "vhost3.example.com": "127.0.0.1:3002",
+  "vhost4.example.com": "127.0.0.1:3003"
+}
+</code></p>
+
+<p><code>
+node watch
+</code>
+で起動して
+<code>
+touch router.json
+</code>
+を実行すると
+<code>
+{ 'vhost1.example.com': '127.0.0.1:3000',
+  'vhost2.example.com': '127.0.0.1:3001',
+  'vhost3.example.com': '127.0.0.1:3002',
+  'vhost4.example.com': '127.0.0.1:3003' }
+</code>
+と出力されます。</p>
+
+<p>ただし、vimでrouter.jsonを開いて:wで保存すると下記のエラーでnodeが異常終了してしまいました。
+```
+/var/www/app/watch-sample/watch.js:6</p>
+
+<pre><code>  if (err) throw err;
+                 ^
+</code></pre>
+
+<p>Error: ENOENT, open 'router.json'
+```</p>
+
+<p><code>
+node watch
+</code>
+再起動後、vimでrouter.jsonを開いて:wqで保存して終了すると異常終了はしませんでしたが、下記のようにコールバックが4回も呼び出されてしまいました。
+<code>
+{ 'vhost1.example.com': '127.0.0.1:3000',
+  'vhost2.example.com': '127.0.0.1:3001',
+  'vhost3.example.com': '127.0.0.1:3002',
+  'vhost4.example.com': '127.0.0.1:3003' }
+{ 'vhost1.example.com': '127.0.0.1:3000',
+  'vhost2.example.com': '127.0.0.1:3001',
+  'vhost3.example.com': '127.0.0.1:3002',
+  'vhost4.example.com': '127.0.0.1:3003' }
+{ 'vhost1.example.com': '127.0.0.1:3000',
+  'vhost2.example.com': '127.0.0.1:3001',
+  'vhost3.example.com': '127.0.0.1:3002',
+  'vhost4.example.com': '127.0.0.1:3003' }
+{ 'vhost1.example.com': '127.0.0.1:3000',
+  'vhost2.example.com': '127.0.0.1:3001',
+  'vhost3.example.com': '127.0.0.1:3002',
+  'vhost4.example.com': '127.0.0.1:3003' }
+</code>
+実用するには前回の設定内容と比較して変わっている場合だけ処理するとか、設定ファイルを直接見るのではなく更新完了通知用の専用ファイルを用意してそちらをtouchするとか、何らかの対処が必要そうです。</p>
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[node-http-proxyでバーチャルホストで振り分けつつhttp/https->websocketリバースプロキシの実験]]></title>
