@@ -9,7 +9,8 @@
   <meta name="author" content="Hiroaki Nakamura">
 
   
-  <meta name="description" content="背景 私の自宅ではブロードバンドルータがグローバルIPを持っていて、DNSで自分のドメイン(以下ではexample.comとして説明します)のIPアドレスをそこにしています。ルータからLAN内のLinuxサーバ(CentOS 6.x)へはNATで繋いでいます。 外出時はこれでよいのですが、 &hellip;">
+  <meta name="description" content="現象 ApacheからAmazon S3にmod_proxyでリクエストを送ったら、ステータスが400になり、
+&#8220;Either the Signature query string parameter or the Authorization header should be &hellip;">
   
 
   <!-- http://t.co/dKP3o1e -->
@@ -64,6 +65,93 @@
     <div id="content">
       <div class="blog-index">
   
+  
+  
+    <article>
+      
+  <header>
+    
+      <h1 class="entry-title"><a href="/blog/2013/02/09/s3-error-either-the-signature-query-string-parameter-or-the-authorization-header-should-be-specified/">S3 error: Either the Signature query string parameter or the Authorization header should be specified</a></h1>
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2013-02-09T01:48:00+09:00" pubdate data-updated="true">2013-02-09</time>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><h2>現象</h2>
+
+<p>ApacheからAmazon S3にmod_proxyでリクエストを送ったら、ステータスが400になり、
+&#8220;Either the Signature query string parameter or the Authorization header should be specified, not both&#8221;というエラーメッセージが出てハマったときのメモです。</p>
+
+<p>開発中で、Apacheの設定でBASIC認証をかけていました。</p>
+
+<p>一方、S3では
+<a href="http://docs.aws.amazon.com/AmazonS3/latest/dev/RESTAuthentication.html#ConstructingTheAuthenticationHeader">Signing and Authenticating REST Requests - Amazon Simple Storage Service</a>
+にあるように</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>Authorization: AWS AWSAccessKeyId:Signature</span></code></pre></td></tr></table></div></figure>
+
+
+<p>というリクエストヘッダで認証情報を渡すか、
+<a href="http://docs.aws.amazon.com/AmazonS3/latest/dev/S3_QSAuth.html">Using Query String Authentication - Amazon Simple Storage Service</a>
+にあるように</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>http://quotes.s3.amazonaws.com/nelson?AWSAccessKeyId=AKIAIOSFODNN7EXAMPLE&Expires=1177363698&Signature=vjSAMPLENmGa%2ByT272YEAiv4%3D</span></code></pre></td></tr></table></div></figure>
+
+
+<p>のようなクエリストリングで認証情報を渡すことができます。</p>
+
+<p>ですが、BASIC認証を使っていると、
+<a href="http://ja.wikipedia.org/wiki/Basic%E8%AA%8D%E8%A8%BC">Basic認証 - Wikipedia</a>
+にあるように</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>Authorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==</span></code></pre></td></tr></table></div></figure>
+
+
+<p>というようなヘッダがついてしまうため、S3用の認証情報をクエリストリングで指定していると上記のようなエラーになるというわけでした。</p>
+
+<h2>解決法</h2>
+
+<p>RequetHeader unset ヘッダ名で削除すればOKでした。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>&lt;Location /some/path&gt;
+</span><span class='line'>    RequestHeader unset Authorization
+</span><span class='line'>&lt;/Location&gt;
+</span><span class='line'>ProxyRequests Off
+</span><span class='line'>ProxyPassMatch ^/some/path/(.*)$ http://yourdomain.s3-ap-northeast-1.amazonaws.com/$1</span></code></pre></td></tr></table></div></figure>
+
+
+<p>注意するべきはLocationでS3にプロキシする範囲に限定する必要があるということです。Location無しだとS3にプロキシしないURLについてもAuthorizationヘッダが削除され、BASIC認証のログインダイアログが延々と出続けてしまいました。</p>
+</div>
+  
+  
+
+
+    </article>
   
   
     <article>
@@ -1438,268 +1526,6 @@ visudoで起動して:e /etc/sudoers.d/hnakamurと切り替えて編集して:wq
 
     </article>
   
-  
-    <article>
-      
-  <header>
-    
-      <h1 class="entry-title"><a href="/blog/2012/05/04/fib-39-benchmark-in-lua/">lua, V8, ruby, mrubyでfib(39)の実行時間比較</a></h1>
-    
-    
-      <p class="meta">
-        
-
-
-
-
-
-
-
-
-  
-
-
-<time datetime="2012-05-04T11:06:00+09:00" pubdate data-updated="true">2012-05-04</time>
-        
-      </p>
-    
-  </header>
-
-
-  <div class="entry-content"><p><a href="http://www.quredo.net/2012/04/mruby-%E8%BB%BD%E9%87%8Fruby-%E3%82%BD%E3%83%BC%E3%82%B9%E5%85%AC%E9%96%8B/">mruby (軽量ruby) ソース公開 | quredo-style</a>を見て、自分の環境でlua, luajit, V8, ruby, mrubyで試してみた。</p>
-
-<p>テスト環境</p>
-
-<ul>
-<li>Model: MacBook Air 13-inch, Mid 2011</li>
-<li>CPU: 1.7GHz Intel Core i5</li>
-<li>RAM: 4GB 1333MHz DDR3</li>
-<li>OS: Mac OS X Lion 10.7.3</li>
-</ul>
-
-
-<h2>lua</h2>
-
-<p>fib.lua</p>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>function fib(n)
-</span><span class='line'>  if n &lt; 2 then
-</span><span class='line'>    return n
-</span><span class='line'>  end
-</span><span class='line'>  return fib(n-2) + fib(n-1)
-</span><span class='line'>end
-</span><span class='line'>
-</span><span class='line'>print(fib(39))</span></code></pre></td></tr></table></div></figure>
-
-
-
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>$ lua -v
-</span><span class='line'>Lua 5.1.4  Copyright (C) 1994-2008 Lua.org, PUC-Rio
-</span><span class='line'>$ time lua fib.lua
-</span><span class='line'>63245986
-</span><span class='line'>
-</span><span class='line'>real  0m21.368s
-</span><span class='line'>user  0m21.345s
-</span><span class='line'>sys   0m0.016s</span></code></pre></td></tr></table></div></figure>
-
-
-
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>$ ./lua -v
-</span><span class='line'>Lua 5.2.0  Copyright (C) 1994-2011 Lua.org, PUC-Rio
-</span><span class='line'>$ time ./lua fib.lua
-</span><span class='line'>63245986
-</span><span class='line'>
-</span><span class='line'>real  0m19.603s
-</span><span class='line'>user  0m19.585s
-</span><span class='line'>sys   0m0.012s</span></code></pre></td></tr></table></div></figure>
-
-
-
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-<span class='line-number'>9</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>$ ./luajit -v
-</span><span class='line'>Lua 5.1.5  Copyright (C) 1994-2012 Lua.org, PUC-Rio
-</span><span class='line'>LuaJIT 1.1.8  Copyright (C) 2005-2012 Mike Pall, http://luajit.org/
-</span><span class='line'>$ time ./luajit fib.lua
-</span><span class='line'>63245986
-</span><span class='line'>
-</span><span class='line'>real  0m4.302s
-</span><span class='line'>user  0m4.292s
-</span><span class='line'>sys   0m0.006s</span></code></pre></td></tr></table></div></figure>
-
-
-
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>$ luajit -v
-</span><span class='line'>LuaJIT 2.0.0-beta9 -- Copyright (C) 2005-2011 Mike Pall. http://luajit.org/
-</span><span class='line'>$ time luajit fib.lua
-</span><span class='line'>63245986
-</span><span class='line'>
-</span><span class='line'>real  0m1.299s
-</span><span class='line'>user  0m1.289s
-</span><span class='line'>sys   0m0.004s</span></code></pre></td></tr></table></div></figure>
-
-
-<h2>V8</h2>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>function fib(n) {
-</span><span class='line'>  if (n &lt; 2) return n;
-</span><span class='line'>  return fib(n-2) + fib(n-1);
-</span><span class='line'>}
-</span><span class='line'>
-</span><span class='line'>print(fib(39));</span></code></pre></td></tr></table></div></figure>
-
-
-
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-<span class='line-number'>9</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>$ v8
-</span><span class='line'>V8 version 3.9.24 [sample shell]
-</span><span class='line'>&gt; quit()
-</span><span class='line'>$ time v8 fib.js
-</span><span class='line'>63245986
-</span><span class='line'>
-</span><span class='line'>real  0m1.417s
-</span><span class='line'>user  0m1.407s
-</span><span class='line'>sys   0m0.013s</span></code></pre></td></tr></table></div></figure>
-
-
-<h2>ruby</h2>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>def fib n
-</span><span class='line'>  return n if n &lt; 2
-</span><span class='line'>  fib(n-2) + fib(n-1)
-</span><span class='line'>end
-</span><span class='line'>
-</span><span class='line'>puts fib(39)</span></code></pre></td></tr></table></div></figure>
-
-
-
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>$ rbenv version
-</span><span class='line'>1.8.7-p358 (set by /Users/hnakamur/.rbenv/version)
-</span><span class='line'>$ time ruby fib.rb
-</span><span class='line'>63245986
-</span><span class='line'>
-</span><span class='line'>real  1m47.227s
-</span><span class='line'>user  1m46.945s
-</span><span class='line'>sys   0m0.132s</span></code></pre></td></tr></table></div></figure>
-
-
-
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>$ rbenv version
-</span><span class='line'>1.9.3-p125 (set by /Users/hnakamur/.rbenv/version)
-</span><span class='line'>$ time ruby fib.rb
-</span><span class='line'>63245986
-</span><span class='line'>
-</span><span class='line'>real  0m16.504s
-</span><span class='line'>user  0m16.374s
-</span><span class='line'>sys   0m0.051s</span></code></pre></td></tr></table></div></figure>
-
-
-
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>$ time bin/mruby fib.rb 
-</span><span class='line'>63245986
-</span><span class='line'>
-</span><span class='line'>real  0m35.465s
-</span><span class='line'>user  0m35.423s
-</span><span class='line'>sys   0m0.014s</span></code></pre></td></tr></table></div></figure>
-
-
-<p>[2012-05-03 23:21]</p>
-</div>
-  
-  
-
-
-    </article>
-  
   <div class="pagination">
     
       <a class="prev" href="/blog/blog/page/2/">&larr; Older</a>
@@ -1715,6 +1541,10 @@ visudoで起動して:e /etc/sudoers.d/hnakamurと切り替えて編集して:wq
   <ul id="recent_posts">
     
       <li class="post">
+        <a href="/blog/2013/02/09/s3-error-either-the-signature-query-string-parameter-or-the-authorization-header-should-be-specified/">S3 error: Either the Signature query string parameter or the Authorization header should be specified</a>
+      </li>
+    
+      <li class="post">
         <a href="/blog/2013/02/02/use-unbound-dns-server/">Unboundで在宅時に自宅サーバの名前解決</a>
       </li>
     
@@ -1728,10 +1558,6 @@ visudoで起動して:e /etc/sudoers.d/hnakamurと切り替えて編集して:wq
     
       <li class="post">
         <a href="/blog/2012/06/27/node-http-proxydebatiyaruhosutodezhen-rifen-ketutuhttp-slash-https-%3Ewebsocketribasupurokisifalseshi-yan/">node-http-proxyでバーチャルホストで振り分けつつhttp/https->websocketリバースプロキシの実験</a>
-      </li>
-    
-      <li class="post">
-        <a href="/blog/2012/06/21/how-to-create-self-signed-certificate/">パスフレーズ無しの秘密鍵と自己証明書をコマンド一発で作る</a>
       </li>
     
   </ul>
