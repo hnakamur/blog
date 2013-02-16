@@ -4,7 +4,7 @@
   <title><![CDATA[Category: AWS | hnakamur's blog at github]]></title>
   <link href="http://hnakamur.github.com/blog/categories/aws/atom.xml" rel="self"/>
   <link href="http://hnakamur.github.com/blog/"/>
-  <updated>2013-02-09T09:38:13+09:00</updated>
+  <updated>2013-02-16T18:54:05+09:00</updated>
   <id>http://hnakamur.github.com/blog/</id>
   <author>
     <name><![CDATA[Hiroaki Nakamura]]></name>
@@ -12,6 +12,83 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[同じリージョンの全ホストのプライベートIPを起動時にhostsに自動登録]]></title>
+    <link href="http://hnakamur.github.com/blog/2013/02/16/aws-update-hosts-for-servers-in-same-region/"/>
+    <updated>2013-02-16T18:31:00+09:00</updated>
+    <id>http://hnakamur.github.com/blog/2013/02/16/aws-update-hosts-for-servers-in-same-region</id>
+    <content type="html"><![CDATA[<p>Elastic IPの上限数にひっかかって使えない自体に遭遇したので作りました。</p>
+
+<p><a href="http://aws.amazon.com/jp/contact-us/eip_limit_request/">Elastic IP アドレス上限緩和申請 | アマゾン ウェブ サービス（AWS 日本語）</a> から緩和申請できるようです。</p>
+
+<p>が、申請完了画面で、3〜5営業日かかる、緊急の場合は、完了画面に表示されるCase Numberを添えて ec2-request@amazon.com に送るようにと書かれていました。</p>
+
+<p>（Case Numberを添えてというのは今気付いた。再度メールしました。ブログに書くために読み返してよかった）</p>
+
+<p>そこで、hostsにプライベートアドレスを登録するスクリプトを書くことにしました。</p>
+
+<p><a href="http://frmmpgit.blog.fc2.com/blog-entry-123.html">EC2 - 動的プライベートIPアドレスをどうにかする | code up</a> を参考にしました。ありがとうございます。</p>
+
+<p>最初は対象のホストの一覧を指定するようなスクリプトを書いていたのですが、ホストを増やすことを考えると編集と反映が面倒だと予想して、リージョン内の全ホストを一括登録することにしました。</p>
+
+<h2>情報取得用のAIMユーザ作成</h2>
+
+<p>AIMでUserを作ってUser PolicyにReadOnlyAccessを与えます。</p>
+
+<h2>スクリプト設置</h2>
+
+<p>以下の設定ファイルとスクリプトを設置します。</p>
+
+<p>アクセスキーとシークレットキーは上で作ったユーザのものを設定します。</p>
+
+<p>/root/.amazon_address_finder</p>
+
+<p><code>
+export AWS_ACCESS_KEY=${your_access_key_here}
+export AWS_SECRET_KEY=${your_secret_key_here}
+</code></p>
+
+<p>/usr/local/sbin/update_hosts.sh</p>
+
+<p>```</p>
+
+<h1>!/bin/sh</h1>
+
+<p>. /root/.amazon_address_finder
+region=<code>ec2-metadata | sed -n 's/^local-hostname: ip-[0-9-]*\.\(.*\)\.compute\.i
+nternal/\1/p'</code></p>
+
+<p>ec2-describe-instances --region $region -H --show-empty-fields | gawk '
+BEGIN {OFS="\t"; print "127.0.0.1", "localhost localhost.localdomain"}
+/<sup>INSTANCE/</sup> {ip = $18}<br/>
+/<sup>TAG/</sup> {print ip, gensub(/.*\tName\t([<sup>\t]<em>).</em>/,</sup> "\1", $0)}<br/>
+' > /etc/hosts
+```</p>
+
+<p>/etc/cron.d/update_hosts</p>
+
+<p><code>
+@reboot root /usr/local/sbin/update_hosts.sh
+</code></p>
+
+<h2>実行</h2>
+
+<p>これで、OS起動時にhostsが上書き更新されます。</p>
+
+<p>インタンスのNameタグに設定した値がホスト名になります。</p>
+
+<p>出力例</p>
+
+<p><code>
+127.0.0.1       localhost localhost.localdomain
+10.132.102.199  web01
+10.128.21.174   web02
+10.120.32.111   app01
+10.132.103.238  app02
+</code></p>
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[IAM管理コンソールでAWSの管理画面用のユーザを作成]]></title>

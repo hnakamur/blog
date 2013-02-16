@@ -9,7 +9,7 @@
   <meta name="author" content="Hiroaki Nakamura">
 
   
-  <meta name="description" content="AWS (Amazon Web Services)の管理コンソールを複数人で使う場合に大元のIDとパスワードを共有するのは避けたい場合、IAMでユーザを作成するのがよいと@fujiwaraさんに教わりました。これは実際に試した時のメモです。 なお、IAMはIdentity and Access &hellip;">
+  <meta name="description" content="Elastic IPの上限数にひっかかって使えない自体に遭遇したので作りました。 Elastic IP アドレス上限緩和申請 | アマゾン ウェブ サービス（AWS 日本語） から緩和申請できるようです。 が、申請完了画面で、3〜5営業日かかる、緊急の場合は、完了画面に表示されるCase &hellip;">
   
 
   <!-- http://t.co/dKP3o1e -->
@@ -64,6 +64,122 @@
     <div id="content">
       <div class="blog-index">
   
+  
+  
+    <article>
+      
+  <header>
+    
+      <h1 class="entry-title"><a href="/blog/2013/02/16/aws-update-hosts-for-servers-in-same-region/">同じリージョンの全ホストのプライベートIPを起動時にhostsに自動登録</a></h1>
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2013-02-16T18:31:00+09:00" pubdate data-updated="true">2013-02-16</time>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p>Elastic IPの上限数にひっかかって使えない自体に遭遇したので作りました。</p>
+
+<p><a href="http://aws.amazon.com/jp/contact-us/eip_limit_request/">Elastic IP アドレス上限緩和申請 | アマゾン ウェブ サービス（AWS 日本語）</a> から緩和申請できるようです。</p>
+
+<p>が、申請完了画面で、3〜5営業日かかる、緊急の場合は、完了画面に表示されるCase Numberを添えて ec2-request@amazon.com に送るようにと書かれていました。</p>
+
+<p>（Case Numberを添えてというのは今気付いた。再度メールしました。ブログに書くために読み返してよかった）</p>
+
+<p>そこで、hostsにプライベートアドレスを登録するスクリプトを書くことにしました。</p>
+
+<p><a href="http://frmmpgit.blog.fc2.com/blog-entry-123.html">EC2 - 動的プライベートIPアドレスをどうにかする | code up</a> を参考にしました。ありがとうございます。</p>
+
+<p>最初は対象のホストの一覧を指定するようなスクリプトを書いていたのですが、ホストを増やすことを考えると編集と反映が面倒だと予想して、リージョン内の全ホストを一括登録することにしました。</p>
+
+<h2>情報取得用のAIMユーザ作成</h2>
+
+<p>AIMでUserを作ってUser PolicyにReadOnlyAccessを与えます。</p>
+
+<h2>スクリプト設置</h2>
+
+<p>以下の設定ファイルとスクリプトを設置します。</p>
+
+<p>アクセスキーとシークレットキーは上で作ったユーザのものを設定します。</p>
+
+<p>/root/.amazon_address_finder</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>export AWS_ACCESS_KEY=${your_access_key_here}
+</span><span class='line'>export AWS_SECRET_KEY=${your_secret_key_here}</span></code></pre></td></tr></table></div></figure>
+
+
+<p>/usr/local/sbin/update_hosts.sh</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>#!/bin/sh
+</span><span class='line'>. /root/.amazon_address_finder
+</span><span class='line'>region=`ec2-metadata | sed -n 's/^local-hostname: ip-[0-9-]*\.\(.*\)\.compute\.i
+</span><span class='line'>nternal/\1/p'`
+</span><span class='line'>
+</span><span class='line'>ec2-describe-instances --region $region -H --show-empty-fields | gawk '
+</span><span class='line'>BEGIN {OFS="\t"; print "127.0.0.1", "localhost localhost.localdomain"}
+</span><span class='line'>/^INSTANCE/ {ip = $18}  
+</span><span class='line'>/^TAG/ {print ip, gensub(/.*\tName\t([^\t]*).*/, "\\1", $0)}  
+</span><span class='line'>' &gt; /etc/hosts</span></code></pre></td></tr></table></div></figure>
+
+
+<p>/etc/cron.d/update_hosts</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>@reboot root /usr/local/sbin/update_hosts.sh</span></code></pre></td></tr></table></div></figure>
+
+
+<h2>実行</h2>
+
+<p>これで、OS起動時にhostsが上書き更新されます。</p>
+
+<p>インタンスのNameタグに設定した値がホスト名になります。</p>
+
+<p>出力例</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>127.0.0.1       localhost localhost.localdomain
+</span><span class='line'>10.132.102.199  web01
+</span><span class='line'>10.128.21.174   web02
+</span><span class='line'>10.120.32.111   app01
+</span><span class='line'>10.132.103.238  app02</span></code></pre></td></tr></table></div></figure>
+
+</div>
+  
+  
+
+
+    </article>
   
   
     <article>
@@ -1402,129 +1518,6 @@ exec -cの後はサービスに応じて変更します。</p>
 
     </article>
   
-  
-    <article>
-      
-  <header>
-    
-      <h1 class="entry-title"><a href="/blog/2012/05/04/setup-chef-solo-and-knife-solo-on-centos6/">CentOS6でchef-soloとknife-soloをセットアップ</a></h1>
-    
-    
-      <p class="meta">
-        
-
-
-
-
-
-
-
-
-  
-
-
-<time datetime="2012-05-04T15:03:00+09:00" pubdate data-updated="true">2012-05-04</time>
-        
-      </p>
-    
-  </header>
-
-
-  <div class="entry-content"><h2>なぜ？</h2>
-
-<p><a href="http://higelog.brassworks.jp/?p=654">chef-soloで作業環境構築の自動化 | ひげろぐ</a> を参考に、Chefサーバは使いたくないけど、chef-soloとknifeを使いたい！
-ということで、そういう環境を作るためのスクリプトを作りました。
-だいぶ前から試行錯誤してたけど、ようやくできたので公開。</p>
-
-<h2>セットアップスクリプト</h2>
-
-<p>chef-soloやknifeはrootユーザで実行する想定です。</p>
-
-<p>このスクリプトではruby、rubygems、ruby-devel、make、gccをyumで、
-chefとknife-soloをgemでインストールします。</p>
-
-<p>chef-soloやknife実行時にオプションをなるべく指定不要にするため、設定ファイルはデフォルトの場所に配置しています。</p>
-
-<ul>
-<li>/etc/chef/solo.rb</li>
-<li>/root/.chef/knife.rb</li>
-</ul>
-
-
-<p>その他の詳細は
-<a href="https://github.com/hnakamur/setup_linux/blob/master/centos6/install_chef-solo.sh">install_chef-solo.sh</a>
-を参照してください。</p>
-
-<p>ちょっと注意が必要なのは、shのヒアドキュメントで<code>`hostname`</code>が展開されるのを避けるために、<code>\`hostname\`</code>とエスケープしていることです。
-＃余談ですが、markdownだとバックスラッシュやバックティックはエスケープしないといけないんですね。</p>
-
-<p>knife.rbの設定は
-<a href="https://gist.github.com/1039666">Base &#8220;knife&#8221; configuration for a standard chef-solo setup — Gist</a> を書き換えて作りました。が、まだよく理解していません。</p>
-
-<h2>セットアップ手順</h2>
-
-<p>特に設定変更が不要であれば</p>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>curl https://raw.github.com/hnakamur/setup_linux/master/centos6/install_chef-solo.sh | sudo sh</span></code></pre></td></tr></table></div></figure>
-
-
-<p>でセットアップできます。変更したい場合はとってきて書き換えてから実行してください。</p>
-
-<h2>クックブック作成例</h2>
-
-<p>例えば</p>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>knife cookbook create ntp</span></code></pre></td></tr></table></div></figure>
-
-
-<p>と実行すると、/etc/chef/site-cookbooks/ntp/ 以下にフォルダ構成とファイルが作られます。あとは編集して作ります。</p>
-
-<h2>実行例</h2>
-
-<p>/root/.chef/chef.json</p>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>{
-</span><span class='line'>  "run_list":["recipe[ntp]"]
-</span><span class='line'>}</span></code></pre></td></tr></table></div></figure>
-
-
-<p>というファイルを用意して</p>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>sudo chef-solo -j /root/.chef/chef.json</span></code></pre></td></tr></table></div></figure>
-
-
-<p>で実行します。</p>
-
-<h2>私のスタンス</h2>
-
-<p>minimalistな私は正直 <a href="http://wiki.opscode.com/display/chef/Home">Chef</a> はそんなに好きじゃないです。</p>
-
-<p><a href="http://wiki.opscode.com/display/chef/Architecture">Architecture</a> を見ると、CouchDB, Solr, RabbitMQ が必要って、高々サーバをセットアップするのになんでこんなにいろいろ稼働させる必要があるの？って感じてしまいます。セットアップ手順が自動化されたとしても、自分のマシンでそれだけのサーバが動いているのがもったいない、無駄にマシンリソースを消費してエコじゃない、と思います。</p>
-
-<p>そもそも私がやるような3台構成ぐらいの環境構築にそこまで大掛かりな仕組みはいらないというのもありますし。</p>
-
-<p><a href="http://rexify.org/">(R)?ex - A simple framework to simplify systemadministration</a> はsshの鍵認証またはパスワード認証で接続してリモートで処理を実行できるのでこちらのほうが好きです。リモートマシンのセットアップにsshサーバ以外に何か必要というのは、なんか違う気がするんですよね。</p>
-
-<p>それからクックブック1つに対して、フォルダやファイルがたくさんできるのもあまり好きじゃないです。設定管理ツールじゃなくてパッケージ管理ツールですけどHomebrewはFormulaが1つのrubyスクリプトでこれは非常に編集が楽なんです。RexはRexfileにテンプレートファイルを含めることも可能なので</p>
-
-<p>あと処理を手続き的に記述するではなく、最終的な状態を宣言的に記述するというスタイルですが、これも限定的だと思っています。結局のところ、複雑な処理だと処理順序も関係するので、やらせたいことを手続き的にかける方がストレートなのかなと。実行する必要があるかチェックする処理を最初に入れて、それを含めた一連の処理を一つのコマンドとして提供すれば、利用側のコードはシンプルになるのでそれで十分だと思います。</p>
-
-<p>あと、実行対象の処理をJSONファイルに書いて、ファイル名を引数で指定して実行ってのもイケてない。rakeやRexのようにタスクを引数に指定させて欲しいです。</p>
-
-<p>と文句ばかり言っているようですが、DevOpsを提唱したopscode.comが出しているツールだし、一度は使ってみるべきということで。あと、まわりでも使っているので、ツールは揃えておいたほうが良いかなという思いもあります。私自身はいいのですが、まわりで使わされる人が何種類も覚えることを強要されるのは無駄だろうし。</p>
-</div>
-  
-  
-
-
-    </article>
-  
   <div class="pagination">
     
       <a class="prev" href="/blog/blog/page/2/">&larr; Older</a>
@@ -1540,6 +1533,10 @@ chefとknife-soloをgemでインストールします。</p>
   <ul id="recent_posts">
     
       <li class="post">
+        <a href="/blog/2013/02/16/aws-update-hosts-for-servers-in-same-region/">同じリージョンの全ホストのプライベートIPを起動時にhostsに自動登録</a>
+      </li>
+    
+      <li class="post">
         <a href="/blog/2013/02/09/create-aim-user/">IAM管理コンソールでAWSの管理画面用のユーザを作成</a>
       </li>
     
@@ -1553,10 +1550,6 @@ chefとknife-soloをgemでインストールします。</p>
     
       <li class="post">
         <a href="/blog/2012/07/03/virtualbox4decentos6-dot-2woinsutoru/">VirtualBox4でCentOS6.2をインストール</a>
-      </li>
-    
-      <li class="post">
-        <a href="/blog/2012/06/27/node-dot-jsfalsefs-dot-watch-deshe-ding-huairugageng-xin-saretararirodo/">node.jsのfs.watch()で設定ファイルが更新されたらリロード</a>
       </li>
     
   </ul>
