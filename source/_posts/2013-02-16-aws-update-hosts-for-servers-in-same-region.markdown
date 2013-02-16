@@ -71,3 +71,10 @@ BEGIN {OFS="\t"; print "127.0.0.1", "localhost localhost.localdomain"}
 10.120.32.111   app01
 10.132.103.238  app02
 ```
+
+## githubに移動しました
+
+さらにhostnameも更新するようにして、スクリプトが発展してきたので、
+[hnakamur/aws_scripts · GitHub](https://github.com/hnakamur/aws_scripts)
+に移動しました。
+
