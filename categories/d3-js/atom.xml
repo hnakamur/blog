@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+
+  <title><![CDATA[Category: d3.js | hnakamur's blog at github]]></title>
+  <link href="http://hnakamur.github.com/blog/categories/d3-js/atom.xml" rel="self"/>
+  <link href="http://hnakamur.github.com/blog/"/>
+  <updated>2013-03-02T00:45:50+09:00</updated>
+  <id>http://hnakamur.github.com/blog/</id>
+  <author>
+    <name><![CDATA[Hiroaki Nakamura]]></name>
+    
+  </author>
+  <generator uri="http://octopress.org/">Octopress</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[d3.jsを使ったツールチップあり複数折れ線グラフのサンプルを作った]]></title>
+    <link href="http://hnakamur.github.com/blog/2013/03/02/multi-series-line-chart-example-with-tooltip-using-d3-dot-js/"/>
+    <updated>2013-03-02T00:10:00+09:00</updated>
+    <id>http://hnakamur.github.com/blog/2013/03/02/multi-series-line-chart-example-with-tooltip-using-d3-dot-js</id>
+    <content type="html"><![CDATA[<p><a href="http://d3js.org/">D3.js - Data-Driven Documents</a>を使ってツールチップあり複数折れ線グラフのサンプルを作ったのでメモ。</p>
+
+<p><a href="../../../../downloads/code/2013-03-02-multi-series-line-chart-example-with-tooltip-using-d3-dot-js/3884955.html">サンプル</a></p>
+
+<p><a href="http://bl.ocks.org/mbostock/3884955">Multi-Series Line Chart</a>のサンプルをベースに改良しました。</p>
+
+<h2>X軸のラベルを回転</h2>
+
+<p><a href="http://www.d3noob.org/2013/01/how-to-rotate-text-labels-for-x-axis-of.html">D3.js Tips and Tricks: How to rotate the text labels for the x Axis of a d3.js graph</a>を参考にして回転させました。</p>
+
+<p>```
+  svg.append("g")</p>
+
+<pre><code>  .attr("class", "x axis")
+  .attr("transform", "translate(0," + height + ")")
+  .call(xAxis)
+  .selectAll("text")
+    .style("text-anchor", "end")
+    .attr("dx", "-.8em")
+    .attr("dy", "-.6em")
+    .attr("transform", "rotate(-90)");
+</code></pre>
+
+<p>```</p>
+
+<h2>ツールチップを出す</h2>
+
+<p><a href="https://gist.github.com/biovisualize/1016860#gistcomment-61316">Simple D3 tooltip</a>の手法で、線でもツールチップは出せなくはないのですが、カーソル位置のデータが取れないので、データの点に円を作成することにしました。</p>
+
+<p><a href="https://groups.google.com/forum/?fromgroups=#!topic/d3-js/8XLzUYLoFnY">multi-line chart with circle points - Google グループ</a>を参考に以下の様なコードで円を作成しました。</p>
+
+<p>ツールチップを出す部分は<a href="https://gist.github.com/biovisualize/1016860#gistcomment-61316">Simple D3 tooltip</a>を参考にしました。元のコードではイベントを<code>event</code>で参照していましたが、ChromeとSafariでは動くもののFirefoxではundefinedになっていました。<a href="https://github.com/mbostock/d3/wiki/Selections#wiki-on">Selections · mbostock/d3 Wiki</a>を見ると、<code>d3.event</code>で参照するのが正しいので修正しました。</p>
+
+<p>```
+ city. selectAll("circle")</p>
+
+<pre><code>  .data(function(d) { return d.values.map(function(v) {
+          return {date: v.date, temperature: v.temperature, name: d.name};
+        }); })
+.enter().append("circle")
+  .attr("cx", function(d, i) { return x(d.date); })
+  .attr("cy", function(d, i) { return y(d.temperature); })
+  .style("fill", function(d) { return color(d.name); })
+  .attr("r", 1)
+  .on("mouseover", function(){
+    return tooltip.style("visibility", "visible");
+  })
+  .on("mousemove", function(d){
+    return tooltip
+      .style("top", (d3.event.pageY-10)+"px")
+      .style("left",(d3.event.pageX+10)+"px")
+      .html("&lt;dl&gt;&lt;dt&gt;date&lt;/dt&gt;&lt;dd&gt;" + d3.time.format("%Y-%m-%d")(d.date) + "&lt;/dd&gt;&lt;dt&gt;temperature&lt;/dt&gt;&lt;dd&gt;" + d.temperature + "&lt;/dd&gt;&lt;dt&gt;name&lt;/dt&gt;&lt;dd&gt;" + d.name + "&lt;/dd&gt;&lt;/dl&gt;");
+  })
+  .on("mouseout", function(){
+    return tooltip.style("visibility", "hidden");
+  });
+</code></pre>
+
+<p>```</p>
+
+<p>見た目がうるさくないように円の半径は1とし、線だけ見えるような感じにしています。すると点にカーソルでポイントするのが大変なので、太めのストロークを透明色で指定して、ポイントしやすくしています。</p>
+
+<p><code>
+.tooltip {
+  border: 1px solid black;
+  background-color: white;
+  padding: 5px 8px 4px 8px;
+  border-radius: 4px;
+  -moz-border-radius: 4px;
+  -webkit-border-radius: 4px;
+}
+</code></p>
+
+<h2>線のデータ補完を止める</h2>
+
+<p>データ補完してしまうと、線とデータ点がずれてしまうので、補完は止めます。
+interpolate()を呼ばなければOK。</p>
+
+<p>```
+var line = d3.svg.line()</p>
+
+<pre><code>//.interpolate("basis")
+.x(function(d) { return x(d.date); })
+.y(function(d) { return y(d.temperature); });
+</code></pre>
+
+<p>```</p>
+]]></content>
+  </entry>
+  
+</feed>
