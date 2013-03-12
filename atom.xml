@@ -4,7 +4,7 @@
   <title><![CDATA[hnakamur's blog at github]]></title>
   <link href="http://hnakamur.github.com/blog/atom.xml" rel="self"/>
   <link href="http://hnakamur.github.com/blog/"/>
-  <updated>2013-03-02T00:48:25+09:00</updated>
+  <updated>2013-03-12T14:27:06+09:00</updated>
   <id>http://hnakamur.github.com/blog/</id>
   <author>
     <name><![CDATA[Hiroaki Nakamura]]></name>
@@ -12,6 +12,241 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[lua, V8, ruby, mrubyでfib(39)の実行時間比較]]></title>
+    <link href="http://hnakamur.github.com/blog/2013/03/12/fib-39-benchmark-in-luajit/"/>
+    <updated>2013-03-12T14:20:00+09:00</updated>
+    <id>http://hnakamur.github.com/blog/2013/03/12/fib-39-benchmark-in-luajit</id>
+    <content type="html"><![CDATA[<p><a href="http://hnakamur.github.com/blog/2012/05/04/fib-39-benchmark-in-lua/">lua, V8, ruby, mrubyでfib(39)の実行時間比較 - hnakamur&#8217;s blog at github</a>が<a href="https://twitter.com/yukihiro_matz">@matz</a>さんにツイートされたのを受けて、各処理系の最新版で再度試してみました。</p>
+
+<p>テスト環境（前回とは違う環境です）</p>
+
+<ul>
+<li>Model: MacBook Pro Retina, Mid 2012</li>
+<li>CPU: 2.6GHz Intel Core i7</li>
+<li>RAM: 16GB 1600MHz DDR3</li>
+<li>OS: Mac OS X 10.8.2</li>
+</ul>
+
+
+<h2>lua</h2>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>function fib(n)
+</span><span class='line'>  if n &lt; 2 then
+</span><span class='line'>    return n
+</span><span class='line'>  end
+</span><span class='line'>  return fib(n-2) + fib(n-1)
+</span><span class='line'>end
+</span><span class='line'>
+</span><span class='line'>print(fib(39))</span></code></pre></td></tr></table></div></figure>
+
+
+
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>$ luajit -v
+</span><span class='line'>LuaJIT 2.0.1 -- Copyright (C) 2005-2013 Mike Pall. http://luajit.org/
+</span><span class='line'>$ time luajit fib.lua
+</span><span class='line'>63245986
+</span><span class='line'>
+</span><span class='line'>real  0m0.906s
+</span><span class='line'>user  0m0.901s
+</span><span class='line'>sys 0m0.003s</span></code></pre></td></tr></table></div></figure>
+
+
+
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>$ lua -v
+</span><span class='line'>Lua 5.1.5  Copyright (C) 1994-2012 Lua.org, PUC-Rio
+</span><span class='line'>$ time lua fib.lua
+</span><span class='line'>63245986
+</span><span class='line'>
+</span><span class='line'>real  0m12.278s
+</span><span class='line'>user  0m12.271s
+</span><span class='line'>sys 0m0.006s</span></code></pre></td></tr></table></div></figure>
+
+
+
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>$ src/lua -v
+</span><span class='line'>Lua 5.2.1  Copyright (C) 1994-2012 Lua.org, PUC-Rio
+</span><span class='line'>$ time src/lua ~/bench/fib.lua
+</span><span class='line'>63245986
+</span><span class='line'>
+</span><span class='line'>real  0m13.971s
+</span><span class='line'>user  0m13.965s
+</span><span class='line'>sys 0m0.005s</span></code></pre></td></tr></table></div></figure>
+
+
+<h2>v8</h2>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>function fib(n) {
+</span><span class='line'>  if (n &lt; 2) return n;
+</span><span class='line'>  return fib(n-2) + fib(n-1);
+</span><span class='line'>}
+</span><span class='line'>
+</span><span class='line'>print(fib(39));</span></code></pre></td></tr></table></div></figure>
+
+
+
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>$ v8
+</span><span class='line'>V8 version 3.16.14 [sample shell]
+</span><span class='line'>&gt; ^D
+</span><span class='line'>$ time v8 fib.js
+</span><span class='line'>63245986
+</span><span class='line'>
+</span><span class='line'>real  0m0.804s
+</span><span class='line'>user  0m0.798s
+</span><span class='line'>sys 0m0.008s</span></code></pre></td></tr></table></div></figure>
+
+
+<h2>ruby</h2>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>def fib n
+</span><span class='line'>  return n if n &lt; 2
+</span><span class='line'>  fib(n-2) + fib(n-1)
+</span><span class='line'>end
+</span><span class='line'>
+</span><span class='line'>puts fib(39)</span></code></pre></td></tr></table></div></figure>
+
+
+
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>$ git log -1 | grep commit
+</span><span class='line'>commit 46d8c51763bd13b69a4234f0d4be05cbfd8ae401
+</span><span class='line'>
+</span><span class='line'>$ time bin/mruby fib.rb
+</span><span class='line'>63245986
+</span><span class='line'>
+</span><span class='line'>real  0m16.357s
+</span><span class='line'>user  0m16.345s
+</span><span class='line'>sys 0m0.008s</span></code></pre></td></tr></table></div></figure>
+
+
+
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>$ rbenv version
+</span><span class='line'>1.9.3-p374 (set by /Users/hnakamur/.rbenv/version)
+</span><span class='line'>$ time ruby fib.rb
+</span><span class='line'>63245986
+</span><span class='line'>
+</span><span class='line'>real  0m16.225s
+</span><span class='line'>user  0m16.169s
+</span><span class='line'>sys 0m0.043s</span></code></pre></td></tr></table></div></figure>
+
+
+
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>$ rbenv version
+</span><span class='line'>1.9.3-p392 (set by /Users/hnakamur/.rbenv/version)
+</span><span class='line'>$ time ruby fib.rb
+</span><span class='line'>63245986
+</span><span class='line'>
+</span><span class='line'>real  0m36.813s
+</span><span class='line'>user  0m36.746s
+</span><span class='line'>sys 0m0.043s</span></code></pre></td></tr></table></div></figure>
+
+
+
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>$ rbenv version
+</span><span class='line'>2.0.0-p0 (set by /Users/hnakamur/.rbenv/version)
+</span><span class='line'>$ time ruby fib.rb 
+</span><span class='line'>63245986
+</span><span class='line'>
+</span><span class='line'>real  0m31.828s
+</span><span class='line'>user  0m31.743s
+</span><span class='line'>sys 0m0.045s</span></code></pre></td></tr></table></div></figure>
+
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[d3.jsを使ったツールチップあり複数折れ線グラフのサンプルを作った]]></title>
@@ -1503,11 +1738,19 @@ visudoで起動して:e /etc/sudoers.d/hnakamurと切り替えて編集して:wq
   </entry>
   
   <entry>
-    <title type="html"><![CDATA[lua, V8, ruby, mrubyでfib(39)の実行時間比較]]></title>
+    <title type="html"><![CDATA[lua, V8, ruby, mrubyでfib(39)の実行時間比較 2013-03-12版]]></title>
     <link href="http://hnakamur.github.com/blog/2012/05/04/fib-39-benchmark-in-lua/"/>
     <updated>2012-05-04T11:06:00+09:00</updated>
     <id>http://hnakamur.github.com/blog/2012/05/04/fib-39-benchmark-in-lua</id>
-    <content type="html"><![CDATA[<p><a href="http://www.quredo.net/2012/04/mruby-%E8%BB%BD%E9%87%8Fruby-%E3%82%BD%E3%83%BC%E3%82%B9%E5%85%AC%E9%96%8B/">mruby (軽量ruby) ソース公開 | quredo-style</a>を見て、自分の環境でlua, luajit, V8, ruby, mrubyで試してみた。</p>
+    <content type="html"><![CDATA[<p>2013-03-13追記</p>
+
+<p>この記事が<a href="https://twitter.com/yukihiro_matz">@matz</a>さんにツイートされたのを受けて、各処理系の最新版で再度試してみました。
+<a href="http://hnakamur.github.com/blog/2013/03/12/fib-39-benchmark-in-luajit/">lua, V8, ruby, mrubyでfib(39)の実行時間比較 2013-03-12版</a>をご参照ください。</p>
+
+<hr>
+
+
+<p><a href="http://www.quredo.net/2012/04/mruby-%E8%BB%BD%E9%87%8Fruby-%E3%82%BD%E3%83%BC%E3%82%B9%E5%85%AC%E9%96%8B/">mruby (軽量ruby) ソース公開 | quredo-style</a>を見て、自分の環境でlua, luajit, V8, ruby, mrubyで試してみた。</p>
 
 <p>テスト環境</p>
 
@@ -2345,15 +2588,6 @@ http://hnakamur.github.com/blog/
 
 
 <p>にしたらOK。</p>
-]]></content>
-  </entry>
-  
-  <entry>
-    <title type="html"><![CDATA[Hello, octopress!]]></title>
-    <link href="http://hnakamur.github.com/blog/2012/03/03/hello/"/>
-    <updated>2012-03-03T17:57:00+09:00</updated>
-    <id>http://hnakamur.github.com/blog/2012/03/03/hello</id>
-    <content type="html"><![CDATA[<p>octopressでブログ記事を投稿してみるテスト。</p>
 ]]></content>
   </entry>
   

@@ -9,19 +9,7 @@
   <meta name="author" content="Hiroaki Nakamura">
 
   
-  <meta name="description" content="CentOS6.2で確認。 OS起動時にdaemontoolsを起動する設定はHow to start daemontoolsを参照。 1
-2
-3
-4
-5
-6
-7
-8
-9
-10
-11
-yum install -y make gcc rpm-build &&
-rpm -ivh http:// &hellip;">
+  <meta name="description" content="daemontoolsを使う | Netsphere Laboratoriesを参考にしました。ありがとうございます。 私的ルール 無効化したサービスは/service/.disabled/に移動 /service/以下に.で始まるフォルダ名にすると無視されるということですが、 &hellip;">
   
 
   <!-- http://t.co/dKP3o1e -->
@@ -76,6 +64,143 @@ rpm -ivh http:// &hellip;">
     <div id="content">
       <div class="blog-index">
   
+  
+  
+    <article>
+      
+  <header>
+    
+      <h1 class="entry-title"><a href="/blog/2012/06/21/how-to-use-daemontools/">daemontoolsの使い方</a></h1>
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-06-21T17:48:00+09:00" pubdate data-updated="true">2012-06-21</time>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p><a href="http://www.nslabs.jp/daemontools.rhtml">daemontoolsを使う | Netsphere Laboratories</a>を参考にしました。ありがとうございます。</p>
+
+<h2>私的ルール</h2>
+
+<h3>無効化したサービスは/service/.disabled/に移動</h3>
+
+<p>/service/以下に.で始まるフォルダ名にすると無視されるということですが、my_service_nameを.my_service_nameと変えるのはタイプが面倒なので、/service/.disabledというフォルダを作って無効化するときはその下に移動することにしました。</p>
+
+<h3>作業するときは/serviceに移動</h3>
+
+<p>svcやsvstatにフルパスを指定しても動くのですが、/service/と/service/.disabled間で移動するときにタイプ量が増えるので、最初にcd /serviceしてから作業することにしました。</p>
+
+<h2>手順</h2>
+
+<h3>サービス追加</h3>
+
+<p>node-virtualhost1.example.comという名前でサービスを追加する例。
+exec -cの後はサービスに応じて変更します。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>cd /service
+</span><span class='line'>mkdir -p .disabled/node-virtualhost1.example.com
+</span><span class='line'>cat &lt;&lt;EOF &gt; .disabled/node-virtualhost1.example.com/run
+</span><span class='line'>#!/bin/sh
+</span><span class='line'>exec -c /usr/local/node-v0.6.19/bin/node /var/www/app/virtualhost1.example.com/hello.js
+</span><span class='line'>EOF
+</span><span class='line'>chmod 755 .disabled/node-virtualhost1.example.com/run</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>サービス有効化</h3>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>cd /service
+</span><span class='line'>mv .disabled/node-virtualhost1.example.com .</span></code></pre></td></tr></table></div></figure>
+
+
+<h4>状態確認</h4>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'># svstat node-virtualhost1.example.com/
+</span><span class='line'>node-virtualhost1.example.com/: up (pid 1493) 3 seconds</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>サービス無効化</h3>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>cd /service
+</span><span class='line'>mv node-virtualhost1.example.com .disabled/
+</span><span class='line'>svc -tx .disabled/node-virtualhost1.example.com</span></code></pre></td></tr></table></div></figure>
+
+
+<h4>状態確認</h4>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'># svstat .disabled/node-virtualhost1.example.com/
+</span><span class='line'>.disabled/node-virtualhost1.example.com/: supervise not running</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>サービス一時停止(Down)</h3>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>cd /service
+</span><span class='line'>svc -d node-virtualhost1.example.com</span></code></pre></td></tr></table></div></figure>
+
+
+<h4>状態確認</h4>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'># svstat node-virtualhost1.example.com/
+</span><span class='line'>node-virtualhost1.example.com/: down 1 seconds, normally up</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>サービス一時停止からの再開(Up)</h3>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>cd /service
+</span><span class='line'>svc -u node-virtualhost1.example.com</span></code></pre></td></tr></table></div></figure>
+
+
+<h4>状態確認</h4>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'># svstat node-virtualhost1.example.com/
+</span><span class='line'>node-virtualhost1.example.com/: up (pid 1512) 1 seconds</span></code></pre></td></tr></table></div></figure>
+
+
+
+</div>
+  
+  
+
+
+    </article>
   
   
     <article>
@@ -372,7 +497,7 @@ visudoで起動して:e /etc/sudoers.d/hnakamurと切り替えて編集して:wq
       
   <header>
     
-      <h1 class="entry-title"><a href="/blog/2012/05/04/fib-39-benchmark-in-lua/">lua, V8, ruby, mrubyでfib(39)の実行時間比較</a></h1>
+      <h1 class="entry-title"><a href="/blog/2012/05/04/fib-39-benchmark-in-lua/">lua, V8, ruby, mrubyでfib(39)の実行時間比較 2013-03-12版</a></h1>
     
     
       <p class="meta">
@@ -395,7 +520,15 @@ visudoで起動して:e /etc/sudoers.d/hnakamurと切り替えて編集して:wq
   </header>
 
 
-  <div class="entry-content"><p><a href="http://www.quredo.net/2012/04/mruby-%E8%BB%BD%E9%87%8Fruby-%E3%82%BD%E3%83%BC%E3%82%B9%E5%85%AC%E9%96%8B/">mruby (軽量ruby) ソース公開 | quredo-style</a>を見て、自分の環境でlua, luajit, V8, ruby, mrubyで試してみた。</p>
+  <div class="entry-content"><p>2013-03-13追記</p>
+
+<p>この記事が<a href="https://twitter.com/yukihiro_matz">@matz</a>さんにツイートされたのを受けて、各処理系の最新版で再度試してみました。
+<a href="http://hnakamur.github.com/blog/2013/03/12/fib-39-benchmark-in-luajit/">lua, V8, ruby, mrubyでfib(39)の実行時間比較 2013-03-12版</a>をご参照ください。</p>
+
+<hr>
+
+
+<p><a href="http://www.quredo.net/2012/04/mruby-%E8%BB%BD%E9%87%8Fruby-%E3%82%BD%E3%83%BC%E3%82%B9%E5%85%AC%E9%96%8B/">mruby (軽量ruby) ソース公開 | quredo-style</a>を見て、自分の環境でlua, luajit, V8, ruby, mrubyで試してみた。</p>
 
 <p>テスト環境</p>
 
@@ -1375,43 +1508,9 @@ http://hnakamur.github.com/blog/
 
     </article>
   
-  
-    <article>
-      
-  <header>
-    
-      <h1 class="entry-title"><a href="/blog/2012/03/03/hello/">Hello, octopress!</a></h1>
-    
-    
-      <p class="meta">
-        
-
-
-
-
-
-
-
-
-  
-
-
-<time datetime="2012-03-03T17:57:00+09:00" pubdate data-updated="true">2012-03-03</time>
-        
-      </p>
-    
-  </header>
-
-
-  <div class="entry-content"><p>octopressでブログ記事を投稿してみるテスト。</p>
-</div>
-  
-  
-
-
-    </article>
-  
   <div class="pagination">
+    
+      <a class="prev" href="/blog/blog/page/3/">&larr; Older</a>
     
     <a href="/blog/blog/archives">Blog Archives</a>
     
@@ -1424,6 +1523,10 @@ http://hnakamur.github.com/blog/
     <section>
   <h1>Recent Posts</h1>
   <ul id="recent_posts">
+    
+      <li class="post">
+        <a href="/blog/2013/03/12/fib-39-benchmark-in-luajit/">lua, V8, ruby, mrubyでfib(39)の実行時間比較</a>
+      </li>
     
       <li class="post">
         <a href="/blog/2013/03/02/multi-series-line-chart-example-with-tooltip-using-d3-dot-js/">d3.jsを使ったツールチップあり複数折れ線グラフのサンプルを作った</a>
@@ -1439,10 +1542,6 @@ http://hnakamur.github.com/blog/
     
       <li class="post">
         <a href="/blog/2013/02/09/s3-error-either-the-signature-query-string-parameter-or-the-authorization-header-should-be-specified/">S3 error: Either the Signature query string parameter or the Authorization header should be specified</a>
-      </li>
-    
-      <li class="post">
-        <a href="/blog/2013/02/02/use-unbound-dns-server/">Unboundで在宅時に自宅サーバの名前解決</a>
       </li>
     
   </ul>
