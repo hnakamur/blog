@@ -1,10 +1,17 @@
 ---
 layout: post
-title: "lua, V8, ruby, mrubyでfib(39)の実行時間比較"
+title: "lua, V8, ruby, mrubyでfib(39)の実行時間比較 2013-03-12版"
 date: 2012-05-04 11:06
 comments: true
 categories: [lua, v8, ruby]
 ---
+2013-03-13追記
+
+この記事が[@matz](https://twitter.com/yukihiro_matz)さんにツイートされたのを受けて、各処理系の最新版で再度試してみました。
+[lua, V8, ruby, mrubyでfib(39)の実行時間比較 2013-03-12版](http://hnakamur.github.com/blog/2013/03/12/fib-39-benchmark-in-luajit/)をご参照ください。
+
+<hr>
+
 [mruby (軽量ruby) ソース公開 | quredo-style](http://www.quredo.net/2012/04/mruby-%E8%BB%BD%E9%87%8Fruby-%E3%82%BD%E3%83%BC%E3%82%B9%E5%85%AC%E9%96%8B/)を見て、自分の環境でlua, luajit, V8, ruby, mrubyで試してみた。
 
 テスト環境
