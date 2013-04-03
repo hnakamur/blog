@@ -9,7 +9,9 @@
   <meta name="author" content="Hiroaki Nakamura">
 
   
-  <meta name="description" content="lua, V8, ruby, mrubyでfib(39)の実行時間比較 - hnakamur&#8217;s blog at githubが@matzさんにツイートされたのを受けて、各処理系の最新版で再度試してみました。 テスト環境その1（前回とは違う環境です） Model: MacBook &hellip;">
+  <meta name="description" content="Vagrantと1.0.xと1.1.xについて バージョン1.1.xの位置づけについては以下の記事を参照。
+Vagrant 1.1, VMware Fusion - HashiCorp
+変更履歴は vagrant/CHANGELOG.md at master · mitchellh/vagrant &hellip;">
   
 
   <!-- http://t.co/dKP3o1e -->
@@ -64,6 +66,240 @@
     <div id="content">
       <div class="blog-index">
   
+  
+  
+    <article>
+      
+  <header>
+    
+      <h1 class="entry-title"><a href="/blog/2013/04/03/how-to-setup-vagrant-1-dot-1-5-and-sahara/">Vagrant 1.1.5とSaharaを試した</a></h1>
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2013-04-03T18:43:00+09:00" pubdate data-updated="true">2013-04-03</time>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><h2>Vagrantと1.0.xと1.1.xについて</h2>
+
+<p>バージョン1.1.xの位置づけについては以下の記事を参照。
+<a href="http://www.hashicorp.com/blog/vagrant-1-1-and-vmware.html">Vagrant 1.1, VMware Fusion - HashiCorp</a>
+変更履歴は <a href="https://github.com/mitchellh/vagrant/blob/master/CHANGELOG.md">vagrant/CHANGELOG.md at master · mitchellh/vagrant · GitHub</a>。</p>
+
+<p>gem installで入れられるのは1.0.x系のみ。現在は1.0.7。
+<a href="http://rubygems.org/search?utf8=%E2%9C%93&amp;query=vagrant">search | RubyGems.org | your community gem host</a></p>
+
+<h2>Vagrant 1.1.5のインストール</h2>
+
+<p><a href="http://www.vagrantup.com/">Vagrant</a>
+→ <a href="http://downloads.vagrantup.com/">Vagrant - Downloads</a>
+→ <a href="http://downloads.vagrantup.com/tags/v1.1.5">Vagrant - Downloads v1.1.5</a>
+と進み、Vagrant.dmgをダウンロードしてインストール</p>
+
+<h2>PATH設定</h2>
+
+<p>vagrantコマンドにPATHを通します。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>cat &lt;&lt;'EOF' &gt;&gt; ~/.bash_profile
+</span><span class='line'>export PATH=/Applications/Vagrant/bin:$PATH
+</span><span class='line'>EOF
+</span><span class='line'>. ~/.bash_profile</span></code></pre></td></tr></table></div></figure>
+
+
+<p>ruby 1.9.3p327が同梱されています。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>$ /Applications/Vagrant/embedded/bin/ruby --version
+</span><span class='line'>ruby 1.9.3p327 (2012-11-10 revision 37606) [universal.x86_64-darwin12.2.1]</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>Vagrant 1.1.x用のSaharaをインストール</h3>
+
+<p><a href="http://www.ryuzee.com/contents/blog/6555">Vagrantの必須プラグインSaharaをVagrant 1.1に対応させました | Ryuzee.com</a>の手順でインストール。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>mkdir -p ~/src/chef
+</span><span class='line'>cd ~/src/chef
+</span><span class='line'>git clone https://github.com/ryuzee/sahara.git
+</span><span class='line'>cd sahara
+</span><span class='line'>export PATH=/Applications/Vagrant/embedded/bin:$PATH
+</span><span class='line'>sudo gem install bundler
+</span><span class='line'>bundle install
+</span><span class='line'>bundle exec rake build
+</span><span class='line'>vagrant plugin install pkg/sahara-0.0.14.gem</span></code></pre></td></tr></table></div></figure>
+
+
+<p>~/.vagrant.d/gems/gems/sahara-0.0.14/にインストールされた。</p>
+
+<h3>複数VM環境でのテスト</h3>
+
+<p>Vagrantfile</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+<span class='line-number'>24</span>
+<span class='line-number'>25</span>
+<span class='line-number'>26</span>
+<span class='line-number'>27</span>
+<span class='line-number'>28</span>
+<span class='line-number'>29</span>
+<span class='line-number'>30</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>-*- mode: ruby -*-
+</span><span class='line'>## vi: set ft=ruby :
+</span><span class='line'>
+</span><span class='line'>Vagrant::Config.run do |config|
+</span><span class='line'>  config.ssh.private_key_path = "../vagrant.id_rsa"
+</span><span class='line'>
+</span><span class='line'>  config.vm.define :web1 do |c|
+</span><span class='line'>    c.vm.box = "centos6.4"
+</span><span class='line'>    c.vm.host_name = "web1"
+</span><span class='line'>    c.vm.network :hostonly, "192.168.33.24"
+</span><span class='line'>    c.vm.customize ["modifyvm", :id,
+</span><span class='line'>      "--name", "web1",
+</span><span class='line'>      "--natdnshostresolver1", "on",
+</span><span class='line'>      "--cpus", 1,
+</span><span class='line'>      "--memory", 512
+</span><span class='line'>    ]
+</span><span class='line'>  end
+</span><span class='line'>
+</span><span class='line'>  config.vm.define :db1 do |c|
+</span><span class='line'>    c.vm.box = "centos6.4"
+</span><span class='line'>    c.vm.host_name = "db1"
+</span><span class='line'>    c.vm.network :hostonly, "192.168.33.25"
+</span><span class='line'>    c.vm.customize ["modifyvm", :id,
+</span><span class='line'>      "--name", "db1",
+</span><span class='line'>      "--natdnshostresolver1", "on",
+</span><span class='line'>      "--cpus", 1,
+</span><span class='line'>      "--memory", 512
+</span><span class='line'>    ]
+</span><span class='line'>  end
+</span><span class='line'>end</span></code></pre></td></tr></table></div></figure>
+
+
+<p>なお、centos6.4のVMはrubyやchef-soloはインストールしていない状態になっています。</p>
+
+<p>sandboxモードをオンにしてVM起動。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>vagrant sandbox on
+</span><span class='line'>vagrant up</span></code></pre></td></tr></table></div></figure>
+
+
+<p>ホスト側からchefセットアップ実行。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>./bin/knife solo prepare web1
+</span><span class='line'>./bin/knife solo prepare db1</span></code></pre></td></tr></table></div></figure>
+
+
+<p>web1, db1にログインして/usr/bin/chef-soloが作成されたことを確認。</p>
+
+<p>ロールバックを実行。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>vagrant sandbox rollback</span></code></pre></td></tr></table></div></figure>
+
+
+<p>web1, db1にログインして/usr/bin/chef-soloが無いことを確認。</p>
+
+<p>ホスト側から再度chefセットアップ実行。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>./bin/knife solo prepare web1
+</span><span class='line'>./bin/knife solo prepare db1</span></code></pre></td></tr></table></div></figure>
+
+
+<p>コミット実行。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>vagrant sandbox commit</span></code></pre></td></tr></table></div></figure>
+
+
+<p>ホスト側からchefクックブック実行。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>./bin/knife solo cook web1
+</span><span class='line'>./bin/knife solo cook db1</span></code></pre></td></tr></table></div></figure>
+
+
+<p>web1, db1にログインして/usr/bin/chef-soloがあること、/etc/chefが作成されたことをを確認。</p>
+
+<p>ロールバック実行。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>vagrant sandbox rollback</span></code></pre></td></tr></table></div></figure>
+
+
+<p>web1, db1にログインして/usr/bin/chef-soloがあること、/etc/chefが無いことをを確認。</p>
+
+<p>テスト環境</p>
+
+<ul>
+<li>OS: OS X 10.8.3</li>
+<li>VirtualBox: 4.2.10</li>
+<li>Vagrant: 1.1.5</li>
+<li>sahara: https://github.com/ryuzee/sahara.git commit d22795aa417ec1cb67eb92810afb52300edd3c44</li>
+</ul>
+
+</div>
+  
+  
+
+
+    </article>
   
   
     <article>
@@ -1995,156 +2231,6 @@ https://vhost2.example.com/
 
     </article>
   
-  
-    <article>
-      
-  <header>
-    
-      <h1 class="entry-title"><a href="/blog/2012/06/21/how-to-create-self-signed-certificate/">パスフレーズ無しの秘密鍵と自己証明書をコマンド一発で作る</a></h1>
-    
-    
-      <p class="meta">
-        
-
-
-
-
-
-
-
-
-  
-
-
-<time datetime="2012-06-21T20:06:00+09:00" pubdate data-updated="true">2012-06-21</time>
-        
-      </p>
-    
-  </header>
-
-
-  <div class="entry-content"><p>以下はワイルドカード証明書の例です。適宜変更して使います。</p>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>openssl req -new -newkey rsa:2048 -x509 -nodes -days 365 -set_serial 0 \
-</span><span class='line'>  -subj '/C=JP/ST=Kanagawa/L=Yokohama City/CN=*.example.com' \
-</span><span class='line'>  -out wildcard.example.com.crt -keyout wildcard.example.com.key</span></code></pre></td></tr></table></div></figure>
-
-
-<h2>証明書の内容確認</h2>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-<span class='line-number'>9</span>
-<span class='line-number'>10</span>
-<span class='line-number'>11</span>
-<span class='line-number'>12</span>
-<span class='line-number'>13</span>
-<span class='line-number'>14</span>
-<span class='line-number'>15</span>
-<span class='line-number'>16</span>
-<span class='line-number'>17</span>
-<span class='line-number'>18</span>
-<span class='line-number'>19</span>
-<span class='line-number'>20</span>
-<span class='line-number'>21</span>
-<span class='line-number'>22</span>
-<span class='line-number'>23</span>
-<span class='line-number'>24</span>
-<span class='line-number'>25</span>
-<span class='line-number'>26</span>
-<span class='line-number'>27</span>
-<span class='line-number'>28</span>
-<span class='line-number'>29</span>
-<span class='line-number'>30</span>
-<span class='line-number'>31</span>
-<span class='line-number'>32</span>
-<span class='line-number'>33</span>
-<span class='line-number'>34</span>
-<span class='line-number'>35</span>
-<span class='line-number'>36</span>
-<span class='line-number'>37</span>
-<span class='line-number'>38</span>
-<span class='line-number'>39</span>
-<span class='line-number'>40</span>
-<span class='line-number'>41</span>
-<span class='line-number'>42</span>
-<span class='line-number'>43</span>
-<span class='line-number'>44</span>
-<span class='line-number'>45</span>
-<span class='line-number'>46</span>
-<span class='line-number'>47</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'># openssl x509 -in wildcard.example.com.crt -text
-</span><span class='line'>Certificate:
-</span><span class='line'>    Data:
-</span><span class='line'>        Version: 3 (0x2)
-</span><span class='line'>        Serial Number: 0 (0x0)
-</span><span class='line'>        Signature Algorithm: sha1WithRSAEncryption
-</span><span class='line'>        Issuer: C=JP, ST=Kanagawa, L=Yokohama City, CN=*.example.com
-</span><span class='line'>        Validity
-</span><span class='line'>            Not Before: Jun 21 10:52:07 2012 GMT
-</span><span class='line'>            Not After : Jun 21 10:52:07 2013 GMT
-</span><span class='line'>        Subject: C=JP, ST=Kanagawa, L=Yokohama City, CN=*.example.com
-</span><span class='line'>        Subject Public Key Info:
-</span><span class='line'>            Public Key Algorithm: rsaEncryption
-</span><span class='line'>                Public-Key: (512 bit)
-</span><span class='line'>                Modulus:
-</span><span class='line'>                    00:ba:ce:42:5a:26:10:97:8a:fa:e8:44:b6:d0:1a:
-</span><span class='line'>                    3c:4e:f6:80:7b:69:df:a7:cf:c1:64:26:79:0c:5e:
-</span><span class='line'>                    c9:2f:ba:03:08:d2:14:f8:f0:df:f6:bf:49:79:1e:
-</span><span class='line'>                    ec:6f:1b:04:79:65:c1:ba:14:7f:40:f7:52:bb:b8:
-</span><span class='line'>                    7d:f0:aa:fc:8d
-</span><span class='line'>                Exponent: 65537 (0x10001)
-</span><span class='line'>        X509v3 extensions:
-</span><span class='line'>            X509v3 Subject Key Identifier: 
-</span><span class='line'>                49:83:EC:88:55:ED:E3:1E:61:E9:12:B6:52:9E:63:6F:D9:03:88:41
-</span><span class='line'>            X509v3 Authority Key Identifier: 
-</span><span class='line'>                keyid:49:83:EC:88:55:ED:E3:1E:61:E9:12:B6:52:9E:63:6F:D9:03:88:41
-</span><span class='line'>
-</span><span class='line'>            X509v3 Basic Constraints: 
-</span><span class='line'>                CA:TRUE
-</span><span class='line'>    Signature Algorithm: sha1WithRSAEncryption
-</span><span class='line'>        b9:92:5a:89:1e:9c:dc:fc:44:d3:55:10:06:af:43:e8:0d:30:
-</span><span class='line'>        4f:03:6c:10:c9:8e:68:16:28:7a:4c:a7:28:e8:73:04:c0:1b:
-</span><span class='line'>        ce:bd:82:e7:8f:d4:b9:0f:00:32:47:5a:d1:3e:65:01:3c:a9:
-</span><span class='line'>        23:e8:07:e0:03:48:24:dd:53:7c
-</span><span class='line'>-----BEGIN CERTIFICATE-----
-</span><span class='line'>MIIB3TCCAYegAwIBAgIBADANBgkqhkiG9w0BAQUFADBOMQswCQYDVQQGEwJKUDER
-</span><span class='line'>MA8GA1UECAwIS2FuYWdhd2ExFjAUBgNVBAcMDVlva29oYW1hIENpdHkxFDASBgNV
-</span><span class='line'>BAMMCyoubmFydWgubmV0MB4XDTEyMDYyMTEwNTIwN1oXDTEzMDYyMTEwNTIwN1ow
-</span><span class='line'>TjELMAkGA1UEBhMCSlAxETAPBgNVBAgMCEthbmFnYXdhMRYwFAYDVQQHDA1Zb2tv
-</span><span class='line'>aGFtYSBDaXR5MRQwEgYDVQQDDAsqLm5hcnVoLm5ldDBcMA0GCSqGSIb3DQEBAQUA
-</span><span class='line'>A0sAMEgCQQC6zkJaJhCXivroRLbQGjxO9oB7ad+nz8FkJnkMXskvugMI0hT48N/2
-</span><span class='line'>v0l5HuxvGwR5ZcG6FH9A91K7uH3wqvyNAgMBAAGjUDBOMB0GA1UdDgQWBBRJg+yI
-</span><span class='line'>Ve3jHmHpErZSnmNv2QOIQTAfBgNVHSMEGDAWgBRJg+yIVe3jHmHpErZSnmNv2QOI
-</span><span class='line'>QTAMBgNVHRMEBTADAQH/MA0GCSqGSIb3DQEBBQUAA0EAuZJaiR6c3PxE01UQBq9D
-</span><span class='line'>6A0wTwNsEMmOaBYoekynKOhzBMAbzr2C54/UuQ8AMkda0T5lATypI+gH4ANIJN1T
-</span><span class='line'>fA==
-</span><span class='line'>-----END CERTIFICATE-----</span></code></pre></td></tr></table></div></figure>
-
-
-<h2>参考</h2>
-
-<ul>
-<li><a href="http://gagravarr.org/writing/openssl-certs/ca.shtml">Certificate Management and Generation with OpenSSL</a></li>
-<li><a href="http://www.nina.jp/server/slackware/openssl/openssl-command.html">openssl コマンド</a></li>
-</ul>
-
-</div>
-  
-  
-
-
-    </article>
-  
   <div class="pagination">
     
       <a class="prev" href="/blog/blog/page/2/">&larr; Older</a>
@@ -2160,6 +2246,10 @@ https://vhost2.example.com/
   <ul id="recent_posts">
     
       <li class="post">
+        <a href="/blog/2013/04/03/how-to-setup-vagrant-1-dot-1-5-and-sahara/">Vagrant 1.1.5とSaharaを試した</a>
+      </li>
+    
+      <li class="post">
         <a href="/blog/2013/03/12/fib-39-benchmark-in-luajit/">lua, V8, ruby, mrubyでfib(39)の実行時間比較</a>
       </li>
     
@@ -2173,10 +2263,6 @@ https://vhost2.example.com/
     
       <li class="post">
         <a href="/blog/2013/02/09/create-aim-user/">IAM管理コンソールでAWSの管理画面用のユーザを作成</a>
-      </li>
-    
-      <li class="post">
-        <a href="/blog/2013/02/09/s3-error-either-the-signature-query-string-parameter-or-the-authorization-header-should-be-specified/">S3 error: Either the Signature query string parameter or the Authorization header should be specified</a>
       </li>
     
   </ul>
