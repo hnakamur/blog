@@ -14,6 +14,38 @@ categories: [lua, ruby, v8]
 * RAM: 16GB 1600MHz DDR3
 * OS: Mac OS X 10.8.2
 
+### 2013-03-24 追記
+
+goでも試してみました
+
+### go 1.0.3
+
+```
+package main
+
+import "fmt"
+
+func fib(n int) int {
+  if n < 2 {
+    return n
+  }
+  return fib(n - 1) + fib(n - 2)
+}
+
+func main() {
+  fmt.Println(fib(39))
+}
+```
+
+```
+$ time fib39
+63245986
+
+real    0m0.484s
+user    0m0.481s
+sys     0m0.002s
+```
+
 ### lua
 
 ```
