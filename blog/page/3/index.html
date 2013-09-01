@@ -9,12 +9,7 @@
   <meta name="author" content="Hiroaki Nakamura">
 
   
-  <meta name="description" content="rbenvとoctopressをインストールしてgithubにブログを作る手順のメモです。 rbenvをインストール sstephenson/rbenv
-sstephenson/ruby-build を参考にインストールしました。 インストール先は~/.rbenvとしました。 1
-2
-3
-4
-5 &hellip;">
+  <meta name="description" content="mod_xsendfileのホームページ上でリリースされているバージョン0.12には含まれていませんが、GithubのレポジトリのソースではX-Sendfile-Temporaryという拡張ヘッダに対応しています。 Scientific Linux 6.1で実験しました。 &hellip;">
   
 
   <!-- http://t.co/dKP3o1e -->
@@ -69,6 +64,146 @@ sstephenson/ruby-build を参考にインストールしました。 インス�
     <div id="content">
       <div class="blog-index">
   
+  
+  
+    <article>
+      
+  <header>
+    
+      <h1 class="entry-title"><a href="/blog/2012/03/03/delete-on-close-using-mod-xsendfile/">mod_xsendfileでダウンロード後にサーバ上のファイル自動削除</a></h1>
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-03-03T20:26:00+09:00" pubdate data-updated="true">2012-03-03</time>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p><a href="https://tn123.org/mod_xsendfile/">mod_xsendfile</a>のホームページ上でリリースされているバージョン0.12には含まれていませんが、<a href="https://github.com/nmaier/mod_xsendfile/commit/f6b853ce0e555b61f83f928d9f927349346018b4">Githubのレポジトリのソース</a>ではX-Sendfile-Temporaryという拡張ヘッダに対応しています。</p>
+
+<p>Scientific Linux 6.1で実験しました。</p>
+
+<h2>mod_xsendfileのインストール</h2>
+
+<p>以下の手順でインストールします。</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class='bash'><span class='line'>yum install -y httpd-devel
+</span><span class='line'>git clone https://github.com/nmaier/mod_xsendfile.git
+</span><span class='line'><span class="nb">cd </span>mod_xsendfile
+</span><span class='line'>apxs -cia mod_xsendfile.c
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>実験スクリプト用にApacheの設定ファイルを作成します。</p>
+
+<figure class='code'><figcaption><span>/etc/httpd/conf.d/xsendfile_test.conf</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+</pre></td><td class='code'><pre><code class='text'><span class='line'>&lt;Directory /var/www/html/xsendfile&gt;
+</span><span class='line'>    XSendFilePath /var/www/html/xsendfile/data AllowFileDelete
+</span><span class='line'>    &lt;Files out.php&gt;
+</span><span class='line'>      XSendFile on
+</span><span class='line'>    &lt;/Files&gt;
+</span><span class='line'>&lt;/Directory&gt;
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Apache再起動。</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='bash'><span class='line'>/etc/init.d/httpd graceful
+</span></code></pre></td></tr></table></div></figure>
+
+
+<h2>実験</h2>
+
+<p>実験スクリプト用のフォルダを作ります。</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class='bash'><span class='line'>mkdir /var/www/html/xsendfile/data/
+</span><span class='line'>chown -R apache:apache /var/www/html/xsendfile
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>実験用のPHPスクリプトを作成します。</p>
+
+<figure class='code'><figcaption><span>/var/www/html/xsendfile/out.php</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+</pre></td><td class='code'><pre><code class='php'><span class='line'><span class="cp">&lt;?php</span>
+</span><span class='line'><span class="nv">$path</span> <span class="o">=</span> <span class="s1">&#39;/var/www/html/xsendfile/data/file1.txt&#39;</span><span class="p">;</span>
+</span><span class='line'><span class="nv">$fname</span> <span class="o">=</span> <span class="nb">basename</span><span class="p">(</span><span class="nv">$path</span><span class="p">);</span>
+</span><span class='line'><span class="nb">header</span><span class="p">(</span><span class="s2">&quot;X-Sendfile-Temporary: </span><span class="si">$path</span><span class="s2">&quot;</span><span class="p">);</span>
+</span><span class='line'><span class="nb">header</span><span class="p">(</span><span class="s2">&quot;Content-Type: application/octet-stream&quot;</span><span class="p">);</span>
+</span><span class='line'><span class="nb">header</span><span class="p">(</span><span class="s2">&quot;Content-Disposition: attachment; filename=</span><span class="se">\&quot;</span><span class="si">$fname</span><span class="se">\&quot;</span><span class="s2">&quot;</span><span class="p">);</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>実験用のダウンロードファイルを作成します。</p>
+
+<figure class='code'><figcaption><span>/var/www/html/xsendfile/data/file1.txt</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='text'><span class='line'>Hello, X-Sendfile-Temporary!
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>これで、ブラウザで http://your_host_here/xsendfile/out.php を開くとダウンロード後にサーバ上のファイルが削除されました。</p>
+
+<h2>今回のはまりポイント</h2>
+
+<figure class='code'><figcaption><span>/etc/httpd/conf.d/xsendfile_test.conf</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+</pre></td><td class='code'><pre><code class='text'><span class='line'>&lt;Directory /var/www/html/xsendfile&gt;
+</span><span class='line'>    XSendFilePath /var/www/html/xsendfile/data
+</span><span class='line'>    &lt;Files out.php&gt;
+</span><span class='line'>      XSendFile on
+</span><span class='line'>    &lt;/Files&gt;
+</span><span class='line'>&lt;/Directory&gt;
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>のようにAllowFileDeleteを忘れていたら、out.phpを開いた時に404 Not Foundエラーになり、Apacheのエラーログには以下のようなエラーが出ていました。</p>
+
+<figure class='code'><figcaption><span>/var/log/httpd/error_log</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='text'><span class='line'>[Sat Mar 03 15:57:07 2012] [error] [client 192.168.11.3] (14)Bad address: xsendfile: cannot open file: (null)
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>AllowFileDeleteをつければOKでした。</p>
+</div>
+  
+  
+
+
+    </article>
   
   
     <article>
@@ -545,6 +680,10 @@ http://hnakamur.github.com/blog/
   <ul id="recent_posts">
     
       <li class="post">
+        <a href="/blog/2013/09/01/tried-chef-ansible-fabric/">Chef-soloとAnsibleとFabricを試した感想</a>
+      </li>
+    
+      <li class="post">
         <a href="/blog/2013/04/03/how-to-setup-vagrant-1-dot-1-5-and-sahara/">Vagrant 1.1.5とSaharaを試した</a>
       </li>
     
@@ -558,10 +697,6 @@ http://hnakamur.github.com/blog/
     
       <li class="post">
         <a href="/blog/2013/02/16/aws-update-hosts-for-servers-in-same-region/">EC2で同じリージョンの全ホストのプライベートIPを起動時にhostsに自動登録</a>
-      </li>
-    
-      <li class="post">
-        <a href="/blog/2013/02/09/create-aim-user/">IAM管理コンソールでAWSの管理画面用のユーザを作成</a>
       </li>
     
   </ul>

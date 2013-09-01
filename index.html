@@ -9,9 +9,7 @@
   <meta name="author" content="Hiroaki Nakamura">
 
   
-  <meta name="description" content="Vagrantと1.0.xと1.1.xについて バージョン1.1.xの位置づけについては以下の記事を参照。
-Vagrant 1.1, VMware Fusion - HashiCorp
-変更履歴は vagrant/CHANGELOG.md at master · mitchellh/vagrant &hellip;">
+  <meta name="description" content="Chef-soloとAnsibleとFabricを試してみたので感想をメモ。どれもそんなに深くは使い込んではいない。 このメモは自分の脳内の考えを整理するためのもので、人が使うことについてどうこう言うつもりはないです。 Chef-solo 書いてみたcookbookはこちら。hnakamur/ &hellip;">
   
 
   <!-- http://t.co/dKP3o1e -->
@@ -66,6 +64,97 @@ Vagrant 1.1, VMware Fusion - HashiCorp
     <div id="content">
       <div class="blog-index">
   
+  
+  
+    <article>
+      
+  <header>
+    
+      <h1 class="entry-title"><a href="/blog/2013/09/01/tried-chef-ansible-fabric/">Chef-soloとAnsibleとFabricを試した感想</a></h1>
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2013-09-01T23:48:00+09:00" pubdate data-updated="true">2013-09-01</time>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p>Chef-soloとAnsibleとFabricを試してみたので感想をメモ。どれもそんなに深くは使い込んではいない。</p>
+
+<p>このメモは自分の脳内の考えを整理するためのもので、人が使うことについてどうこう言うつもりはないです。</p>
+
+<h2>Chef-solo</h2>
+
+<ul>
+<li>書いてみたcookbookはこちら。<a href="https://github.com/hnakamur/chef-cookbooks">hnakamur/chef-cookbooks</a> <a href="https://github.com/hnakamur/chef-repo">hnakamur/chef-repo</a></li>
+<li>クックブックは手順を書くのではなくて結果を書くというのがどうも本質的に違うと私は思ってしまう。料理のレシピだって手順を書くし。書結果がこうあるべきというのはserverspecが出来た今となってはそちらに任せて、クックブックは本来手順を書くべきものだと思う。</li>
+<li>RubyのDSLだけど結局上から順に評価されるので、実は手続きを書いていることになっている。でもファイル単位でしか再利用できないので、一部だけ使いたいと思ってコピペするしかなくなるのが悲しい。</li>
+<li>Berkshelfでコミュニティクックブックをダウンロードして、ラッパークックブックを書くのがベストプラクティスってのが、無駄な苦行に思えてどうしても受け入れられない。自分のニーズに合わせて一から書くほうが早いしコンパクトで見やすい。これってDSLだからそうなるのかなー。</li>
+<li>もしDSLではなくRubyのクラスとして定義するようになっていて、各タスクをメソッドとして定義するようになっていたら、もっと再利用しやすかったのではないかと思う。それってむしろrakeのほうが近い気がする。<a href="http://rubyhitsquad.com/Vlad_the_Deployer.html">Vlad the Deployer</a>とかVladから切りだされた<a href="http://rubygems.org/gems/rake-remote_task">rake-remote_task | RubyGems.org | your community gem host</a>ベースで組み立てる感じ。なんでVladは人気出なかったのかな～。Capistranoよりいいと思うんだけど。</li>
+</ul>
+
+
+<h2>Ansible</h2>
+
+<ul>
+<li>書いてみたplaybookはこちら。<a href="https://github.com/hnakamur/ansible-playbooks">hnakamur/ansible-playbooks</a></li>
+<li>手続きを記述するのにyamlというのは力不足。基本は順次処理で実行条件で実行するしないの制御ができるだけ。単一のタスクではパラメータでループはできるけど、複数のタスクをまとめてループとかはできない。</li>
+<li>モジュールとして用意されている処理はすっきり書けるが、そうでない場合はshellモジュールでゴリゴリ書くか自前モジュールを作るかになる。自前モジュールを作るのは簡単だが配布の仕組みが確立されていないので、自前でコピーする必要がある。</li>
+<li>やはり手続きはプログラミング言語で記述するほうが自由度は高いと感じた。</li>
+</ul>
+
+
+<h2>Fabric</h2>
+
+<ul>
+<li>書いてみたfabfileはこちら。<a href="https://github.com/hnakamur/my-fabfiles">hnakamur/my-fabfiles</a></li>
+<li>Pythonで手続きを書けるので、処理の流れは自由に書けて良い。</li>
+<li>rpmがインストール済みならダウンロードしないといった処理も自然に書ける。chefやansibleだと素直に書くとsha256sumを計算するという処理が毎回走ってしまう。自分で条件判定処理を記述して実行条件をつければ可能だが、ごちゃごちゃして見づらくなる。</li>
+<li>細かく関数に分けておけば必要なところだけの再利用も簡単。</li>
+<li>Ansibleのモジュールのようなものも、ユーティリティ関数を書くだけの話なので、レシピを書くのとなんら変わらない。レシピとモジュールの開発を同じ枠組みでできるのは便利。モジュールつくって本家にpull requestとかしなくてもすぐ使えるし。</li>
+<li>基本的にはコマンドを順次実行するだけという思想なので、冪等性について考慮した設計になってないのは不便。</li>
+<li>vagrantでfabricでprovisionするプラグインも作ってみた。 <a href="https://github.com/hnakamur/vagrant-fabric-provisioner">hnakamur/vagrant-fabric-provisioner</a></li>
+<li>テンプレートからファイル生成も標準では毎回上書きされてしまう。Ansibleと同じようにチェックサムを計算して違う時だけ上書きするような関数を自作してみた。<a href="https://github.com/hnakamur/my-fabfiles/blob/master/fabfile/common/lib/template.py">my-fabfiles/fabfile/common/lib/template.py at master · hnakamur/my-fabfiles</a> 変更したかどうかも戻り値で返すようにした。これによって変更した場合だけサービス再起動とかは可能になった。</li>
+<li>が、本当はchefのnotificationのように、ホスト毎の処理が終わった後にサービス再起動をまとめて実行したいところ。post-processキューみたいな仕組みが必要そう。</li>
+<li>処理をpythonで書けるのはいいのだが、リモートでの処理は基本コマンド実行になるのでpythonで直接ファイルを読み書きとかは出来ない。これがもどかしい感じ。</li>
+<li>今バージョン1.7で2.0でオーバーホールするRoadmapのようだがどうなっていくかまだわからない感じ。</li>
+</ul>
+
+
+<h2>思いつき</h2>
+
+<ul>
+<li>ふと思いついたのだが、Goでライブラリを用意してレシピもGoで書くのは面白いかも。</li>
+<li>Goならクロスコンパイルも簡単なので、ターゲットマシン用のバイナリを生成してrsync/scpでコピーしてターゲットマシン上で実行するという手が使える。するとファイルの読み書きもコマンド実行でもGoの関数からでもどちらでも実行できる。</li>
+<li>dockerみたいに一つのバイナリで複数の役割を持てせるようにすれば、デーモンとして実行しておいて、さらにsshからコマンド実行して制御ということも可能かも。あるいはエージェントみたいにして相互通信とかサーバと通信して連携するという道も有り得る。</li>
+<li>よくよく考えたら別にGoでなくても、言語処理系とライブラリとレシピのファイルをrsyncで送り込んで実行すれば同じか。</li>
+<li>でもGoならタスクキューとか作ってgoroutineで並列処理したり、channelで連携制御したりというのが書きやすそうなので夢は広がるな〜。</li>
+</ul>
+
+
+<p>まずはローカルでコマンド実行するとか、テンプレートからファイル生成する（但し変更が無い場合は上書きしない）ユーティリティ関数群のライブラリを作ってみようということで今作り中。</p>
+
+<p>他にもいろいろやることがあるので、ツールとして完成するところまで行くかは期待薄。でも、ツールとしては完成しなくてもユーティリティ関数のライブラリでも有効活用できるしGoの勉強にもなるので、気が向いた時にマイペースでやってみよう。</p>
+</div>
+  
+  
+
+
+    </article>
   
   
     <article>
@@ -2096,141 +2185,6 @@ exit
 
     </article>
   
-  
-    <article>
-      
-  <header>
-    
-      <h1 class="entry-title"><a href="/blog/2012/06/27/node-http-proxydebatiyaruhosutodezhen-rifen-ketutuhttp-slash-https-%3Ewebsocketribasupurokisifalseshi-yan/">node-http-proxyでバーチャルホストで振り分けつつhttp/https->websocketリバースプロキシの実験</a></h1>
-    
-    
-      <p class="meta">
-        
-
-
-
-
-
-
-
-
-  
-
-
-<time datetime="2012-06-27T11:36:00+09:00" pubdate data-updated="true">2012-06-27</time>
-        
-      </p>
-    
-  </header>
-
-
-  <div class="entry-content"><p>以下の2つのページを参考に、node-http-proxyでバーチャルホストで振り分けつつ
-http/httpsからwebsocketにリバースプロキシする実験をしてみました。
-環境はCentOS 6.2です。ソースは<a href="https://github.com/hnakamur/node-http-proxy-websocket-sample">hnakamur/node-http-proxy-websocket-sample</a>にあります。</p>
-
-<ul>
-<li><a href="http://d.hatena.ne.jp/replication/20111108/1320762287">５分くらいで出来るnode.js(0.6) + socket.io(0.8x)のサンプルプログラム - 大人になったら肺呼吸</a></li>
-<li><a href="https://github.com/nodejitsu/node-http-proxy">nodejitsu/node-http-proxy</a></li>
-</ul>
-
-
-<pre>
-                              +---------------+
-                       +------+ VHost1App/app |
-                       |      | port 3000     |
- +--------------+      |      +---------------+
--+ proxy-vhost  +------+
- | port 80, 443 |      |      +---------------+
- +--------------+      +------+ VHost2App/app |
-                              | port 3001     |
-                              +---------------+
-</pre>
-
-
-<p>上記の構成で、
-vhost1.example.comというホスト名でアクセスしたらVHost1/app、
-vhost2.example.comというホスト名でアクセスしたらVHost2/app
-にリバースプロキシするようにします。
-*.example.comというワイルドカードの自己証明書でproxy-vhostにてSSLを処理します。</p>
-
-<h2>実行手順</h2>
-
-<h3>自己証明書とパスフレーズ無しの秘密鍵を生成。</h3>
-
-<p>以下、ドメインexample.comの部分は適宜変更してください。</p>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>openssl req -new -newkey rsa:2048 -x509 -nodes -days 365 -set_serial 0 \
-</span><span class='line'>  -subj '/C=JP/ST=Kanagawa/L=Yokohama City/CN=*.example.com' \
-</span><span class='line'>  -out /etc/pki/tls/certs/wildcard.example.com.crt \
-</span><span class='line'>  -keyout /etc/pki/tls/private/wildcard.example.com.key</span></code></pre></td></tr></table></div></figure>
-
-
-<h3>nodeモジュールインストール</h3>
-
-<p>私の環境では/usr/local/node-v0.6.19にnode.jsをインストールしているのでPATHを通してから実行します。</p>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>export PATH=/usr/local/node-v0.6.19/bin:$PATH</span></code></pre></td></tr></table></div></figure>
-
-
-
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>npm install socket.io -g
-</span><span class='line'>npm install express@2.5.10 -g
-</span><span class='line'>npm install ejs -g
-</span><span class='line'>npm install http-proxy -g</span></code></pre></td></tr></table></div></figure>
-
-
-<p>なお、モジュールをグルーバルにインストールしているのは<a href="https://github.com/hnakamur/node-http-proxy-websocket-sample">hnakamur/node-http-proxy-websocket-sample</a>にモジュールを含めたくないからで、実際はローカルにインストールしても構いません。</p>
-
-<h3>サーバ起動</h3>
-
-<p>私の環境では/usr/local/node-v0.6.19にnode.jsをインストールしているのでNODE_PATHを通してから実行します。</p>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>export NODE_PATH=/usr/local/node-v0.6.19/lib/node_modules</span></code></pre></td></tr></table></div></figure>
-
-
-
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>node VHost1App/app &
-</span><span class='line'>node VHost2App/app &
-</span><span class='line'>node proxy-vhost &</span></code></pre></td></tr></table></div></figure>
-
-
-<h3>ローカルマシンの/etc/hostsに以下のエントリ追加</h3>
-
-<p>IPアドレスは実際のサーバに合わせて変更してください。</p>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>192.0.2.2 vhost1.example.com vhost2.example.com</span></code></pre></td></tr></table></div></figure>
-
-
-<h3>ブラウザでアクセス</h3>
-
-<p>https://vhost1.example.com/
-や
-https://vhost2.example.com/
-にアクセスします。自己証明書なのでエラーになりますが受け入れて進んでください。
-バーチャルホスト毎にそれぞれ内容が異なることを確認します。</p>
-</div>
-  
-  
-
-
-    </article>
-  
   <div class="pagination">
     
       <a class="prev" href="/blog/blog/page/2/">&larr; Older</a>
@@ -2246,6 +2200,10 @@ https://vhost2.example.com/
   <ul id="recent_posts">
     
       <li class="post">
+        <a href="/blog/2013/09/01/tried-chef-ansible-fabric/">Chef-soloとAnsibleとFabricを試した感想</a>
+      </li>
+    
+      <li class="post">
         <a href="/blog/2013/04/03/how-to-setup-vagrant-1-dot-1-5-and-sahara/">Vagrant 1.1.5とSaharaを試した</a>
       </li>
     
@@ -2259,10 +2217,6 @@ https://vhost2.example.com/
     
       <li class="post">
         <a href="/blog/2013/02/16/aws-update-hosts-for-servers-in-same-region/">EC2で同じリージョンの全ホストのプライベートIPを起動時にhostsに自動登録</a>
-      </li>
-    
-      <li class="post">
-        <a href="/blog/2013/02/09/create-aim-user/">IAM管理コンソールでAWSの管理画面用のユーザを作成</a>
       </li>
     
   </ul>
