@@ -24,6 +24,12 @@ Chef-soloとAnsibleとFabricを試してみたので感想をメモ。どれも�
 - モジュールとして用意されている処理はすっきり書けるが、そうでない場合はshellモジュールでゴリゴリ書くか自前モジュールを作るかになる。自前モジュールを作るのは簡単だが配布の仕組みが確立されていないので、自前でコピーする必要がある。
 - やはり手続きはプログラミング言語で記述するほうが自由度は高いと感じた。
 
+2013-09-02 追記
+
+- 訂正です。自作モジュール配布の仕組みは標準で用意されていました。libraryフォルダにモジュールを置いておけば自動で読み込まれます。[Bundling Ansible Modules With Playbooks](http://www.ansibleworks.com/docs/bestpractices.html#bundling-ansible-modules-with-playbooks)
+- それ以外の場所に置きたい場合は環境変数ANSIBLE\_LIBRARYを設定するかコマンドラインオプションに--module-pathを指定すればOKです。 [Module Development | AnsibleWorks](http://www.ansibleworks.com/docs/moduledev.html#module-development)
+- [しろう](https://twitter.com/r_rudi)さん、[ご指摘](https://twitter.com/r_rudi/status/374375071000702976)ありがとうございました！
+
 ## Fabric
 
 - 書いてみたfabfileはこちら。[hnakamur/my-fabfiles](https://github.com/hnakamur/my-fabfiles)
