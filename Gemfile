@@ -1,4 +1,4 @@
-source "http://rubygems.org"
+source "https://rubygems.org"
 
 group :development do
   gem 'rake'
@@ -9,10 +9,11 @@ group :development do
   gem 'RedCloth'
   gem 'haml', '>= 3.1'
   gem 'compass', '>= 0.11'
+  gem 'sass-globbing'
   gem 'rubypants'
   gem 'rb-fsevent', '>= 0.9'
   gem 'stringex'
   gem 'liquid', '2.2.2'
 end
 
-gem 'sinatra', '1.2.6'
+gem 'sinatra', '~> 1.4.2'
