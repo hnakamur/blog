@@ -7,6 +7,7 @@ categories: diagram
 ---
 この記事はpplogに書いた記事 https://www.pplog.net/u/hnakamur2 の転載です。
 
+
 ## 背景
 プログラマである私は、既存の作図ツールやシステムに不満があります。こうなってたらいいのにという点を整理してみます。
 
