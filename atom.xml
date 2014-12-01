@@ -4,7 +4,7 @@
   <title><![CDATA[hnakamur's blog at github]]></title>
   <link href="http://hnakamur.github.io/blog/atom.xml" rel="self"/>
   <link href="http://hnakamur.github.io/blog/"/>
-  <updated>2014-09-07T17:26:51+09:00</updated>
+  <updated>2014-12-02T00:06:00+09:00</updated>
   <id>http://hnakamur.github.io/blog/</id>
   <author>
     <name><![CDATA[Hiroaki Nakamura]]></name>
@@ -12,6 +12,251 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[LXDを試してみた]]></title>
+    <link href="http://hnakamur.github.io/blog/2014/12/01/lxd-the-linux-container-daemon/"/>
+    <updated>2014-12-01T22:56:03+09:00</updated>
+    <id>http://hnakamur.github.io/blog/2014/12/01/lxd-the-linux-container-daemon</id>
+    <content type="html"><![CDATA[<h2>はじめに</h2>
+
+<p>LXDに関するページをいくつか紹介します。</p>
+
+<ul>
+<li><a href="https://lists.linuxcontainers.org/pipermail/lxc-users/2014-November/007978.html">[lxc-users] LXD an &ldquo;hypervisor&rdquo; for containers (based on liblxc)</a>
+
+<ul>
+<li>LXCメーリングリストに投稿されたLXDのアナウンスメール</li>
+</ul>
+</li>
+<li><a href="http://www.ubuntu.com/cloud/tools/lxd">LXDのホームページ</a></li>
+<li><a href="https://github.com/lxc/lxd">lxc/lxd githubレポジトリ</a></li>
+<li><a href="https://insights.ubuntu.com/2014/11/04/lxd-the-linux-container-daemon/">Dustin KirklandさんによるLXDの紹介 (2分7秒)</a>
+
+<ul>
+<li>LXDの発音は<a href="https://www.youtube.com/watch?v=U-lXf85Mhno&amp;t=1m18s">1分18秒あたり</a></li>
+</ul>
+</li>
+<li><a href="http://www.zdnet.com/ubuntu-lxd-not-a-docker-replacement-a-docker-enhancement-7000035463/">Ubuntu LXD: Not a Docker replacement, a Docker enhancement | ZDNet</a>
+
+<ul>
+<li>「LXDはdockerを置き換えるものではなく強化するもの」というタイトルの解説記事</li>
+</ul>
+</li>
+</ul>
+
+
+<p>目指しているのは以下の様なものらしいです。</p>
+
+<ul>
+<li>デフォルトでセキュア
+
+<ul>
+<li>コンテナを非rootユーザで稼働できる</li>
+<li>コンテナを隔離して安全に動かせる</li>
+</ul>
+</li>
+<li>コンテナでは単一プロセスを動かすだけではなく完全なOS環境を動かす</li>
+<li>リモートのイメージ管理サービスと連携してライブマイグレーションを可能にする</li>
+<li>OpenStackとも連携</li>
+</ul>
+
+
+<h2>セットアップ</h2>
+
+<p>Ubuntu 14.04で試しました。
+バイナリパッケージをインストールする手順とソースからビルドする手順を書いておきますが、実際に試したのは後者です。</p>
+
+<h3>バイナリパッケージをインストールする手順</h3>
+
+<p><a href="http://www.ubuntu.com/cloud/tools/lxd">The next hypervisor: LXD is fast, secure container management for Linux | Cloud | Ubuntu</a>の&#8221;Getting started with LXD&#8221;に書いてあります。</p>
+
+<p>add-apt-repositoryを使うため事前にsoftware-properties-commonパッケージをインストールしておく必要があります。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>sudo aptitude install software-properties-common</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>ソースからビルドする手順</h3>
+
+<p><a href="https://github.com/lxc/lxd#installing-the-dependencies">lxc/lxd</a>の手順に従います。</p>
+
+<p>以下のコマンドで依存ライブラリをインストールします。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>sudo apt-get install lxc lxc-dev mercurial git pkg-config</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Goをインストールします。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>sudo apt-get install software-properties-common
+</span><span class='line'>sudo add-apt-repository ppa:ubuntu-lxc/lxd-daily
+</span><span class='line'>sudo apt-get update
+</span><span class='line'>sudo apt-get install golang</span></code></pre></td></tr></table></div></figure>
+
+
+<p>GOPATHのディレクトリを作成して、GOPATH環境変数を設定します。
+以下はbashを使っている想定で ~/.bashrc に追加してシェルを再起動する例です。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>mkdir -p ~/go
+</span><span class='line'>echo 'export GOPATH=$HOME/go' &gt;&gt; ~/.bashrc
+</span><span class='line'>exec $SHELL -l</span></code></pre></td></tr></table></div></figure>
+
+
+<p>go getしてソースディレクトリに移動してビルドします。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>go get github.com/lxc/lxd
+</span><span class='line'>cd $GOPATH/src/github.com/lxc/lxd
+</span><span class='line'>go get -v -d ./...
+</span><span class='line'>make</span></code></pre></td></tr></table></div></figure>
+
+
+<p>./lxc/lxcと./lxd/lxdという2つの実行ファイルが作られます。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>vagrant@ubuntu-1404:~/go/src/github.com/lxc/lxd$ file ./lxc/lxc ./lxd/lxd
+</span><span class='line'>./lxc/lxc: ELF 64-bit LSB  executable, x86-64, version 1 (SYSV), dynamically linked (uses shared libs), for GNU/Linux 2.6.24, BuildID[sha1]=a317752267685a543f724c02c2fb827e03564236, not stripped
+</span><span class='line'>./lxd/lxd: ELF 64-bit LSB  executable, x86-64, version 1 (SYSV), dynamically linked (uses shared libs), for GNU/Linux 2.6.24, BuildID[sha1]=8f4ff9b64ecda66a2269c18fd5c440620d548da3, not stripped</span></code></pre></td></tr></table></div></figure>
+
+
+<p>lxdはlxdのデーモンです。lxcはlxdに通信するクライアントプログラムです。<a href="http://gopkg.in/lxc/go-lxc.v2">go-lxc.v2 - gopkg.in/lxc/go-lxc.v2</a>というLXCのGoバインディングライブラリを使用しています。</p>
+
+<h2>セットアップ</h2>
+
+<p>ビルド後以下の環境整備が必要です。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>sudo mkdir -p /var/lib/lxd
+</span><span class='line'>sudo chown $USER:$USER /var/lib/lxd
+</span><span class='line'>echo "$USER:1000000:65536" | sudo tee -a /etc/subuid /etc/subgid</span></code></pre></td></tr></table></div></figure>
+
+
+<h2>使い方</h2>
+
+<h3>lxdの起動</h3>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>./lxd/lxd &</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>lxcのコンテナ作成</h3>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>./lxc/lxc create iamge:ubuntu foo</span></code></pre></td></tr></table></div></figure>
+
+
+<p>READMEでは <code>image:ubuntu</code> をつけていませんが、これだと以下の様なエラーになりました。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>$ ./lxc/lxc create baz
+</span><span class='line'>error: Only the default ubuntu image is supported. Try `lxc create images:ubuntu foo`.</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>lxcのコンテナ起動</h3>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>./lxc/lxc start foo</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>lxcのコンテナ一覧表示</h3>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>$ ./lxc/lxc
+</span><span class='line'>foo</span></code></pre></td></tr></table></div></figure>
+
+
+<p>なお、通常のlxcとはコンテナの管理が別になっているのか(要確認)、 <code>lxc-ls</code> しても fooは表示されませんでした。</p>
+
+<h3>lxcのコンテナ停止</h3>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>./lxc/lxc stop foo</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>lxcのコンテナ停止</h3>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>./lxc/lxc delete foo</span></code></pre></td></tr></table></div></figure>
+
+
+<h3>lxc shellが未実装！</h3>
+
+<p>コンテナでコマンドを実行してみたいところなのですが、 <code>lxc shell</code> というサブコマンドは未実装だそうです。</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>$ ./lxc/lxc help
+</span><span class='line'>Usage: lxc [subcommand] [options]
+</span><span class='line'>Available commands:
+</span><span class='line'>  config     - Manage configuration.
+</span><span class='line'>  create     - lxc create images:ubuntu &lt;name&gt;
+</span><span class='line'>  delete     - lxc delete &lt;resource&gt;
+</span><span class='line'>  finger     - Fingers the lxd instance to check if it is up and working.
+</span><span class='line'>  freeze     - Changes a containers state to freeze.
+</span><span class='line'>  help       - Presents details on how to use lxd.
+</span><span class='line'>  list       - Lists the available resources.
+</span><span class='line'>  remote     - Manage remote lxc servers.
+</span><span class='line'>  restart    - Changes a containers state to restart.
+</span><span class='line'>  shell      - Start a shell or specified command (NOT IMPLEMENTED) in a container.
+</span><span class='line'>  start      - Changes a containers state to start.
+</span><span class='line'>  stop       - Changes a containers state to stop.
+</span><span class='line'>  unfreeze   - Changes a containers state to unfreeze.
+</span><span class='line'>  version    - Prints the version number of lxd.</span></code></pre></td></tr></table></div></figure>
+
+
+<p>ソースを見ても <a href="https://github.com/lxc/lxd/blob/a315c07c632188f7d37fa8dbbe3f1b7d87ab34de/lxc/shell.go#L38-L42">lxd/shell.go at a315c07c632188f7d37fa8dbbe3f1b7d87ab34de · lxc/lxd</a> のあたりにTODOと書かれています。</p>
+
+<p>ただ、<a href="https://github.com/lxc/go-lxc">lxc/go-lxc</a>のソースを見ると、コンテナ内でコマンドを実行するための関数はあるのですが、</p>
+
+<p><a href="https://github.com/lxc/go-lxc/blob/bc0a9447e0be56f8e35d0affe83a92e638308e2f/container.go#L422-L423">https://github.com/lxc/go-lxc/blob/bc0a9447e0be56f8e35d0affe83a92e638308e2f/container.go#L422-L423</a></p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>// Execute executes the given command in a temporary container.
+</span><span class='line'>func (c *Container) Execute(args ...string) ([]byte, error) {</span></code></pre></td></tr></table></div></figure>
+
+
+<p>コマンド実行後に標準出力の結果を戻り値で受け取るようになっています。</p>
+
+<p>シェルを起動してインタラクティブに入出力するには、標準入力、標準出力、標準エラー出力をストリームのようにリアルタイムにやりとりするような関数が必要だと思います。</p>
+
+<h2>おわりに</h2>
+
+<p>早く <code>lxc shell</code> が実装されて欲しいですね！</p>
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[Diagram as a Code]]></title>
@@ -1206,7 +1451,7 @@ interpolate()を呼ばなければOK。</p>
 
 <p><a href="http://aws.amazon.com/jp/contact-us/eip_limit_request/">Elastic IP アドレス上限緩和申請 | アマゾン ウェブ サービス（AWS 日本語）</a> から緩和申請できるようです。</p>
 
-<p>が、申請完了画面で、3〜5営業日かかる、緊急の場合は、完了画面に表示されるCase Numberを添えて <a href="&#x6d;&#x61;&#x69;&#x6c;&#x74;&#x6f;&#58;&#x65;&#x63;&#x32;&#x2d;&#x72;&#x65;&#113;&#117;&#101;&#x73;&#116;&#x40;&#x61;&#x6d;&#x61;&#x7a;&#x6f;&#x6e;&#x2e;&#99;&#x6f;&#x6d;">&#101;&#x63;&#50;&#x2d;&#114;&#101;&#113;&#117;&#101;&#115;&#x74;&#x40;&#x61;&#109;&#x61;&#x7a;&#111;&#x6e;&#x2e;&#x63;&#111;&#109;</a> に送るようにと書かれていました。</p>
+<p>が、申請完了画面で、3〜5営業日かかる、緊急の場合は、完了画面に表示されるCase Numberを添えて <a href="&#x6d;&#x61;&#105;&#x6c;&#116;&#111;&#x3a;&#x65;&#x63;&#x32;&#45;&#x72;&#101;&#113;&#117;&#x65;&#x73;&#116;&#64;&#97;&#x6d;&#97;&#x7a;&#x6f;&#x6e;&#x2e;&#99;&#111;&#109;">&#x65;&#99;&#50;&#45;&#x72;&#x65;&#113;&#x75;&#101;&#x73;&#x74;&#x40;&#x61;&#109;&#x61;&#x7a;&#111;&#x6e;&#x2e;&#99;&#x6f;&#x6d;</a> に送るようにと書かれていました。</p>
 
 <p>（Case Numberを添えてというのは今気付いた。再度メールしました。ブログに書くために読み返してよかった）</p>
 
@@ -2557,249 +2802,6 @@ chefとknife-soloをgemでインストールします。</p>
 visudoで起動して:e /etc/sudoers.d/hnakamurと切り替えて編集して:wqで保存して抜けると、文法エラーがあってもスルーしてしまいました。rootでもう一度起動して何も変更せずに:qで終わると文法エラーに反応してくれるのですが。</p>
 
 <p>ということで、結論としては/etc/sudoers.d/*は私は使わないことにしました。</p>
-]]></content>
-  </entry>
-  
-  <entry>
-    <title type="html"><![CDATA[lua, V8, ruby, mrubyでfib(39)の実行時間比較 2013-03-12版]]></title>
-    <link href="http://hnakamur.github.io/blog/2012/05/04/fib-39-benchmark-in-lua/"/>
-    <updated>2012-05-04T11:06:00+09:00</updated>
-    <id>http://hnakamur.github.io/blog/2012/05/04/fib-39-benchmark-in-lua</id>
-    <content type="html"><![CDATA[<p>2013-03-13追記</p>
-
-<p>この記事が<a href="https://twitter.com/yukihiro_matz">@matz</a>さんにツイートされたのを受けて、各処理系の最新版で再度試してみました。
-<a href="http://hnakamur.github.com/blog/2013/03/12/fib-39-benchmark-in-luajit/">lua, V8, ruby, mrubyでfib(39)の実行時間比較 2013-03-12版</a>をご参照ください。</p>
-
-<hr>
-
-
-<p><a href="http://www.quredo.net/2012/04/mruby-%E8%BB%BD%E9%87%8Fruby-%E3%82%BD%E3%83%BC%E3%82%B9%E5%85%AC%E9%96%8B/">mruby (軽量ruby) ソース公開 | quredo-style</a>を見て、自分の環境でlua, luajit, V8, ruby, mrubyで試してみた。</p>
-
-<p>テスト環境</p>
-
-<ul>
-<li>Model: MacBook Air 13-inch, Mid 2011</li>
-<li>CPU: 1.7GHz Intel Core i5</li>
-<li>RAM: 4GB 1333MHz DDR3</li>
-<li>OS: Mac OS X Lion 10.7.3</li>
-</ul>
-
-
-<h2>lua</h2>
-
-<p>fib.lua</p>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>function fib(n)
-</span><span class='line'>  if n &lt; 2 then
-</span><span class='line'>    return n
-</span><span class='line'>  end
-</span><span class='line'>  return fib(n-2) + fib(n-1)
-</span><span class='line'>end
-</span><span class='line'>
-</span><span class='line'>print(fib(39))</span></code></pre></td></tr></table></div></figure>
-
-
-
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>$ lua -v
-</span><span class='line'>Lua 5.1.4  Copyright (C) 1994-2008 Lua.org, PUC-Rio
-</span><span class='line'>$ time lua fib.lua
-</span><span class='line'>63245986
-</span><span class='line'>
-</span><span class='line'>real  0m21.368s
-</span><span class='line'>user  0m21.345s
-</span><span class='line'>sys   0m0.016s</span></code></pre></td></tr></table></div></figure>
-
-
-
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>$ ./lua -v
-</span><span class='line'>Lua 5.2.0  Copyright (C) 1994-2011 Lua.org, PUC-Rio
-</span><span class='line'>$ time ./lua fib.lua
-</span><span class='line'>63245986
-</span><span class='line'>
-</span><span class='line'>real  0m19.603s
-</span><span class='line'>user  0m19.585s
-</span><span class='line'>sys   0m0.012s</span></code></pre></td></tr></table></div></figure>
-
-
-
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-<span class='line-number'>9</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>$ ./luajit -v
-</span><span class='line'>Lua 5.1.5  Copyright (C) 1994-2012 Lua.org, PUC-Rio
-</span><span class='line'>LuaJIT 1.1.8  Copyright (C) 2005-2012 Mike Pall, http://luajit.org/
-</span><span class='line'>$ time ./luajit fib.lua
-</span><span class='line'>63245986
-</span><span class='line'>
-</span><span class='line'>real  0m4.302s
-</span><span class='line'>user  0m4.292s
-</span><span class='line'>sys   0m0.006s</span></code></pre></td></tr></table></div></figure>
-
-
-
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>$ luajit -v
-</span><span class='line'>LuaJIT 2.0.0-beta9 -- Copyright (C) 2005-2011 Mike Pall. http://luajit.org/
-</span><span class='line'>$ time luajit fib.lua
-</span><span class='line'>63245986
-</span><span class='line'>
-</span><span class='line'>real  0m1.299s
-</span><span class='line'>user  0m1.289s
-</span><span class='line'>sys   0m0.004s</span></code></pre></td></tr></table></div></figure>
-
-
-<h2>V8</h2>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>function fib(n) {
-</span><span class='line'>  if (n &lt; 2) return n;
-</span><span class='line'>  return fib(n-2) + fib(n-1);
-</span><span class='line'>}
-</span><span class='line'>
-</span><span class='line'>print(fib(39));</span></code></pre></td></tr></table></div></figure>
-
-
-
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-<span class='line-number'>9</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>$ v8
-</span><span class='line'>V8 version 3.9.24 [sample shell]
-</span><span class='line'>&gt; quit()
-</span><span class='line'>$ time v8 fib.js
-</span><span class='line'>63245986
-</span><span class='line'>
-</span><span class='line'>real  0m1.417s
-</span><span class='line'>user  0m1.407s
-</span><span class='line'>sys   0m0.013s</span></code></pre></td></tr></table></div></figure>
-
-
-<h2>ruby</h2>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>def fib n
-</span><span class='line'>  return n if n &lt; 2
-</span><span class='line'>  fib(n-2) + fib(n-1)
-</span><span class='line'>end
-</span><span class='line'>
-</span><span class='line'>puts fib(39)</span></code></pre></td></tr></table></div></figure>
-
-
-
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>$ rbenv version
-</span><span class='line'>1.8.7-p358 (set by /Users/hnakamur/.rbenv/version)
-</span><span class='line'>$ time ruby fib.rb
-</span><span class='line'>63245986
-</span><span class='line'>
-</span><span class='line'>real  1m47.227s
-</span><span class='line'>user  1m46.945s
-</span><span class='line'>sys   0m0.132s</span></code></pre></td></tr></table></div></figure>
-
-
-
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>$ rbenv version
-</span><span class='line'>1.9.3-p125 (set by /Users/hnakamur/.rbenv/version)
-</span><span class='line'>$ time ruby fib.rb
-</span><span class='line'>63245986
-</span><span class='line'>
-</span><span class='line'>real  0m16.504s
-</span><span class='line'>user  0m16.374s
-</span><span class='line'>sys   0m0.051s</span></code></pre></td></tr></table></div></figure>
-
-
-
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>$ time bin/mruby fib.rb 
-</span><span class='line'>63245986
-</span><span class='line'>
-</span><span class='line'>real  0m35.465s
-</span><span class='line'>user  0m35.423s
-</span><span class='line'>sys   0m0.014s</span></code></pre></td></tr></table></div></figure>
-
-
-<p>[2012-05-03 23:21]</p>
 ]]></content>
   </entry>
   

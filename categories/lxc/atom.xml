@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+
+  <title><![CDATA[Category: lxc | hnakamur's blog at github]]></title>
+  <link href="http://hnakamur.github.io/blog/categories/lxc/atom.xml" rel="self"/>
+  <link href="http://hnakamur.github.io/blog/"/>
+  <updated>2014-12-02T00:06:00+09:00</updated>
+  <id>http://hnakamur.github.io/blog/</id>
+  <author>
+    <name><![CDATA[Hiroaki Nakamura]]></name>
+    
+  </author>
+  <generator uri="http://octopress.org/">Octopress</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[LXDを試してみた]]></title>
+    <link href="http://hnakamur.github.io/blog/2014/12/01/lxd-the-linux-container-daemon/"/>
+    <updated>2014-12-01T22:56:03+09:00</updated>
+    <id>http://hnakamur.github.io/blog/2014/12/01/lxd-the-linux-container-daemon</id>
+    <content type="html"><![CDATA[<h2>はじめに</h2>
+
+<p>LXDに関するページをいくつか紹介します。</p>
+
+<ul>
+<li><a href="https://lists.linuxcontainers.org/pipermail/lxc-users/2014-November/007978.html">[lxc-users] LXD an &ldquo;hypervisor&rdquo; for containers (based on liblxc)</a>
+
+<ul>
+<li>LXCメーリングリストに投稿されたLXDのアナウンスメール</li>
+</ul>
+</li>
+<li><a href="http://www.ubuntu.com/cloud/tools/lxd">LXDのホームページ</a></li>
+<li><a href="https://github.com/lxc/lxd">lxc/lxd githubレポジトリ</a></li>
+<li><a href="https://insights.ubuntu.com/2014/11/04/lxd-the-linux-container-daemon/">Dustin KirklandさんによるLXDの紹介 (2分7秒)</a>
+
+<ul>
+<li>LXDの発音は<a href="https://www.youtube.com/watch?v=U-lXf85Mhno&amp;t=1m18s">1分18秒あたり</a></li>
+</ul>
+</li>
+<li><a href="http://www.zdnet.com/ubuntu-lxd-not-a-docker-replacement-a-docker-enhancement-7000035463/">Ubuntu LXD: Not a Docker replacement, a Docker enhancement | ZDNet</a>
+
+<ul>
+<li>「LXDはdockerを置き換えるものではなく強化するもの」というタイトルの解説記事</li>
+</ul>
+</li>
+</ul>
+
+
+<p>目指しているのは以下の様なものらしいです。</p>
+
+<ul>
+<li>デフォルトでセキュア
+
+<ul>
+<li>コンテナを非rootユーザで稼働できる</li>
+<li>コンテナを隔離して安全に動かせる</li>
+</ul>
+</li>
+<li>コンテナでは単一プロセスを動かすだけではなく完全なOS環境を動かす</li>
+<li>リモートのイメージ管理サービスと連携してライブマイグレーションを可能にする</li>
+<li>OpenStackとも連携</li>
+</ul>
+
+
+<h2>セットアップ</h2>
+
+<p>Ubuntu 14.04で試しました。
+バイナリパッケージをインストールする手順とソースからビルドする手順を書いておきますが、実際に試したのは後者です。</p>
+
+<h3>バイナリパッケージをインストールする手順</h3>
+
+<p><a href="http://www.ubuntu.com/cloud/tools/lxd">The next hypervisor: LXD is fast, secure container management for Linux | Cloud | Ubuntu</a>の"Getting started with LXD"に書いてあります。</p>
+
+<p>add-apt-repositoryを使うため事前にsoftware-properties-commonパッケージをインストールしておく必要があります。</p>
+
+<pre><code>sudo aptitude install software-properties-common
+</code></pre>
+
+<h3>ソースからビルドする手順</h3>
+
+<p><a href="https://github.com/lxc/lxd#installing-the-dependencies">lxc/lxd</a>の手順に従います。</p>
+
+<p>以下のコマンドで依存ライブラリをインストールします。</p>
+
+<pre><code>sudo apt-get install lxc lxc-dev mercurial git pkg-config
+</code></pre>
+
+<p>Goをインストールします。</p>
+
+<pre><code>sudo apt-get install software-properties-common
+sudo add-apt-repository ppa:ubuntu-lxc/lxd-daily
+sudo apt-get update
+sudo apt-get install golang
+</code></pre>
+
+<p>GOPATHのディレクトリを作成して、GOPATH環境変数を設定します。
+以下はbashを使っている想定で ~/.bashrc に追加してシェルを再起動する例です。</p>
+
+<pre><code>mkdir -p ~/go
+echo 'export GOPATH=$HOME/go' &gt;&gt; ~/.bashrc
+exec $SHELL -l
+</code></pre>
+
+<p>go getしてソースディレクトリに移動してビルドします。</p>
+
+<pre><code>go get github.com/lxc/lxd
+cd $GOPATH/src/github.com/lxc/lxd
+go get -v -d ./...
+make
+</code></pre>
+
+<p>./lxc/lxcと./lxd/lxdという2つの実行ファイルが作られます。</p>
+
+<pre><code>vagrant@ubuntu-1404:~/go/src/github.com/lxc/lxd$ file ./lxc/lxc ./lxd/lxd
+./lxc/lxc: ELF 64-bit LSB  executable, x86-64, version 1 (SYSV), dynamically linked (uses shared libs), for GNU/Linux 2.6.24, BuildID[sha1]=a317752267685a543f724c02c2fb827e03564236, not stripped
+./lxd/lxd: ELF 64-bit LSB  executable, x86-64, version 1 (SYSV), dynamically linked (uses shared libs), for GNU/Linux 2.6.24, BuildID[sha1]=8f4ff9b64ecda66a2269c18fd5c440620d548da3, not stripped
+</code></pre>
+
+<p>lxdはlxdのデーモンです。lxcはlxdに通信するクライアントプログラムです。<a href="http://gopkg.in/lxc/go-lxc.v2">go-lxc.v2 - gopkg.in/lxc/go-lxc.v2</a>というLXCのGoバインディングライブラリを使用しています。</p>
+
+<h2>セットアップ</h2>
+
+<p>ビルド後以下の環境整備が必要です。</p>
+
+<pre><code>sudo mkdir -p /var/lib/lxd
+sudo chown $USER:$USER /var/lib/lxd
+echo "$USER:1000000:65536" | sudo tee -a /etc/subuid /etc/subgid
+</code></pre>
+
+<h2>使い方</h2>
+
+<h3>lxdの起動</h3>
+
+<pre><code>./lxd/lxd &amp;
+</code></pre>
+
+<h3>lxcのコンテナ作成</h3>
+
+<pre><code>./lxc/lxc create iamge:ubuntu foo
+</code></pre>
+
+<p>READMEでは <code>image:ubuntu</code> をつけていませんが、これだと以下の様なエラーになりました。</p>
+
+<pre><code>$ ./lxc/lxc create baz
+error: Only the default ubuntu image is supported. Try `lxc create images:ubuntu foo`.
+</code></pre>
+
+<h3>lxcのコンテナ起動</h3>
+
+<pre><code>./lxc/lxc start foo
+</code></pre>
+
+<h3>lxcのコンテナ一覧表示</h3>
+
+<pre><code>$ ./lxc/lxc
+foo
+</code></pre>
+
+<p>なお、通常のlxcとはコンテナの管理が別になっているのか(要確認)、 <code>lxc-ls</code> しても fooは表示されませんでした。</p>
+
+<h3>lxcのコンテナ停止</h3>
+
+<pre><code>./lxc/lxc stop foo
+</code></pre>
+
+<h3>lxcのコンテナ停止</h3>
+
+<pre><code>./lxc/lxc delete foo
+</code></pre>
+
+<h3>lxc shellが未実装！</h3>
+
+<p>コンテナでコマンドを実行してみたいところなのですが、 <code>lxc shell</code> というサブコマンドは未実装だそうです。</p>
+
+<pre><code>$ ./lxc/lxc help
+Usage: lxc [subcommand] [options]
+Available commands:
+  config     - Manage configuration.
+  create     - lxc create images:ubuntu &lt;name&gt;
+  delete     - lxc delete &lt;resource&gt;
+  finger     - Fingers the lxd instance to check if it is up and working.
+  freeze     - Changes a containers state to freeze.
+  help       - Presents details on how to use lxd.
+  list       - Lists the available resources.
+  remote     - Manage remote lxc servers.
+  restart    - Changes a containers state to restart.
+  shell      - Start a shell or specified command (NOT IMPLEMENTED) in a container.
+  start      - Changes a containers state to start.
+  stop       - Changes a containers state to stop.
+  unfreeze   - Changes a containers state to unfreeze.
+  version    - Prints the version number of lxd.
+</code></pre>
+
+<p>ソースを見ても <a href="https://github.com/lxc/lxd/blob/a315c07c632188f7d37fa8dbbe3f1b7d87ab34de/lxc/shell.go#L38-L42">lxd/shell.go at a315c07c632188f7d37fa8dbbe3f1b7d87ab34de · lxc/lxd</a> のあたりにTODOと書かれています。</p>
+
+<p>ただ、<a href="https://github.com/lxc/go-lxc">lxc/go-lxc</a>のソースを見ると、コンテナ内でコマンドを実行するための関数はあるのですが、</p>
+
+<p><a href="https://github.com/lxc/go-lxc/blob/bc0a9447e0be56f8e35d0affe83a92e638308e2f/container.go#L422-L423">https://github.com/lxc/go-lxc/blob/bc0a9447e0be56f8e35d0affe83a92e638308e2f/container.go#L422-L423</a></p>
+
+<pre><code>// Execute executes the given command in a temporary container.
+func (c *Container) Execute(args ...string) ([]byte, error) {
+</code></pre>
+
+<p>コマンド実行後に標準出力の結果を戻り値で受け取るようになっています。</p>
+
+<p>シェルを起動してインタラクティブに入出力するには、標準入力、標準出力、標準エラー出力をストリームのようにリアルタイムにやりとりするような関数が必要だと思います。</p>
+
+<h2>おわりに</h2>
+
+<p>早く <code>lxc shell</code> が実装されて欲しいですね！</p>
+]]></content>
+  </entry>
+  
+</feed>
