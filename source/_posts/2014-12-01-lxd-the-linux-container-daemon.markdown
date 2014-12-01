@@ -31,7 +31,7 @@ LXDに関するページをいくつか紹介します。
 ## セットアップ
 
 Ubuntu 14.04で試しました。
-バイナリパッケージをインストールする手順とソースからビルドする手順を書いておきますが、実際に試したのは後者です。
+バイナリパッケージをインストールする手順とソースからビルドする手順を書いておきますが、実際に試したのは後者です。正確には最初前者を試したのですが、その後何してよいかドキュメントが見当たらないので後者を試した感じです。
 
 ### バイナリパッケージをインストールする手順
 
@@ -41,6 +41,14 @@ add-apt-repositoryを使うため事前にsoftware-properties-commonパッケー
 
 ```
 sudo aptitude install software-properties-common
+```
+
+その後以下のコマンドを実行します。
+
+```
+sudo add-apt-repository cloud-archive:juno
+sudo apt-get update
+sudo apt-get install nova-compute-flex
 ```
 
 ### ソースからビルドする手順
