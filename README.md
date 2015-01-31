@@ -1,11 +1,12 @@
-# liquorice
+# liquorice-hn
 
-Liquorice is a small black and white theme for [Hugo](https://github.com/spf13/hugo) (a fast and modern static website engine).
+Liquorice-hn is a small black and white theme for [Hugo](https://github.com/spf13/hugo) (a fast and modern static website engine).
+It is based on [eliasson/liquorice](https://github.com/eliasson/liquorice).
 
 
 ### Dependencies
 
-Liquorice needs at least version 0.12 of Hugo, as it uses features such as partials.
+Liquorice-hn needs at least version 0.12 of Hugo, as it uses features such as partials.
 
 
 ### Partials
@@ -25,7 +26,7 @@ In order to override and have your own markup appended to single pages, just cre
 
 ### Shortcodes
 
-Liquorice comes with these additional shortcodes:
+Liquorice-hn comes with these additional shortcodes:
 
 
 #### gist
@@ -48,4 +49,4 @@ There is not much to build, but the theme CSS is minified using the node tool [c
 
 # License
 
-Liquorice is released under the MIT license, see LICENSE for details.
+Liquorice-hn is released under the MIT license, see LICENSE for details.
