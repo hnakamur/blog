@@ -1,0 +1,407 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Centos on hnakamur&#39;s blog at github</title>
+    <link>https://hnakamur.github.io/blog/categories/centos/</link>
+    <description>Recent content in Centos on hnakamur&#39;s blog at github</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>ja-JP</language>
+    <lastBuildDate>Sat, 02 Feb 2013 00:00:00 +0000</lastBuildDate>
+    <atom:link href="https://hnakamur.github.io/blog/categories/centos/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>Unboundで在宅時に自宅サーバの名前解決</title>
+      <link>https://hnakamur.github.io/blog/2013/02/02/use-unbound-dns-server/</link>
+      <pubDate>Sat, 02 Feb 2013 00:00:00 +0000</pubDate>
+      
+      <guid>https://hnakamur.github.io/blog/2013/02/02/use-unbound-dns-server/</guid>
+      <description>
+
+&lt;h2 id=&#34;背景:0dc3f92637d9016ee7408c13bb7c7960&#34;&gt;背景&lt;/h2&gt;
+
+&lt;p&gt;私の自宅ではブロードバンドルータがグローバルIPを持っていて、DNSで自分のドメイン(以下ではexample.comとして説明します)のIPアドレスをそこにしています。ルータからLAN内のLinuxサーバ(CentOS 6.x)へはNATで繋いでいます。&lt;/p&gt;
+
+&lt;p&gt;外出時はこれでよいのですが、在宅時にLAN内からexample.comという名前でアクセスしようとするとサーバにアクセスできません。&lt;/p&gt;
+
+&lt;p&gt;今までは &lt;a href=&#34;https://github.com/hnakamur/switch_net_configs&#34;&gt;hnakamur/switch_net_configs · GitHub&lt;/a&gt; を使って外出時と在宅時に/etc/hostsと~/.ssh/configを切り替えてしのいでいました。が、VirtualBoxのゲストとかを考えると面倒です。&lt;/p&gt;
+
+&lt;p&gt;そこで、自宅サーバにDNSサーバを入れてみることにしました。
+bindはセキュリティフィクスが頻発しているから避けて他のにしようと思い、&lt;a href=&#34;http://en.wikipedia.org/wiki/Comparison_of_DNS_server_software&#34;&gt;Comparison of DNS server software - Wikipedia, the free encyclopedia&lt;/a&gt; を見てみました。
+moreに対してlessが生まれたように、bindに対してunboundというネーミングセンスが気に入ったのと、 &lt;a href=&#34;http://www.atmarkit.co.jp/flinux/special/unbound/unbounda.html&#34;&gt;＠IT：DNSリゾルバのニューフェイス「Unbound」（1/2）&lt;/a&gt; の記事を読んで、簡単に導入できそうと思ったのでUnboundにしました。&lt;/p&gt;
+
+&lt;h2 id=&#34;導入手順:0dc3f92637d9016ee7408c13bb7c7960&#34;&gt;導入手順&lt;/h2&gt;
+
+&lt;p&gt;unboundはepelにあるので、yumでインストールします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;yum install unbound
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;/etc/unbound/unbound.confを編集します。編集結果はこんな感じ。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# diff -u /etc/unbound/unbound.conf.orig /etc/unbound/unbound.conf
+--- /etc/unbound/unbound.conf.orig  2013-02-02 01:56:13.541249978 +0900
++++ /etc/unbound/unbound.conf 2013-02-02 02:15:52.559227483 +0900
+@@ -28,7 +28,7 @@
+  extended-statistics: yes
+ 
+  # number of threads to create. 1 disables threading.
+- num-threads: 2
++ num-threads: 1
+ 
+  # specify the interfaces to answer queries from by ip-address.
+  # The default is to listen to localhost (127.0.0.1 and ::1).
+@@ -40,6 +40,8 @@
+  # interface: 192.0.2.153
+  # interface: 192.0.2.154
+  # interface: 2001:DB8::5
++ interface: 127.0.0.1
++ interface: 192.168.11.103
+  #
+  # for dns over tls and raw dns over port 80
+  # interface: 0.0.0.0@443
+@@ -69,6 +71,10 @@
+  # number of ports to allocate per thread, determines the size of the
+  # port range that can be open simultaneously.
+  # outgoing-range: 4096
++ outgoing-range: 900
++ # Note: The value outgoing-range was set to avoid the warning below:
++ # unbound[28716:0] warning: increased limit(open files) from 1024 to 1080
++ # This server is used only by me, so a small value should be OK.
+ 
+  # permit unbound to use this port number or port range for
+  # making outgoing queries, using an outgoing interface.
+@@ -178,6 +184,8 @@
+  # access-control: ::0/0 refuse
+  # access-control: ::1 allow
+  # access-control: ::ffff:127.0.0.1 allow
++ access-control: 127.0.0.0/8 allow
++ access-control: 192.168.11.0/24 allow
+ 
+  # if given, a chroot(2) is done to the given directory.
+  # i.e. you can chroot to the working directory, for example,
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;ul&gt;
+&lt;li&gt;自宅サーバのCPUはシングルコアなのでnum-threadsは1にしました。&lt;/li&gt;
+&lt;li&gt;interfaceを0.0.0.0にしていないのは、KVMが別のネットワークインタフェースでdnsmaskでDNSのポート53を既に使っているためです。192.168.11.103はDNSサーバのアドレスです。&lt;/li&gt;
+&lt;li&gt;outgoing-rangeはopen filesの警告が出ないように下げてみました。どうせ使うのは私一人なので小さくてもいいだろうし。&lt;/li&gt;
+&lt;li&gt;access-controlはLAN内からのみ許可するようにしました。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;/etc/unbound/local.d/example.com.confにlocal-dataの設定を書きます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;local-data: &amp;quot;example.com A 192.168.11.103&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;あとは、iptablesでUDPのポート53を開けて、unboundのサービスを起動してchkconfigで自動起動をオンにすればOKです。&lt;/p&gt;
+
+&lt;h2 id=&#34;クライアントの設定:0dc3f92637d9016ee7408c13bb7c7960&#34;&gt;クライアントの設定&lt;/h2&gt;
+
+&lt;p&gt;Linuxの場合は、
+/etc/sysconfig/networkに&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;DNS1=&amp;quot;192.168.11.103&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;と書いて、以下のコマンドで反映します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;service network restart
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Macでは[システム環境設定]/[ネットワーク]→[詳細]ボタン→[DNS]タブで「192.168.11.103」を指定すれば設定出来ます。&lt;/p&gt;
+
+&lt;p&gt;が、iPhoneでDNSの設定が出来ないようなので(ちょっと試しただけで未調査)、どうせならルータ側で設定したいなーと思ったら、
+&lt;a href=&#34;http://matsh.jp/d/0365&#34;&gt;ONU一体型ひかり電話ルータ PR-400KI のDNS設定 - matshのふらふら日記&lt;/a&gt;
+というブログ記事を見つけました。&lt;/p&gt;
+
+&lt;p&gt;[詳細設定]-[DNS設定]の[ローカルドメイン問合せテーブル]で、ドメイン名(ワイルドカード指定可能)に対してエントリを追加してドメイン毎にプライマリDNSサーバとセカンダリDNSサーバを登録できるようになっています。&lt;/p&gt;
+
+&lt;p&gt;ただし、サーバの指定がIPv6形式のみ受け付けるようになっています。IPv4射影アドレスをIPv6形式で指定すると解決するとのことでした。
+&lt;a href=&#34;http://kaworu.jpn.org/kaworu/2010-08-16-1.php&#34;&gt;IPv6 IPv4射影アドレス とは&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;DNSサーバのIPv4アドレス192.168.11.103の各オクテットを16進数に変換すると
+192→C0、168→A8、11→B、103→67となり、IPv4射影アドレスは
+::FFFF:C0A8:B67
+となりました。&lt;/p&gt;
+
+&lt;p&gt;これでMacでもiPhoneでもexample.comで参照できるようになりました。快適！&lt;/p&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>daemontoolsのインストール手順</title>
+      <link>https://hnakamur.github.io/blog/2012/06/21/how-to-install-daemontools/</link>
+      <pubDate>Thu, 21 Jun 2012 00:00:00 +0000</pubDate>
+      
+      <guid>https://hnakamur.github.io/blog/2012/06/21/how-to-install-daemontools/</guid>
+      <description>&lt;p&gt;CentOS6.2で確認。&lt;/p&gt;
+
+&lt;p&gt;OS起動時にdaemontoolsを起動する設定は&lt;a href=&#34;http://cr.yp.to/daemontools/start.html&#34;&gt;How to start daemontools&lt;/a&gt;を参照。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;yum install -y make gcc rpm-build &amp;amp;&amp;amp;
+rpm -ivh http://mirrors.qmailtoaster.com/daemontools-toaster-0.76-1.3.6.src.rpm &amp;amp;&amp;amp;
+rpmbuild -ba /root/rpmbuild/SPECS/daemontools-toaster.spec &amp;amp;&amp;amp;
+rpm -ivh /root/rpmbuild/RPMS/x86_64/daemontools-toaster-0.76-1.3.6.x86_64.rpm &amp;amp;&amp;amp;
+cat &amp;gt; /etc/init/svscan.conf &amp;lt;&amp;lt;EOF &amp;amp;&amp;amp;
+start on runlevel [12345]
+stop on runlevel [^12345]
+respawn
+exec /command/svscanboot
+EOF
+/command/svscanboot &amp;amp;
+&lt;/code&gt;&lt;/pre&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>daemontoolsの使い方</title>
+      <link>https://hnakamur.github.io/blog/2012/06/21/how-to-use-daemontools/</link>
+      <pubDate>Thu, 21 Jun 2012 00:00:00 +0000</pubDate>
+      
+      <guid>https://hnakamur.github.io/blog/2012/06/21/how-to-use-daemontools/</guid>
+      <description>
+
+&lt;p&gt;&lt;a href=&#34;http://www.nslabs.jp/daemontools.rhtml&#34;&gt;daemontoolsを使う | Netsphere Laboratories&lt;/a&gt;を参考にしました。ありがとうございます。&lt;/p&gt;
+
+&lt;h2 id=&#34;私的ルール:10f91c77867c782bb33b89dfe38d3166&#34;&gt;私的ルール&lt;/h2&gt;
+
+&lt;h3 id=&#34;無効化したサービスは-service-disabled-に移動:10f91c77867c782bb33b89dfe38d3166&#34;&gt;無効化したサービスは/service/.disabled/に移動&lt;/h3&gt;
+
+&lt;p&gt;/service/以下に.で始まるフォルダ名にすると無視されるということですが、my_service_nameを.my_service_nameと変えるのはタイプが面倒なので、/service/.disabledというフォルダを作って無効化するときはその下に移動することにしました。&lt;/p&gt;
+
+&lt;h3 id=&#34;作業するときは-serviceに移動:10f91c77867c782bb33b89dfe38d3166&#34;&gt;作業するときは/serviceに移動&lt;/h3&gt;
+
+&lt;p&gt;svcやsvstatにフルパスを指定しても動くのですが、/service/と/service/.disabled間で移動するときにタイプ量が増えるので、最初にcd /serviceしてから作業することにしました。&lt;/p&gt;
+
+&lt;h2 id=&#34;手順:10f91c77867c782bb33b89dfe38d3166&#34;&gt;手順&lt;/h2&gt;
+
+&lt;h3 id=&#34;サービス追加:10f91c77867c782bb33b89dfe38d3166&#34;&gt;サービス追加&lt;/h3&gt;
+
+&lt;p&gt;node-virtualhost1.example.comという名前でサービスを追加する例。
+exec -cの後はサービスに応じて変更します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;cd /service
+mkdir -p .disabled/node-virtualhost1.example.com
+cat &amp;lt;&amp;lt;EOF &amp;gt; .disabled/node-virtualhost1.example.com/run
+#!/bin/sh
+exec -c /usr/local/node-v0.6.19/bin/node /var/www/app/virtualhost1.example.com/hello.js
+EOF
+chmod 755 .disabled/node-virtualhost1.example.com/run
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;サービス有効化:10f91c77867c782bb33b89dfe38d3166&#34;&gt;サービス有効化&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;cd /service
+mv .disabled/node-virtualhost1.example.com .
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h4 id=&#34;状態確認:10f91c77867c782bb33b89dfe38d3166&#34;&gt;状態確認&lt;/h4&gt;
+
+&lt;pre&gt;&lt;code&gt;# svstat node-virtualhost1.example.com/
+node-virtualhost1.example.com/: up (pid 1493) 3 seconds
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;サービス無効化:10f91c77867c782bb33b89dfe38d3166&#34;&gt;サービス無効化&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;cd /service
+mv node-virtualhost1.example.com .disabled/
+svc -tx .disabled/node-virtualhost1.example.com
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h4 id=&#34;状態確認-1:10f91c77867c782bb33b89dfe38d3166&#34;&gt;状態確認&lt;/h4&gt;
+
+&lt;pre&gt;&lt;code&gt;# svstat .disabled/node-virtualhost1.example.com/
+.disabled/node-virtualhost1.example.com/: supervise not running
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;サービス一時停止-down:10f91c77867c782bb33b89dfe38d3166&#34;&gt;サービス一時停止(Down)&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;cd /service
+svc -d node-virtualhost1.example.com
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h4 id=&#34;状態確認-2:10f91c77867c782bb33b89dfe38d3166&#34;&gt;状態確認&lt;/h4&gt;
+
+&lt;pre&gt;&lt;code&gt;# svstat node-virtualhost1.example.com/
+node-virtualhost1.example.com/: down 1 seconds, normally up
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;サービス一時停止からの再開-up:10f91c77867c782bb33b89dfe38d3166&#34;&gt;サービス一時停止からの再開(Up)&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;cd /service
+svc -u node-virtualhost1.example.com
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h4 id=&#34;状態確認-3:10f91c77867c782bb33b89dfe38d3166&#34;&gt;状態確認&lt;/h4&gt;
+
+&lt;pre&gt;&lt;code&gt;# svstat node-virtualhost1.example.com/
+node-virtualhost1.example.com/: up (pid 1512) 1 seconds
+&lt;/code&gt;&lt;/pre&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>/etc/sudoers.d/を使う→やっぱり止め</title>
+      <link>https://hnakamur.github.io/blog/2012/05/04/use-slash-etc-slash-sudoers-dot-d-slash/</link>
+      <pubDate>Fri, 04 May 2012 00:00:00 +0000</pubDate>
+      
+      <guid>https://hnakamur.github.io/blog/2012/05/04/use-slash-etc-slash-sudoers-dot-d-slash/</guid>
+      <description>
+
+&lt;p&gt;これまでいつも/etc/sudoersを編集していたのですが、よくみるとファイル末尾に&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;## Read drop-in files from /etc/sudoers.d (the # here does not mean a comment)
+#includedir /etc/sudoers.d
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;と書いてあって、/etc/sudoers.d/にファイルを置けば/etc/sudoersを編集しなくても済むんですね。（しかしなんでincludedirには#をつける仕様なんだろ。今までずっとコメントアウトされていると思ってました。その上のコメント行に#ついててもコメントじゃないと書いてあるのに気づいたのが今日です）&lt;/p&gt;
+
+&lt;p&gt;/etc/sudoers.d/hnakamur を&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Defaults:hnakamur !requiretty
+hnakamur ALL=(ALL)      NOPASSWD: ALL
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;として試してみました。&lt;/p&gt;
+
+&lt;p&gt;sudoすると&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo: /etc/sudoers.d/hnakamur is mode 0644, should be 0440
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;というエラー。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;chmod 0440 /etc/sudoers.d/hnakamur
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;して再度試すとOKでした。&lt;/p&gt;
+
+&lt;p&gt;visudoではこのファイルは編集対象ではないので、複数人で同時に編集しないよう連絡しあうなどの運用が別途必要です。このせいでみんな使ってないんだろうか？&lt;/p&gt;
+
+&lt;h2 id=&#34;etc-sudoers-d-の罠にはまった:81dd1b29ef445814cc91803ba4a0f6e8&#34;&gt;/etc/sudoers.d/* の罠にはまった&lt;/h2&gt;
+
+&lt;p&gt;(2012-05-05 追記)&lt;/p&gt;
+
+&lt;p&gt;使うべきでない理由がわかりました！&lt;/p&gt;
+
+&lt;p&gt;/etc/sudoers.d/*のファイルで文法エラーのまま保存してしまうと、次にsudoを実行した時に以下の様なエラーが出ました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ sudo -s
+&amp;gt;&amp;gt;&amp;gt; /etc/sudoers.d/hnakamur: syntax error near line 2 &amp;lt;&amp;lt;&amp;lt;
+sudo: parse error in /etc/sudoers.d/hnakamur near line 2
+sudo: no valid sudoers sources found, quitting
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;こうなるとsu -でrootになるしかないです。/etc/sudoers.d/*を使わずvisudoで編集する場合は、保存時に文法エラーがある場合は抜けずに再編集が可能なので安全です。&lt;/p&gt;
+
+&lt;h2 id=&#34;visudoを使えば-etc-sudoers-d-でも大丈夫:81dd1b29ef445814cc91803ba4a0f6e8&#34;&gt;visudoを使えば/etc/sudoers.d/* でも大丈夫&lt;/h2&gt;
+
+&lt;p&gt;(2012-05-05 追記)&lt;/p&gt;
+
+&lt;p&gt;さらに追記。visudoは/etc/sudoers.d/*に文法がエラーがある場合も抜ける前にプロンプトが出ました。人手で編集するときは必ずvisudoを使うよう肝に銘じます。&lt;/p&gt;
+
+&lt;h2 id=&#34;etc-sudoers-d-だとvisudoでもダメなパターンがありました:81dd1b29ef445814cc91803ba4a0f6e8&#34;&gt;/etc/sudoers.d/* だとvisudoでもダメなパターンがありました&lt;/h2&gt;
+
+&lt;p&gt;(2012-05-05 追記)&lt;/p&gt;
+
+&lt;p&gt;さらに追記。
+visudoで起動して:e /etc/sudoers.d/hnakamurと切り替えて編集して:wqで保存して抜けると、文法エラーがあってもスルーしてしまいました。rootでもう一度起動して何も変更せずに:qで終わると文法エラーに反応してくれるのですが。&lt;/p&gt;
+
+&lt;p&gt;ということで、結論としては/etc/sudoers.d/*は私は使わないことにしました。&lt;/p&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>CentOS6でchef-soloとknife-soloをセットアップ</title>
+      <link>https://hnakamur.github.io/blog/2012/05/04/setup-chef-solo-and-knife-solo-on-centos6/</link>
+      <pubDate>Fri, 04 May 2012 00:00:00 +0000</pubDate>
+      
+      <guid>https://hnakamur.github.io/blog/2012/05/04/setup-chef-solo-and-knife-solo-on-centos6/</guid>
+      <description>
+
+&lt;h2 id=&#34;なぜ:4b0627b315e1a219f8d473e2d3addbcb&#34;&gt;なぜ？&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://higelog.brassworks.jp/?p=654&#34;&gt;chef-soloで作業環境構築の自動化 | ひげろぐ&lt;/a&gt; を参考に、Chefサーバは使いたくないけど、chef-soloとknifeを使いたい！
+ということで、そういう環境を作るためのスクリプトを作りました。
+だいぶ前から試行錯誤してたけど、ようやくできたので公開。&lt;/p&gt;
+
+&lt;h2 id=&#34;セットアップスクリプト:4b0627b315e1a219f8d473e2d3addbcb&#34;&gt;セットアップスクリプト&lt;/h2&gt;
+
+&lt;p&gt;chef-soloやknifeはrootユーザで実行する想定です。&lt;/p&gt;
+
+&lt;p&gt;このスクリプトではruby、rubygems、ruby-devel、make、gccをyumで、
+chefとknife-soloをgemでインストールします。&lt;/p&gt;
+
+&lt;p&gt;chef-soloやknife実行時にオプションをなるべく指定不要にするため、設定ファイルはデフォルトの場所に配置しています。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;/etc/chef/solo.rb&lt;/li&gt;
+&lt;li&gt;/root/.chef/knife.rb&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;その他の詳細は
+&lt;a href=&#34;https://github.com/hnakamur/setup_linux/blob/master/centos6/install_chef-solo.sh&#34;&gt;install_chef-solo.sh&lt;/a&gt;
+を参照してください。&lt;/p&gt;
+
+&lt;p&gt;ちょっと注意が必要なのは、shのヒアドキュメントで&lt;code&gt;`hostname`&lt;/code&gt;が展開されるのを避けるために、&lt;code&gt;\`hostname\`&lt;/code&gt;とエスケープしていることです。
+＃余談ですが、markdownだとバックスラッシュやバックティックはエスケープしないといけないんですね。&lt;/p&gt;
+
+&lt;p&gt;knife.rbの設定は
+&lt;a href=&#34;https://gist.github.com/1039666&#34;&gt;Base &amp;ldquo;knife&amp;rdquo; configuration for a standard chef-solo setup — Gist&lt;/a&gt; を書き換えて作りました。が、まだよく理解していません。&lt;/p&gt;
+
+&lt;h2 id=&#34;セットアップ手順:4b0627b315e1a219f8d473e2d3addbcb&#34;&gt;セットアップ手順&lt;/h2&gt;
+
+&lt;p&gt;特に設定変更が不要であれば&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;curl https://raw.github.com/hnakamur/setup_linux/master/centos6/install_chef-solo.sh | sudo sh
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;でセットアップできます。変更したい場合はとってきて書き換えてから実行してください。&lt;/p&gt;
+
+&lt;h2 id=&#34;クックブック作成例:4b0627b315e1a219f8d473e2d3addbcb&#34;&gt;クックブック作成例&lt;/h2&gt;
+
+&lt;p&gt;例えば&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;knife cookbook create ntp
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;と実行すると、/etc/chef/site-cookbooks/ntp/ 以下にフォルダ構成とファイルが作られます。あとは編集して作ります。&lt;/p&gt;
+
+&lt;h2 id=&#34;実行例:4b0627b315e1a219f8d473e2d3addbcb&#34;&gt;実行例&lt;/h2&gt;
+
+&lt;p&gt;/root/.chef/chef.json&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;{
+  &amp;quot;run_list&amp;quot;:[&amp;quot;recipe[ntp]&amp;quot;]
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;というファイルを用意して&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo chef-solo -j /root/.chef/chef.json
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;で実行します。&lt;/p&gt;
+
+&lt;h2 id=&#34;私のスタンス:4b0627b315e1a219f8d473e2d3addbcb&#34;&gt;私のスタンス&lt;/h2&gt;
+
+&lt;p&gt;minimalistな私は正直 &lt;a href=&#34;http://wiki.opscode.com/display/chef/Home&#34;&gt;Chef&lt;/a&gt; はそんなに好きじゃないです。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://wiki.opscode.com/display/chef/Architecture&#34;&gt;Architecture&lt;/a&gt; を見ると、CouchDB, Solr, RabbitMQ が必要って、高々サーバをセットアップするのになんでこんなにいろいろ稼働させる必要があるの？って感じてしまいます。セットアップ手順が自動化されたとしても、自分のマシンでそれだけのサーバが動いているのがもったいない、無駄にマシンリソースを消費してエコじゃない、と思います。&lt;/p&gt;
+
+&lt;p&gt;そもそも私がやるような3台構成ぐらいの環境構築にそこまで大掛かりな仕組みはいらないというのもありますし。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://rexify.org/&#34;&gt;&amp;reg;?ex - A simple framework to simplify systemadministration&lt;/a&gt; はsshの鍵認証またはパスワード認証で接続してリモートで処理を実行できるのでこちらのほうが好きです。リモートマシンのセットアップにsshサーバ以外に何か必要というのは、なんか違う気がするんですよね。&lt;/p&gt;
+
+&lt;p&gt;それからクックブック1つに対して、フォルダやファイルがたくさんできるのもあまり好きじゃないです。設定管理ツールじゃなくてパッケージ管理ツールですけどHomebrewはFormulaが1つのrubyスクリプトでこれは非常に編集が楽なんです。RexはRexfileにテンプレートファイルを含めることも可能なので&lt;/p&gt;
+
+&lt;p&gt;あと処理を手続き的に記述するではなく、最終的な状態を宣言的に記述するというスタイルですが、これも限定的だと思っています。結局のところ、複雑な処理だと処理順序も関係するので、やらせたいことを手続き的にかける方がストレートなのかなと。実行する必要があるかチェックする処理を最初に入れて、それを含めた一連の処理を一つのコマンドとして提供すれば、利用側のコードはシンプルになるのでそれで十分だと思います。&lt;/p&gt;
+
+&lt;p&gt;あと、実行対象の処理をJSONファイルに書いて、ファイル名を引数で指定して実行ってのもイケてない。rakeやRexのようにタスクを引数に指定させて欲しいです。&lt;/p&gt;
+
+&lt;p&gt;と文句ばかり言っているようですが、DevOpsを提唱したopscode.comが出しているツールだし、一度は使ってみるべきということで。あと、まわりでも使っているので、ツールは揃えておいたほうが良いかなという思いもあります。私自身はいいのですが、まわりで使わされる人が何種類も覚えることを強要されるのは無駄だろうし。&lt;/p&gt;
+</description>
+    </item>
+    
+  </channel>
+</rss>

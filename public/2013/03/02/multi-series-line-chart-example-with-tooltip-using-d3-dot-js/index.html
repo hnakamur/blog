@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en-us">
+    <head>
+        
+        <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+
+        <title>d3.jsを使ったツールチップあり複数折れ線グラフのサンプルを作った &middot; hnakamur&#39;s blog at github</title>
+        <link rel='stylesheet' href='http://fonts.googleapis.com/css?family=Open+Sans:400,300,600' type='text/css'>
+        <link rel="stylesheet" href="https://hnakamur.github.io/blog/libraries/normalize.3.0.1.css" />
+        <link rel="stylesheet" href="https://hnakamur.github.io/blog/css/liquorice.css" />
+        <link rel="shortcut icon" href="/favicon.ico" />
+        <link rel="apple-touch-icon-precomposed" href="/apple-touch-icon-144-precomposed.png" sizes="144x144" />
+        <link rel="alternate" href="" type="application/rss+xml" title="hnakamur&#39;s blog at github" />
+    </head>
+    <body class="li-body">
+
+<header class="li-page-header">
+    <div class="container">
+        <div class="row">
+            <div class="sixteen columns">
+                <div class="li-brand li-left">
+                <a href="https://hnakamur.github.io/blog">hnakamur&#39;s blog at github</a></div>
+                <div class="li-menu li-right">
+                    <span class="li-menu-icon" onclick="javascript:toggle('menu');">&#9776;</span>
+                    <ul id="menu2" class="li-menu-items">
+                        
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="sixteen columns">
+                <ul id="menu" class="li-menu-items li-menu-mobile">
+                    
+                </ul>
+            </div>
+        </div>
+    </div>
+</header>
+
+
+    <div class="container">
+        <div class="row">
+            <div class="sixteen columns">
+                <article class="li-article">
+                    <header class="li-article-header">
+                        <h1 class="li-article-title">d3.jsを使ったツールチップあり複数折れ線グラフのサンプルを作った</h1>
+                        <time class="li-article-date">2013-03-02</time>
+                    </header>
+                    <section>
+                        
+
+<p><a href="http://d3js.org/">D3.js - Data-Driven Documents</a>を使ってツールチップあり複数折れ線グラフのサンプルを作ったのでメモ。</p>
+
+<p><a href="/downloads/code/2013-03-02-multi-series-line-chart-example-with-tooltip-using-d3-dot-js/3884955.html">サンプル</a></p>
+
+<p><a href="http://bl.ocks.org/mbostock/3884955">Multi-Series Line Chart</a>のサンプルをベースに改良しました。</p>
+
+<h2 id="x軸のラベルを回転:d0541cc9ba4f8d6587118da310bcbf60">X軸のラベルを回転</h2>
+
+<p><a href="http://www.d3noob.org/2013/01/how-to-rotate-text-labels-for-x-axis-of.html">D3.js Tips and Tricks: How to rotate the text labels for the x Axis of a d3.js graph</a>を参考にして回転させました。</p>
+
+<pre><code>  svg.append(&quot;g&quot;)
+      .attr(&quot;class&quot;, &quot;x axis&quot;)
+      .attr(&quot;transform&quot;, &quot;translate(0,&quot; + height + &quot;)&quot;)
+      .call(xAxis)
+      .selectAll(&quot;text&quot;)
+        .style(&quot;text-anchor&quot;, &quot;end&quot;)
+        .attr(&quot;dx&quot;, &quot;-.8em&quot;)
+        .attr(&quot;dy&quot;, &quot;-.6em&quot;)
+        .attr(&quot;transform&quot;, &quot;rotate(-90)&quot;);
+</code></pre>
+
+<h2 id="ツールチップを出す:d0541cc9ba4f8d6587118da310bcbf60">ツールチップを出す</h2>
+
+<p><a href="https://gist.github.com/biovisualize/1016860#gistcomment-61316">Simple D3 tooltip</a>の手法で、線でもツールチップは出せなくはないのですが、カーソル位置のデータが取れないので、データの点に円を作成することにしました。</p>
+
+<p><a href="https://groups.google.com/forum/?fromgroups=#!topic/d3-js/8XLzUYLoFnY">multi-line chart with circle points - Google グループ</a>を参考に以下の様なコードで円を作成しました。</p>
+
+<p>ツールチップを出す部分は<a href="https://gist.github.com/biovisualize/1016860#gistcomment-61316">Simple D3 tooltip</a>を参考にしました。元のコードではイベントを<code>event</code>で参照していましたが、ChromeとSafariでは動くもののFirefoxではundefinedになっていました。<a href="https://github.com/mbostock/d3/wiki/Selections#wiki-on">Selections · mbostock/d3 Wiki</a>を見ると、<code>d3.event</code>で参照するのが正しいので修正しました。</p>
+
+<pre><code> city. selectAll(&quot;circle&quot;)
+      .data(function(d) { return d.values.map(function(v) {
+              return {date: v.date, temperature: v.temperature, name: d.name};
+            }); })
+    .enter().append(&quot;circle&quot;)
+      .attr(&quot;cx&quot;, function(d, i) { return x(d.date); })
+      .attr(&quot;cy&quot;, function(d, i) { return y(d.temperature); })
+      .style(&quot;fill&quot;, function(d) { return color(d.name); })
+      .attr(&quot;r&quot;, 1)
+      .on(&quot;mouseover&quot;, function(){
+        return tooltip.style(&quot;visibility&quot;, &quot;visible&quot;);
+      })
+      .on(&quot;mousemove&quot;, function(d){
+        return tooltip
+          .style(&quot;top&quot;, (d3.event.pageY-10)+&quot;px&quot;)
+          .style(&quot;left&quot;,(d3.event.pageX+10)+&quot;px&quot;)
+          .html(&quot;&lt;dl&gt;&lt;dt&gt;date&lt;/dt&gt;&lt;dd&gt;&quot; + d3.time.format(&quot;%Y-%m-%d&quot;)(d.date) + &quot;&lt;/dd&gt;&lt;dt&gt;temperature&lt;/dt&gt;&lt;dd&gt;&quot; + d.temperature + &quot;&lt;/dd&gt;&lt;dt&gt;name&lt;/dt&gt;&lt;dd&gt;&quot; + d.name + &quot;&lt;/dd&gt;&lt;/dl&gt;&quot;);
+      })
+      .on(&quot;mouseout&quot;, function(){
+        return tooltip.style(&quot;visibility&quot;, &quot;hidden&quot;);
+      });
+</code></pre>
+
+<p>見た目がうるさくないように円の半径は1とし、線だけ見えるような感じにしています。すると点にカーソルでポイントするのが大変なので、太めのストロークを透明色で指定して、ポイントしやすくしています。</p>
+
+<pre><code>.tooltip {
+  border: 1px solid black;
+  background-color: white;
+  padding: 5px 8px 4px 8px;
+  border-radius: 4px;
+  -moz-border-radius: 4px;
+  -webkit-border-radius: 4px;
+}
+</code></pre>
+
+<h2 id="線のデータ補完を止める:d0541cc9ba4f8d6587118da310bcbf60">線のデータ補完を止める</h2>
+
+<p>データ補完してしまうと、線とデータ点がずれてしまうので、補完は止めます。
+interpolate()を呼ばなければOK。</p>
+
+<pre><code>var line = d3.svg.line()
+    //.interpolate(&quot;basis&quot;)
+    .x(function(d) { return x(d.date); })
+    .y(function(d) { return y(d.temperature); });
+</code></pre>
+
+                    </section>
+                </article>
+            </div>
+        </div>
+
+        <div class="row li-author">
+    <div class="sixteen columns">
+        Written by <strong>Hiroaki Nakamura</strong>
+    </div>
+</div>
+
+
+        <div class="row li-pagination">
+            <div class="eight columns">
+                <div class="li-pagination-previous">
+                    
+                        Later article<br />
+                        <a href="https://hnakamur.github.io/blog/2013/03/12/fib-39-benchmark-in-luajit/"> lua, V8, ruby, mrubyでfib(39)の実行時間比較</a>
+                    
+                </div>
+            </div>
+            <div class="eight columns">
+                <div class="li-pagination-next">
+                    
+                        Older article<br />
+                        <a href="https://hnakamur.github.io/blog/2013/02/16/aws-update-hosts-for-servers-in-same-region/"> EC2で同じリージョンの全ホストのプライベートIPを起動時にhostsに自動登録</a>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+
+<footer class="li-page-footer">
+    <div class="container">
+        <div class="row">
+            <div class="sixteen columns">
+                <div class="li-page-footer-legal">
+                    &copy; 2012-2015. All rights reserved. 
+                </div>
+                <div class="li-page-footer-theme">
+                    <span class=""><a href="http://github.com/hnakamur/liquorice-hn/">liquorice-hn</a> is a theme for <a href="http://hugo.spf13.com">hugo</a></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</footer>
+
+    <script type="text/javascript">
+    <!--
+    function toggle(id) {
+        var e = document.getElementById(id);
+        e.style.display == 'block' ? e.style.display = 'none' : e.style.display = 'block';
+    }
+    
+    </script>
+    <script type="text/javascript">
+    <!--
+        var _gaq = _gaq || [];
+        _gaq.push(['_setAccount', ""]);
+        _gaq.push(['_trackPageview']);
+
+        (function() {
+        var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+        ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+        var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+        })();
+    -->
+    </script>
+    </body>
+</html>
+

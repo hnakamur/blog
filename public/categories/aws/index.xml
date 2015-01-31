@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Aws on hnakamur&#39;s blog at github</title>
+    <link>https://hnakamur.github.io/blog/categories/aws/</link>
+    <description>Recent content in Aws on hnakamur&#39;s blog at github</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>ja-JP</language>
+    <lastBuildDate>Sat, 16 Feb 2013 00:00:00 +0000</lastBuildDate>
+    <atom:link href="https://hnakamur.github.io/blog/categories/aws/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>EC2で同じリージョンの全ホストのプライベートIPを起動時にhostsに自動登録</title>
+      <link>https://hnakamur.github.io/blog/2013/02/16/aws-update-hosts-for-servers-in-same-region/</link>
+      <pubDate>Sat, 16 Feb 2013 00:00:00 +0000</pubDate>
+      
+      <guid>https://hnakamur.github.io/blog/2013/02/16/aws-update-hosts-for-servers-in-same-region/</guid>
+      <description>
+
+&lt;p&gt;Elastic IPの上限数にひっかかって使えない自体に遭遇したので作りました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://aws.amazon.com/jp/contact-us/eip_limit_request/&#34;&gt;Elastic IP アドレス上限緩和申請 | アマゾン ウェブ サービス（AWS 日本語）&lt;/a&gt; から緩和申請できるようです。&lt;/p&gt;
+
+&lt;p&gt;が、申請完了画面で、3〜5営業日かかる、緊急の場合は、完了画面に表示されるCase Numberを添えて ec2-request@amazon.com に送るようにと書かれていました。&lt;/p&gt;
+
+&lt;p&gt;（Case Numberを添えてというのは今気付いた。再度メールしました。ブログに書くために読み返してよかった）&lt;/p&gt;
+
+&lt;p&gt;そこで、hostsにプライベートアドレスを登録するスクリプトを書くことにしました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://frmmpgit.blog.fc2.com/blog-entry-123.html&#34;&gt;EC2 - 動的プライベートIPアドレスをどうにかする | code up&lt;/a&gt; を参考にしました。ありがとうございます。&lt;/p&gt;
+
+&lt;p&gt;最初は対象のホストの一覧を指定するようなスクリプトを書いていたのですが、ホストを増やすことを考えると編集と反映が面倒だと予想して、リージョン内の全ホストを一括登録することにしました。&lt;/p&gt;
+
+&lt;h2 id=&#34;情報取得用のaimユーザ作成:52b01480e63c8960ca28f50dbc8283f1&#34;&gt;情報取得用のAIMユーザ作成&lt;/h2&gt;
+
+&lt;p&gt;AIMでUserを作ってUser PolicyにReadOnlyAccessを与えます。&lt;/p&gt;
+
+&lt;h2 id=&#34;スクリプト設置:52b01480e63c8960ca28f50dbc8283f1&#34;&gt;スクリプト設置&lt;/h2&gt;
+
+&lt;p&gt;以下の設定ファイルとスクリプトを設置します。&lt;/p&gt;
+
+&lt;p&gt;アクセスキーとシークレットキーは上で作ったユーザのものを設定します。&lt;/p&gt;
+
+&lt;p&gt;/root/.amazon_address_finder_key&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;export AWS_ACCESS_KEY=${your_access_key_here}
+export AWS_SECRET_KEY=${your_secret_key_here}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;/usr/local/sbin/update_hosts.sh&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;#!/bin/sh
+. /root/.amazon_address_finder_key
+region=`ec2-metadata | sed -n &#39;s/^local-hostname: ip-[0-9-]*\.\(.*\)\.compute\.i
+nternal/\1/p&#39;`
+
+ec2-describe-instances --region $region -H --show-empty-fields | gawk &#39;
+BEGIN {OFS=&amp;quot;\t&amp;quot;; print &amp;quot;127.0.0.1&amp;quot;, &amp;quot;localhost localhost.localdomain&amp;quot;}
+/^INSTANCE/ {ip = $18}  
+/^TAG/ {print ip, gensub(/.*\tName\t([^\t]*).*/, &amp;quot;\\1&amp;quot;, $0)}  
+&#39; &amp;gt; /etc/hosts
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;/etc/cron.d/update_hosts&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;@reboot root /usr/local/sbin/update_hosts.sh
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;実行:52b01480e63c8960ca28f50dbc8283f1&#34;&gt;実行&lt;/h2&gt;
+
+&lt;p&gt;これで、OS起動時にhostsが上書き更新されます。&lt;/p&gt;
+
+&lt;p&gt;インタンスのNameタグに設定した値がホスト名になります。&lt;/p&gt;
+
+&lt;p&gt;出力例&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;127.0.0.1       localhost localhost.localdomain
+10.132.102.199  web01
+10.128.21.174   web02
+10.120.32.111   app01
+10.132.103.238  app02
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;githubに移動しました:52b01480e63c8960ca28f50dbc8283f1&#34;&gt;githubに移動しました&lt;/h2&gt;
+
+&lt;p&gt;さらにhostnameも更新するようにして、スクリプトが発展してきたので、
+&lt;a href=&#34;https://github.com/hnakamur/aws_scripts&#34;&gt;hnakamur/aws_scripts · GitHub&lt;/a&gt;
+に移動しました。&lt;/p&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>IAM管理コンソールでAWSの管理画面用のユーザを作成</title>
+      <link>https://hnakamur.github.io/blog/2013/02/09/create-aim-user/</link>
+      <pubDate>Sat, 09 Feb 2013 00:00:00 +0000</pubDate>
+      
+      <guid>https://hnakamur.github.io/blog/2013/02/09/create-aim-user/</guid>
+      <description>
+
+&lt;p&gt;AWS (Amazon Web Services)の管理コンソールを複数人で使う場合に大元のIDとパスワードを共有するのは避けたい場合、IAMでユーザを作成するのがよいと&lt;a href=&#34;https://twitter.com/fujiwara&#34;&gt;@fujiwara&lt;/a&gt;さんに教わりました。これは実際に試した時のメモです。&lt;/p&gt;
+
+&lt;p&gt;なお、IAMはIdentity and Access Managementの略です。&lt;/p&gt;
+
+&lt;h2 id=&#34;管理者-aimユーザのログインurlの設定:0820a6ea1e6b7dc778c8e412bda9b947&#34;&gt;管理者: AIMユーザのログインURLの設定&lt;/h2&gt;
+
+&lt;p&gt;初期状態では https://{ランダムな数字}.signin.aws.amazon.com/console のようなURLになっていますが、好きなサブドメインに変更が可能です。&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;AWSの管理コンソールにログイン&lt;/li&gt;
+&lt;li&gt;[IAM]をクリック&lt;/li&gt;
+&lt;li&gt;左のメニューで[Dashboard]をクリック&lt;/li&gt;
+&lt;li&gt;[Create Account Alias]ボタンを押し、[Account Alias]にサブドメインを入力します。すると https://{入力したサブドメイン}.signin.aws.amazon.com/console がログインURLになります。&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;元に戻したい場合は[Remove Account Alias]ボタンを押します。&lt;/p&gt;
+
+&lt;h2 id=&#34;管理者-aimユーザの作成:0820a6ea1e6b7dc778c8e412bda9b947&#34;&gt;管理者: AIMユーザの作成&lt;/h2&gt;
+
+&lt;h3 id=&#34;ユーザの作成とapiアクセスキーのダウンロード:0820a6ea1e6b7dc778c8e412bda9b947&#34;&gt;ユーザの作成とAPIアクセスキーのダウンロード&lt;/h3&gt;
+
+&lt;ol&gt;
+&lt;li&gt;AWSの管理コンソールにログイン&lt;/li&gt;
+&lt;li&gt;[IAM]をクリック&lt;/li&gt;
+&lt;li&gt;左のメニューで[Users]をクリック&lt;/li&gt;
+&lt;li&gt;上のツールバーで[Create New Users]ボタンを押す&lt;/li&gt;
+&lt;li&gt;[Create User]ダイアログで[Enter User Names:]に作成したいユーザのIDを入力。
+
+&lt;ul&gt;
+&lt;li&gt;同時に5人までつくれるようです(実際に試したのは1人だけです)。&lt;/li&gt;
+&lt;li&gt;AWSサービスのAPIを使う場合は[Generate an access key for each User]チェックボックスをオンのままにしておきます。ここでオフにしていても後からキーを発行できるので、不明の場合はオフでいいです。&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;[Create User]ダイアログで[Create]ボタンを押す&lt;/li&gt;
+&lt;li&gt;[Download Credentials]ボタンを押して、&amp;rdquo;User Name&amp;rdquo;,&amp;ldquo;Access Key Id&amp;rdquo;,&amp;ldquo;Secret Access Key&amp;rdquo;が書かれたCSVファイルをダウンロード&lt;/li&gt;
+&lt;li&gt;[Close Windows]ボタンを押す&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h3 id=&#34;ユーザの初期パスワード作成とダウンロード:0820a6ea1e6b7dc778c8e412bda9b947&#34;&gt;ユーザの初期パスワード作成とダウンロード&lt;/h3&gt;
+
+&lt;ol&gt;
+&lt;li&gt;ユーザ一覧でユーザを選択して、上のツールバーの[User Actions]ボタンを押すか、右クリックのポップアップメニューから[Manage Password]メニューを選択&lt;/li&gt;
+&lt;li&gt;[Manage Password]ダイアログで[Assign an auto-generated password]ラジオボタンを選択した状態で[Apply]ボタンを押す&lt;/li&gt;
+&lt;li&gt;[Download Credentials]ボタンを押し、&amp;rdquo;User Name&amp;rdquo;,&amp;ldquo;Password&amp;rdquo;,&amp;ldquo;Direct Signin Link&amp;rdquo;が書かれたCSVファイルをダウンロード&lt;/li&gt;
+&lt;li&gt;[Close Windows]ボタンを押す&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id=&#34;利用者-初回ログインとパスワード変更:0820a6ea1e6b7dc778c8e412bda9b947&#34;&gt;利用者: 初回ログインとパスワード変更&lt;/h2&gt;
+
+&lt;ol&gt;
+&lt;li&gt;&amp;ldquo;User Name&amp;rdquo;,&amp;ldquo;Password&amp;rdquo;,&amp;ldquo;Direct Signin Link&amp;rdquo;が書かれたCSVファイルのURLをブラウザで開き、ID、パスワードを入力してログインします。&lt;/li&gt;
+&lt;li&gt;ツールバー右上のユーザIDのドロップダウンメニューを開き、[Security Credentials]を選択&lt;/li&gt;
+&lt;li&gt;現在のパスワードと新しいパスワードを入力して[Change Password]ボタンを押して変更&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id=&#34;管理者-利用者のパスワード変更:0820a6ea1e6b7dc778c8e412bda9b947&#34;&gt;管理者: 利用者のパスワード変更&lt;/h2&gt;
+
+&lt;p&gt;ユーザ一覧でポップアップメニューの[Manage Password]メニューから変更できます。&lt;/p&gt;
+
+&lt;h2 id=&#34;管理者-利用者のapiアクセスキー追加-削除:0820a6ea1e6b7dc778c8e412bda9b947&#34;&gt;管理者: 利用者のAPIアクセスキー追加、削除&lt;/h2&gt;
+
+&lt;p&gt;ユーザ一覧でポップアップメニューの[Manage Access Keys]メニューから変更できます。&lt;/p&gt;
+
+&lt;h2 id=&#34;管理者-利用者のユーザ削除:0820a6ea1e6b7dc778c8e412bda9b947&#34;&gt;管理者: 利用者のユーザ削除&lt;/h2&gt;
+
+&lt;p&gt;ユーザ一覧でポップアップメニューの[Delete User]メニューから削除できます。&lt;/p&gt;
+</description>
+    </item>
+    
+  </channel>
+</rss>
