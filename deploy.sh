@@ -9,7 +9,7 @@ hugo -t liquorice-hn
 git add -A
 
 # Commit changes.
-msg="rebuilding site `date`"
+msg="rebuilding site `LANG=C date '+%Y-%m-%dT%H:%M:%S%z'`"
 if [ $# -eq 1 ]
   then msg="$1"
 fi
