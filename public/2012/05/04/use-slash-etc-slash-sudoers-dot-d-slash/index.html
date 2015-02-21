@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en-us">
+    <head>
+        
+        <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+
+        <title>/etc/sudoers.d/を使う→やっぱり止め &middot; hnakamur&#39;s blog at github</title>
+        <link rel='stylesheet' href='http://fonts.googleapis.com/css?family=Open+Sans:400,300,600' type='text/css'>
+        <link rel="stylesheet" href="/blog/libraries/normalize.3.0.1.css" />
+        <link rel="stylesheet" href="/blog/css/liquorice.css" />
+        <link rel="shortcut icon" href="/favicon.ico" />
+        <link rel="apple-touch-icon-precomposed" href="/apple-touch-icon-144-precomposed.png" sizes="144x144" />
+        <link rel="alternate" href="" type="application/rss+xml" title="hnakamur&#39;s blog at github" />
+        
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+      (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+      m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+          })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', "UA-53263855-1", 'auto');
+    ga('send', 'pageview');
+</script>
+
+
+    </head>
+    <body class="li-body">
+
+<header class="li-page-header">
+    <div class="container">
+        <div class="row">
+            <div class="sixteen columns">
+                <div class="li-brand li-left">
+                <a href="/blog">hnakamur&#39;s blog at github</a></div>
+                <div class="li-menu li-right">
+                    <span class="li-menu-icon" onclick="javascript:toggle('menu');">&#9776;</span>
+                    <ul id="menu2" class="li-menu-items">
+                        
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="sixteen columns">
+                <ul id="menu" class="li-menu-items li-menu-mobile">
+                    
+                </ul>
+            </div>
+        </div>
+    </div>
+</header>
+
+
+    <div class="container">
+        <div class="row">
+            <div class="sixteen columns">
+                <article class="li-article">
+                    <header class="li-article-header">
+                        <h1 class="li-article-title">/etc/sudoers.d/を使う→やっぱり止め</h1>
+                        <time class="li-article-date">2012-05-04</time>
+                    </header>
+                    <section>
+                        
+
+<p>これまでいつも/etc/sudoersを編集していたのですが、よくみるとファイル末尾に</p>
+
+<pre><code>## Read drop-in files from /etc/sudoers.d (the # here does not mean a comment)
+#includedir /etc/sudoers.d
+</code></pre>
+
+<p>と書いてあって、/etc/sudoers.d/にファイルを置けば/etc/sudoersを編集しなくても済むんですね。（しかしなんでincludedirには#をつける仕様なんだろ。今までずっとコメントアウトされていると思ってました。その上のコメント行に#ついててもコメントじゃないと書いてあるのに気づいたのが今日です）</p>
+
+<p>/etc/sudoers.d/hnakamur を</p>
+
+<pre><code>Defaults:hnakamur !requiretty
+hnakamur ALL=(ALL)      NOPASSWD: ALL
+</code></pre>
+
+<p>として試してみました。</p>
+
+<p>sudoすると</p>
+
+<pre><code>sudo: /etc/sudoers.d/hnakamur is mode 0644, should be 0440
+</code></pre>
+
+<p>というエラー。</p>
+
+<pre><code>chmod 0440 /etc/sudoers.d/hnakamur
+</code></pre>
+
+<p>して再度試すとOKでした。</p>
+
+<p>visudoではこのファイルは編集対象ではないので、複数人で同時に編集しないよう連絡しあうなどの運用が別途必要です。このせいでみんな使ってないんだろうか？</p>
+
+<h2 id="etc-sudoers-d-の罠にはまった:81dd1b29ef445814cc91803ba4a0f6e8">/etc/sudoers.d/* の罠にはまった</h2>
+
+<p>(2012-05-05 追記)</p>
+
+<p>使うべきでない理由がわかりました！</p>
+
+<p>/etc/sudoers.d/*のファイルで文法エラーのまま保存してしまうと、次にsudoを実行した時に以下の様なエラーが出ました。</p>
+
+<pre><code>$ sudo -s
+&gt;&gt;&gt; /etc/sudoers.d/hnakamur: syntax error near line 2 &lt;&lt;&lt;
+sudo: parse error in /etc/sudoers.d/hnakamur near line 2
+sudo: no valid sudoers sources found, quitting
+</code></pre>
+
+<p>こうなるとsu -でrootになるしかないです。/etc/sudoers.d/*を使わずvisudoで編集する場合は、保存時に文法エラーがある場合は抜けずに再編集が可能なので安全です。</p>
+
+<h2 id="visudoを使えば-etc-sudoers-d-でも大丈夫:81dd1b29ef445814cc91803ba4a0f6e8">visudoを使えば/etc/sudoers.d/* でも大丈夫</h2>
+
+<p>(2012-05-05 追記)</p>
+
+<p>さらに追記。visudoは/etc/sudoers.d/*に文法がエラーがある場合も抜ける前にプロンプトが出ました。人手で編集するときは必ずvisudoを使うよう肝に銘じます。</p>
+
+<h2 id="etc-sudoers-d-だとvisudoでもダメなパターンがありました:81dd1b29ef445814cc91803ba4a0f6e8">/etc/sudoers.d/* だとvisudoでもダメなパターンがありました</h2>
+
+<p>(2012-05-05 追記)</p>
+
+<p>さらに追記。
+visudoで起動して:e /etc/sudoers.d/hnakamurと切り替えて編集して:wqで保存して抜けると、文法エラーがあってもスルーしてしまいました。rootでもう一度起動して何も変更せずに:qで終わると文法エラーに反応してくれるのですが。</p>
+
+<p>ということで、結論としては/etc/sudoers.d/*は私は使わないことにしました。</p>
+
+                    </section>
+                </article>
+            </div>
+        </div>
+
+        <div class="row li-author">
+    <div class="sixteen columns">
+        Written by <strong>Hiroaki Nakamura</strong>
+    </div>
+</div>
+
+
+        <div class="row li-pagination">
+            <div class="eight columns">
+                <div class="li-pagination-previous">
+                    
+                        Later article<br />
+                        <a href="/blog/2012/05/04/fib-39-benchmark-in-lua/"> lua, V8, ruby, mrubyでfib(39)の実行時間比較 2013-03-12版</a>
+                    
+                </div>
+            </div>
+            <div class="eight columns">
+                <div class="li-pagination-next">
+                    
+                        Older article<br />
+                        <a href="/blog/2012/03/11/custom-file-template-for-xcode-4-dot-3-1/"> Xcode 4.3.1のファイルテンプレートをカスタマイズ</a>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+
+<footer class="li-page-footer">
+    <div class="container">
+        <div class="row">
+            <div class="sixteen columns">
+                <div class="li-page-footer-legal">
+                    &copy; 2012-2015. All rights reserved. 
+                </div>
+                <div class="li-page-footer-theme">
+                    <span class=""><a href="http://github.com/hnakamur/liquorice-hn/">liquorice-hn</a> is a theme for <a href="http://hugo.spf13.com">hugo</a></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</footer>
+
+    <script type="text/javascript">
+    <!--
+    function toggle(id) {
+        var e = document.getElementById(id);
+        e.style.display == 'block' ? e.style.display = 'none' : e.style.display = 'block';
+    }
+    
+    </script>
+    <script type="text/javascript">
+    <!--
+        var _gaq = _gaq || [];
+        _gaq.push(['_setAccount', ""]);
+        _gaq.push(['_trackPageview']);
+
+        (function() {
+        var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+        ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+        var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+        })();
+    -->
+    </script>
+    </body>
+</html>
+

@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Node.Js on hnakamur&#39;s blog at github</title>
+    <link>/blog/categories/node/index.js/</link>
+    <description>Recent content in Node.Js on hnakamur&#39;s blog at github</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>ja-JP</language>
+    <lastBuildDate>Wed, 27 Jun 2012 00:00:00 +0000</lastBuildDate>
+    <atom:link href="/blog/categories/node.js/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>node.jsのfs.watch()で設定ファイルが更新されたらリロード</title>
+      <link>/blog/2012/06/27/node-dot-jsfalsefs-dot-watch-deshe-ding-huairugageng-xin-saretararirodo/</link>
+      <pubDate>Wed, 27 Jun 2012 00:00:00 +0000</pubDate>
+      
+      <guid>/blog/2012/06/27/node-dot-jsfalsefs-dot-watch-deshe-ding-huairugageng-xin-saretararirodo/</guid>
+      <description>&lt;p&gt;&lt;a href=&#34;http://stackoverflow.com/questions/1972242/auto-reload-of-files-in-node-js&#34;&gt;javascript - Auto-reload of files in Node.js - Stack Overflow&lt;/a&gt;によると、モジュールをリロードするには&lt;a href=&#34;https://github.com/isaacs/node-supervisor&#34;&gt;isaacs/node-supervisor&lt;/a&gt;がよさそうです。&lt;/p&gt;
+
+&lt;p&gt;が、今回は設定ファイルのリロードなのでfs.watch(filename, [options], [listener]) で十分ということで試してみました。
+&lt;a href=&#34;http://nodejs.org/api/fs.html#fs_fs_watch_filename_options_listener&#34;&gt;File System Node.js v0.8.0 Manual &amp;amp; Documentation&lt;/a&gt;
+によると環境によっては使えないそうなので注意が必要です。&lt;/p&gt;
+
+&lt;p&gt;CentOS 6.2では使えました。&lt;/p&gt;
+
+&lt;p&gt;watch.js&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;var fs = require(&#39;fs&#39;);
+fs.watch(&#39;router.json&#39;, function(ev, filename) {
+  if (filename) {
+    fs.readFile(filename, function(err, data) {
+      if (err) throw err;
+      var router = JSON.parse(data);
+      console.log(router);
+    });
+  }
+});
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;router.json&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;{
+  &amp;quot;vhost1.example.com&amp;quot;: &amp;quot;127.0.0.1:3000&amp;quot;,
+  &amp;quot;vhost2.example.com&amp;quot;: &amp;quot;127.0.0.1:3001&amp;quot;,
+  &amp;quot;vhost3.example.com&amp;quot;: &amp;quot;127.0.0.1:3002&amp;quot;,
+  &amp;quot;vhost4.example.com&amp;quot;: &amp;quot;127.0.0.1:3003&amp;quot;
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;node watch
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;で起動して&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;touch router.json
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;を実行すると&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;{ &#39;vhost1.example.com&#39;: &#39;127.0.0.1:3000&#39;,
+  &#39;vhost2.example.com&#39;: &#39;127.0.0.1:3001&#39;,
+  &#39;vhost3.example.com&#39;: &#39;127.0.0.1:3002&#39;,
+  &#39;vhost4.example.com&#39;: &#39;127.0.0.1:3003&#39; }
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;と出力されます。&lt;/p&gt;
+
+&lt;p&gt;ただし、vimでrouter.jsonを開いて:wで保存すると下記のエラーでnodeが異常終了してしまいました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;/var/www/app/watch-sample/watch.js:6
+      if (err) throw err;
+                     ^
+Error: ENOENT, open &#39;router.json&#39;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;node watch
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;再起動後、vimでrouter.jsonを開いて:wqで保存して終了すると異常終了はしませんでしたが、下記のようにコールバックが4回も呼び出されてしまいました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;{ &#39;vhost1.example.com&#39;: &#39;127.0.0.1:3000&#39;,
+  &#39;vhost2.example.com&#39;: &#39;127.0.0.1:3001&#39;,
+  &#39;vhost3.example.com&#39;: &#39;127.0.0.1:3002&#39;,
+  &#39;vhost4.example.com&#39;: &#39;127.0.0.1:3003&#39; }
+{ &#39;vhost1.example.com&#39;: &#39;127.0.0.1:3000&#39;,
+  &#39;vhost2.example.com&#39;: &#39;127.0.0.1:3001&#39;,
+  &#39;vhost3.example.com&#39;: &#39;127.0.0.1:3002&#39;,
+  &#39;vhost4.example.com&#39;: &#39;127.0.0.1:3003&#39; }
+{ &#39;vhost1.example.com&#39;: &#39;127.0.0.1:3000&#39;,
+  &#39;vhost2.example.com&#39;: &#39;127.0.0.1:3001&#39;,
+  &#39;vhost3.example.com&#39;: &#39;127.0.0.1:3002&#39;,
+  &#39;vhost4.example.com&#39;: &#39;127.0.0.1:3003&#39; }
+{ &#39;vhost1.example.com&#39;: &#39;127.0.0.1:3000&#39;,
+  &#39;vhost2.example.com&#39;: &#39;127.0.0.1:3001&#39;,
+  &#39;vhost3.example.com&#39;: &#39;127.0.0.1:3002&#39;,
+  &#39;vhost4.example.com&#39;: &#39;127.0.0.1:3003&#39; }
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;実用するには前回の設定内容と比較して変わっている場合だけ処理するとか、設定ファイルを直接見るのではなく更新完了通知用の専用ファイルを用意してそちらをtouchするとか、何らかの対処が必要そうです。&lt;/p&gt;
+</description>
+    </item>
+    
+  </channel>
+</rss>

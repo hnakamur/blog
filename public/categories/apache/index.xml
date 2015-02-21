@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Apache on hnakamur&#39;s blog at github</title>
+    <link>/blog/categories/apache/</link>
+    <description>Recent content in Apache on hnakamur&#39;s blog at github</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>ja-JP</language>
+    <lastBuildDate>Sat, 09 Feb 2013 00:00:00 +0000</lastBuildDate>
+    <atom:link href="/blog/categories/apache/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>S3 error: Either the Signature query string parameter or the Authorization header should be specified</title>
+      <link>/blog/2013/02/09/s3-error-either-the-signature-query-string-parameter-or-the-authorization-header-should-be-specified/</link>
+      <pubDate>Sat, 09 Feb 2013 00:00:00 +0000</pubDate>
+      
+      <guid>/blog/2013/02/09/s3-error-either-the-signature-query-string-parameter-or-the-authorization-header-should-be-specified/</guid>
+      <description>
+
+&lt;h2 id=&#34;現象:ea42678f6806f6a8711cc359661fe424&#34;&gt;現象&lt;/h2&gt;
+
+&lt;p&gt;ApacheからAmazon S3にmod_proxyでリクエストを送ったら、ステータスが400になり、
+&amp;ldquo;Either the Signature query string parameter or the Authorization header should be specified, not both&amp;rdquo;というエラーメッセージが出てハマったときのメモです。&lt;/p&gt;
+
+&lt;p&gt;開発中で、Apacheの設定でBASIC認証をかけていました。&lt;/p&gt;
+
+&lt;p&gt;一方、S3では
+&lt;a href=&#34;http://docs.aws.amazon.com/AmazonS3/latest/dev/RESTAuthentication.html#ConstructingTheAuthenticationHeader&#34;&gt;Signing and Authenticating REST Requests - Amazon Simple Storage Service&lt;/a&gt;
+にあるように&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Authorization: AWS AWSAccessKeyId:Signature
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;というリクエストヘッダで認証情報を渡すか、
+&lt;a href=&#34;http://docs.aws.amazon.com/AmazonS3/latest/dev/S3_QSAuth.html&#34;&gt;Using Query String Authentication - Amazon Simple Storage Service&lt;/a&gt;
+にあるように&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;http://quotes.s3.amazonaws.com/nelson?AWSAccessKeyId=AKIAIOSFODNN7EXAMPLE&amp;amp;Expires=1177363698&amp;amp;Signature=vjSAMPLENmGa%2ByT272YEAiv4%3D
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;のようなクエリストリングで認証情報を渡すことができます。&lt;/p&gt;
+
+&lt;p&gt;ですが、BASIC認証を使っていると、
+&lt;a href=&#34;http://ja.wikipedia.org/wiki/Basic%E8%AA%8D%E8%A8%BC&#34;&gt;Basic認証 - Wikipedia&lt;/a&gt;
+にあるように&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Authorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;というようなヘッダがついてしまうため、S3用の認証情報をクエリストリングで指定していると上記のようなエラーになるというわけでした。&lt;/p&gt;
+
+&lt;h2 id=&#34;解決法:ea42678f6806f6a8711cc359661fe424&#34;&gt;解決法&lt;/h2&gt;
+
+&lt;p&gt;RequetHeader unset ヘッダ名で削除すればOKでした。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    &amp;lt;Location /some/path&amp;gt;
+        RequestHeader unset Authorization
+    &amp;lt;/Location&amp;gt;
+    ProxyRequests Off
+    ProxyPassMatch ^/some/path/(.*)$ http://yourdomain.s3-ap-northeast-1.amazonaws.com/$1
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;注意するべきはLocationでS3にプロキシする範囲に限定する必要があるということです。Location無しだとS3にプロキシしないURLについてもAuthorizationヘッダが削除され、BASIC認証のログインダイアログが延々と出続けてしまいました。&lt;/p&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>mod_xsendfileでダウンロード後にサーバ上のファイル自動削除</title>
+      <link>/blog/2012/03/03/delete-on-close-using-mod-xsendfile/</link>
+      <pubDate>Sat, 03 Mar 2012 00:00:00 +0000</pubDate>
+      
+      <guid>/blog/2012/03/03/delete-on-close-using-mod-xsendfile/</guid>
+      <description>
+
+&lt;p&gt;&lt;a href=&#34;https://tn123.org/mod_xsendfile/&#34;&gt;mod_xsendfile&lt;/a&gt;のホームページ上でリリースされているバージョン0.12には含まれていませんが、&lt;a href=&#34;https://github.com/nmaier/mod_xsendfile/commit/f6b853ce0e555b61f83f928d9f927349346018b4&#34;&gt;Githubのレポジトリのソース&lt;/a&gt;ではX-Sendfile-Temporaryという拡張ヘッダに対応しています。&lt;/p&gt;
+
+&lt;p&gt;Scientific Linux 6.1で実験しました。&lt;/p&gt;
+
+&lt;h2 id=&#34;mod-xsendfileのインストール:55fc8d510aba3ce91d3d3d47ed52e510&#34;&gt;mod_xsendfileのインストール&lt;/h2&gt;
+
+&lt;p&gt;以下の手順でインストールします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;yum install -y httpd-devel
+git clone https://github.com/nmaier/mod_xsendfile.git
+cd mod_xsendfile
+apxs -cia mod_xsendfile.c
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;実験スクリプト用にApacheの設定ファイルを作成します。
+``` text /etc/httpd/conf.d/xsendfile_test.conf
+&lt;Directory /var/www/html/xsendfile&gt;
+    XSendFilePath /var/www/html/xsendfile/data AllowFileDelete
+    &lt;Files out.php&gt;
+      XSendFile on
+    &lt;/Files&gt;
+&lt;/Directory&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+Apache再起動。
+``` bash
+/etc/init.d/httpd graceful
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;実験:55fc8d510aba3ce91d3d3d47ed52e510&#34;&gt;実験&lt;/h2&gt;
+
+&lt;p&gt;実験スクリプト用のフォルダを作ります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;mkdir /var/www/html/xsendfile/data/
+chown -R apache:apache /var/www/html/xsendfile
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;実験用のPHPスクリプトを作成します。
+``` php /var/www/html/xsendfile/out.php
+&amp;lt;?php
+$path = &amp;lsquo;/var/www/html/xsendfile/data/file1.txt&amp;rsquo;;
+$fname = basename($path);
+header(&amp;ldquo;X-Sendfile-Temporary: $path&amp;rdquo;);
+header(&amp;ldquo;Content-Type: application/octet-stream&amp;rdquo;);
+header(&amp;ldquo;Content-Disposition: attachment; filename=\&amp;ldquo;$fname\&amp;ldquo;&amp;rdquo;);&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+実験用のダウンロードファイルを作成します。
+``` text /var/www/html/xsendfile/data/file1.txt
+Hello, X-Sendfile-Temporary!
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;これで、ブラウザで &lt;a href=&#34;http://your_host_here/xsendfile/out.php&#34;&gt;http://your_host_here/xsendfile/out.php&lt;/a&gt; を開くとダウンロード後にサーバ上のファイルが削除されました。&lt;/p&gt;
+
+&lt;h2 id=&#34;今回のはまりポイント:55fc8d510aba3ce91d3d3d47ed52e510&#34;&gt;今回のはまりポイント&lt;/h2&gt;
+
+&lt;p&gt;``` text /etc/httpd/conf.d/xsendfile_test.conf
+&lt;Directory /var/www/html/xsendfile&gt;
+    XSendFilePath /var/www/html/xsendfile/data
+    &lt;Files out.php&gt;
+      XSendFile on
+    &lt;/Files&gt;
+&lt;/Directory&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;のようにAllowFileDeleteを忘れていたら、out.phpを開いた時に404 Not Foundエラーになり、Apacheのエラーログには以下のようなエラーが出ていました。
+``` text /var/log/httpd/error_log
+[Sat Mar 03 15:57:07 2012] [error] [client 192.168.11.3] (14)Bad address: xsendfile: cannot open file: (null)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;AllowFileDeleteをつければOKでした。&lt;/p&gt;
+</description>
+    </item>
+    
+  </channel>
+</rss>
