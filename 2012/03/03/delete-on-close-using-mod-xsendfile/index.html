@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en-us">
+    <head>
+        
+        <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+
+        <title>mod_xsendfileでダウンロード後にサーバ上のファイル自動削除 &middot; hnakamur&#39;s blog at github</title>
+        <link rel='stylesheet' href='http://fonts.googleapis.com/css?family=Open+Sans:400,300,600' type='text/css'>
+        <link rel="stylesheet" href="/blog/libraries/normalize.3.0.1.css" />
+        <link rel="stylesheet" href="/blog/css/liquorice.css" />
+        <link rel="shortcut icon" href="/favicon.ico" />
+        <link rel="apple-touch-icon-precomposed" href="/apple-touch-icon-144-precomposed.png" sizes="144x144" />
+        <link rel="alternate" href="" type="application/rss+xml" title="hnakamur&#39;s blog at github" />
+        
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+      (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+      m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+          })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', "UA-53263855-1", 'auto');
+    ga('send', 'pageview');
+</script>
+
+
+    </head>
+    <body class="li-body">
+
+<header class="li-page-header">
+    <div class="container">
+        <div class="row">
+            <div class="sixteen columns">
+                <div class="li-brand li-left">
+                <a href="/blog">hnakamur&#39;s blog at github</a></div>
+                <div class="li-menu li-right">
+                    <span class="li-menu-icon" onclick="javascript:toggle('menu');">&#9776;</span>
+                    <ul id="menu2" class="li-menu-items">
+                        
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="sixteen columns">
+                <ul id="menu" class="li-menu-items li-menu-mobile">
+                    
+                </ul>
+            </div>
+        </div>
+    </div>
+</header>
+
+
+    <div class="container">
+        <div class="row">
+            <div class="sixteen columns">
+                <article class="li-article">
+                    <header class="li-article-header">
+                        <h1 class="li-article-title">mod_xsendfileでダウンロード後にサーバ上のファイル自動削除</h1>
+                        <time class="li-article-date">2012-03-03</time>
+                    </header>
+                    <section>
+                        
+
+<p><a href="https://tn123.org/mod_xsendfile/">mod_xsendfile</a>のホームページ上でリリースされているバージョン0.12には含まれていませんが、<a href="https://github.com/nmaier/mod_xsendfile/commit/f6b853ce0e555b61f83f928d9f927349346018b4">Githubのレポジトリのソース</a>ではX-Sendfile-Temporaryという拡張ヘッダに対応しています。</p>
+
+<p>Scientific Linux 6.1で実験しました。</p>
+
+<h2 id="mod-xsendfileのインストール:55fc8d510aba3ce91d3d3d47ed52e510">mod_xsendfileのインストール</h2>
+
+<p>以下の手順でインストールします。</p>
+
+<pre><code class="language-bash">yum install -y httpd-devel
+git clone https://github.com/nmaier/mod_xsendfile.git
+cd mod_xsendfile
+apxs -cia mod_xsendfile.c
+</code></pre>
+
+<p>実験スクリプト用にApacheの設定ファイルを作成します。
+``` text /etc/httpd/conf.d/xsendfile_test.conf
+<Directory /var/www/html/xsendfile>
+    XSendFilePath /var/www/html/xsendfile/data AllowFileDelete
+    <Files out.php>
+      XSendFile on
+    </Files>
+</Directory></p>
+
+<pre><code>
+Apache再起動。
+``` bash
+/etc/init.d/httpd graceful
+</code></pre>
+
+<h2 id="実験:55fc8d510aba3ce91d3d3d47ed52e510">実験</h2>
+
+<p>実験スクリプト用のフォルダを作ります。</p>
+
+<pre><code class="language-bash">mkdir /var/www/html/xsendfile/data/
+chown -R apache:apache /var/www/html/xsendfile
+</code></pre>
+
+<p>実験用のPHPスクリプトを作成します。
+``` php /var/www/html/xsendfile/out.php
+&lt;?php
+$path = &lsquo;/var/www/html/xsendfile/data/file1.txt&rsquo;;
+$fname = basename($path);
+header(&ldquo;X-Sendfile-Temporary: $path&rdquo;);
+header(&ldquo;Content-Type: application/octet-stream&rdquo;);
+header(&ldquo;Content-Disposition: attachment; filename=\&ldquo;$fname\&ldquo;&rdquo;);</p>
+
+<pre><code>
+実験用のダウンロードファイルを作成します。
+``` text /var/www/html/xsendfile/data/file1.txt
+Hello, X-Sendfile-Temporary!
+</code></pre>
+
+<p>これで、ブラウザで <a href="http://your_host_here/xsendfile/out.php">http://your_host_here/xsendfile/out.php</a> を開くとダウンロード後にサーバ上のファイルが削除されました。</p>
+
+<h2 id="今回のはまりポイント:55fc8d510aba3ce91d3d3d47ed52e510">今回のはまりポイント</h2>
+
+<p>``` text /etc/httpd/conf.d/xsendfile_test.conf
+<Directory /var/www/html/xsendfile>
+    XSendFilePath /var/www/html/xsendfile/data
+    <Files out.php>
+      XSendFile on
+    </Files>
+</Directory></p>
+
+<pre><code>のようにAllowFileDeleteを忘れていたら、out.phpを開いた時に404 Not Foundエラーになり、Apacheのエラーログには以下のようなエラーが出ていました。
+``` text /var/log/httpd/error_log
+[Sat Mar 03 15:57:07 2012] [error] [client 192.168.11.3] (14)Bad address: xsendfile: cannot open file: (null)
+</code></pre>
+
+<p>AllowFileDeleteをつければOKでした。</p>
+
+                    </section>
+                </article>
+            </div>
+        </div>
+
+        <div class="row li-author">
+    <div class="sixteen columns">
+        Written by <strong>Hiroaki Nakamura</strong>
+    </div>
+</div>
+
+
+        <div class="row li-pagination">
+            <div class="eight columns">
+                <div class="li-pagination-previous">
+                    
+                        Later article<br />
+                        <a href="/blog/2012/03/03/how-to-setup-octopress/"> octopressでgithubにブログ開設</a>
+                    
+                </div>
+            </div>
+            <div class="eight columns">
+                <div class="li-pagination-next">
+                    
+                        &nbsp;
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+
+<footer class="li-page-footer">
+    <div class="container">
+        <div class="row">
+            <div class="sixteen columns">
+                <div class="li-page-footer-legal">
+                    &copy; 2012-2015. All rights reserved. 
+                </div>
+                <div class="li-page-footer-theme">
+                    <span class=""><a href="http://github.com/hnakamur/liquorice-hn/">liquorice-hn</a> is a theme for <a href="http://hugo.spf13.com">hugo</a></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</footer>
+
+    <script type="text/javascript">
+    <!--
+    function toggle(id) {
+        var e = document.getElementById(id);
+        e.style.display == 'block' ? e.style.display = 'none' : e.style.display = 'block';
+    }
+    
+    </script>
+    <script type="text/javascript">
+    <!--
+        var _gaq = _gaq || [];
+        _gaq.push(['_setAccount', ""]);
+        _gaq.push(['_trackPageview']);
+
+        (function() {
+        var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+        ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+        var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+        })();
+    -->
+    </script>
+    </body>
+</html>
+
