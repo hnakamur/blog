@@ -6,8 +6,128 @@
     <description>Recent content in Posts on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Sun, 25 Jan 2015 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Sun, 22 Feb 2015 00:09:24 +0900</lastBuildDate>
     <atom:link href="/blog/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>Windows UI Automation APIを使うためのGoライブラリw32uiautomationを書いた</title>
+      <link>/blog/2015/02/22/w32uiautomation/</link>
+      <pubDate>Sun, 22 Feb 2015 00:09:24 +0900</pubDate>
+      
+      <guid>/blog/2015/02/22/w32uiautomation/</guid>
+      <description>
+
+&lt;h1 id=&#34;なぜ:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;なぜ&lt;/h1&gt;
+
+&lt;p&gt;ウェブアプリ開発をしているとInternet Explorerでの動作確認のため&lt;a href=&#34;https://www.modern.ie/ja-jp&#34;&gt;modern.IE&lt;/a&gt;が欠かせません。が、インストール直後は英語環境になっているので、日本語環境での動作確認のためにはセットアップが必要です。&lt;/p&gt;
+
+&lt;p&gt;セットアップ手順は以下のQiitaの記事に書いたのですが、手数が多くて面倒でした。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://qiita.com/hnakamur/items/5f2f9e817dd0de60abb2&#34;&gt;VirtualBox - modern.IEのWindows 7で日本語の表示と入力をできるようにする - Qiita&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://qiita.com/hnakamur/items/cd37c9c8826afe4b4dda&#34;&gt;Windows8.xのmodern.IEで日本語を入力、表示できるようにする。 - Qiita&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;それを自動化するコマンドラインツール&lt;a href=&#34;https://github.com/hnakamur/moderniejapanizer&#34;&gt;moderniejapanizer&lt;/a&gt;を作りました。実は2年ぐらい前に&lt;a href=&#34;https://www.autoitscript.com/site/autoit/&#34;&gt;AutoIt&lt;/a&gt;を使って作り始めたのですが自動制御がうまくいかないときがあって挫折していました。昨年暮れぐらいから再挑戦して、今回は勉強を兼ねてGoで実装してみました。&lt;/p&gt;
+
+&lt;p&gt;日本語化のほとんどはWin32 APIとレジストリの操作で実現できたのですが、Windows 8で言語に日本語を追加して英語を削除する操作だけはWin32 APIやレジストリで実現する方法を見つけられませんでした。&lt;/p&gt;
+
+&lt;p&gt;そこでコントロールパネルの操作をUIオートメーションで行うことにしました。
+mattnさんの&lt;a href=&#34;https://github.com/mattn/go-ole&#34;&gt;go-ole&lt;/a&gt;を利用して、UIオートメーション APIの一部をGoで実装したのが、&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation&#34;&gt;hnakamur/w32uiautomation&lt;/a&gt;です。&lt;/p&gt;
+
+&lt;p&gt;UIオートメーションAPIの全部をカバーするつもりはなくて自分が使う部分だけを実装しています。とりあえず動くようにはなりましたが、まだまだ試行錯誤中なのでAPIは互換性無く変更予定です。&lt;/p&gt;
+
+&lt;h1 id=&#34;windows-ui-オートメーションについて:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;Windows UI オートメーションについて&lt;/h1&gt;
+
+&lt;p&gt;下記のページに説明とリファレンスがありました。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://msdn.microsoft.com/ja-jp/library/ms747327(v=vs.110%29.aspx&#34;&gt;UI オートメーションの概要&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/ee684009(v=vs.85%29.aspx&#34;&gt;UI Automation (Windows)&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;また、始めの一歩として以下の記事も参考にさせて頂きました。ありがとうございます！&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://180.cocolog-nifty.com/blog/2011/10/ui-automationjs.html&#34;&gt;UI AutomationをJScript.NETで動かす: korokaraのブログ&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://d.sunnyone.org/2014/09/windowsuiui-automation-powershell.html&#34;&gt;WindowsアプリのUI自動操作をUI Automation PowerShell Extensionで行う | d.sunnyone.org&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h1 id=&#34;w32uiautomationの実装について:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;w32uiautomationの実装について&lt;/h1&gt;
+
+&lt;h2 id=&#34;uiオートメーションapiはidispatchインタフェースを実装していない:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;UIオートメーションAPIはIDispatchインタフェースを実装していない&lt;/h2&gt;
+
+&lt;p&gt;実はw32uiautomationを実装する前に、&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/aa387099(v=vs.85%29.aspx&#34;&gt;Windows Update Agent API (Windows)&lt;/a&gt;の実装も作りました。 &lt;a href=&#34;https://github.com/hnakamur/windowsupdate&#34;&gt;hnakamur/windowsupdate&lt;/a&gt;です。これはWindows 7で日本語の言語パックをWindows Update経由でインストールするために作りました。&lt;/p&gt;
+
+&lt;p&gt;Windows Update Agent APIの各インタフェースは例えば&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/aa385821(v=vs.85%29.aspx&#34;&gt;IAutomaticUpdates interface (Windows)&lt;/a&gt;のように&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/ms221608(v=vs.85%29.aspx&#34;&gt;IDispatch interface (Automation)&lt;/a&gt;を実装しています。&lt;/p&gt;
+
+&lt;p&gt;ですので、 &lt;a href=&#34;https://github.com/hnakamur/windowsupdate/blob/a878b9dbfeadeb768f27011d6bfd97bfecdd5d9d/search.go#L32&#34;&gt;https://github.com/hnakamur/windowsupdate/blob/a878b9dbfeadeb768f27011d6bfd97bfecdd5d9d/search.go#L32&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;	searcher, err := toIDispatchErr(oleutil.CallMethod((*ole.IDispatch)(s), &amp;quot;CreateUpdateSearcher&amp;quot;))
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;のように&lt;a href=&#34;https://github.com/mattn/go-ole/blob/7d0136ad48c228000c2abdea549674c498110124/oleutil/oleutil.go#L47&#34;&gt;oleutil.CallMethod&lt;/a&gt;などのoleutilパッケージの各種メソッドを使ってWindows Update Agent APIのメソッド呼び出しやプロパティ値の設定・取得を動的に行うことが出来ます。&lt;/p&gt;
+
+&lt;p&gt;一方、UIオートメーションAPIのほうは、&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/ee671406(v=vs.85%29.aspx&#34;&gt;IUIAutomation interface (Windows)&lt;/a&gt;のようにIDsipatchインタフェースは実装しておらず、IUnknownインタフェースを実装しているだけです。&lt;/p&gt;
+
+&lt;p&gt;そこで、UIオートメーションのインタフェースごとにGoのstructを定義していく必要があります。&lt;/p&gt;
+
+&lt;p&gt;mattnさんのgo-oleの&lt;a href=&#34;https://github.com/mattn/go-ole/blob/master/iunknown.go&#34;&gt;iunknown.go&lt;/a&gt;や&lt;a href=&#34;https://github.com/mattn/go-ole/blob/master/idispatch.go&#34;&gt;idispatch.go&lt;/a&gt;を見よう見まねで実装してみました。きちんと理解せず雰囲気で書いているので、おかしなところがあるかもしれません。&lt;/p&gt;
+
+&lt;h2 id=&#34;iuiautomationelement-findfirstは実装してみたが挙動が変:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;IUIAutomationElement::FindFirstは実装してみたが挙動が変&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/ee696029(v=vs.85%29.aspx&#34;&gt;IUIAutomationElement::FindFirst method (Windows)&lt;/a&gt;は&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomationelement.go#L113-L115&#34;&gt;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomationelement.go#L113-L115&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomationelement.go#L141-L155&#34;&gt;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomationelement.go#L141-L155&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;あたりで実装しています。実行すると戻り値の*IUIAutomationElementはnilではない値になって目的のUI要素が見つかっているようです。しかし、&lt;a href=&#34;http://www.microsoft.com/en-us/download/details.aspx?id=8279&#34;&gt;Microsoft Windows SDK for Windows 7 and .NET Framework 4&lt;/a&gt;同梱のinspect.exeで見るとnameプロパティに空ではない値が設定されているのに&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomationelement.go#L129&#34;&gt;Get_CurrentName&lt;/a&gt;などで名前を取得してみると空文字になってしまうというトラブルに見舞われました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/ee671529(v=vs.85%29.aspx&#34;&gt;IUIAutomation::CreatePropertyCondition&lt;/a&gt;でVARIANT型を引数で渡すところがあって、VARIANT型のサイズはuintptrのサイズより大きいので分割してsyscall.Syscallファミリーの関数を呼ぶ必要があります。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/variant_386.go#L14-L22&#34;&gt;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/variant_386.go#L14-L22&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomation_386.go#L11-L29&#34;&gt;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomation_386.go#L11-L29&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;あたりで実装しているのですが、どこかおかしいのかもしれません。&lt;/p&gt;
+
+&lt;h2 id=&#34;回避策としてtreewalkerで自前で探すメソッドを実装:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;回避策としてTreeWalkerで自前で探すメソッドを実装&lt;/h2&gt;
+
+&lt;p&gt;FindFirstがうまく動かせなかったので、回避策としてTreeWalkerで自前で探すメソッドを実装してみました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/search.go&#34;&gt;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/search.go&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;幅優先探索でUI要素のツリーを探すようにしています。
+また、ウィンドウがまだ存在しない場合はポーリングして存在するまで待ってから返す関数も実装しています。&lt;/p&gt;
+
+&lt;h2 id=&#34;現状だとウィンドウ切り替わり時にsleepを入れる必要がある:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;現状だとウィンドウ切り替わり時にSleepを入れる必要がある&lt;/h2&gt;
+
+&lt;p&gt;実際に試してみるとウィンドウを開いた後すぐにUI要素を探そうとすると見つからない場合がありました。おそらくウィンドウ内のUI要素が作られる前のタイミングで探そうとしているのだと思います。&lt;/p&gt;
+
+&lt;p&gt;ただ上記のようにポーリングをしているのでUI要素が作られれば見つかると想定していたのですが、実際はいつまでもポーリングを続けてしまいました。&lt;/p&gt;
+
+&lt;p&gt;しかたがないので、&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/moderniejapanizer/blob/fcc9eb9f51560916ae8831e9c042a789ced298cf/imeja.go#L58&#34;&gt;https://github.com/hnakamur/moderniejapanizer/blob/fcc9eb9f51560916ae8831e9c042a789ced298cf/imeja.go#L58&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;のようにウィンドウが切り替わった後、ウィンドウを探す前に1秒のスリープを入れています。が、これだとマシンが重い状態だと1秒では足りなくてUI要素が見つからずにポーリングし続けてしまうケースが起こりえます。&lt;/p&gt;
+
+&lt;h2 id=&#34;iuiautomation-addstructurechangedeventhandlerを使いたいがgoの関数をコールバックしてもらう方法がわからず挫折中:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;IUIAutomation::AddStructureChangedEventHandlerを使いたいがGoの関数をコールバックしてもらう方法がわからず挫折中&lt;/h2&gt;
+
+&lt;p&gt;おそらくあるべき姿としてはポーリングではなく&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/ee671512(v=vs.85%29.aspx&#34;&gt;IUIAutomation::AddStructureChangedEventHandler method (Windows)&lt;/a&gt;を使うのだと思います。&lt;/p&gt;
+
+&lt;p&gt;が、&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/ee696197(v=vs.85%29.aspx&#34;&gt;IUIAutomationStructureChangedEventHandler interface (Windows)&lt;/a&gt;の&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/ee696198(v=vs.85%29.aspx&#34;&gt;IUIAutomationStructureChangedEventHandler::HandleStructureChangedEvent method (Windows)&lt;/a&gt;をGoの関数で書いてコールバックで読んでもらう方法がわからず挫折中です。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation/commit/c76d7dfb476cd13723bed6da5581639d66b6ffbb&#34;&gt;Trying AddStructureChangedEventHandler but no luck yet · c76d7df · hnakamur/w32uiautomation&lt;/a&gt;でよくわからないまま雰囲気でトライしてみたのですが、実行時エラーになってしまいました。&lt;/p&gt;
+
+&lt;h1 id=&#34;とりあえず当初の目的には使えていますが-まだまだ改良が必要:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;とりあえず当初の目的には使えていますが、まだまだ改良が必要&lt;/h1&gt;
+
+&lt;p&gt;なのですが、行き詰まっているのでなにかアドバイスありましたらぜひお願いします。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>Build UIAutomation samples in Windows SDK 7.1</title>
@@ -1635,97 +1755,6 @@ exit
 
 &lt;pre&gt;&lt;code&gt;ssh root@192.168.56.101
 &lt;/code&gt;&lt;/pre&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>node-http-proxyでバーチャルホストで振り分けつつhttp/https-&gt;websocketリバースプロキシの実験</title>
-      <link>/blog/2012/06/27/node-http-proxydebatiyaruhosutodezhen-rifen-ketutuhttp-slash-https-websocketribasupurokisifalseshi-yan/</link>
-      <pubDate>Wed, 27 Jun 2012 00:00:00 +0000</pubDate>
-      
-      <guid>/blog/2012/06/27/node-http-proxydebatiyaruhosutodezhen-rifen-ketutuhttp-slash-https-websocketribasupurokisifalseshi-yan/</guid>
-      <description>
-
-&lt;p&gt;以下の2つのページを参考に、node-http-proxyでバーチャルホストで振り分けつつ
-http/httpsからwebsocketにリバースプロキシする実験をしてみました。
-環境はCentOS 6.2です。ソースは&lt;a href=&#34;https://github.com/hnakamur/node-http-proxy-websocket-sample&#34;&gt;hnakamur/node-http-proxy-websocket-sample&lt;/a&gt;にあります。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;http://d.hatena.ne.jp/replication/20111108/1320762287&#34;&gt;５分くらいで出来るnode.js(0.6) + socket.io(0.8x)のサンプルプログラム - 大人になったら肺呼吸&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://github.com/nodejitsu/node-http-proxy&#34;&gt;nodejitsu/node-http-proxy&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;pre&gt;
-                              +---------------+
-                       +------+ VHost1App/app |
-                       |      | port 3000     |
- +--------------+      |      +---------------+
--+ proxy-vhost  +------+
- | port 80, 443 |      |      +---------------+
- +--------------+      +------+ VHost2App/app |
-                              | port 3001     |
-                              +---------------+
-&lt;/pre&gt;
-
-&lt;p&gt;上記の構成で、
-vhost1.example.comというホスト名でアクセスしたらVHost1/app、
-vhost2.example.comというホスト名でアクセスしたらVHost2/app
-にリバースプロキシするようにします。
-*.example.comというワイルドカードの自己証明書でproxy-vhostにてSSLを処理します。&lt;/p&gt;
-
-&lt;h2 id=&#34;実行手順:22a5455fafb8e793e6faec5ba8034da1&#34;&gt;実行手順&lt;/h2&gt;
-
-&lt;h3 id=&#34;自己証明書とパスフレーズ無しの秘密鍵を生成:22a5455fafb8e793e6faec5ba8034da1&#34;&gt;自己証明書とパスフレーズ無しの秘密鍵を生成。&lt;/h3&gt;
-
-&lt;p&gt;以下、ドメインexample.comの部分は適宜変更してください。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;openssl req -new -newkey rsa:2048 -x509 -nodes -days 365 -set_serial 0 \
-  -subj &#39;/C=JP/ST=Kanagawa/L=Yokohama City/CN=*.example.com&#39; \
-  -out /etc/pki/tls/certs/wildcard.example.com.crt \
-  -keyout /etc/pki/tls/private/wildcard.example.com.key
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;nodeモジュールインストール:22a5455fafb8e793e6faec5ba8034da1&#34;&gt;nodeモジュールインストール&lt;/h3&gt;
-
-&lt;p&gt;私の環境では/usr/local/node-v0.6.19にnode.jsをインストールしているのでPATHを通してから実行します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;export PATH=/usr/local/node-v0.6.19/bin:$PATH
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;npm install socket.io -g
-npm install express@2.5.10 -g
-npm install ejs -g
-npm install http-proxy -g
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;なお、モジュールをグルーバルにインストールしているのは&lt;a href=&#34;https://github.com/hnakamur/node-http-proxy-websocket-sample&#34;&gt;hnakamur/node-http-proxy-websocket-sample&lt;/a&gt;にモジュールを含めたくないからで、実際はローカルにインストールしても構いません。&lt;/p&gt;
-
-&lt;h3 id=&#34;サーバ起動:22a5455fafb8e793e6faec5ba8034da1&#34;&gt;サーバ起動&lt;/h3&gt;
-
-&lt;p&gt;私の環境では/usr/local/node-v0.6.19にnode.jsをインストールしているのでNODE_PATHを通してから実行します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;export NODE_PATH=/usr/local/node-v0.6.19/lib/node_modules
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;node VHost1App/app &amp;amp;
-node VHost2App/app &amp;amp;
-node proxy-vhost &amp;amp;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;ローカルマシンの-etc-hostsに以下のエントリ追加:22a5455fafb8e793e6faec5ba8034da1&#34;&gt;ローカルマシンの/etc/hostsに以下のエントリ追加&lt;/h3&gt;
-
-&lt;p&gt;IPアドレスは実際のサーバに合わせて変更してください。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;192.0.2.2 vhost1.example.com vhost2.example.com
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;ブラウザでアクセス:22a5455fafb8e793e6faec5ba8034da1&#34;&gt;ブラウザでアクセス&lt;/h3&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://vhost1.example.com/&#34;&gt;https://vhost1.example.com/&lt;/a&gt;
-や
-&lt;a href=&#34;https://vhost2.example.com/&#34;&gt;https://vhost2.example.com/&lt;/a&gt;
-にアクセスします。自己証明書なのでエラーになりますが受け入れて進んでください。
-バーチャルホスト毎にそれぞれ内容が異なることを確認します。&lt;/p&gt;
 </description>
     </item>
     
