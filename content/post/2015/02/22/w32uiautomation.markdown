@@ -130,3 +130,22 @@ func NewCallback(fn interface{}) uintptr {
 ```
 
 後日試してみたいと思います。
+
+# 2015-02-23 05:00頃追記
+
+実は[go-ole/winsock.go](https://github.com/mattn/go-ole/blob/master/example/winsock/winsock.go)がコールバックを使うサンプルになっていることに気づきました。
+
+またまた見よう見まねで[IUIAutomationStructureChangedEventHandler interface](https://msdn.microsoft.com/en-us/library/windows/desktop/ee696197(v=vs.85%29.aspx)を使えるところまでこぎつけました。
+[Add structure changed event handler by hnakamur · Pull Request #2 · hnakamur/w32uiautomation](https://github.com/hnakamur/w32uiautomation/pull/2)
+
+早速これを活用して、FindFirstで見つからなかったら見つかるまでループするというWaitFindFirstをSleepではなくUI要素が追加されるまで待って繰り返すように改良しました。
+https://github.com/hnakamur/w32uiautomation/blob/8fe8ac469892d3e07e008341a3d4a2fc2b611a4a/waitfind.go#L10-L49
+
+winsockのサンプルではコールバックを待つ間メッセージループを回すコードは
+https://github.com/mattn/go-ole/blob/7d0136ad48c228000c2abdea549674c498110124/example/winsock/winsock.go#L133-L137
+のようになっていました。
+
+https://github.com/hnakamur/w32uiautomation/blob/8fe8ac469892d3e07e008341a3d4a2fc2b611a4a/waitfind.go#L10-L49
+のほうは参照カウンタが0以外の間ループを回すのではなくて、waitingフラグがtrueの間回すようにしています。で、コールバックでお目当てのイベント、つまりUI要素が追加されたイベントだったらwaitingフラグをfalseにしています。
+
+[hnakamur/moderniejapanizer](https://github.com/hnakamur/moderniejapanizer)も新しいWaitFindFirstを使うように更新しました。
