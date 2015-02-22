@@ -106,3 +106,27 @@ https://github.com/hnakamur/moderniejapanizer/blob/fcc9eb9f51560916ae8831e9c042a
 # とりあえず当初の目的には使えていますが、まだまだ改良が必要
 
 なのですが、行き詰まっているのでなにかアドバイスありましたらぜひお願いします。
+
+# 2015-02-23 01:07頃追記
+
+## UIAutomationElement::FindFirstがちゃんと動くようになりました
+
+やはり [VariantToUintptrArray](https://github.com/hnakamur/w32uiautomation/blob/0c48ebfdce27726587ae6797643b29b7fe0b99f7/variant_386.go#L14)がバグっていました。
+[Fix 32bit VariantToUintptrArray · 0c48ebf · hnakamur/w32uiautomation](https://github.com/hnakamur/w32uiautomation/commit/0c48ebfdce27726587ae6797643b29b7fe0b99f7)で修正しました。
+
+FindFirstがちゃんと動くようになったので、回避策で作ったTreeWalkerで自前で探すメソッドは削除しました。[Remove WaitFindFirstWithBreadthFirstSearch in favor of FindFirst. · 733229d · hnakamur/w32uiautomation](https://github.com/hnakamur/w32uiautomation/commit/733229d4bd779da9e44241b4b581951ff1c4643e)
+
+## コールバックを使うためのsyscall.NewCallbackという関数を見つけました
+
+[go/syscall_windows.go at edadffa2f3464c48a234f3cf2fc092a03f91824f · golang/go](https://github.com/golang/go/blob/edadffa2f3464c48a234f3cf2fc092a03f91824f/src/syscall/syscall_windows.go#L113-L118)で定義されていました。
+
+```
+// Converts a Go function to a function pointer conforming
+// to the stdcall calling convention. This is useful when
+// interoperating with Windows code requiring callbacks.
+func NewCallback(fn interface{}) uintptr {
+	return compileCallback(fn, true)
+}
+```
+
+後日試してみたいと思います。
