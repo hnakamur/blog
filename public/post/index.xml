@@ -144,6 +144,152 @@ function waitUntilSuccess(f) {
     </item>
     
     <item>
+      <title>Homebrew Caskを使わずにdmgファイルのアプリをコマンドでインストールする</title>
+      <link>/blog/2015/04/06/install-apps-without-homebrew-cask/</link>
+      <pubDate>Mon, 06 Apr 2015 00:45:50 +0900</pubDate>
+      
+      <guid>/blog/2015/04/06/install-apps-without-homebrew-cask/</guid>
+      <description>
+
+&lt;h2 id=&#34;なぜhomebrew-caskをやめたか:e5cdad194e217182b14d7b79b7d8fb9a&#34;&gt;なぜHomebrew Caskをやめたか&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://t-wada.hatenablog.jp/entry/mac-provisioning-by-ansible&#34;&gt;Mac の開発環境構築を自動化する (2015 年初旬編) - t-wadaのブログ&lt;/a&gt;でもHomebrew Caskの不安な点について書かれていますが、私もHomebrew Caskは便利と思いつつも止めたいなと思っていました。&lt;/p&gt;
+
+&lt;p&gt;私が使うアプリに関してはほとんどがアプリ側で最新版のお知らせとバージョンアップの仕組みを持っています。あとHomebrew Caskは/opt/homebrew-cask/以下に実体を置いて~/Applications/や/Applications/にシンボリックリンクを貼るようになっています。&lt;/p&gt;
+
+&lt;p&gt;私はそこまで複雑な仕組みは要らないので、初期インストールがコマンドで半自動化できれば十分です。&lt;/p&gt;
+
+&lt;h2 id=&#34;dmgファイルのアプリをコマンドラインからインストールする:e5cdad194e217182b14d7b79b7d8fb9a&#34;&gt;dmgファイルのアプリをコマンドラインからインストールする&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://stackoverflow.com/questions/22934083/install-dmg-package-on-mac-os-from-terminal/22940943#22940943&#34;&gt;osx - Install dmg package on MAC OS from Terminal - Stack Overflow&lt;/a&gt;や&lt;a href=&#34;http://commandlinemac.blogspot.jp/2008/12/installing-dmg-application-from-command.html&#34;&gt;Command Line Mac: Installing a .dmg application from the command line&lt;/a&gt;を見て実際にやってみました。&lt;/p&gt;
+
+&lt;p&gt;ソースは&lt;a href=&#34;https://github.com/hnakamur/my-macbook-initial-setup&#34;&gt;hnakamur/my-macbook-initial-setup · GitHub&lt;/a&gt;にあります。&lt;/p&gt;
+
+&lt;p&gt;以下のアプリをdmgファイルからインストールしています。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/splhack/macvim-kaoriya&#34;&gt;splhack/macvim-kaoriya · GitHub&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://calibre-ebook.com/&#34;&gt;calibre - E-book management&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.google.co.jp/chrome/browser/desktop/index.html&#34;&gt;Chrome&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.mozilla.org/ja/firefox/new/&#34;&gt;Firefox&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.google.co.jp/ime/&#34;&gt;Google 日本語入力&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://iterm2.com/&#34;&gt;iTerm2 - Mac OS Terminal Replacement&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://java.com/ja/download/&#34;&gt;Java (JRE)&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://grandperspectiv.sourceforge.net/&#34;&gt;GrandPerspective&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www-jp.mysql.com/products/workbench/&#34;&gt;MySQL Workbench&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://mstarke.github.io/MacPass/&#34;&gt;MacPass&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.shadowlab.org/Software/spark.php&#34;&gt;Spark&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.virtualbox.org/&#34;&gt;Oracle VM VirtualBox&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.vagrantup.com/&#34;&gt;Vagrant&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://xquartz.macosforge.org/landing/&#34;&gt;XQuartz&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;dmgファイルのマウントとアンマウント:e5cdad194e217182b14d7b79b7d8fb9a&#34;&gt;dmgファイルのマウントとアンマウント&lt;/h2&gt;
+
+&lt;p&gt;共通の処理として、dmgファイルのマウントは &lt;code&gt;hdiutil attach&lt;/code&gt; 、アンマウントは &lt;code&gt;hdiutil detach&lt;/code&gt; コマンドで行います。&lt;/p&gt;
+
+&lt;p&gt;マウントした時の /Volumes/〜 のディレクトリ名は &lt;code&gt;hdiutil attach&lt;/code&gt; の実行結果の最後の行から取得できます。&lt;/p&gt;
+
+&lt;p&gt;最初は&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;  mount_dir=`hdiutil attach $dmg_file | awk &#39;END{print $NF}&#39;`
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;のようにして最後の行の一番右のフィールドを取得していましたが、 &lt;code&gt;/Volumes/Google Chrome&lt;/code&gt; のように空白を含む場合があることがわかりました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://stackoverflow.com/questions/22934083/install-dmg-package-on-mac-os-from-terminal/22940943#22940943&#34;&gt;osx - Install dmg package on MAC OS from Terminal - Stack Overflow&lt;/a&gt;では第1フィールドと第2フィールドを消して第3フィールド以降にしていますが、試してみると余分な空白（実際はタブと判明）が付いてきました。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;hdiutil attach&lt;/code&gt; の結果をファイルに落として見てみたら、空白に加えてタブで区切られていてタブで区切るほうがシンプルなことがわかりました。&lt;/p&gt;
+
+&lt;p&gt;そこで、以下のようにして取得するようにしました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;  mount_dir=`hdiutil attach $dmg_file | awk -F &#39;\t&#39; &#39;END{print $NF}&#39;`
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;インストール方法のパターン:e5cdad194e217182b14d7b79b7d8fb9a&#34;&gt;インストール方法のパターン&lt;/h2&gt;
+
+&lt;p&gt;上記のアプリの範囲では4パターンありました。&lt;/p&gt;
+
+&lt;h3 id=&#34;dmgファイル内に-appフォルダがあるパターン:e5cdad194e217182b14d7b79b7d8fb9a&#34;&gt;dmgファイル内に〜.appフォルダがあるパターン&lt;/h3&gt;
+
+&lt;p&gt;Chromeなどがこのパターンです。&lt;a href=&#34;https://developer.apple.com/library/mac/documentation/Darwin/Reference/ManPages/man1/ditto.1.html&#34;&gt;ditto&lt;/a&gt;コマンドで/Applications/〜.appにコピーするようにしました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L731-L740&#34;&gt;https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L731-L740&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;install_google_chrome() {
+  download_url=https://dl.google.com/chrome/mac/stable/GGRO/googlechrome.dmg
+  dmg_file=${download_url##*/}
+
+  curl -LO $download_url
+  mount_dir=`hdiutil attach $dmg_file | awk -F &#39;\t&#39; &#39;END{print $NF}&#39;`
+  sudo /usr/bin/ditto &amp;quot;$mount_dir/Google Chrome.app&amp;quot; &amp;quot;/Applications/Google Chrome.app&amp;quot;
+  hdiutil detach &amp;quot;$mount_dir&amp;quot;
+  rm $dmg_file
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;dmgファイル内に-pkgのインストーラがあるパターン:e5cdad194e217182b14d7b79b7d8fb9a&#34;&gt;dmgファイル内に*.pkgのインストーラがあるパターン&lt;/h3&gt;
+
+&lt;p&gt;Google日本語入力などがこのパターンです。OSXの&lt;a href=&#34;https://developer.apple.com/library/mac/documentation/Darwin/Reference/ManPages/man8/installer.8.html&#34;&gt;installer&lt;/a&gt;コマンドでインストールします。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L742-L751&#34;&gt;https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L742-L751&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;install_google_japanese_input() {
+  download_url=https://dl.google.com/japanese-ime/latest/GoogleJapaneseInput.dmg
+  dmg_file=${download_url##*/}
+
+  curl -LO $download_url
+  mount_dir=`hdiutil attach $dmg_file | awk -F &#39;\t&#39; &#39;END{print $NF}&#39;`
+  sudo installer -pkg $mount_dir/GoogleJapaneseInput.pkg -target /
+  hdiutil detach &amp;quot;$mount_dir&amp;quot;
+  rm $dmg_file
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;dmgファイル内に独自形式のインストーラがあるパターン:e5cdad194e217182b14d7b79b7d8fb9a&#34;&gt;dmgファイル内に独自形式のインストーラがあるパターン&lt;/h3&gt;
+
+&lt;p&gt;Javaがこのパターンでした。インストーラを実行してインストールします。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L762-L772&#34;&gt;https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L762-L772&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;install_java() {
+  download_url=http://javadl.sun.com/webapps/download/AutoDL?BundleId=105219
+  dmg_file=jre.dmg
+
+  curl -L -o $dmg_file &amp;quot;$download_url&amp;quot;
+  mount_dir=`hdiutil attach $dmg_file | awk -F &#39;\t&#39; &#39;END{print $NF}&#39;`
+  java_dir=&amp;quot;${mount_dir##*/}&amp;quot;
+  sudo &amp;quot;$mount_dir/${java_dir}.app/Contents/MacOS/MacJREInstaller&amp;quot;
+  hdiutil detach &amp;quot;$mount_dir&amp;quot;
+  rm $dmg_file
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;zipファイル内に-appがあるパターン:e5cdad194e217182b14d7b79b7d8fb9a&#34;&gt;zipファイル内に〜.appがあるパターン&lt;/h3&gt;
+
+&lt;p&gt;iTerm2などがこのパターンです。unzipコマンドの-dオプションで解凍先を/Applicationsにして解凍してインストールします。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L753-L760&#34;&gt;https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L753-L760&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;install_iterm2() {
+  download_url=https://iterm2.com/downloads/stable/iTerm2_v2_0.zip
+  zip_file=${download_url##*/}
+
+  curl -LO $download_url
+  sudo unzip $zip_file -d /Applications
+  rm $zip_file
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;まとめ:e5cdad194e217182b14d7b79b7d8fb9a&#34;&gt;まとめ&lt;/h2&gt;
+
+&lt;p&gt;Homebrew Caskを使わずにコマンドラインでOSXのアプリのインストールを半自動化しました。全自動ではなく半自動化といっているのは、アプリによってパスワード入力が必要だったり、ダイアログが表示されてボタンを押す必要があるからです。&lt;/p&gt;
+
+&lt;p&gt;アプリのバージョンが今後上がった時にダウンロードURLを再度調べる必要があるのが面倒ではありますが、OSXを一からセットアップするのはたまにしか行わないのでよしとします。&lt;/p&gt;
+</description>
+    </item>
+    
+    <item>
       <title>Riot.jsでタグエディターのサンプルを作ってみた</title>
       <link>/blog/2015/02/28/riot-tag-editor-example/</link>
       <pubDate>Sat, 28 Feb 2015 21:12:37 +0900</pubDate>
@@ -1686,61 +1832,6 @@ BEGIN {OFS=&amp;quot;\t&amp;quot;; print &amp;quot;127.0.0.1&amp;quot;, &amp;quo
 &lt;h2 id=&#34;管理者-利用者のユーザ削除:0820a6ea1e6b7dc778c8e412bda9b947&#34;&gt;管理者: 利用者のユーザ削除&lt;/h2&gt;
 
 &lt;p&gt;ユーザ一覧でポップアップメニューの[Delete User]メニューから削除できます。&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>S3 error: Either the Signature query string parameter or the Authorization header should be specified</title>
-      <link>/blog/2013/02/09/s3-error-either-the-signature-query-string-parameter-or-the-authorization-header-should-be-specified/</link>
-      <pubDate>Sat, 09 Feb 2013 00:00:00 +0000</pubDate>
-      
-      <guid>/blog/2013/02/09/s3-error-either-the-signature-query-string-parameter-or-the-authorization-header-should-be-specified/</guid>
-      <description>
-
-&lt;h2 id=&#34;現象:ea42678f6806f6a8711cc359661fe424&#34;&gt;現象&lt;/h2&gt;
-
-&lt;p&gt;ApacheからAmazon S3にmod_proxyでリクエストを送ったら、ステータスが400になり、
-&amp;ldquo;Either the Signature query string parameter or the Authorization header should be specified, not both&amp;rdquo;というエラーメッセージが出てハマったときのメモです。&lt;/p&gt;
-
-&lt;p&gt;開発中で、Apacheの設定でBASIC認証をかけていました。&lt;/p&gt;
-
-&lt;p&gt;一方、S3では
-&lt;a href=&#34;http://docs.aws.amazon.com/AmazonS3/latest/dev/RESTAuthentication.html#ConstructingTheAuthenticationHeader&#34;&gt;Signing and Authenticating REST Requests - Amazon Simple Storage Service&lt;/a&gt;
-にあるように&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;Authorization: AWS AWSAccessKeyId:Signature
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;というリクエストヘッダで認証情報を渡すか、
-&lt;a href=&#34;http://docs.aws.amazon.com/AmazonS3/latest/dev/S3_QSAuth.html&#34;&gt;Using Query String Authentication - Amazon Simple Storage Service&lt;/a&gt;
-にあるように&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;http://quotes.s3.amazonaws.com/nelson?AWSAccessKeyId=AKIAIOSFODNN7EXAMPLE&amp;amp;Expires=1177363698&amp;amp;Signature=vjSAMPLENmGa%2ByT272YEAiv4%3D
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;のようなクエリストリングで認証情報を渡すことができます。&lt;/p&gt;
-
-&lt;p&gt;ですが、BASIC認証を使っていると、
-&lt;a href=&#34;http://ja.wikipedia.org/wiki/Basic%E8%AA%8D%E8%A8%BC&#34;&gt;Basic認証 - Wikipedia&lt;/a&gt;
-にあるように&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;Authorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;というようなヘッダがついてしまうため、S3用の認証情報をクエリストリングで指定していると上記のようなエラーになるというわけでした。&lt;/p&gt;
-
-&lt;h2 id=&#34;解決法:ea42678f6806f6a8711cc359661fe424&#34;&gt;解決法&lt;/h2&gt;
-
-&lt;p&gt;RequetHeader unset ヘッダ名で削除すればOKでした。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;    &amp;lt;Location /some/path&amp;gt;
-        RequestHeader unset Authorization
-    &amp;lt;/Location&amp;gt;
-    ProxyRequests Off
-    ProxyPassMatch ^/some/path/(.*)$ http://yourdomain.s3-ap-northeast-1.amazonaws.com/$1
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;注意するべきはLocationでS3にプロキシする範囲に限定する必要があるということです。Location無しだとS3にプロキシしないURLについてもAuthorizationヘッダが削除され、BASIC認証のログインダイアログが延々と出続けてしまいました。&lt;/p&gt;
 </description>
     </item>
     
