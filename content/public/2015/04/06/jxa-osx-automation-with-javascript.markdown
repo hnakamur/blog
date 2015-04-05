@@ -2,7 +2,7 @@
 Categories = ["automation"]
 Description = ""
 Tags = ["jxa"]
-date = "2015-04-05T23:44:43+09:00"
+date = "2015-04-06T04:40:43+09:00"
 title = "JXA (JavaScript for Automation)を使ってOSXの初期設定を半自動化してみた"
 
 +++
