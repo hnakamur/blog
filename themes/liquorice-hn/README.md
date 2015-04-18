@@ -19,7 +19,8 @@ There are a few partials that is of great interest to override
 The author partial is added at the end of each single page (such as blog posts) and by default only prints the name of the author registered in the site params, e.g. in your `config.toml`
 
     [params]
-        author = "Markus"
+        author = "Hiroaki Nakamura"
+        author_link = "https://hnakamur.github.io"
 
 In order to override and have your own markup appended to single pages, just create the file `layouts/partials/author.html` and roll your own.
 
