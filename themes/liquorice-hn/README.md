@@ -46,6 +46,19 @@ There is not much to build, but the theme CSS is minified using the node tool [c
 
 *Any change in styles needs to result in a minification!*
 
+#### build with npm run
+
+For the first time, run the command below to install `clean-css`.
+
+```
+npm install
+```
+
+Run the command below to minify the theme CSS.
+
+```
+npm build
+```
 
 # License
 
