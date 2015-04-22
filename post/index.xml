@@ -6,8 +6,254 @@
     <description>Recent content in Posts on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Sun, 19 Apr 2015 01:07:35 +0900</lastBuildDate>
+    <lastBuildDate>Thu, 23 Apr 2015 00:08:30 +0900</lastBuildDate>
     <atom:link href="/blog/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>LXD 0.7ではlxc execでシェルの対話操作もできるようになっていました</title>
+      <link>/blog/2015/04/23/try-lxd-0.7-with-vagrant/</link>
+      <pubDate>Thu, 23 Apr 2015 00:08:30 +0900</pubDate>
+      
+      <guid>/blog/2015/04/23/try-lxd-0.7-with-vagrant/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに:f3d0284a2992e3586ec4652ee9f1d00b&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;/blog/blog/2014/12/01/lxd-the-linux-container-daemon/&#34;&gt;LXDを試してみた · hnakamur&amp;rsquo;s blog at github&lt;/a&gt;の記事を書いて以来、LXD触る時間を作れてなかったのですが、久々に試してみました。&lt;/p&gt;
+
+&lt;p&gt;今では&lt;a href=&#34;https://github.com/lxc/lxd&#34;&gt;lxc/lxd&lt;/a&gt;にVagrantfileが同梱されているので、それを使うだけで簡単に試せます。&lt;/p&gt;
+
+&lt;p&gt;VirtualBox 4.3.26, Vagrant 1.7.2, OS X Yosemiteという環境で試しました。&lt;/p&gt;
+
+&lt;h2 id=&#34;操作手順:f3d0284a2992e3586ec4652ee9f1d00b&#34;&gt;操作手順&lt;/h2&gt;
+
+&lt;h3 id=&#34;vagrantでvmを起動:f3d0284a2992e3586ec4652ee9f1d00b&#34;&gt;VagrantでVMを起動&lt;/h3&gt;
+
+&lt;p&gt;まずOS X上で以下のコマンドを実行します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;git clone https://github.com/lxc/lxd
+cd lxd
+vagrant up
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/lxc/lxd/blob/lxd-0.7/Vagrantfile&#34;&gt;Vagrantfile&lt;/a&gt;を見てみると、Vagrantのシェルプロビジョナでgoとlxdをインストールするようになっています。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/lxc/lxd/blob/lxd-0.7/scripts/vagrant/install-lxd.sh&#34;&gt;lxd/install-lxd.sh at lxd-0.7 · lxc/lxd&lt;/a&gt;を見てみると、&lt;a href=&#34;https://github.com/lxc/lxd&#34;&gt;lxdのREADME&lt;/a&gt;と同様のセットアップ手順に加えてlxdをサービスとして登録して起動する処理まで含まれています。&lt;/p&gt;
+
+&lt;h3 id=&#34;vmにログインしてlxcコマンドを試してみる:f3d0284a2992e3586ec4652ee9f1d00b&#34;&gt;VMにログインしてlxcコマンドを試してみる&lt;/h3&gt;
+
+&lt;p&gt;以下のコマンドを実行してVMにログインします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;vagrant ssh
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;以降のコマンドはVM上で実行します。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;lxc&lt;/code&gt; と &lt;code&gt;lxd&lt;/code&gt; にはPATHが通った状態になっていることを確認しました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ which lxc
+/home/vagrant/go/bin/lxc
+vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ which lxd
+/home/vagrant/go/bin/lxd
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;バージョンを確認してみると、 &lt;code&gt;lxc&lt;/code&gt;, &lt;code&gt;lxd&lt;/code&gt; ともに0.7でした。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxd --version
+0.7
+vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc --version
+0.7
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/lxc/lxd#first-steps&#34;&gt;lxdのREADMEのFirst steps&lt;/a&gt;に添って、ubuntuとdebianのイメージを取得します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ ./scripts/lxd-images import lxc ubuntu trusty amd64 --alias ubuntu --alias ubuntu/trusty
+Downloading the GPG key for https://images.linuxcontainers.org
+Downloading the image list for https://images.linuxcontainers.org
+Validating the GPG signature of /tmp/tmpsccxc1fa/index.json.asc
+Downloading the image: https://images.linuxcontainers.org/images/ubuntu/trusty/amd64/default/20150420_03:49/lxd.tar.xz
+Validating the GPG signature of /tmp/tmpsccxc1fa/ubuntu-trusty-amd64-default-20150420_03:49.tar.xz.asc
+Image imported as: c9176e837c0012d6d0eed221312ee9fc761765319701f57e65e63542ad9beade
+Setup alias: ubuntu
+Setup alias: ubuntu/trusty
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;debianのほうは最初コピペミスでaliasに2回同じ値を指定してしまってエラーになりましたが、再度実行すると成功しました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ scripts/lxd-images import lxc debian wheezy amd64 --alias debian --alias debian/wheezy --alias debian/wheezy
+Downloading the GPG key for https://images.linuxcontainers.org
+Downloading the image list for https://images.linuxcontainers.org
+Validating the GPG signature of /tmp/tmp_d1gz0q6/index.json.asc
+Downloading the image: https://images.linuxcontainers.org/images/debian/wheezy/amd64/default/20150419_22:42/lxd.tar.xz
+Validating the GPG signature of /tmp/tmp_d1gz0q6/debian-wheezy-amd64-default-20150419_22:42.tar.xz.asc
+Image imported as: cd398814f6e4e1e50799ba8249b80aa3558e5b05edf71a996a174def87569ae5
+Setup alias: debian
+Setup alias: debian/wheezy
+Traceback (most recent call last):
+  File &amp;quot;scripts/lxd-images&amp;quot;, line 410, in &amp;lt;module&amp;gt;
+    args.func(parser, args)
+  File &amp;quot;scripts/lxd-images&amp;quot;, line 367, in import_lxc
+    setup_alias(parser, args, fingerprint)
+  File &amp;quot;scripts/lxd-images&amp;quot;, line 330, in setup_alias
+    lxd.aliases_create(alias, fingerprint)
+  File &amp;quot;scripts/lxd-images&amp;quot;, line 83, in aliases_create
+    raise Exception(&amp;quot;Failed to create alias: %s&amp;quot; % name)
+Exception: Failed to create alias: debian/wheezy
+vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ scripts/lxd-images import lxc debian wheezy amd64 --alias debian --alias debian/wheezy --alias debian/wheezy/amd64
+Downloading the GPG key for https://images.linuxcontainers.org
+Downloading the image list for https://images.linuxcontainers.org
+Validating the GPG signature of /tmp/tmpeqkwuvfw/index.json.asc
+Downloading the image: https://images.linuxcontainers.org/images/debian/wheezy/amd64/default/20150419_22:42/lxd.tar.xz
+Validating the GPG signature of /tmp/tmpeqkwuvfw/debian-wheezy-amd64-default-20150419_22:42.tar.xz.asc
+This image is already in the store.
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;コンテナを起動します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc launch ubuntuCreating container...done
+Starting container...done
+vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc launch debian debian01
+Creating container...done
+Starting container...done
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;コンテナの一覧を表示してみます。ubuntuのほうはコンテナ名を指定しなかったので、自動で付けられています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc list
++---------------------+---------+------------+------+-----------+
+|        NAME         |  STATE  |    IPV4    | IPV6 | EPHEMERAL |
++---------------------+---------+------------+------+-----------+
+| preterhuman-araceli | RUNNING | 10.0.3.188 |      | NO        |
+| debian01            | RUNNING |            |      | NO        |
++---------------------+---------+------------+------+-----------+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;debianのほうはIPアドレスが空になっていて、あれ？と思ったのですが、実行するタイミングが早すぎたようで、数秒立ってから再度実行するとアドレスが表示されました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc list
++---------------------+---------+------------+------+-----------+
+|        NAME         |  STATE  |    IPV4    | IPV6 | EPHEMERAL |
++---------------------+---------+------------+------+-----------+
+| preterhuman-araceli | RUNNING | 10.0.3.188 |      | NO        |
+| debian01            | RUNNING | 10.0.3.42  |      | NO        |
++---------------------+---------+------------+------+-----------+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;以前未実装だった &lt;code&gt;lxc shell&lt;/code&gt; の代わりに &lt;code&gt;lxc exec&lt;/code&gt; でコマンド実行やシェルでの対話操作ができるようになっていました。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;lxc exec コンテナ名 コマンド 引数&lt;/code&gt; のように指定すると、コンテナ内でコマンドを実行できます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc exec debian01 ip a
+1: lo: &amp;lt;LOOPBACK,UP,LOWER_UP&amp;gt; mtu 65536 qdisc noqueue state UNKNOWN
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host
+       valid_lft forever preferred_lft forever
+6: eth0: &amp;lt;BROADCAST,MULTICAST,UP,LOWER_UP&amp;gt; mtu 1500 qdisc pfifo_fast state UP qlen 1000
+    link/ether 00:16:3e:01:bd:a1 brd ff:ff:ff:ff:ff:ff
+    inet 10.0.3.42/24 brd 10.0.3.255 scope global eth0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::216:3eff:fe01:bda1/64 scope link
+       valid_lft forever preferred_lft forever
+vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc exec preterhuman-araceli ip a
+1: lo: &amp;lt;LOOPBACK,UP,LOWER_UP&amp;gt; mtu 65536 qdisc noqueue state UNKNOWN group default
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host
+       valid_lft forever preferred_lft forever
+4: eth0: &amp;lt;BROADCAST,MULTICAST,UP,LOWER_UP&amp;gt; mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 00:16:3e:5e:6c:79 brd ff:ff:ff:ff:ff:ff
+    inet 10.0.3.188/24 brd 10.0.3.255 scope global eth0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::216:3eff:fe5e:6c79/64 scope link
+       valid_lft forever preferred_lft forever
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;uname -a&lt;/code&gt; のようなコマンドを &lt;code&gt;lxc exec コンテナ名 コマンド 引数&lt;/code&gt; のように指定するとlxcのオプションと解釈するようで、以下のエラーになりました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc exec preterhuman-araceli uname -a
+error: flag provided but not defined: -a
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;コンテナ名のあとに &lt;code&gt;--&lt;/code&gt; を入れれば回避出来ました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc exec preterhuman-araceli -- uname -a
+Linux preterhuman-araceli 3.13.0-48-generic #80-Ubuntu SMP Thu Mar 12 11:16:15 UTC 2015 x86_64 x86_64 x86_64 GNU/Linux
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ただ、原因は不明なのですが、何回か実行してみると、時々何も出力されないことがありました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc exec debian01 -- uname -a
+vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc exec debian01 -- uname -a
+Linux debian01 3.13.0-48-generic #80-Ubuntu SMP Thu Mar 12 11:16:15 UTC 2015 x86_64 GNU/Linux
+vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc exec debian01 -- uname -a
+Linux debian01 3.13.0-48-generic #80-Ubuntu SMP Thu Mar 12 11:16:15 UTC 2015 x86_64 GNU/Linux
+vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc exec debian01 -- uname -a
+Linux debian01 3.13.0-48-generic #80-Ubuntu SMP Thu Mar 12 11:16:15 UTC 2015 x86_64 GNU/Linux
+vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc exec debian01 -- uname -a
+vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc exec debian01 -- uname -a
+Linux debian01 3.13.0-48-generic #80-Ubuntu SMP Thu Mar 12 11:16:15 UTC 2015 x86_64 GNU/Linux
+vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc exec debian01 -- uname -a
+vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc exec debian01 -- uname -a
+vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc exec debian01 -- uname -a
+Linux debian01 3.13.0-48-generic #80-Ubuntu SMP Thu Mar 12 11:16:15 UTC 2015 x86_64 GNU/Linux
+vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc exec debian01 -- uname -a
+Linux debian01 3.13.0-48-generic #80-Ubuntu SMP Thu Mar 12 11:16:15 UTC 2015 x86_64 GNU/Linux
+vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc exec debian01 -- uname -a
+Linux debian01 3.13.0-48-generic #80-Ubuntu SMP Thu Mar 12 11:16:15 UTC 2015 x86_64 GNU/Linux
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;lxc exec コンテナ名 /bin/bash&lt;/code&gt; のようにコマンドにシェルを指定すると、コンテナ内でシェルが起動され対話操作が出来ました。ubuntuコンテナの実際の画面では &lt;code&gt;ls&lt;/code&gt; の結果もカラー表示されていました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$ lxc exec preterhuman-araceli /bin/bash
+root@preterhuman-araceli:~# ls
+root@preterhuman-araceli:~# pwd
+/root
+root@preterhuman-araceli:~# cd /
+root@preterhuman-araceli:/# ls -l
+total 60
+drwxr-xr-x   2 root   root    4096 Apr 20 03:55 bin
+drwxr-xr-x   2 root   root    4096 Apr 10  2014 boot
+drwxr-xr-x   5 root   root     420 Apr 22 13:51 dev
+drwxr-xr-x  63 root   root    4096 Apr 22 13:51 etc
+drwxr-xr-x   3 root   root    4096 Apr 20 03:55 home
+drwxr-xr-x  12 root   root    4096 Apr 20 03:54 lib
+drwxr-xr-x   2 root   root    4096 Apr 20 03:54 lib64
+drwxr-xr-x   2 root   root    4096 Apr 20 03:53 media
+drwxr-xr-x   2 root   root    4096 Apr 10  2014 mnt
+drwxr-xr-x   2 root   root    4096 Apr 20 03:53 opt
+dr-xr-xr-x 109 nobody nogroup    0 Apr 22 13:51 proc
+drwx------   2 root   root    4096 Apr 20 03:53 root
+drwxr-xr-x   9 root   root     380 Apr 22 13:51 run
+drwxr-xr-x   2 root   root    4096 Apr 20 03:55 sbin
+drwxr-xr-x   2 root   root    4096 Apr 20 03:53 srv
+dr-xr-xr-x  13 nobody nogroup    0 Apr 22 13:51 sys
+drwxrwxrwt   2 root   root    4096 Apr 20 03:55 tmp
+drwxr-xr-x  10 root   root    4096 Apr 20 03:53 usr
+drwxr-xr-x  11 root   root    4096 Apr 20 03:53 var
+root@preterhuman-araceli:/# ls
+bin   dev  home  lib64  mnt  proc  run   srv  tmp  var
+boot  etc  lib   media  opt  root  sbin  sys  usr
+root@preterhuman-araceli:/# pwd
+/
+root@preterhuman-araceli:/# exit
+vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;おわりに:f3d0284a2992e3586ec4652ee9f1d00b&#34;&gt;おわりに&lt;/h2&gt;
+
+&lt;p&gt;以前試した時に比べて、かなり進歩してますね。&lt;/p&gt;
+
+&lt;p&gt;ten_forwardさんのライブマイグレーションの記事とかも、今後試してみようと思います。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://d.hatena.ne.jp/defiant/20150415/1429089615&#34;&gt;lxd を使ったライブマイグレーション (1) - TenForwardの日記&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://d.hatena.ne.jp/defiant/20150415/1429090896&#34;&gt;lxd を使ったライブマイグレーション (2) - TenForwardの日記&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+    </item>
     
     <item>
       <title>curlでダウンロードを中断後再開するときは-Cオプションが便利</title>
@@ -968,6 +1214,10 @@ func (c *Container) Execute(args ...string) ([]byte, error) {
 &lt;h2 id=&#34;おわりに:2647017d90d6d4b3d5db0bad1b2c22fd&#34;&gt;おわりに&lt;/h2&gt;
 
 &lt;p&gt;早く &lt;code&gt;lxc shell&lt;/code&gt; が実装されて欲しいですね！&lt;/p&gt;
+
+&lt;p&gt;2015-04-23 追記&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;/blog/blog/2015/04/23/try-lxd-0.7-with-vagrant/&#34;&gt;LXD 0.7ではlxc execでシェルの対話操作もできるようになっていました&lt;/a&gt;に書きましたが、 &lt;code&gt;lxc exec コンテナ名 /bin/bash&lt;/code&gt; でシェルの対話操作もできるようになっていました。&lt;/p&gt;
 </description>
     </item>
     
@@ -1327,375 +1577,6 @@ vagrant up
 &lt;li&gt;Vagrant: 1.1.5&lt;/li&gt;
 &lt;li&gt;sahara: &lt;a href=&#34;https://github.com/ryuzee/sahara.git&#34;&gt;https://github.com/ryuzee/sahara.git&lt;/a&gt; commit d22795aa417ec1cb67eb92810afb52300edd3c44&lt;/li&gt;
 &lt;/ul&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>lua, V8, ruby, mrubyでfib(39)の実行時間比較</title>
-      <link>/blog/2013/03/12/fib-39-benchmark-in-luajit/</link>
-      <pubDate>Tue, 12 Mar 2013 00:00:00 +0000</pubDate>
-      
-      <guid>/blog/2013/03/12/fib-39-benchmark-in-luajit/</guid>
-      <description>
-
-&lt;p&gt;&lt;a href=&#34;http://hnakamur.github.com/blog/2012/05/04/fib-39-benchmark-in-lua/&#34;&gt;lua, V8, ruby, mrubyでfib(39)の実行時間比較 - hnakamur&amp;rsquo;s blog at github&lt;/a&gt;が&lt;a href=&#34;https://twitter.com/yukihiro_matz&#34;&gt;@matz&lt;/a&gt;さんにツイートされたのを受けて、各処理系の最新版で再度試してみました。&lt;/p&gt;
-
-&lt;h2 id=&#34;テスト環境その1-前回とは違う環境です:e4f14fdc3e1e369081f4fe4d19364d75&#34;&gt;テスト環境その1（前回とは違う環境です）&lt;/h2&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Model: MacBook Pro Retina, Mid 2012&lt;/li&gt;
-&lt;li&gt;CPU: 2.6GHz Intel Core i7&lt;/li&gt;
-&lt;li&gt;RAM: 16GB 1600MHz DDR3&lt;/li&gt;
-&lt;li&gt;OS: Mac OS X 10.8.2&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h3 id=&#34;2013-03-24-追記:e4f14fdc3e1e369081f4fe4d19364d75&#34;&gt;2013-03-24 追記&lt;/h3&gt;
-
-&lt;p&gt;goでも試してみました&lt;/p&gt;
-
-&lt;h3 id=&#34;go-1-0-3:e4f14fdc3e1e369081f4fe4d19364d75&#34;&gt;go 1.0.3&lt;/h3&gt;
-
-&lt;pre&gt;&lt;code&gt;package main
-
-import &amp;quot;fmt&amp;quot;
-
-func fib(n int) int {
-  if n &amp;lt; 2 {
-    return n
-  }
-  return fib(n - 1) + fib(n - 2)
-}
-
-func main() {
-  fmt.Println(fib(39))
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;$ time fib39
-63245986
-
-real    0m0.484s
-user    0m0.481s
-sys     0m0.002s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;lua:e4f14fdc3e1e369081f4fe4d19364d75&#34;&gt;lua&lt;/h3&gt;
-
-&lt;pre&gt;&lt;code&gt;function fib(n)
-  if n &amp;lt; 2 then
-    return n
-  end
-  return fib(n-2) + fib(n-1)
-end
-
-print(fib(39))
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;$ luajit -v
-LuaJIT 2.0.1 -- Copyright (C) 2005-2013 Mike Pall. http://luajit.org/
-$ time luajit fib.lua
-63245986
-
-real  0m0.906s
-user  0m0.901s
-sys 0m0.003s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;$ lua -v
-Lua 5.1.5  Copyright (C) 1994-2012 Lua.org, PUC-Rio
-$ time lua fib.lua
-63245986
-
-real  0m12.278s
-user  0m12.271s
-sys 0m0.006s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;$ src/lua -v
-Lua 5.2.1  Copyright (C) 1994-2012 Lua.org, PUC-Rio
-$ time src/lua ~/bench/fib.lua
-63245986
-
-real  0m13.971s
-user  0m13.965s
-sys 0m0.005s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;v8:e4f14fdc3e1e369081f4fe4d19364d75&#34;&gt;v8&lt;/h3&gt;
-
-&lt;pre&gt;&lt;code&gt;function fib(n) {
-  if (n &amp;lt; 2) return n;
-  return fib(n-2) + fib(n-1);
-}
-
-print(fib(39));
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;$ v8
-V8 version 3.16.14 [sample shell]
-&amp;gt; ^D
-$ time v8 fib.js
-63245986
-
-real  0m0.804s
-user  0m0.798s
-sys 0m0.008s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;ruby:e4f14fdc3e1e369081f4fe4d19364d75&#34;&gt;ruby&lt;/h3&gt;
-
-&lt;pre&gt;&lt;code&gt;def fib n
-  return n if n &amp;lt; 2
-  fib(n-2) + fib(n-1)
-end
-
-puts fib(39)
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;$ git log -1 | grep commit
-commit 46d8c51763bd13b69a4234f0d4be05cbfd8ae401
-
-$ time bin/mruby fib.rb
-63245986
-
-real  0m16.357s
-user  0m16.345s
-sys 0m0.008s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;$ rbenv version
-1.9.3-p374 (set by /Users/hnakamur/.rbenv/version)
-$ time ruby fib.rb
-63245986
-
-real  0m16.225s
-user  0m16.169s
-sys 0m0.043s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;$ rbenv version
-1.9.3-p392 (set by /Users/hnakamur/.rbenv/version)
-$ time ruby fib.rb
-63245986
-
-real  0m36.813s
-user  0m36.746s
-sys 0m0.043s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;$ rbenv version
-2.0.0-p0 (set by /Users/hnakamur/.rbenv/version)
-$ time ruby fib.rb 
-63245986
-
-real  0m31.828s
-user  0m31.743s
-sys 0m0.045s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;2013-03-12-23-15-追記:e4f14fdc3e1e369081f4fe4d19364d75&#34;&gt;2013-03-12 23:15 追記&lt;/h3&gt;
-
-&lt;p&gt;1.9.3-p374と1.9.3-p392でこんなに違うのは変だなと思って、1.9.3-p374を入れなおして再度測ってみました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ rbenv version
-1.9.3-p374 (set by /Users/hnakamur/.rbenv/version)
-$ time ruby ~/bench/fib.rb 
-63245986
-
-real  0m38.909s
-user  0m38.834s
-sys 0m0.045s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;以前1.9.3-p374を入れた時から、XCodeのバージョンが変わっているので、コンパイラが違うせいで大幅に時間が変わったようです。&lt;/p&gt;
-
-&lt;h2 id=&#34;テスト環境その2:e4f14fdc3e1e369081f4fe4d19364d75&#34;&gt;テスト環境その2&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://hnakamur.github.com/blog/2012/05/04/fib-39-benchmark-in-lua/&#34;&gt;lua, V8, ruby, mrubyでfib(39)の実行時間比較 - hnakamur&amp;rsquo;s blog at github&lt;/a&gt;と同じマシンです。
-OSはLionのままですがアップデートはしています。XCodeもバージョンアップしました。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Model: MacBook Air 13-inch, Mid 2011&lt;/li&gt;
-&lt;li&gt;CPU: 1.7GHz Intel Core i5&lt;/li&gt;
-&lt;li&gt;RAM: 4GB 1333MHz DDR3&lt;/li&gt;
-&lt;li&gt;OS: Mac OS X Lion 10.7.5&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h3 id=&#34;lua-1:e4f14fdc3e1e369081f4fe4d19364d75&#34;&gt;lua&lt;/h3&gt;
-
-&lt;pre&gt;&lt;code&gt;$ src/luajit -v
-LuaJIT 2.0.1 -- Copyright (C) 2005-2013 Mike Pall. http://luajit.org/
-$ time src/luajit ~/fib_bench/fib.lua
-63245986
-
-real    0m1.268s
-user    0m1.256s
-sys     0m0.003s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;$ cd ../lua-5.2.1
-$ src/lua -v
-Lua 5.2.1  Copyright (C) 1994-2012 Lua.org, PUC-Rio
-$ time src/lua ~/fib_bench/fib.lua
-63245986
-
-real    0m20.299s
-user    0m20.299s
-sys     0m0.006s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;$ src/lua -v
-Lua 5.1.5  Copyright (C) 1994-2012 Lua.org, PUC-Rio
-$ time src/lua ~/fib_bench/fib.lua
-63245986
-
-real    0m20.100s
-user    0m20.089s
-sys     0m0.012s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;v8-1:e4f14fdc3e1e369081f4fe4d19364d75&#34;&gt;V8&lt;/h3&gt;
-
-&lt;pre&gt;&lt;code&gt;$ v8
-V8 version 3.16.14 [sample shell]
-&amp;gt; ^D
-
-$ time v8 fib.js
-63245986
-
-real    0m1.105s
-user    0m1.099s
-sys     0m0.011s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;ruby-1:e4f14fdc3e1e369081f4fe4d19364d75&#34;&gt;ruby&lt;/h3&gt;
-
-&lt;pre&gt;&lt;code&gt;$ rbenv version
-1.9.3-p194 (set by /Users/hnakamur/.rbenv/version)
-$ time ruby fib.rb
-63245986
-
-real    0m23.462s
-user    0m23.431s
-sys     0m0.039s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;この1.9.3-p194は以前のXCodeでビルドしたものです。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ rbenv version
-1.9.3-p392 (set by /Users/hnakamur/.rbenv/version)
-$ time ruby fib.rb
-63245986
-
-real    0m51.765s
-user    0m51.679s
-sys     0m0.048s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;$ rbenv version
-2.0.0-p0 (set by /Users/hnakamur/.rbenv/version)
-$ time ruby fib.rb
-63245986
-
-real    0m47.074s
-user    0m47.048s
-sys     0m0.045s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id=&#34;テスト環境その3:e4f14fdc3e1e369081f4fe4d19364d75&#34;&gt;テスト環境その3&lt;/h2&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Model: NEC Express5800/S70 type RB&lt;/li&gt;
-&lt;li&gt;CPU: Intel Pentium G6950 (2.8GHz)&lt;/li&gt;
-&lt;li&gt;RAM: 16GB DDR3-1333&lt;/li&gt;
-&lt;li&gt;OS: CentOS 6.4 x86_64&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h3 id=&#34;lua-2:e4f14fdc3e1e369081f4fe4d19364d75&#34;&gt;lua&lt;/h3&gt;
-
-&lt;pre&gt;&lt;code&gt;$ luajit -v
-LuaJIT 2.0.1 -- Copyright (C) 2005-2013 Mike Pall. http://luajit.org/
-$ time luajit fib.lua
-63245986
-
-real  0m1.244s
-user  0m1.241s
-sys 0m0.000s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;$ src/lua -v
-Lua 5.2.1  Copyright (C) 1994-2012 Lua.org, PUC-Rio
-$ time src/lua ~hnakamur/fib_bench/fib.lua 
-63245986
-
-real  0m15.804s
-user  0m15.774s
-sys 0m0.002s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;$ time src/lua ~hnakamur/fib_bench/fib.lua 
-63245986
-
-real  0m15.658s
-user  0m15.627s
-sys 0m0.002s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;v8-2:e4f14fdc3e1e369081f4fe4d19364d75&#34;&gt;V8&lt;/h3&gt;
-
-&lt;pre&gt;&lt;code&gt;$ ./out/x64.release/d8   
-V8 version 3.16.14 [console: dumb]
-d8&amp;gt; 
-Segmentation fault
-$ time ./out/x64.release/d8 ~hnakamur/fib_bench/fib.js
-63245986
-
-real  0m1.311s
-user  0m1.314s
-sys 0m0.004s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;ruby-2:e4f14fdc3e1e369081f4fe4d19364d75&#34;&gt;ruby&lt;/h3&gt;
-
-&lt;pre&gt;&lt;code&gt;$ rbenv version
-1.9.3-p374 (set by /usr/local/rbenv/version)
-$ time ruby fib.rb
-63245986
-
-real  0m40.485s
-user  0m40.365s
-sys 0m0.038s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;$ rbenv version
-1.9.3-p392 (set by /usr/local/rbenv/version)
-$ time ruby fib.rb
-63245986
-
-real  0m38.841s
-user  0m38.749s
-sys 0m0.013s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;$ rbenv version
-2.0.0-p0 (set by /usr/local/rbenv/version)
-$ time ruby fib.rb 
-63245986
-
-real  0m32.491s
-user  0m32.410s
-sys 0m0.014s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;$ git log -1|grep commit
-commit f63cd331da6257f9b44778dabff60be55b0721fa
-$ time bin/mruby ~hnakamur/fib_bench/fib.rb 
-63245986
-
-real  0m20.752s
-user  0m20.713s
-sys 0m0.002s
-&lt;/code&gt;&lt;/pre&gt;
 </description>
     </item>
     
