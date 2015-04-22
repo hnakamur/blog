@@ -197,3 +197,7 @@ func (c *Container) Execute(args ...string) ([]byte, error) {
 ## おわりに
 
 早く `lxc shell` が実装されて欲しいですね！
+
+2015-04-23 追記
+
+[LXD 0.7ではlxc execでシェルの対話操作もできるようになっていました](/blog/2015/04/23/try-lxd-0.7-with-vagrant/)に書きましたが、 `lxc exec コンテナ名 /bin/bash` でシェルの対話操作もできるようになっていました。
