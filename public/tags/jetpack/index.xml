@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Jetpack on hnakamur&#39;s blog at github</title>
+    <link>/blog/tags/jetpack/</link>
+    <description>Recent content in Jetpack on hnakamur&#39;s blog at github</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>ja-JP</language>
+    <lastBuildDate>Thu, 23 Apr 2015 01:27:57 +0900</lastBuildDate>
+    <atom:link href="/blog/tags/jetpack/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>jetpackを試してみた</title>
+      <link>/blog/2015/04/23/try-jetpack/</link>
+      <pubDate>Thu, 23 Apr 2015 01:27:57 +0900</pubDate>
+      
+      <guid>/blog/2015/04/23/try-jetpack/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに:d2be8c75ec3c908549cffd0ee3c6bc41&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/3ofcoins/jetpack#using-jetpack&#34;&gt;3ofcoins/jetpack&lt;/a&gt;はFreeBSD, Jail, ZFSを使った&lt;a href=&#34;https://github.com/appc/spec&#34;&gt;App Container Spec&lt;/a&gt;の実装です。まだプロトタイプレベルとのことです。Go言語で実装されています。&lt;/p&gt;
+
+&lt;p&gt;masterの最新を試しました。今後のためにコミットハッシュをメモしておきます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sunshine5:jetpack hnakamur$ g log -1
+commit 0792b938c7f9bdd43f9d117bfdec6cd91e223ee5
+Author: Maciej Pasternacki &amp;lt;maciej@3ofcoins.net&amp;gt;
+Date:   Mon Apr 13 06:26:57 2015
+
+    Make image building work with per-app rootfs
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;セットアップ:d2be8c75ec3c908549cffd0ee3c6bc41&#34;&gt;セットアップ&lt;/h2&gt;
+
+&lt;p&gt;Vagrantfileが用意されているのでそれを使いました。
+VirtualBox 4.3.26, Vagrant 1.7.2, OS X Yosemiteという環境で試しました。&lt;/p&gt;
+
+&lt;p&gt;VagrantのAnsibleプロビジョナを利用しているので、予めホスト側にAnsibleをセットアップしておいてください。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;vagrant up
+vagrant ssh
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;jetpackを使ってみる:d2be8c75ec3c908549cffd0ee3c6bc41&#34;&gt;Jetpackを使ってみる&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/3ofcoins/jetpack#using-jetpack&#34;&gt;Using Jetpack&lt;/a&gt;の説明にそって、試してみました。&lt;/p&gt;
+
+&lt;p&gt;引数無しで単に &lt;code&gt;jetpack&lt;/code&gt; と実行すると説明が出ます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ jetpack
+Usage: jetpack [OPTIONS] COMMAND...
+Options:
+  -config=PATH  Configuration file (/usr/local/etc/jetpack.conf)
+  -help, -h     Display this help screen
+Commands:
+  help                                    Display this help screen
+  init                                    Initialize host
+  info                                    Show global information
+  test                                    Run integration tests
+  image list [QUERY]                      List images
+  image import ARCHIVE [MANIFEST]         Import image from an archive
+  image IMAGE build [OPTIONS] COMMAND...  Build new image from an existing one
+                    -dir=.                Location on build directory on host
+                    -cp=PATH...           Copy additional files from host
+  image IMAGE show                        Display image details
+  image IMAGE export [PATH]               Export image to an AMI file
+                                          Output to stdout if no PATH given
+  image IMAGE destroy                     Destroy image
+  pod list                                List pods
+  pod create [FLAGS] IMAGE [IMAGE FLAGS] [IMAGE [IMAGE FLAGS] ...]
+                                          Create new pod from image
+             -help                        Show detailed help
+  pod POD show                            Display pod details
+  pod POD run                             Run pod&#39;s application
+  pod POD console [USER]                  Open console inside the pod
+  pod POD ps|top|killall [OPTIONS...]
+                                          Manage pod&#39;s processes
+  pod POD kill                Kill running pod
+  pod POD destroy             Destroy pod
+Needs Explanation:
+  ARCHIVE, MANIFEST  May be filesystem paths or URLs.
+            cp=PATH  This option can be given multiple times
+              QUERY  Is an expression that looks like this:
+                      - NAME[,LABEL=VALUE[,LABEL=VALUE[,...]]]
+                      - NAME:VERSION (alias for NAME:version=VERSION)
+              IMAGE  Can be:
+                      - an UUID (XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXX),
+                      - a checksum (sha512-...), or
+                      - a QUERY (which can&#39;t be ambiguous).
+          POD  Has to be an UUID for now
+Helpful Aliases:
+  i|img ... -- image ...
+  p ... -- pod ...
+  image, images -- image list
+  pod, pods -- pod list
+  image build|show|export|destroy IMAGE ... -- image IMAGE build|show|... ...
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;jetpack init&lt;/code&gt; でZFSのデータセットとディレクトリ構造を初期化します。が、これはプロビジョニングで実行済みだったようです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ jetpack init
+/vagrant/jetpack/host.go:82: Host already initialized
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;jetpack info&lt;/code&gt; で状態を確認してみました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ jetpack info
+JetPack 0.0.1 (v0.0.1-81-g0792b93), compiled on 2015-04-22T15:38:43Z
+ZFS Dataset zroot/jetpack
+  Mountpoint  /var/jetpack
+Configuration:
+  root.zfs                zroot/jetpack
+  root.zfs.mountpoint     /var/jetpack
+  images.ami.store        no
+  images.ami.compression  xz
+  images.zfs.atime        off
+  images.zfs.compress     lz4
+  jail.interface          lo1
+  jail.namePrefix         jetpack/
+  debug                   off
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;jetpack test&lt;/code&gt; でスモークテストを実行してみましたが、一般ユーザでは権限不足でした。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ jetpack test
+ERROR: mkdir /var/jetpack/test.881699652: permission denied
+run.Command[/usr/local/libexec/jetpack/test.integration dataset=zroot/jetpack]: exit status 2
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;スモークテストという言葉は知らなかったのですが、本格的なテストの前の簡易テストという意味だそうです。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://nolan00267.blogspot.jp/2013/12/itsmoke-test.html&#34;&gt;ビジネス英語とアメリカ生活 | カリフォルニアの陽射しの中で: IT英語:　ソフトウェアの試験なのにSmoke Testとは、これいかに?&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.itmedia.co.jp/im/articles/1111/07/news166.html&#34;&gt;情報システム用語事典：スモークテスト（すもーくてすと） - ITmedia エンタープライズ&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;sudoつきで実行すると、さっきよりは進みましたが &lt;code&gt;resolv.conf&lt;/code&gt; が無いというエラーになってしまいました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ sudo jetpack test
+...(snip)...
+Pod dying since 51.336704525s, waiting...
+Image 6d058709-d7f9-45c5-a40b-0f9a5c81a90b
+  Hash       sha512-3d526a2a0e40605d1d5f50a6596f210ff26d7486867f12f4ffa395c3600028a01473c126c11b1030a4c299c82799b56a3493773d008743ae33f1230dc71384a1
+  Origin     b73f4bf5-8988-4e0f-87f4-31723167e2ef
+  Timestamp  2015-04-22 16:24:15.597136136 +0000 UTC
+  Manifest freebsd-base
+    Labels
+      version  10.1.9
+      os       freebsd
+      arch     amd64
+    Annotations
+      timestamp  2015-04-22T16:24:15.595105431Z
+jetpack image freebsd-base build -cp=/usr/local/share/jetpack/jetpack.image.mk  /usr/bin/make .jetpack.build.
+open /var/jetpack/test.467360619/pods/4c518b91-afa8-4e28-86ca-4c4d0fedc313/rootfs/0/etc/resolv.conf: no such file or directory
+/vagrant/jetpack/pod.go:281:
+/vagrant/jetpack/pod.go:500:
+/vagrant/jetpack/pod.go:501:
+/vagrant/jetpack/image.go:331:
+*** Error code 1
+
+Stop.
+make: stopped in /usr/local/share/examples/jetpack/example.showenv
+ERROR: run.Command[make -C /usr/local/share/examples/jetpack/example.showenv]: exit status 1
+run.Command[/usr/local/libexec/jetpack/test.integration dataset=zroot/jetpack]: exit status 2
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;一旦置いておいて、先に進みます。&lt;/p&gt;
+
+&lt;p&gt;rootユーザで &lt;code&gt;/usr/local/share/examples/jetpack&lt;/code&gt; 以下の &lt;code&gt;freebsd-base.release&lt;/code&gt;, &lt;code&gt;freebsd-base&lt;/code&gt;, &lt;code&gt;example.showenv&lt;/code&gt; イメージを順に作成します。&lt;/p&gt;
+
+&lt;p&gt;まず &lt;code&gt;freebsd-base.release&lt;/code&gt; イメージを作ります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ sudo -i
+root@packer-freebsd-10:~ # cd /usr/local/share/examples/jetpack
+root@packer-freebsd-10:/usr/local/share/examples/jetpack # cd freebsd-base.release/
+root@packer-freebsd-10:/usr/local/share/examples/jetpack/freebsd-base.release # make
+sha256 -c 2b028a894d25711ad496762622a52d74b1e32ee04693ad1cf056e3ddcdc23975 base.txz
+SHA256 (base.txz) = 2b028a894d25711ad496762622a52d74b1e32ee04693ad1cf056e3ddcdc23975
+jetpack image import base.txz manifest.json
+-                                             100% of   63 MB 6067 kBps 00m11s
+-                                             100% of  184  B  519 kBps 00m00s
+Image 445da390-2e49-4b7f-921d-47ce6114cb02
+  Hash       sha512-3e5767bda2018294312cce0d0ef2003cf886af246cbbfe5050a266a94bdcfe9df94c9e73ef4452b487cf8bdc8279806e70aef75ea8f644d24223cf227bc75df8
+  Origin     base.txz
+  Timestamp  2015-04-22 16:33:07.861508005 +0000 UTC
+  Manifest freebsd-base/release
+    Labels
+      version  10.1
+      os       freebsd
+      arch     amd64
+    Annotations
+      timestamp  2015-04-22T16:33:18.685140617Z
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;次に &lt;code&gt;freebsd-base&lt;/code&gt; イメージを作ります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;root@packer-freebsd-10:/usr/local/share/examples/jetpack/freebsd-base.release # cd ../freebsd-base
+root@packer-freebsd-10:/usr/local/share/examples/jetpack/freebsd-base # make
+jetpack image freebsd-base/release build -cp=/usr/local/share/jetpack/jetpack.image.mk  /usr/bin/make .jetpack.build.
+sed -i &#39;&#39; &#39;s|^Components.*|Components world/base|&#39; /etc/freebsd-update.conf
+install -v -m 0644 rc.conf /etc/rc.conf
+install: rc.conf -&amp;gt; /etc/rc.conf
+install -v -m 0600 entropy /entropy
+install: entropy -&amp;gt; /entropy
+patch /usr/sbin/freebsd-update &amp;lt; freebsd-update.patch
+Hmm...  Looks like a unified diff to me...
+The text leading up to this was:
+--------------------------
+|--- /usr/sbin/freebsd-update	2015-02-08 22:15:58.178818000 +0100
+|+++ freebsd-update	2015-02-09 13:45:42.202917000 +0100
+--------------------------
+Patching file /usr/sbin/freebsd-update using Plan A...
+Hunk #1 succeeded at 610 (offset -8 lines).
+done
+env PAGER=cat freebsd-update -s update6.freebsd.org fetch install
+Looking up update6.freebsd.org mirrors... none found.
+Fetching public key from update6.freebsd.org... done.
+Fetching metadata signature for 10.1-RELEASE from update6.freebsd.org... done.
+Fetching metadata index... done.
+Fetching 2 metadata files... done.
+Inspecting system... done.
+Preparing to download files... done.
+Fetching 706 patches.....10....20....30....40....50....60....70....80....90....100....110....120....130....140....150....160....170....180....190....200....210....220....230....240....250....260....270....280....290....300....310....320....330....340....350....360....370....380....390....400....410....420....430....440....450....460....470....480....490....500....510....520....530....540....550....560....570....580....590....600....610....620....630....640....650....660....670....680....690....700... done.
+Applying patches... done.
+Fetching 1 files... done.
+
+The following files will be updated as part of updating to 10.1-RELEASE-p9:
+/bin/freebsd-version
+/boot/boot1.efi
+/boot/boot1.efifat
+...(略)...
+/var/db/mergemaster.mtree
+Installing updates... done.
+rm -rf /var/db/freebsd-update/*
+./manifest.json.sh &amp;gt; manifest.json
+Pod dying since 64.761583ms, waiting...
+...(略)...
+Pod dying since 51.461102458s, waiting...
+Image 9323ac42-0f39-4f42-90de-ac4de60420dd
+  Hash       sha512-3fb309e4d9a998bd910ce07dbfcef447508ea2146fabd88056975abc224d49094b3ff22c61c6c3aae170ee5e69bff72c43fb6e1153ae4f68607246cb50cc4d3d
+  Origin     445da390-2e49-4b7f-921d-47ce6114cb02
+  Timestamp  2015-04-22 16:38:35.737407036 +0000 UTC
+  Manifest freebsd-base
+    Labels
+      version  10.1.9
+      os       freebsd
+      arch     amd64
+    Annotations
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;次に &lt;code&gt;freebsd-base&lt;/code&gt; イメージを作ります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;root@packer-freebsd-10:/usr/local/share/examples/jetpack/freebsd-base # cd ../example.showenv/
+root@packer-freebsd-10:/usr/local/share/examples/jetpack/example.showenv # make
+jetpack image freebsd-base build -cp=/usr/local/share/jetpack/jetpack.image.mk  /usr/bin/make .jetpack.build.
+open /var/jetpack/pods/eaa0ec11-a7ad-4170-ac30-472444b9f849/rootfs/0/etc/resolv.conf: no such file or directory
+/vagrant/jetpack/pod.go:281:
+/vagrant/jetpack/pod.go:500:
+/vagrant/jetpack/pod.go:501:
+/vagrant/jetpack/image.go:331:
+*** Error code 1
+
+Stop.
+make: stopped in /usr/local/share/examples/jetpack/example.showenv
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;スモークテストの時と同じエラーが出ました。
+とりあえず今回はここまでとします。&lt;/p&gt;
+</description>
+    </item>
+    
+  </channel>
+</rss>
