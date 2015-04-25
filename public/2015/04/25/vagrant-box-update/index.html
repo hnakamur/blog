@@ -5,7 +5,7 @@
         <meta http-equiv="content-type" content="text/html; charset=utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
 
-        <title>lua, V8, ruby, mrubyでfib(39)の実行時間比較 2013-03-12版 &middot; hnakamur&#39;s blog at github</title>
+        <title>vagrant box updateでboxファイルをアップグレードする &middot; hnakamur&#39;s blog at github</title>
         <link rel='stylesheet' href='http://fonts.googleapis.com/css?family=Open+Sans:400,300,600' type='text/css'>
         <link rel="stylesheet" href="/blog//libraries/normalize.3.0.1.css" />
         <link rel="stylesheet" href="/blog//css/liquorice.css" />
@@ -56,145 +56,45 @@
             <div class="sixteen columns">
                 <article class="li-article">
                     <header class="li-article-header">
-                        <h1 class="li-article-title">lua, V8, ruby, mrubyでfib(39)の実行時間比較 2013-03-12版</h1>
-                        <time class="li-article-date">2012-05-04</time>
+                        <h1 class="li-article-title">vagrant box updateでboxファイルをアップグレードする</h1>
+                        <time class="li-article-date">2015-04-25</time>
                     </header>
                     <section>
-                        
+                        <p>Vagrant Cloudに上がっているUbuntu trustyのオフィシャルイメージ<a href="https://atlas.hashicorp.com/ubuntu/boxes/trusty64">ubuntu/trusty64 | Atlas by HashiCorp</a>をVagrantfileで参照していたら、 <code>vagrant up</code> の際に以下の様なメッセージが表示される時がありました。</p>
 
-<p>2013-03-13追記</p>
-
-<p>この記事が<a href="https://twitter.com/yukihiro_matz">@matz</a>さんにツイートされたのを受けて、各処理系の最新版で再度試してみました。
-<a href="http://hnakamur.github.com/blog/2013/03/12/fib-39-benchmark-in-luajit/">lua, V8, ruby, mrubyでfib(39)の実行時間比較 2013-03-12版</a>をご参照ください。</p>
-
-<hr>
-
-<p><a href="http://www.quredo.net/2012/04/mruby-%E8%BB%BD%E9%87%8Fruby-%E3%82%BD%E3%83%BC%E3%82%B9%E5%85%AC%E9%96%8B/">mruby (軽量ruby) ソース公開 | quredo-style</a>を見て、自分の環境でlua, luajit, V8, ruby, mrubyで試してみた。</p>
-
-<p>テスト環境</p>
-
-<ul>
-<li>Model: MacBook Air 13-inch, Mid 2011</li>
-<li>CPU: 1.7GHz Intel Core i5</li>
-<li>RAM: 4GB 1333MHz DDR3</li>
-<li>OS: Mac OS X Lion 10.7.3</li>
-</ul>
-
-<h2 id="lua:f0bf6e66c252b31ac7d3e3e7d9445026">lua</h2>
-
-<p>fib.lua</p>
-
-<pre><code>function fib(n)
-  if n &lt; 2 then
-    return n
-  end
-  return fib(n-2) + fib(n-1)
-end
-
-print(fib(39))
+<pre><code>$ vagrant up
+…(略)…
+==&gt; default: A newer version of the box 'ubuntu/trusty64' is available! You currently
+==&gt; default: have version '14.04'. The latest is version '20150422.0.0'. Run
+==&gt; default: `vagrant box update` to update.
 </code></pre>
 
-<pre><code>$ lua -v
-Lua 5.1.4  Copyright (C) 1994-2008 Lua.org, PUC-Rio
-$ time lua fib.lua
-63245986
+<p>以下のように実行するとアップデートが出来ました。</p>
 
-real	0m21.368s
-user	0m21.345s
-sys	0m0.016s
+<pre><code>$ vagrant box update --box ubuntu/trusty64
+Checking for updates to 'ubuntu/trusty64'
+Latest installed version: 14.04
+Version constraints: &gt; 14.04
+Provider: virtualbox
+Updating 'ubuntu/trusty64' with provider 'virtualbox' from version
+'14.04' to '20150422.0.0'...
+Loading metadata for box 'https://atlas.hashicorp.com/ubuntu/trusty64'
+Adding box 'ubuntu/trusty64' (v20150422.0.0) for provider: virtualbox
+Downloading: https://atlas.hashicorp.com/ubuntu/boxes/trusty64/versions/20150422.0.0/providers/virtualbox.box
+Successfully added box 'ubuntu/trusty64' (v20150422.0.0) for 'virtualbox'!
 </code></pre>
 
-<pre><code>$ ./lua -v
-Lua 5.2.0  Copyright (C) 1994-2011 Lua.org, PUC-Rio
-$ time ./lua fib.lua
-63245986
+<p>アップデート完了後、box一覧を確認してみると以下のように新旧のバージョンが出力されました。</p>
 
-real	0m19.603s
-user	0m19.585s
-sys	0m0.012s
+<pre><code>$ vagrant box list | grep 'ubuntu/trusty64'
+ubuntu/trusty64                               (virtualbox, 14.04)
+ubuntu/trusty64                               (virtualbox, 20150422.0.0)
 </code></pre>
 
-<pre><code>$ ./luajit -v
-Lua 5.1.5  Copyright (C) 1994-2012 Lua.org, PUC-Rio
-LuaJIT 1.1.8  Copyright (C) 2005-2012 Mike Pall, http://luajit.org/
-$ time ./luajit fib.lua
-63245986
+<p>検証用に古いバージョンを使うことはできるのかなと思ったら<a href="https://docs.vagrantup.com/v2/boxes/versioning.html">Box Versioning - Vagrant Documentation</a>に書いてありました。</p>
 
-real	0m4.302s
-user	0m4.292s
-sys	0m0.006s
-</code></pre>
-
-<pre><code>$ luajit -v
-LuaJIT 2.0.0-beta9 -- Copyright (C) 2005-2011 Mike Pall. http://luajit.org/
-$ time luajit fib.lua
-63245986
-
-real	0m1.299s
-user	0m1.289s
-sys	0m0.004s
-</code></pre>
-
-<h2 id="v8:f0bf6e66c252b31ac7d3e3e7d9445026">V8</h2>
-
-<pre><code>function fib(n) {
-  if (n &lt; 2) return n;
-  return fib(n-2) + fib(n-1);
-}
-
-print(fib(39));
-</code></pre>
-
-<pre><code>$ v8
-V8 version 3.9.24 [sample shell]
-&gt; quit()
-$ time v8 fib.js
-63245986
-
-real	0m1.417s
-user	0m1.407s
-sys	0m0.013s
-</code></pre>
-
-<h2 id="ruby:f0bf6e66c252b31ac7d3e3e7d9445026">ruby</h2>
-
-<pre><code>def fib n
-  return n if n &lt; 2
-  fib(n-2) + fib(n-1)
-end
-
-puts fib(39)
-</code></pre>
-
-<pre><code>$ rbenv version
-1.8.7-p358 (set by /Users/hnakamur/.rbenv/version)
-$ time ruby fib.rb
-63245986
-
-real	1m47.227s
-user	1m46.945s
-sys	0m0.132s
-</code></pre>
-
-<pre><code>$ rbenv version
-1.9.3-p125 (set by /Users/hnakamur/.rbenv/version)
-$ time ruby fib.rb
-63245986
-
-real	0m16.504s
-user	0m16.374s
-sys	0m0.051s
-</code></pre>
-
-<pre><code>$ time bin/mruby fib.rb 
-63245986
-
-real	0m35.465s
-user	0m35.423s
-sys	0m0.014s
-</code></pre>
-
-<p>[2012-05-03 23:21]</p>
+<p><code>config.vm.box_version</code> を指定すれば良いようです。
+また <code>config.vm.box_check_update = false</code> を指定すれば、boxの新バージョンが出ているかのチェックを無効にできるそうです。</p>
 
                     </section>
                 </article>
@@ -212,8 +112,7 @@ sys	0m0.014s
             <div class="eight columns">
                 <div class="li-pagination-previous">
                     
-                        Later article<br />
-                        <a href="/blog/2012/05/04/setup-chef-solo-and-knife-solo-on-centos6/"> CentOS6でchef-soloとknife-soloをセットアップ</a>
+                        &nbsp;
                     
                 </div>
             </div>
@@ -221,7 +120,7 @@ sys	0m0.014s
                 <div class="li-pagination-next">
                     
                         Older article<br />
-                        <a href="/blog/2012/03/11/try-macruby-0-dot-10-with-xcode-4-dot-2-1/"> Xcode 4.2.1でMacRuby 0.10を試す</a>
+                        <a href="/blog/2015/04/23/try-jetpack/"> jetpackを試してみた</a>
                     
                 </div>
             </div>
