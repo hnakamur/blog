@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Go on hnakamur&#39;s blog at github</title>
+    <link>/blog/tags/go/</link>
+    <description>Recent content in Go on hnakamur&#39;s blog at github</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>ja-JP</language>
+    <lastBuildDate>Mon, 27 Apr 2015 02:06:02 +0900</lastBuildDate>
+    <atom:link href="/blog/tags/go/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>Goでdeferの処理中のエラーを返す書き方を工夫してみた</title>
+      <link>/blog/2015/04/27/write_function_for_go_defer/</link>
+      <pubDate>Mon, 27 Apr 2015 02:06:02 +0900</pubDate>
+      
+      <guid>/blog/2015/04/27/write_function_for_go_defer/</guid>
+      <description>&lt;p&gt;go-nutsのメーリングリストの記事
+&lt;a href=&#34;https://groups.google.com/d/msg/golang-nuts/qTTBENO_Em0/Y4MCVZZ3c5sJ&#34;&gt;https://groups.google.com/d/msg/golang-nuts/qTTBENO_Em0/Y4MCVZZ3c5sJ&lt;/a&gt;
+によるとdeferで呼ばれた関数の戻り値は捨てられるそうです。
+&lt;a href=&#34;https://groups.google.com/d/msg/golang-nuts/qTTBENO_Em0/UlI77BM2PUkJ&#34;&gt;https://groups.google.com/d/msg/golang-nuts/qTTBENO_Em0/UlI77BM2PUkJ&lt;/a&gt;
+で戻り値の変数に代入するという方法が紹介されていました。&lt;/p&gt;
+
+&lt;p&gt;これを参考に、deferでの後処理でエラーが起きた時はそのエラーを返す、ただし複数のエラーが起きた時は最初のエラーを返したいというときの書き方を考えてみました。&lt;/p&gt;
+
+&lt;p&gt;最初に書いたのは、上の記事で紹介されていたように無名関数を即時呼び出しする方式です。
+&lt;a href=&#34;https://github.com/hnakamur/cgoroonga/blob/70aafdeb2eb754505efe60afa1ae6d995831a063/examples/add_record/main.go&#34;&gt;https://github.com/hnakamur/cgoroonga/blob/70aafdeb2eb754505efe60afa1ae6d995831a063/examples/add_record/main.go&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;func run() (err error) {
+	err = grn.Init()
+	if err != nil {
+		return
+	}
+	defer func() {
+		err2 := grn.Fin()
+		if err2 != nil &amp;amp;&amp;amp; err == nil {
+			err = err2
+		}
+	}()
+
+	ctx, err := grn.CtxOpen(0)
+	if err != nil {
+		return
+	}
+	defer func() {
+		err2 := ctx.Close()
+		if err2 != nil &amp;amp;&amp;amp; err == nil {
+			err = err2
+		}
+	}()
+
+	var db *grn.Obj
+	db, err = ctx.DBOpenOrCreate(&amp;quot;hello.db&amp;quot;, nil)
+	if err != nil {
+		return
+	}
+	defer func() {
+		err2 := ctx.ObjClose(db)
+		if err2 != nil &amp;amp;&amp;amp; err == nil {
+			err = err2
+		}
+	}()
+
+	keyType := ctx.At(grn.DB_SHORT_TEXT)
+	table, err := ctx.TableOpenOrCreate(&amp;quot;table1&amp;quot;, &amp;quot;&amp;quot;,
+		grn.OBJ_TABLE_HASH_KEY|grn.OBJ_PERSISTENT, keyType, nil)
+	if err != nil {
+		return
+	}
+	fmt.Printf(&amp;quot;table=%x\n&amp;quot;, table)
+	defer func() {
+		err2 := ctx.ObjClose(table)
+		if err2 != nil &amp;amp;&amp;amp; err == nil {
+			err = err2
+		}
+	}()
+…(略)…
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;これでやりたいことは実現できているのですが、deferのところの行数が多すぎて読みにくいコードになっています。&lt;/p&gt;
+
+&lt;p&gt;そこでこの部分を関数として定義するようにしてみました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/add_record/main.go&#34;&gt;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/add_record/main.go&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;func run() (err error) {
+	err = grn.Init()
+	if err != nil {
+		return
+	}
+	defer grn.FinDefer(&amp;amp;err)
+
+	ctx, err := grn.CtxOpen(0)
+	if err != nil {
+		return
+	}
+	defer ctx.CloseDefer(&amp;amp;err)
+
+	var db *grn.Obj
+	db, err = ctx.DBOpenOrCreate(&amp;quot;hello.db&amp;quot;, nil)
+	if err != nil {
+		return
+	}
+	defer ctx.ObjCloseDefer(&amp;amp;err, db)
+
+	keyType := ctx.At(grn.DB_SHORT_TEXT)
+	table, err := ctx.TableOpenOrCreate(&amp;quot;table1&amp;quot;, &amp;quot;&amp;quot;,
+		grn.OBJ_TABLE_HASH_KEY|grn.OBJ_PERSISTENT, keyType, nil)
+	if err != nil {
+		return
+	}
+	fmt.Printf(&amp;quot;table=%x\n&amp;quot;, table)
+	defer ctx.ObjCloseDefer(&amp;amp;err, table)
+…(略)…
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;関数定義は例えば &lt;code&gt;FinDefer&lt;/code&gt; なら
+&lt;a href=&#34;https://github.com/hnakamur/cgoroonga/blob/master/init.go#L25-L30&#34;&gt;https://github.com/hnakamur/cgoroonga/blob/master/init.go#L25-L30&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;func FinDefer(err *error) {
+	err2 := Fin()
+	if err2 != nil &amp;amp;&amp;amp; *err == nil {
+		*err = err2
+	}
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;のようになります。他の関数も同様です。&lt;/p&gt;
+
+&lt;p&gt;書き換えた &lt;code&gt;run()&lt;/code&gt; のほうが読みやすくていい感じです。&lt;/p&gt;
+</description>
+    </item>
+    
+  </channel>
+</rss>
