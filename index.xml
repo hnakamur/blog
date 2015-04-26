@@ -6,8 +6,154 @@
     <description>Recent content on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Sun, 26 Apr 2015 23:53:06 +0900</lastBuildDate>
+    <lastBuildDate>Mon, 27 Apr 2015 00:44:23 +0900</lastBuildDate>
     <atom:link href="/blog/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>データ登録用にgroongaのC APIのgoバインディングを書いてみた</title>
+      <link>/blog/2015/04/27/cgoroonga/</link>
+      <pubDate>Mon, 27 Apr 2015 00:44:23 +0900</pubDate>
+      
+      <guid>/blog/2015/04/27/cgoroonga/</guid>
+      <description>
+
+&lt;h2 id=&#34;groongaで大量のデータを登録する方法を調べてみた:bd398b25ed8a2de22905a814e81be387&#34;&gt;groongaで大量のデータを登録する方法を調べてみた&lt;/h2&gt;
+
+&lt;h3 id=&#34;方法1-loadコマンドの文字列を組み立ててgroongaコマンドの標準入力に流し込む:bd398b25ed8a2de22905a814e81be387&#34;&gt;方法1: loadコマンドの文字列を組み立ててgroongaコマンドの標準入力に流し込む&lt;/h3&gt;
+
+&lt;p&gt;groongaのデータの登録はチュートリアルの&lt;a href=&#34;http://groonga.org/ja/docs/tutorial/introduction.html#load-records&#34;&gt;データのロード&lt;/a&gt;にあるように&lt;a href=&#34;http://groonga.org/ja/docs/reference/commands/load.html&#34;&gt;loadコマンド&lt;/a&gt;を使えば出来ます。&lt;/p&gt;
+
+&lt;p&gt;外部ファイルから大量のデータを登録するときはどうするのかなと思って調べてみると、 groongaのソースの examples/dictionary/eijiro/ の例では &lt;code&gt;load&lt;/code&gt; コマンドの文字列を組み立てて &lt;code&gt;groonga&lt;/code&gt; コマンドの標準入力に流し込んでいました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/groonga/groonga/blob/59ef5d1d26b4ba47d163019a21a20519d349489b/examples/dictionary/eijiro/eijiro-import.sh#L10-L12&#34;&gt;https://github.com/groonga/groonga/blob/59ef5d1d26b4ba47d163019a21a20519d349489b/examples/dictionary/eijiro/eijiro-import.sh#L10-L12&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;if iconv -f UCS2 -t UTF8 $2 | ${base_dir}/eijiro2grn.rb | groonga $1 &amp;gt; /dev/null; then
+  echo &amp;quot;eijiro data loaded.&amp;quot;
+fi
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;方法2-groongaのc-apiを使う:bd398b25ed8a2de22905a814e81be387&#34;&gt;方法2: groongaのC APIを使う&lt;/h3&gt;
+
+&lt;p&gt;この方法はお手軽ですが、エラー処理が難しそうと重い、さらに調べてみると、groongaのC APIを使ってデータ登録する例を見つけました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://createfield.com/C%E8%A8%80%E8%AA%9E%E3%81%A7Groonga%E3%81%AEAPI%E3%82%92%E4%BD%BF%E3%81%86%E6%96%B9%E6%B3%95&#34;&gt;C言語でGroongaのAPIを使う方法 - CreateField&lt;/a&gt;&lt;/p&gt;
+
+&lt;h2 id=&#34;go言語用のライブラリを作ってみました:bd398b25ed8a2de22905a814e81be387&#34;&gt;go言語用のライブラリを作ってみました&lt;/h2&gt;
+
+&lt;p&gt;折角なのでCのライブラリのgo言語バインディングを作る練習を兼ねてgo言語用のライブラリを作ってみました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/cgoroonga&#34;&gt;hnakamur/cgoroonga&lt;/a&gt;&lt;/p&gt;
+
+&lt;h3 id=&#34;テーブルとカラムを作ってレコードを1件登録するサンプルコード:bd398b25ed8a2de22905a814e81be387&#34;&gt;テーブルとカラムを作ってレコードを1件登録するサンプルコード&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/add_record/main.go&#34;&gt;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/add_record/main.go&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;OSX + homebrewという環境で試しました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;brew install groonga
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;でgroongaをインストールして、以下の手順で実行します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;go get github.com/hnakamur/cgoroonga
+cd $GOPATH/src/github.com/hnakamur/cgoroonga/examples/add_record
+go build
+./add_record
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;wikipedia日本語版の記事データを登録するサンプルコード:bd398b25ed8a2de22905a814e81be387&#34;&gt;Wikipedia日本語版の記事データを登録するサンプルコード&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/import_wikipedia/main.go&#34;&gt;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/import_wikipedia/main.go&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;データファイルは
+&lt;a href=&#34;http://dumps.wikimedia.org/jawiki/20150422/&#34;&gt;jawiki dump progress on 20150422&lt;/a&gt;
+から以下の4つのファイルをダウンロードしました。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;jawiki-20150422-pages-articles1.xml.bz2&lt;/li&gt;
+&lt;li&gt;jawiki-20150422-pages-articles2.xml.bz2&lt;/li&gt;
+&lt;li&gt;jawiki-20150422-pages-articles3.xml.bz2&lt;/li&gt;
+&lt;li&gt;jawiki-20150422-pages-articles4.xml.bz2&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Wikipediaのデータファイルはxmlをbzip2で圧縮した形式になっているので、Goの標準ライブラリの&lt;a href=&#34;http://golang.org/pkg/compress/bzip2/&#34;&gt;bzip2&lt;/a&gt;と&lt;a href=&#34;http://golang.org/pkg/encoding/xml/&#34;&gt;xml&lt;/a&gt;パッケージを使って読み込むようにしています。&lt;/p&gt;
+
+&lt;p&gt;サイズの大きいXMLファイルを読み込んで処理するときにおすすめの方法が
+&lt;a href=&#34;http://blog.davidsingleton.org/parsing-huge-xml-files-with-go/&#34;&gt;Parsing huge XML files with Go - david singleton&lt;/a&gt;で紹介されていたので、それを真似しました。ありがとうございます！&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;cd $GOPATH/src/github.com/hnakamur/cgoroonga/examples/import_wikipedia
+go build
+./import_wikipedia jawiki-20150422-pages-articles1.xml.bz2
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;のように実行します。&lt;/p&gt;
+
+&lt;h2 id=&#34;cライブラリのgoバインディングを書くときのtips:bd398b25ed8a2de22905a814e81be387&#34;&gt;Cライブラリのgoバインディングを書くときのtips&lt;/h2&gt;
+
+&lt;p&gt;基本的には&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://golang.org/cmd/cgo/&#34;&gt;cgo - The Go Programming Language&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/golang/go/wiki/cgo&#34;&gt;cgo · golang/go Wiki&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;を読めばOKなのですが、ハマった点をメモしておきます。&lt;/p&gt;
+
+&lt;h3 id=&#34;import-c-の上に空行を入れないように注意:bd398b25ed8a2de22905a814e81be387&#34;&gt;import &amp;ldquo;C&amp;rdquo;の上に空行を入れないように注意&lt;/h3&gt;
+
+&lt;p&gt;たとえば
+&lt;a href=&#34;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/column.go#L7&#34;&gt;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/column.go#L7&lt;/a&gt;
+で &lt;code&gt;import &amp;quot;C&amp;quot;&lt;/code&gt; の上に空行を入れて &lt;code&gt;go build&lt;/code&gt; を実行すると以下の様なエラーになります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ go build
+# github.com/hnakamur/cgoroonga
+could not determine kind of name for C.free
+could not determine kind of name for C.grn_column_create
+could not determine kind of name for C.grn_obj_column
+could not determine kind of name for C.grn_obj_flags
+could not determine kind of name for C.strlen
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;cのマクロはgoから呼べないのでcの関数でラップする:bd398b25ed8a2de22905a814e81be387&#34;&gt;Cのマクロはgoから呼べないのでCの関数でラップする&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/cgoroonga.c&#34;&gt;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/cgoroonga.c&lt;/a&gt;
+のようにマクロをラップしたCの関数を書いて、それをgoから呼ぶようにします。&lt;/p&gt;
+
+&lt;h3 id=&#34;エラーコードが有るエラーと無いエラーを統一的に扱うようにした:bd398b25ed8a2de22905a814e81be387&#34;&gt;エラーコードが有るエラーと無いエラーを統一的に扱うようにした&lt;/h3&gt;
+
+&lt;p&gt;groongaのC APIはほとんどが&lt;a href=&#34;http://groonga.org/ja/docs/reference/api/grn_table.html&#34;&gt;7.20.21. grn_table — Groonga v5.0.2ドキュメント&lt;/a&gt;の &lt;a href=&#34;http://groonga.org/ja/docs/reference/api/grn_table.html#c.grn_table_delete&#34;&gt;grn_table_delete&lt;/a&gt;  のように &lt;a href=&#34;https://github.com/groonga/groonga/blob/v5.0.2/include/groonga/groonga.h#L44-L125&#34;&gt;grn_rc&lt;/a&gt; を返します。&lt;/p&gt;
+
+&lt;p&gt;が、 &lt;a href=&#34;http://groonga.org/ja/docs/reference/api/grn_table.html#c.grn_table_create&#34;&gt;grn_table_create&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;grn_obj *grn_table_create(grn_ctx *ctx, const char *name, unsigned int name_size, const char *path, grn_obj_flags flags, grn_obj *key_type, grn_obj *value_type)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;のように &lt;code&gt;grn_rc&lt;/code&gt; を返さないAPIもあります。ドキュメントには明記されていませんが、Cの慣例としてエラーのときはおそらく戻り値が &lt;code&gt;NULL&lt;/code&gt; になるのだと予想します。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/groonga/groonga/blob/v5.0.2/lib/db.c#L744-L930&#34;&gt;https://github.com/groonga/groonga/blob/v5.0.2/lib/db.c#L744-L930&lt;/a&gt; を見るとやはりNULLを返すケースが有りました。&lt;/p&gt;
+
+&lt;p&gt;そこで、
+&lt;a href=&#34;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/error.go&#34;&gt;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/error.go&lt;/a&gt;
+のようにエラーコードが有るエラーと無いエラーを全てGoの変数として定義するようにしてみました。&lt;/p&gt;
+
+&lt;p&gt;これにより
+&lt;a href=&#34;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/import_wikipedia/main.go#L59-L63&#34;&gt;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/import_wikipedia/main.go#L59-L63&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;	table, err := ctx.TableOpenOrCreate(&amp;quot;Articles&amp;quot;, &amp;quot;&amp;quot;,
+		grn.OBJ_TABLE_HASH_KEY|grn.OBJ_PERSISTENT, keyType, nil)
+	if err != nil {
+		return
+	}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;のようにエラーを常に戻り値で受け取るように統一することができ、見通しのよいコードが実現できました。&lt;/p&gt;
+
+&lt;h2 id=&#34;まとめ:bd398b25ed8a2de22905a814e81be387&#34;&gt;まとめ&lt;/h2&gt;
+
+&lt;p&gt;データ登録用にgroongaのC APIのgoバインディングを書きました。
+C APIがエラーコードを返さない場合でもGo側ではエラーを返し &lt;code&gt;if err != nil&lt;/code&gt; というのようにエラーチェックの方式を統一することで、エラー処理の漏れに気づきやすくする事が出来ました。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>Groongaのチュートリアルを試してみた</title>
@@ -1732,45 +1878,6 @@ func (c *Container) Execute(args ...string) ([]byte, error) {
 &lt;p&gt;図の要素や接続線を半自動で配置するためには、幾何学の計算アルゴリズムが重要になってきます。例えば、&lt;a href=&#34;http://qiita.com/hnakamur/items/3ce1e90aecd36883add6&#34;&gt;d3.js - 円の中心までベジェ曲線を引くときに円との交点に矢印終端を配置するサンプル - Qiita&lt;/a&gt;でもベジェ曲線と円の交点を求める計算が必要です。ネットの情報を見ながら独学でやっているだけだと、時間もかかるし挫折しがちです。&lt;/p&gt;
 
 &lt;p&gt;ということで、Diagram as a Codeの流れが広まって、幾何学の計算のノウハウを共有し合えるようになると嬉しいなあというのが願いです。&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>久々にoctopressをアップデート</title>
-      <link>/blog/2014/06/10/upgrade-octopress/</link>
-      <pubDate>Tue, 10 Jun 2014 00:00:00 +0000</pubDate>
-      
-      <guid>/blog/2014/06/10/upgrade-octopress/</guid>
-      <description>
-
-&lt;p&gt;octopressをアップデートした時にハマったのでメモ。
-アップデート手順は&lt;a href=&#34;http://blog.n-z.jp/blog/2013-12-21-update-octopress.html&#34;&gt;octopressをアップデートしてisolateを使い始めた - @znz blog&lt;/a&gt;の「octopress のアップデート」の部分を参考にしました。ありがとうございます。&lt;/p&gt;
-
-&lt;h2 id=&#34;octopressのアップデート:6dd973bdad9933eb852512ee60bcacb7&#34;&gt;Octopressのアップデート&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://octopress.org/docs/updating/&#34;&gt;Updating Octopress - Octopress&lt;/a&gt;の&amp;rdquo;How to Update&amp;rdquo;のコマンドを順に実行しました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;git pull octopress master     # Get the latest Octopress
-bundle install                # Keep gems updated
-rake update_source            # update the template&#39;s source
-rake update_style             # update the template&#39;s style
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;git pullではconflictsが起きたので、適宜修正しました。基本的にはHEAD側を採用。&lt;/p&gt;
-
-&lt;h2 id=&#34;sass-globbingをgemfileに追加:6dd973bdad9933eb852512ee60bcacb7&#34;&gt;sass-globbingをGemfileに追加。&lt;/h2&gt;
-
-&lt;pre&gt;&lt;code&gt;bundle exec rake generate
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;を実行した時に&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;LoadError on line [&amp;quot;161&amp;quot;] of /Users/hnakamur/octopress/vendor/bundle/ruby/2.1.0/gems/compass-0.12.6/lib/compass/configuration/data.rb: cannot load such file -- sass-globbing
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;というエラーが出ました。&lt;/p&gt;
-
-&lt;p&gt;Gemfileにsass-globbingを追加して、&lt;code&gt;bundle&lt;/code&gt;でインストールするとエラーは解消しました。&lt;/p&gt;
 </description>
     </item>
     
