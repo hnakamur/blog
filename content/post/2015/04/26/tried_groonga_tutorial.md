@@ -128,6 +128,8 @@ table_create --name Site --flags TABLE_HASH_KEY --key_type ShortText
 
 として作成していますが、その後 `location` カラムを作る箇所がなかったようです。
 
+2015-04-28追記 https://twitter.com/kenhys/status/592901925089189889 でご指摘いただいたのですが、実は[4.4.3. 位置情報を用いた絞込・ソート](http://groonga.org/ja/docs/tutorial/search.html#narrow-down-sort-by-using-location-information)で `location` カラムを作っているのを私が見落としていました。失礼いたしました。
+
 ```
 column_create --table Site --name location --type WGS84GeoPoint
 ```
