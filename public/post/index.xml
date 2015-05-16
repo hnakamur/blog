@@ -6,8 +6,452 @@
     <description>Recent content in Posts on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Tue, 12 May 2015 22:02:03 +0900</lastBuildDate>
+    <lastBuildDate>Sat, 16 May 2015 11:39:29 +0900</lastBuildDate>
     <atom:link href="/blog/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>さくらのVPSにFreeBSD 10.1をクリーンインストールした時のメモ</title>
+      <link>/blog/2015/05/16/install_freebsd10.1_on_sakura_vps/</link>
+      <pubDate>Sat, 16 May 2015 11:39:29 +0900</pubDate>
+      
+      <guid>/blog/2015/05/16/install_freebsd10.1_on_sakura_vps/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;さくらのVPSにFreeBSD 10.1をクリーンインストールしてみましたので、手順をメモしておきます。作業した環境は MacBook Pro (USキーボード) です。
+インストール後以下の設定を行います。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;ファイルシステムはZFSを選択&lt;/li&gt;
+&lt;li&gt;sshの鍵認証の設定&lt;/li&gt;
+&lt;li&gt;sudoのインストールと設定&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;なお、インストールには下記のページを参考にしました。ありがとうございます！&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://blog.emaita.jp/2015/03/06/freebsd10_1.html&#34;&gt;FreeBSD 10.1 導入 — emaita 備忘録&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://blog.livedoor.jp/saba_nano/archives/28363307.html&#34;&gt;[FreeBSD] さくらのVPSに FreeBSD 9.1 amd64 をインストールする方法 (1) : saba nano - へっぽこ管理者のサーバ管理日誌（LV.2）&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;インストール準備:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;インストール準備&lt;/h2&gt;
+
+&lt;h3 id=&#34;isoイメージをミラーから取得してvpsにsftpでアップロード:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;ISOイメージをミラーから取得してVPSにsftpでアップロード&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://www.jp.freebsd.org/mirror.html&#34;&gt;FreeBSD-related Sites in Japan&lt;/a&gt;を見てftp3.jp.FreeBSD.org (ftp.sakura.ad.jp)からダウンロードすることにしました。&lt;/p&gt;
+
+&lt;p&gt;ブラウザで
+&lt;a href=&#34;ftp://ftp3.jp.freebsd.org/pub/FreeBSD/releases/ISO-IMAGES/10.1/&#34;&gt;ftp://ftp3.jp.freebsd.org/pub/FreeBSD/releases/ISO-IMAGES/10.1/&lt;/a&gt;
+を開き
+&lt;a href=&#34;ftp://ftp3.jp.freebsd.org/pub/FreeBSD/releases/ISO-IMAGES/10.1/FreeBSD-10.1-RELEASE-amd64-bootonly.iso&#34;&gt;ftp://ftp3.jp.freebsd.org/pub/FreeBSD/releases/ISO-IMAGES/10.1/FreeBSD-10.1-RELEASE-amd64-bootonly.iso&lt;/a&gt;
+をダウンロードします。&lt;/p&gt;
+
+&lt;p&gt;これを&lt;a href=&#34;https://help.sakura.ad.jp/app/answers/detail/a_id/2405&#34;&gt;ISOイメージインストール｜さくらインターネット公式サポートサイト&lt;/a&gt;の手順を参考にアップロードします。&lt;/p&gt;
+
+&lt;p&gt;OS Xにはsftpコマンドが標準で入っているのでそれを使います。接続情報は、さくらのVPSのコントロールパネルで確認します。
+ここでは、ユーザ名をvpsXXXXXXXXXXXX, ホスト名をvps-isoY.sakura.ad.jpとして説明します。&lt;/p&gt;
+
+&lt;p&gt;isoファイルのあるディレクトリでsftpを実行し、以下の手順で上記のisoファイルをアップロードします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ sftp vpsXXXXXXXXXXXX@vps-isoY.sakura.ad.jp
+vpsXXXXXXXXXXXX@vps-isoY.sakura.ad.jp&#39;s password: (パスワードを入力)
+sftp&amp;gt; cd iso
+sftp&amp;gt; put FreeBSD-10.1-RELEASE-amd64-bootonly.iso
+sftp&amp;gt; quit
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;アップロードが完了したらsftpコマンドは終了します。さくらのVPSのコントロールパネルの「ISOイメージインストール」のポップアップの「ISOイメージ情報」に今アップロードしたisoファイルが表示されたことを確認し、「マウント設定」の「設定内容を確認する」ボタンを押し、「インストールを実行する」ボタンを押します。&lt;/p&gt;
+
+&lt;h2 id=&#34;インストール:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;インストール&lt;/h2&gt;
+
+&lt;p&gt;「VNCコンソール(HTML5版)を起動」ボタンを押してコンソールで作業します。&lt;/p&gt;
+
+&lt;h3 id=&#34;キーマップの確認:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;キーマップの確認&lt;/h3&gt;
+
+&lt;p&gt;HTML5版のVNCコンソールは、どうも日本語キーボードを想定しているようで、USキーボードだと以下のように一部の記号の配置が異なっています。
+なお、キーマップはデフォルト(US配列)を選択しています。&lt;/p&gt;
+
+&lt;p&gt;押したキーを左、入力された文字を右に示します。&lt;/p&gt;
+
+&lt;table border=&#34;1&#34;&gt;
+&lt;tr&gt;&lt;th style=&#34;padding:4px&#34;&gt;押したキー&lt;/th&gt;&lt;th style=&#34;padding:4px&#34;&gt;入力された文字&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&#34;padding:4px&#34;&gt;`&lt;/td&gt;&lt;td style=&#34;padding:4px&#34;&gt;[&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&#34;padding:4px&#34;&gt;~ (Shift+`)&lt;/td&gt;&lt;td style=&#34;padding:4px&#34;&gt;+&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&#34;padding:4px&#34;&gt;@ (Shift+2)&lt;/td&gt;&lt;td style=&#34;padding:4px&#34;&gt;{&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&#34;padding:4px&#34;&gt;^ (Shift+6)&lt;/td&gt;&lt;td style=&#34;padding:4px&#34;&gt;+&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&#34;padding:4px&#34;&gt;&amp; (Shift+7)&lt;/td&gt;&lt;td style=&#34;padding:4px&#34;&gt;^&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&#34;padding:4px&#34;&gt;* (Shift+8)&lt;/td&gt;&lt;td style=&#34;padding:4px&#34;&gt;&#34;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&#34;padding:4px&#34;&gt;( (Shift+9)&lt;/td&gt;&lt;td style=&#34;padding:4px&#34;&gt;*&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&#34;padding:4px&#34;&gt;) (Shift+0)&lt;/td&gt;&lt;td style=&#34;padding:4px&#34;&gt;(&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&#34;padding:4px&#34;&gt;_ (Shift+-)&lt;/td&gt;&lt;td style=&#34;padding:4px&#34;&gt;何も入力されない&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&#34;padding:4px&#34;&gt;=&lt;/td&gt;&lt;td style=&#34;padding:4px&#34;&gt;-&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&#34;padding:4px&#34;&gt;+ (Shift+=)&lt;/td&gt;&lt;td style=&#34;padding:4px&#34;&gt;:&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&#34;padding:4px&#34;&gt;[&lt;/td&gt;&lt;td style=&#34;padding:4px&#34;&gt;]&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&#34;padding:4px&#34;&gt;{ (Shift+[)&lt;/td&gt;&lt;td style=&#34;padding:4px&#34;&gt;}&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&#34;padding:4px&#34;&gt;]&lt;/td&gt;&lt;td style=&#34;padding:4px&#34;&gt;\&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&#34;padding:4px&#34;&gt;} (Shift+})&lt;/td&gt;&lt;td style=&#34;padding:4px&#34;&gt;|&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&#34;padding:4px&#34;&gt;\&lt;/td&gt;&lt;td style=&#34;padding:4px&#34;&gt;何も入力されない&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&#34;padding:4px&#34;&gt;| (Shift+\)&lt;/td&gt;&lt;td style=&#34;padding:4px&#34;&gt;何も入力されない&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&#34;padding:4px&#34;&gt;: (Shift+;)&lt;/td&gt;&lt;td style=&#34;padding:4px&#34;&gt;&#34;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&#34;padding:4px&#34;&gt;&#39;&lt;/td&gt;&lt;td style=&#34;padding:4px&#34;&gt;7&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&#34;padding:4px&#34;&gt;&#34; (Shift+&#39;)&lt;/td&gt;&lt;td style=&#34;padding:4px&#34;&gt;@&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;h3 id=&#34;ホスト名設定:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;ホスト名設定&lt;/h3&gt;
+
+&lt;p&gt;&amp;ldquo;Please choose a hostname for this machine.&amp;ldquo;の画面ではVPSのコンソールの標準ホスト名を入力します。&lt;/p&gt;
+
+&lt;h3 id=&#34;インストールするコンポーネントの選択:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;インストールするコンポーネントの選択&lt;/h3&gt;
+
+&lt;p&gt;初期選択状態は以下のようになっていました。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;[ ] doc: Additional documentation&lt;/li&gt;
+&lt;li&gt;[*] games: Games (fortune, etc.)&lt;/li&gt;
+&lt;li&gt;[*] lib32: 32-bit compatiblity libraries&lt;/li&gt;
+&lt;li&gt;[*] ports: Ports tree&lt;/li&gt;
+&lt;li&gt;[ ] src: System source code&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;gamesとlib32を外して、docとsrcを追加しました。&lt;/p&gt;
+
+&lt;h3 id=&#34;ネットワーク設定:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;ネットワーク設定&lt;/h3&gt;
+
+&lt;ul&gt;
+&lt;li&gt;「Network Configuration」では「vtnet0」を選び「OK」を押します。&lt;/li&gt;
+&lt;li&gt;&amp;ldquo;Would you like to configure IPv4 for this interface&amp;rdquo; → [Yes]を押す&lt;/li&gt;
+&lt;li&gt;&amp;ldquo;Would you like to use DHCP to configure this interface?&amp;rdquo; → [No]を押す&lt;/li&gt;
+&lt;li&gt;「Static Netowrk Interface Configuration」の画面でIP Address, Subnet Mask, Default Routerを入力します。VPSのコントロールパネルのIPv4のアドレス、ネットマスク、ゲートウェイの値をそれぞれ入力します。&lt;/li&gt;
+&lt;li&gt;&amp;ldquo;Would you like to configure IPv6 for this interface?&amp;rdquo; → NoYes]を押す&lt;/li&gt;
+&lt;li&gt;「Resolver Configuration」の画面でSearch, IPv4 DNS #1, IPv4 DNS #2を入力します。順にVPSコントロールパネルの標準ホスト名のドメイン部分(私の場合はvs.sakura.ne.jp)、IPv4のプライマリDNS、セカンダリDNSを入力します。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=&#34;ボツ-ipv6を有効にすると失敗しました:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;(ボツ) IPv6を有効にすると失敗しました&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&amp;ldquo;Would you like to configure IPv6 for this interface?&amp;rdquo; → [Yes]を押す&lt;/li&gt;
+&lt;li&gt;&amp;ldquo;Would you like to try stateless address autoconfiguration (SLAAC)?&amp;rdquo; → [No]を押す&lt;/li&gt;
+&lt;li&gt;「Static IPv6 Network Interface Configuration」の画面でIPv6 AddressとDefault RouterにVPSのコントロールパネルのIPv6のアドレスとゲートウェイを入力します。上記のキーマップの確認に書いたように:を入力するにはUSキーボードではShift+=を押してください。&lt;/li&gt;
+&lt;li&gt;「Resolver Configuration」の画面でSearch, IPv6 DNS #1, IPv6 DNS #2, IPv4 DNS #1, IPv4 DNS #2を入力します。順にVPSコントロールパネルの標準ホスト名のドメイン部分(私の場合はvs.sakura.ne.jp)、IPv6のDNS、空欄、IPv4のプライマリDNS、セカンダリDNSを入力します。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;ダウンロードは無事に進んだようなのですが、その後以下のエラーが出ました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Abort
+Distribution extract failed
+
+An installation step has been aborted. Would you
+like to restart the installation or exit
+the installer?
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;ミラーサイト選択:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;ミラーサイト選択&lt;/h3&gt;
+
+&lt;p&gt;「Mirror Selection」の画面では「&lt;a href=&#34;ftp://ftp3.jp.freebsd.org&#34;&gt;ftp://ftp3.jp.freebsd.org&lt;/a&gt; Japan #3」を選択します。&lt;/p&gt;
+
+&lt;h3 id=&#34;パーティション作成:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;パーティション作成&lt;/h3&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Auto (UFS): Guided Disk Setup&lt;/li&gt;
+&lt;li&gt;Manual: Manual Disk Setup (experts)&lt;/li&gt;
+&lt;li&gt;Shell: Open a shell and partition by hand&lt;/li&gt;
+&lt;li&gt;Auto (ZFS): Guided Root-on-ZFS&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;今回は「Auto (ZFS)」にしました。
+「ZFS Configuration」ではそのまま「&amp;gt;&amp;gt;&amp;gt; Install     Proceed with Installation」を選びます。&lt;/p&gt;
+
+&lt;h3 id=&#34;zfsの仮想デバイスタイプ:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;ZFSの仮想デバイスタイプ&lt;/h3&gt;
+
+&lt;ul&gt;
+&lt;li&gt;stripe: Stripe - No Redundancy&lt;/li&gt;
+&lt;li&gt;mirror: Mirror - n-Way Mirroring&lt;/li&gt;
+&lt;li&gt;raidz1: RAID-Z1 - Single Redundant RAID&lt;/li&gt;
+&lt;li&gt;raidz2: RAID-Z2 - Single Redundant RAID&lt;/li&gt;
+&lt;li&gt;raidz3: RAID-Z3 - Single Redundant RAID&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;「stripe」を選びました。&lt;/p&gt;
+
+&lt;h3 id=&#34;ブロックデバイス選択:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;ブロックデバイス選択&lt;/h3&gt;
+
+&lt;p&gt;「vtbd0 VirtIO Block Device」をスペースキーを押して選択します。&lt;/p&gt;
+
+&lt;p&gt;&amp;ldquo;Last Chance! Are you sure you want to destroy the current contents of the following disks: vtbd0&amp;rdquo; では[YES]を選びます。&lt;/p&gt;
+
+&lt;h3 id=&#34;rootユーザのパスワード設定:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;rootユーザのパスワード設定&lt;/h3&gt;
+
+&lt;p&gt;以下のようにrootユーザのパスワードを設定します。なぜかreturnキーが効かないようなのでCtrl-Jで代用しました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Please select a password for the system management account (root):
+Changing local password for root
+New Password: (パスワードを入力してCtrl-Jを押す)
+Retype New Password: (パスワードを入力してCtrl-Jを押す)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;表示も変で、Ctrl-Jを押した時に行が次の行に進みますが、行頭には戻らず続きのカラムから表示されていました。&lt;/p&gt;
+
+&lt;h3 id=&#34;タイムゾーン設定:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;タイムゾーン設定&lt;/h3&gt;
+
+&lt;p&gt;&amp;ldquo;Is this machine&amp;rsquo;s CMOS clock set to UTC?  If it is set to local time, or you don&amp;rsquo;t know, please choose NO here!&amp;rdquo; ではハードウェアの設定はわからないので「No」を選びます。&lt;/p&gt;
+
+&lt;p&gt;「Select a region」では「5 Asia」を選び、「Select a country or region」では「18 Japan」を選びます。
+&amp;ldquo;Does the abbreviation `JST&amp;rsquo; look reasonable?&amp;ldquo;に「Yes」を選びます。&lt;/p&gt;
+
+&lt;h3 id=&#34;自動起動するサービス選択:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;自動起動するサービス選択&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;Choose the services you would like to be started at boot:
+  [ ] local_unbound  Local caching validating resolver
+  [*] sshd           Secure shell daemon
+  [ ] moused         PS/2 mouse pointer on console
+  [ ] ntpd           Synchronize system and network time
+  [ ] powerd         Adjust CPU frequency dynamically if supported
+  [*] dumpev         Enable kernel crash dumps to /var/crash
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ntpdを追加選択します。&lt;/p&gt;
+
+&lt;h3 id=&#34;ユーザ追加:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;ユーザ追加&lt;/h3&gt;
+
+&lt;p&gt;sshでログインする管理用のユーザとして「admin」という名前のユーザを追加することにします。あとでsudoersに追加するのでadminユーザのセカンダリグループにwheelを追加します。&lt;/p&gt;
+
+&lt;p&gt;&amp;ldquo;Would you like to add users to the installed systems now?&amp;ldquo;に「Yes」を選びます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Add Users
+Username: admin
+Full name: admin
+Uid (Leave empty for default): (Ctrl-Jを押す)
+Login group [admin]: (Ctrl-Jを押す)
+Login group is admin. Invite admin into other groups? []: (wheelと入力してCtrl-Jを押す)
+Login class [default]: (Ctrl-Jを押す)
+Shell (ch csh tcsh nologin) [sh]: (Ctrl-Jを押す)
+Home directory [/home/admin]: (Ctrl-Jを押す)
+Home directory permissions (Leave empty for default): (Ctrl-Jを押す)
+Use password-based authentication? [yes]: (Ctrl-Jを押す)
+Use an empty password? (yes/no) [no]: (Ctrl-Jを押す)
+Use a random password? (yes/no) [no]: (Ctrl-Jを押す)
+Enter password: (パスワードを入力してCtrl-Jを押す)
+Enter password again: (パスワードを入力してCtrl-Jを押す)
+Lock out the accout after creation? [no]: (Ctrl-Jを押す)
+OK? (yes/no): (yesと入力してCtrl-Jを押す)
+adduser: INFO Successfully added (admin) to the user database.
+Add another user? (yes/no): (noと入力してCtrl-Jを押す)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;インストールの終了:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;インストールの終了&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;Setup of you FreeBSD system is nearly complete.  You can now
+modify your configuration choices. After this screen, you will
+have an opportunity to make more complex changes using a shell.
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;上記の画面では「Exit」を選択して「OK」を押します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;The installation is now finished.
+Before exiting the installer, yould
+you like to open a shell in the new
+system to make any final manual
+modifications?
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;上記の画面では「No」を選択します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Installation of FreeBSD
+complete! Would you like
+to reboot into the
+installed system now?
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;上記の画面では「Reboot」を押しても、またインストーラの画面が起動してしまいます。
+そこで、さくらのVPSのコンソールで「OSインストール」→「ISOイメージインストール」を選び、「ISOイメージアップロード情報」の「アカウントの削除」ボタンを押します。
+「アカウントを削除してよろしいですか？アップロードしたファイルも削除されます。」と表示されたら「削除する」ボタンを押します。&lt;/p&gt;
+
+&lt;p&gt;その後「ISOイメージインストール」のポップアップで「キャンセル」を押してVPSのコンソールに戻りツールバーの「強制停止」ボタンを押して停止した後「起動」ボタンを押して起動します。&lt;/p&gt;
+
+&lt;h2 id=&#34;インストール後の設定:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;インストール後の設定&lt;/h2&gt;
+
+&lt;h3 id=&#34;adminユーザの公開鍵の設置:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;adminユーザの公開鍵の設置&lt;/h3&gt;
+
+&lt;p&gt;ここでは、OS X側で秘密鍵・公開鍵を作成済みとし、秘密鍵は ~/.ssh/id_rsa、公開鍵は ~/.ssh/id_rsa.pub とします。&lt;/p&gt;
+
+&lt;p&gt;OSX上で以下の操作を行い、公開鍵をサーバに転送します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;scp ~/.ssh/id_rsa.pub admin@サーバのIPアドレス:
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;adminユーザのパスワードを聞かれるので入力します。&lt;/p&gt;
+
+&lt;p&gt;その後sshでサーバにログインします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;ssh admin@サーバのIPアドレス
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;パスワードを入力すると以下のようなメッセージが表示されます。アドレスのXXX.XXX.XXX.XXXとRSA鍵のフィンガープリントはここでは伏せていますが実際は異なる値になります。「yes」と入力してログインしてください。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;The authenticity of host &#39;XXX.XXX.XXX.XXX (XXX.XXX.XXX.XXX)&#39; can&#39;t be established.
+RSA key fingerprint is yy:yy:yy:yy:yy:yy:yy:yy:yy:yy:yy:yy:yy:yy:yy:yy.
+Are you sure you want to continue connecting (yes/no)?
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;パスワードを入力してサーバにログインしたらサーバ上で以下のコマンドを実行し、カギ認証でログインできるようにします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;mkdir ~/.ssh
+chmod 700 ~/.ssh
+mv id_rsa.pub ~/.ssh/authorized_keys
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;今度はOS X側で ~/.ssh/configというファイルが無い場合は新規作成した上で、以下の内容を追加します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Host 接続に使用するお好みのホスト名エイリアス
+  Hostname サーバのIPアドレス
+  User admin
+  PasswordAuthentication no
+  IdentityFile ~/.ssh/id_rsa
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;IdentityFileの行は ~/.ssh/id_rsa はデフォルト値なので、この場合はこの行自体不要です。別のファイル名にしていた場合は設定が必要です。&lt;/p&gt;
+
+&lt;p&gt;この設定を加えた状態で、OS Xから以下のようにコマンドを実行しパスワードを聞かれずにログインできれば成功です。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;ssh ホスト名エイリアス
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;sshパスワード認証の無効化:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;sshパスワード認証の無効化&lt;/h3&gt;
+
+&lt;p&gt;鍵認証でssh接続できるようになったら、悪意を持った第三者の攻撃でパスワードを当ててログインされてしまうのを防ぐため、パスワードでのログインを無効にします。&lt;/p&gt;
+
+&lt;p&gt;サーバ上で以下の手順を実行します。まず以下のコマンドを実行してrootユーザになります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;su -
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;rootユーザのパスワードを聞かれますので入力します(1行が長いのでブラウザでコピペする際は右の方までスクロールしてください)。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sed -i .orig -e &#39;s/^#\(PasswordAuthentication no\)/\1/;s/^#\(UsePAM\) yes/\1 no/;s/^#\(X11Forwarding\) yes/\1 no/&#39; /etc/ssh/sshd_config
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;less /etc/ssh/sshd_config
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;で設定内容を確認します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;…(略)…
+PasswordAuthentication no
+…(略)…
+UsePAM no
+…(略)…
+X11Forwarding no
+…(略)…
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;となっていればOKですのでqを押してlessを終了します。&lt;/p&gt;
+
+&lt;p&gt;以下のコマンドを実行してsshdを再起動します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;/etc/rc.d/sshd restart
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;次に実際にパスワード認証が無効化されたことを確認します。&lt;/p&gt;
+
+&lt;p&gt;一旦このrootユーザの接続は残しておいて、OS X上で別のターミナルを開き、~/.ssh/configを以下のように編集します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Host 接続に使用するお好みのホスト名エイリアス
+  Hostname サーバのIPアドレス
+  User admin
+  PasswordAuthentication yes
+  PubkeyAuthentication no
+  #PasswordAuthentication no
+  #IdentityFile ~/.ssh/id_rsa
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;この状態で&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;ssh ホスト名エイリアス
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;のようにコマンドを実行した時にパスワードを聞かれることなく以下のように表示されれば、パスワード認証は正しく無効化できています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Permission denied (publickey,keyboard-interactive).
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;上記の確認ができたらOS Xの~/.ssh/configは元の内容に戻しておいてください。&lt;/p&gt;
+
+&lt;h3 id=&#34;セキュリティパッチの適用:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;セキュリティパッチの適用&lt;/h3&gt;
+
+&lt;p&gt;先ほどのrootで接続していたターミナルに戻ってセキュリティパッチを適用します。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://www.freebsd.org/doc/ja_JP.eucJP/books/handbook/updating-upgrading-freebsdupdate.html&#34;&gt;18.2. FreeBSD Update&lt;/a&gt;の「セキュリティパッチの適用」の項を参考にします。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=198030&#34;&gt;Bug 198030 – /usr/src/crypto/openssl/util/mkbuildinf.pl: No such file or directory on freebsd-update install&lt;/a&gt;のバグを回避するため
+&lt;a href=&#34;https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=198030#c7&#34;&gt;Comment 7&lt;/a&gt;の手順を実行してから、パッチを適用します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# freebsd-update fetch
+# mkdir -p /usr/src/crypto/openssl/util
+# freebsd-update install
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;freebsd-update patch&lt;/code&gt; を実行すると、アップデートを取得後moreコマンドが起動して更新されたファイル一覧を確認できます。スペースキーを押してページを進め、確認したらqを押して終了します。&lt;/p&gt;
+
+&lt;h3 id=&#34;sudoのインストールと設定:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;sudoのインストールと設定&lt;/h3&gt;
+
+&lt;p&gt;rootユーザで以下のコマンドを実行します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;pkg install -y sudo
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;すると以下のようにpkgコマンド自体をインストールするか聞かれますので、yと入力します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;The package management tool is not yet installed on your system.
+Do you want to fetch and install it now? [y/N]:
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;pkgとsudoのインストールが終わったら、以下のコマンドを実行してsudoの設定を変更します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;visudo
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ここではwheelグループにsudoを許可します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# %wheel ALL=(ALL) ALL
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;の行を&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;%wheel ALL=(ALL) ALL
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;のように変更して:wqで保存して終了します。&lt;/p&gt;
+
+&lt;p&gt;sudoの設定を確認するため、rootのターミナルは一旦置いておいて、OS Xからsshでadminユーザでログインし、以下のコマンドを実行します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo -i
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;以下のようにメッセージが表示されますので、adminユーザのパスワードを入力します。
+rootユーザのプロンプトが出れば成功です。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ sudo -i
+
+We trust you have received the usual lecture from the local System
+Administrator. It usually boils down to these three things:
+
+    #1) Respect the privacy of others.
+    #2) Think before you type.
+    #3) With great power comes great responsibility.
+
+Password:
+root@ホスト名からドメインを除いたもの:~ #
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;確認できたら、このターミナルでCtrl-Dを押してadminユーザに戻り、さらにCtrl-Dを押してログアウトします。
+先程残しておいたrootユーザのターミナルも同様にしてログアウトします。&lt;/p&gt;
+
+&lt;h2 id=&#34;おわりに:a3e5dd67b515369d483f860a8ed67c3c&#34;&gt;おわりに&lt;/h2&gt;
+
+&lt;p&gt;いくつかハマりどころがありましたが、さくらのVPSにFreeBSD 10.1をクリーンインストールできました。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>mithril.jsを試してみた</title>
@@ -1699,168 +2143,6 @@ onclickとかに指定した関数は &lt;code&gt;function&lt;/code&gt; なし�
 &lt;h2 id=&#34;riot-jsの魅力:62bcf495a627c2361816a64f97964c76&#34;&gt;Riot.jsの魅力&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://muut.com/riotjs/compare.html&#34;&gt;Riot vs React vs Polymer&lt;/a&gt;を見ても、riot.min.jsは6.7KBとコンパクトなのが魅力です。それでいてカスタムタグもすっきりシンプルに書けますし。これは今後に期待ですね！&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>Windows UI Automation APIを使うためのGoライブラリw32uiautomationを書いた</title>
-      <link>/blog/2015/02/22/w32uiautomation/</link>
-      <pubDate>Sun, 22 Feb 2015 00:09:24 +0900</pubDate>
-      
-      <guid>/blog/2015/02/22/w32uiautomation/</guid>
-      <description>
-
-&lt;h1 id=&#34;なぜ:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;なぜ&lt;/h1&gt;
-
-&lt;p&gt;ウェブアプリ開発をしているとInternet Explorerでの動作確認のため&lt;a href=&#34;https://www.modern.ie/ja-jp&#34;&gt;modern.IE&lt;/a&gt;が欠かせません。が、インストール直後は英語環境になっているので、日本語環境での動作確認のためにはセットアップが必要です。&lt;/p&gt;
-
-&lt;p&gt;セットアップ手順は以下のQiitaの記事に書いたのですが、手数が多くて面倒でした。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;http://qiita.com/hnakamur/items/5f2f9e817dd0de60abb2&#34;&gt;VirtualBox - modern.IEのWindows 7で日本語の表示と入力をできるようにする - Qiita&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;http://qiita.com/hnakamur/items/cd37c9c8826afe4b4dda&#34;&gt;Windows8.xのmodern.IEで日本語を入力、表示できるようにする。 - Qiita&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;それを自動化するコマンドラインツール&lt;a href=&#34;https://github.com/hnakamur/moderniejapanizer&#34;&gt;moderniejapanizer&lt;/a&gt;を作りました。実は2年ぐらい前に&lt;a href=&#34;https://www.autoitscript.com/site/autoit/&#34;&gt;AutoIt&lt;/a&gt;を使って作り始めたのですが自動制御がうまくいかないときがあって挫折していました。昨年暮れぐらいから再挑戦して、今回は勉強を兼ねてGoで実装してみました。&lt;/p&gt;
-
-&lt;p&gt;日本語化のほとんどはWin32 APIとレジストリの操作で実現できたのですが、Windows 8で言語に日本語を追加して英語を削除する操作だけはWin32 APIやレジストリで実現する方法を見つけられませんでした。&lt;/p&gt;
-
-&lt;p&gt;そこでコントロールパネルの操作をUIオートメーションで行うことにしました。
-mattnさんの&lt;a href=&#34;https://github.com/mattn/go-ole&#34;&gt;go-ole&lt;/a&gt;を利用して、UIオートメーション APIの一部をGoで実装したのが、&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation&#34;&gt;hnakamur/w32uiautomation&lt;/a&gt;です。&lt;/p&gt;
-
-&lt;p&gt;UIオートメーションAPIの全部をカバーするつもりはなくて自分が使う部分だけを実装しています。とりあえず動くようにはなりましたが、まだまだ試行錯誤中なのでAPIは互換性無く変更予定です。&lt;/p&gt;
-
-&lt;h1 id=&#34;windows-ui-オートメーションについて:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;Windows UI オートメーションについて&lt;/h1&gt;
-
-&lt;p&gt;下記のページに説明とリファレンスがありました。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;https://msdn.microsoft.com/ja-jp/library/ms747327(v=vs.110%29.aspx&#34;&gt;UI オートメーションの概要&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/ee684009(v=vs.85%29.aspx&#34;&gt;UI Automation (Windows)&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;また、始めの一歩として以下の記事も参考にさせて頂きました。ありがとうございます！&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;http://180.cocolog-nifty.com/blog/2011/10/ui-automationjs.html&#34;&gt;UI AutomationをJScript.NETで動かす: korokaraのブログ&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;http://d.sunnyone.org/2014/09/windowsuiui-automation-powershell.html&#34;&gt;WindowsアプリのUI自動操作をUI Automation PowerShell Extensionで行う | d.sunnyone.org&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h1 id=&#34;w32uiautomationの実装について:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;w32uiautomationの実装について&lt;/h1&gt;
-
-&lt;h2 id=&#34;uiオートメーションapiはidispatchインタフェースを実装していない:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;UIオートメーションAPIはIDispatchインタフェースを実装していない&lt;/h2&gt;
-
-&lt;p&gt;実はw32uiautomationを実装する前に、&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/aa387099(v=vs.85%29.aspx&#34;&gt;Windows Update Agent API (Windows)&lt;/a&gt;の実装も作りました。 &lt;a href=&#34;https://github.com/hnakamur/windowsupdate&#34;&gt;hnakamur/windowsupdate&lt;/a&gt;です。これはWindows 7で日本語の言語パックをWindows Update経由でインストールするために作りました。&lt;/p&gt;
-
-&lt;p&gt;Windows Update Agent APIの各インタフェースは例えば&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/aa385821(v=vs.85%29.aspx&#34;&gt;IAutomaticUpdates interface (Windows)&lt;/a&gt;のように&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/ms221608(v=vs.85%29.aspx&#34;&gt;IDispatch interface (Automation)&lt;/a&gt;を実装しています。&lt;/p&gt;
-
-&lt;p&gt;ですので、 &lt;a href=&#34;https://github.com/hnakamur/windowsupdate/blob/a878b9dbfeadeb768f27011d6bfd97bfecdd5d9d/search.go#L32&#34;&gt;https://github.com/hnakamur/windowsupdate/blob/a878b9dbfeadeb768f27011d6bfd97bfecdd5d9d/search.go#L32&lt;/a&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;	searcher, err := toIDispatchErr(oleutil.CallMethod((*ole.IDispatch)(s), &amp;quot;CreateUpdateSearcher&amp;quot;))
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;のように&lt;a href=&#34;https://github.com/mattn/go-ole/blob/7d0136ad48c228000c2abdea549674c498110124/oleutil/oleutil.go#L47&#34;&gt;oleutil.CallMethod&lt;/a&gt;などのoleutilパッケージの各種メソッドを使ってWindows Update Agent APIのメソッド呼び出しやプロパティ値の設定・取得を動的に行うことが出来ます。&lt;/p&gt;
-
-&lt;p&gt;一方、UIオートメーションAPIのほうは、&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/ee671406(v=vs.85%29.aspx&#34;&gt;IUIAutomation interface (Windows)&lt;/a&gt;のようにIDsipatchインタフェースは実装しておらず、IUnknownインタフェースを実装しているだけです。&lt;/p&gt;
-
-&lt;p&gt;そこで、UIオートメーションのインタフェースごとにGoのstructを定義していく必要があります。&lt;/p&gt;
-
-&lt;p&gt;mattnさんのgo-oleの&lt;a href=&#34;https://github.com/mattn/go-ole/blob/master/iunknown.go&#34;&gt;iunknown.go&lt;/a&gt;や&lt;a href=&#34;https://github.com/mattn/go-ole/blob/master/idispatch.go&#34;&gt;idispatch.go&lt;/a&gt;を見よう見まねで実装してみました。きちんと理解せず雰囲気で書いているので、おかしなところがあるかもしれません。&lt;/p&gt;
-
-&lt;h2 id=&#34;iuiautomationelement-findfirstは実装してみたが挙動が変:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;IUIAutomationElement::FindFirstは実装してみたが挙動が変&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/ee696029(v=vs.85%29.aspx&#34;&gt;IUIAutomationElement::FindFirst method (Windows)&lt;/a&gt;は&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomationelement.go#L113-L115&#34;&gt;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomationelement.go#L113-L115&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomationelement.go#L141-L155&#34;&gt;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomationelement.go#L141-L155&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;あたりで実装しています。実行すると戻り値の*IUIAutomationElementはnilではない値になって目的のUI要素が見つかっているようです。しかし、&lt;a href=&#34;http://www.microsoft.com/en-us/download/details.aspx?id=8279&#34;&gt;Microsoft Windows SDK for Windows 7 and .NET Framework 4&lt;/a&gt;同梱のinspect.exeで見るとnameプロパティに空ではない値が設定されているのに&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomationelement.go#L129&#34;&gt;Get_CurrentName&lt;/a&gt;などで名前を取得してみると空文字になってしまうというトラブルに見舞われました。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/ee671529(v=vs.85%29.aspx&#34;&gt;IUIAutomation::CreatePropertyCondition&lt;/a&gt;でVARIANT型を引数で渡すところがあって、VARIANT型のサイズはuintptrのサイズより大きいので分割してsyscall.Syscallファミリーの関数を呼ぶ必要があります。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/variant_386.go#L14-L22&#34;&gt;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/variant_386.go#L14-L22&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomation_386.go#L11-L29&#34;&gt;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomation_386.go#L11-L29&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;あたりで実装しているのですが、どこかおかしいのかもしれません。&lt;/p&gt;
-
-&lt;h2 id=&#34;回避策としてtreewalkerで自前で探すメソッドを実装:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;回避策としてTreeWalkerで自前で探すメソッドを実装&lt;/h2&gt;
-
-&lt;p&gt;FindFirstがうまく動かせなかったので、回避策としてTreeWalkerで自前で探すメソッドを実装してみました。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/search.go&#34;&gt;https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/search.go&lt;/a&gt;&lt;/p&gt;
-
-&lt;p&gt;幅優先探索でUI要素のツリーを探すようにしています。
-また、ウィンドウがまだ存在しない場合はポーリングして存在するまで待ってから返す関数も実装しています。&lt;/p&gt;
-
-&lt;h2 id=&#34;現状だとウィンドウ切り替わり時にsleepを入れる必要がある:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;現状だとウィンドウ切り替わり時にSleepを入れる必要がある&lt;/h2&gt;
-
-&lt;p&gt;実際に試してみるとウィンドウを開いた後すぐにUI要素を探そうとすると見つからない場合がありました。おそらくウィンドウ内のUI要素が作られる前のタイミングで探そうとしているのだと思います。&lt;/p&gt;
-
-&lt;p&gt;ただ上記のようにポーリングをしているのでUI要素が作られれば見つかると想定していたのですが、実際はいつまでもポーリングを続けてしまいました。&lt;/p&gt;
-
-&lt;p&gt;しかたがないので、&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/moderniejapanizer/blob/fcc9eb9f51560916ae8831e9c042a789ced298cf/imeja.go#L58&#34;&gt;https://github.com/hnakamur/moderniejapanizer/blob/fcc9eb9f51560916ae8831e9c042a789ced298cf/imeja.go#L58&lt;/a&gt;&lt;/p&gt;
-
-&lt;p&gt;のようにウィンドウが切り替わった後、ウィンドウを探す前に1秒のスリープを入れています。が、これだとマシンが重い状態だと1秒では足りなくてUI要素が見つからずにポーリングし続けてしまうケースが起こりえます。&lt;/p&gt;
-
-&lt;h2 id=&#34;iuiautomation-addstructurechangedeventhandlerを使いたいがgoの関数をコールバックしてもらう方法がわからず挫折中:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;IUIAutomation::AddStructureChangedEventHandlerを使いたいがGoの関数をコールバックしてもらう方法がわからず挫折中&lt;/h2&gt;
-
-&lt;p&gt;おそらくあるべき姿としてはポーリングではなく&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/ee671512(v=vs.85%29.aspx&#34;&gt;IUIAutomation::AddStructureChangedEventHandler method (Windows)&lt;/a&gt;を使うのだと思います。&lt;/p&gt;
-
-&lt;p&gt;が、&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/ee696197(v=vs.85%29.aspx&#34;&gt;IUIAutomationStructureChangedEventHandler interface (Windows)&lt;/a&gt;の&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/ee696198(v=vs.85%29.aspx&#34;&gt;IUIAutomationStructureChangedEventHandler::HandleStructureChangedEvent method (Windows)&lt;/a&gt;をGoの関数で書いてコールバックで読んでもらう方法がわからず挫折中です。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation/commit/c76d7dfb476cd13723bed6da5581639d66b6ffbb&#34;&gt;Trying AddStructureChangedEventHandler but no luck yet · c76d7df · hnakamur/w32uiautomation&lt;/a&gt;でよくわからないまま雰囲気でトライしてみたのですが、実行時エラーになってしまいました。&lt;/p&gt;
-
-&lt;h1 id=&#34;とりあえず当初の目的には使えていますが-まだまだ改良が必要:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;とりあえず当初の目的には使えていますが、まだまだ改良が必要&lt;/h1&gt;
-
-&lt;p&gt;なのですが、行き詰まっているのでなにかアドバイスありましたらぜひお願いします。&lt;/p&gt;
-
-&lt;h1 id=&#34;2015-02-23-01-07頃追記:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;2015-02-23 01:07頃追記&lt;/h1&gt;
-
-&lt;h2 id=&#34;uiautomationelement-findfirstがちゃんと動くようになりました:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;UIAutomationElement::FindFirstがちゃんと動くようになりました&lt;/h2&gt;
-
-&lt;p&gt;やはり &lt;a href=&#34;https://github.com/hnakamur/w32uiautomation/blob/0c48ebfdce27726587ae6797643b29b7fe0b99f7/variant_386.go#L14&#34;&gt;VariantToUintptrArray&lt;/a&gt;がバグっていました。
-&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation/commit/0c48ebfdce27726587ae6797643b29b7fe0b99f7&#34;&gt;Fix 32bit VariantToUintptrArray · 0c48ebf · hnakamur/w32uiautomation&lt;/a&gt;で修正しました。&lt;/p&gt;
-
-&lt;p&gt;FindFirstがちゃんと動くようになったので、回避策で作ったTreeWalkerで自前で探すメソッドは削除しました。&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation/commit/733229d4bd779da9e44241b4b581951ff1c4643e&#34;&gt;Remove WaitFindFirstWithBreadthFirstSearch in favor of FindFirst. · 733229d · hnakamur/w32uiautomation&lt;/a&gt;&lt;/p&gt;
-
-&lt;h2 id=&#34;コールバックを使うためのsyscall-newcallbackという関数を見つけました:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;コールバックを使うためのsyscall.NewCallbackという関数を見つけました&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/golang/go/blob/edadffa2f3464c48a234f3cf2fc092a03f91824f/src/syscall/syscall_windows.go#L113-L118&#34;&gt;go/syscall_windows.go at edadffa2f3464c48a234f3cf2fc092a03f91824f · golang/go&lt;/a&gt;で定義されていました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;// Converts a Go function to a function pointer conforming
-// to the stdcall calling convention. This is useful when
-// interoperating with Windows code requiring callbacks.
-func NewCallback(fn interface{}) uintptr {
-	return compileCallback(fn, true)
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;後日試してみたいと思います。&lt;/p&gt;
-
-&lt;h1 id=&#34;2015-02-23-05-00頃追記:c243ed5a9e0d5bc9add7115bec606b23&#34;&gt;2015-02-23 05:00頃追記&lt;/h1&gt;
-
-&lt;p&gt;実は&lt;a href=&#34;https://github.com/mattn/go-ole/blob/master/example/winsock/winsock.go&#34;&gt;go-ole/winsock.go&lt;/a&gt;がコールバックを使うサンプルになっていることに気づきました。&lt;/p&gt;
-
-&lt;p&gt;またまた見よう見まねで&lt;a href=&#34;https://msdn.microsoft.com/en-us/library/windows/desktop/ee696197(v=vs.85%29.aspx&#34;&gt;IUIAutomationStructureChangedEventHandler interface&lt;/a&gt;を使えるところまでこぎつけました。
-&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation/pull/2&#34;&gt;Add structure changed event handler by hnakamur · Pull Request #2 · hnakamur/w32uiautomation&lt;/a&gt;&lt;/p&gt;
-
-&lt;p&gt;早速これを活用して、FindFirstで見つからなかったら見つかるまでループするというWaitFindFirstをSleepではなくUI要素が追加されるまで待って繰り返すように改良しました。
-&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation/blob/8fe8ac469892d3e07e008341a3d4a2fc2b611a4a/waitfind.go#L10-L49&#34;&gt;https://github.com/hnakamur/w32uiautomation/blob/8fe8ac469892d3e07e008341a3d4a2fc2b611a4a/waitfind.go#L10-L49&lt;/a&gt;&lt;/p&gt;
-
-&lt;p&gt;winsockのサンプルではコールバックを待つ間メッセージループを回すコードは
-&lt;a href=&#34;https://github.com/mattn/go-ole/blob/7d0136ad48c228000c2abdea549674c498110124/example/winsock/winsock.go#L133-L137&#34;&gt;https://github.com/mattn/go-ole/blob/7d0136ad48c228000c2abdea549674c498110124/example/winsock/winsock.go#L133-L137&lt;/a&gt;
-のようになっていました。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/w32uiautomation/blob/8fe8ac469892d3e07e008341a3d4a2fc2b611a4a/waitfind.go#L10-L49&#34;&gt;https://github.com/hnakamur/w32uiautomation/blob/8fe8ac469892d3e07e008341a3d4a2fc2b611a4a/waitfind.go#L10-L49&lt;/a&gt;
-のほうは参照カウンタが0以外の間ループを回すのではなくて、waitingフラグがtrueの間回すようにしています。で、コールバックでお目当てのイベント、つまりUI要素が追加されたイベントだったらwaitingフラグをfalseにしています。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/moderniejapanizer&#34;&gt;hnakamur/moderniejapanizer&lt;/a&gt;も新しいWaitFindFirstを使うように更新しました。&lt;/p&gt;
 </description>
     </item>
     
