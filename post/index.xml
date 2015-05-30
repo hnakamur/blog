@@ -6,8 +6,78 @@
     <description>Recent content in Posts on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Sun, 17 May 2015 07:51:14 +0900</lastBuildDate>
+    <lastBuildDate>Sun, 31 May 2015 02:30:02 +0900</lastBuildDate>
     <atom:link href="/blog/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>goでglogを使うときのメモ</title>
+      <link>/blog/2015/05/31/how_to_use_glog/</link>
+      <pubDate>Sun, 31 May 2015 02:30:02 +0900</pubDate>
+      
+      <guid>/blog/2015/05/31/how_to_use_glog/</guid>
+      <description>&lt;p&gt;&lt;a href=&#34;http://blog.satotaichi.info/logging-frameworks-for-go/&#34;&gt;go言語におけるロギングについて&lt;/a&gt;の記事と&lt;a href=&#34;http://godoc.org/github.com/golang/glog&#34;&gt;glog - GoDoc&lt;/a&gt;を読んで試してみました。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;flag.Parse()&lt;/code&gt; を呼ぶ必要があり、最後に &lt;code&gt;glog.Flush()&lt;/code&gt; を呼ぶ必要があるので &lt;code&gt;main&lt;/code&gt; で &lt;code&gt;defer&lt;/code&gt; で書いておきます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;package main
+
+import (
+	&amp;quot;flag&amp;quot;
+
+	&amp;quot;github.com/golang/glog&amp;quot;
+)
+
+func main() {
+	flag.Parse()
+	defer glog.Flush()
+
+	if glog.V(0) {
+		glog.Info(&amp;quot;Hello, glog&amp;quot;)
+	}
+
+	glog.V(0).Info(&amp;quot;exiting&amp;quot;)
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ログレベルは &lt;code&gt;-v&lt;/code&gt; オプションで指定できるのですがデフォルト値は0なので、デフォルトで出力したいログはレベル0で書くようにします。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://godoc.org/github.com/golang/glog#Verbose&#34;&gt;Verbose&lt;/a&gt;の説明によると、上の2つの書き方では前者のほうが実行時負荷が安上がりとのことです。これはログレベルの設定で出力を抑止した時に、 &lt;code&gt;Info&lt;/code&gt; の引数の評価をしなくて済むからです。&lt;/p&gt;
+
+&lt;p&gt;使い分けるのも面倒なので、常に前者を使うことにします。&lt;/p&gt;
+
+&lt;p&gt;ログファイル名は非公開関数 &lt;a href=&#34;https://github.com/golang/glog/blob/44145f04b68cf362d9c4df2182967c2275eaefed/glog_file.go#L83-L97&#34;&gt;glog.logName()&lt;/a&gt; の形式になります。&lt;/p&gt;
+
+&lt;p&gt;ログのディレクトリは &lt;code&gt;-log_dir&lt;/code&gt; オプションで指定可能ですが、デフォルトでは &lt;a href=&#34;http://golang.org/pkg/os/#TempDir&#34;&gt;os.TempDir()&lt;/a&gt; になっています。&lt;/p&gt;
+
+&lt;p&gt;OS Xの場合は環境変数 &lt;code&gt;$TMPDIR&lt;/code&gt; になります。セキュリティ上 &lt;code&gt;/tmp&lt;/code&gt; ではなくランダムは文字列のディレクトリになっています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ echo $TMPDIR
+/var/folders/9p/r7jylfyd163bszlxvp0wk36h0000gn/T/
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ということで、ログファイルを見るときは &lt;code&gt;less $TMPDIR/${プログラム名}.INFO&lt;/code&gt; とすればOKです。&lt;code&gt;go build&lt;/code&gt; でビルドしてプログラムを実行した時はその名前ですが、 &lt;code&gt;go run main.go&lt;/code&gt; のときは &lt;code&gt;main&lt;/code&gt; になるようで &lt;code&gt;$TMPDIR/main.INFO&lt;/code&gt; というファイルが出来ていました。&lt;/p&gt;
+
+&lt;p&gt;このファイルはプログラム実行のたびに上書きされます。過去のログを見たいときは &lt;code&gt;less $TMPDIR/${プログラム名}&lt;/code&gt; まで入力しTABでファイル名補完して見るようにします。&lt;/p&gt;
+
+&lt;p&gt;上記のサンプルで出力されたログは以下のようになっていました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Log file created at: 2015/05/31 02:22:07
+Running on machine: sunshine5
+Binary: Built with gc go1.4.2 for darwin/amd64
+Log line format: [IWEF]mmdd hh:mm:ss.uuuuuu threadid file:line] msg
+I0531 02:22:07.343002   54353 main.go:14] Hello, glog
+I0531 02:22:07.343897   54353 main.go:18] exiting
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ログの行フォーマットは4行目に書いてありますが、 &lt;a href=&#34;https://github.com/golang/glog/blob/44145f04b68cf362d9c4df2182967c2275eaefed/glog.go#L518-L534&#34;&gt;glog.header()のコメント&lt;/a&gt; に詳細な説明があります。&lt;/p&gt;
+
+&lt;p&gt;各行の日付には年がないのですが、行のフォーマットは固定なので諦めましょう。ログファイルサイズ削減のために年は付けないようにしているのでしょう。先頭行に作成日時が年つきで書いてあるのでそちらを見れば良いです。&lt;/p&gt;
+
+&lt;p&gt;スレッドIDやログ出力したファイル名と行番号が出るのが便利です。&lt;/p&gt;
+
+&lt;p&gt;ということで開発時のデバッグログとしてはglog便利そうです。逆にシステムの運用ログとしては別のログライブラリのようが良いかもしれません。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>FreeBSD 10.1 amd64でRustをビルドしてみた</title>
@@ -1842,152 +1912,6 @@ function waitUntilSuccess(f) {
 &lt;h2 id=&#34;まとめ:8c1e75d8144c8839eafe92c2446ba3ac&#34;&gt;まとめ&lt;/h2&gt;
 
 &lt;p&gt;上記のように一部問題はありますが、大部分の操作は自動化できたので、全て手動で設定するのに比べるとずいぶん楽になりました。JXA (JavaScript for Automation)便利です。&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>Homebrew Caskを使わずにdmgファイルのアプリをコマンドでインストールする</title>
-      <link>/blog/2015/04/06/install-apps-without-homebrew-cask/</link>
-      <pubDate>Mon, 06 Apr 2015 00:45:50 +0900</pubDate>
-      
-      <guid>/blog/2015/04/06/install-apps-without-homebrew-cask/</guid>
-      <description>
-
-&lt;h2 id=&#34;なぜhomebrew-caskをやめたか:e5cdad194e217182b14d7b79b7d8fb9a&#34;&gt;なぜHomebrew Caskをやめたか&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://t-wada.hatenablog.jp/entry/mac-provisioning-by-ansible&#34;&gt;Mac の開発環境構築を自動化する (2015 年初旬編) - t-wadaのブログ&lt;/a&gt;でもHomebrew Caskの不安な点について書かれていますが、私もHomebrew Caskは便利と思いつつも止めたいなと思っていました。&lt;/p&gt;
-
-&lt;p&gt;私が使うアプリに関してはほとんどがアプリ側で最新版のお知らせとバージョンアップの仕組みを持っています。あとHomebrew Caskは/opt/homebrew-cask/以下に実体を置いて~/Applications/や/Applications/にシンボリックリンクを貼るようになっています。&lt;/p&gt;
-
-&lt;p&gt;私はそこまで複雑な仕組みは要らないので、初期インストールがコマンドで半自動化できれば十分です。&lt;/p&gt;
-
-&lt;h2 id=&#34;dmgファイルのアプリをコマンドラインからインストールする:e5cdad194e217182b14d7b79b7d8fb9a&#34;&gt;dmgファイルのアプリをコマンドラインからインストールする&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://stackoverflow.com/questions/22934083/install-dmg-package-on-mac-os-from-terminal/22940943#22940943&#34;&gt;osx - Install dmg package on MAC OS from Terminal - Stack Overflow&lt;/a&gt;や&lt;a href=&#34;http://commandlinemac.blogspot.jp/2008/12/installing-dmg-application-from-command.html&#34;&gt;Command Line Mac: Installing a .dmg application from the command line&lt;/a&gt;を見て実際にやってみました。&lt;/p&gt;
-
-&lt;p&gt;ソースは&lt;a href=&#34;https://github.com/hnakamur/my-macbook-initial-setup&#34;&gt;hnakamur/my-macbook-initial-setup · GitHub&lt;/a&gt;にあります。&lt;/p&gt;
-
-&lt;p&gt;以下のアプリをdmgファイルからインストールしています。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;https://github.com/splhack/macvim-kaoriya&#34;&gt;splhack/macvim-kaoriya · GitHub&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;http://calibre-ebook.com/&#34;&gt;calibre - E-book management&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://www.google.co.jp/chrome/browser/desktop/index.html&#34;&gt;Chrome&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://www.mozilla.org/ja/firefox/new/&#34;&gt;Firefox&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://www.google.co.jp/ime/&#34;&gt;Google 日本語入力&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;http://iterm2.com/&#34;&gt;iTerm2 - Mac OS Terminal Replacement&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://java.com/ja/download/&#34;&gt;Java (JRE)&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;http://grandperspectiv.sourceforge.net/&#34;&gt;GrandPerspective&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://www-jp.mysql.com/products/workbench/&#34;&gt;MySQL Workbench&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;http://mstarke.github.io/MacPass/&#34;&gt;MacPass&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;http://www.shadowlab.org/Software/spark.php&#34;&gt;Spark&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://www.virtualbox.org/&#34;&gt;Oracle VM VirtualBox&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://www.vagrantup.com/&#34;&gt;Vagrant&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;http://xquartz.macosforge.org/landing/&#34;&gt;XQuartz&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id=&#34;dmgファイルのマウントとアンマウント:e5cdad194e217182b14d7b79b7d8fb9a&#34;&gt;dmgファイルのマウントとアンマウント&lt;/h2&gt;
-
-&lt;p&gt;共通の処理として、dmgファイルのマウントは &lt;code&gt;hdiutil attach&lt;/code&gt; 、アンマウントは &lt;code&gt;hdiutil detach&lt;/code&gt; コマンドで行います。&lt;/p&gt;
-
-&lt;p&gt;マウントした時の /Volumes/〜 のディレクトリ名は &lt;code&gt;hdiutil attach&lt;/code&gt; の実行結果の最後の行から取得できます。&lt;/p&gt;
-
-&lt;p&gt;最初は&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;  mount_dir=`hdiutil attach $dmg_file | awk &#39;END{print $NF}&#39;`
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;のようにして最後の行の一番右のフィールドを取得していましたが、 &lt;code&gt;/Volumes/Google Chrome&lt;/code&gt; のように空白を含む場合があることがわかりました。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://stackoverflow.com/questions/22934083/install-dmg-package-on-mac-os-from-terminal/22940943#22940943&#34;&gt;osx - Install dmg package on MAC OS from Terminal - Stack Overflow&lt;/a&gt;では第1フィールドと第2フィールドを消して第3フィールド以降にしていますが、試してみると余分な空白（実際はタブと判明）が付いてきました。&lt;/p&gt;
-
-&lt;p&gt;&lt;code&gt;hdiutil attach&lt;/code&gt; の結果をファイルに落として見てみたら、空白に加えてタブで区切られていてタブで区切るほうがシンプルなことがわかりました。&lt;/p&gt;
-
-&lt;p&gt;そこで、以下のようにして取得するようにしました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;  mount_dir=`hdiutil attach $dmg_file | awk -F &#39;\t&#39; &#39;END{print $NF}&#39;`
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id=&#34;インストール方法のパターン:e5cdad194e217182b14d7b79b7d8fb9a&#34;&gt;インストール方法のパターン&lt;/h2&gt;
-
-&lt;p&gt;上記のアプリの範囲では4パターンありました。&lt;/p&gt;
-
-&lt;h3 id=&#34;dmgファイル内に-appフォルダがあるパターン:e5cdad194e217182b14d7b79b7d8fb9a&#34;&gt;dmgファイル内に〜.appフォルダがあるパターン&lt;/h3&gt;
-
-&lt;p&gt;Chromeなどがこのパターンです。&lt;a href=&#34;https://developer.apple.com/library/mac/documentation/Darwin/Reference/ManPages/man1/ditto.1.html&#34;&gt;ditto&lt;/a&gt;コマンドで/Applications/〜.appにコピーするようにしました。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L731-L740&#34;&gt;https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L731-L740&lt;/a&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;install_google_chrome() {
-  download_url=https://dl.google.com/chrome/mac/stable/GGRO/googlechrome.dmg
-  dmg_file=${download_url##*/}
-
-  curl -LO $download_url
-  mount_dir=`hdiutil attach $dmg_file | awk -F &#39;\t&#39; &#39;END{print $NF}&#39;`
-  sudo /usr/bin/ditto &amp;quot;$mount_dir/Google Chrome.app&amp;quot; &amp;quot;/Applications/Google Chrome.app&amp;quot;
-  hdiutil detach &amp;quot;$mount_dir&amp;quot;
-  rm $dmg_file
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;dmgファイル内に-pkgのインストーラがあるパターン:e5cdad194e217182b14d7b79b7d8fb9a&#34;&gt;dmgファイル内に*.pkgのインストーラがあるパターン&lt;/h3&gt;
-
-&lt;p&gt;Google日本語入力などがこのパターンです。OSXの&lt;a href=&#34;https://developer.apple.com/library/mac/documentation/Darwin/Reference/ManPages/man8/installer.8.html&#34;&gt;installer&lt;/a&gt;コマンドでインストールします。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L742-L751&#34;&gt;https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L742-L751&lt;/a&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;install_google_japanese_input() {
-  download_url=https://dl.google.com/japanese-ime/latest/GoogleJapaneseInput.dmg
-  dmg_file=${download_url##*/}
-
-  curl -LO $download_url
-  mount_dir=`hdiutil attach $dmg_file | awk -F &#39;\t&#39; &#39;END{print $NF}&#39;`
-  sudo installer -pkg $mount_dir/GoogleJapaneseInput.pkg -target /
-  hdiutil detach &amp;quot;$mount_dir&amp;quot;
-  rm $dmg_file
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;dmgファイル内に独自形式のインストーラがあるパターン:e5cdad194e217182b14d7b79b7d8fb9a&#34;&gt;dmgファイル内に独自形式のインストーラがあるパターン&lt;/h3&gt;
-
-&lt;p&gt;Javaがこのパターンでした。インストーラを実行してインストールします。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L762-L772&#34;&gt;https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L762-L772&lt;/a&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;install_java() {
-  download_url=http://javadl.sun.com/webapps/download/AutoDL?BundleId=105219
-  dmg_file=jre.dmg
-
-  curl -L -o $dmg_file &amp;quot;$download_url&amp;quot;
-  mount_dir=`hdiutil attach $dmg_file | awk -F &#39;\t&#39; &#39;END{print $NF}&#39;`
-  java_dir=&amp;quot;${mount_dir##*/}&amp;quot;
-  sudo &amp;quot;$mount_dir/${java_dir}.app/Contents/MacOS/MacJREInstaller&amp;quot;
-  hdiutil detach &amp;quot;$mount_dir&amp;quot;
-  rm $dmg_file
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;zipファイル内に-appがあるパターン:e5cdad194e217182b14d7b79b7d8fb9a&#34;&gt;zipファイル内に〜.appがあるパターン&lt;/h3&gt;
-
-&lt;p&gt;iTerm2などがこのパターンです。unzipコマンドの-dオプションで解凍先を/Applicationsにして解凍してインストールします。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L753-L760&#34;&gt;https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L753-L760&lt;/a&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;install_iterm2() {
-  download_url=https://iterm2.com/downloads/stable/iTerm2_v2_0.zip
-  zip_file=${download_url##*/}
-
-  curl -LO $download_url
-  sudo unzip $zip_file -d /Applications
-  rm $zip_file
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id=&#34;まとめ:e5cdad194e217182b14d7b79b7d8fb9a&#34;&gt;まとめ&lt;/h2&gt;
-
-&lt;p&gt;Homebrew Caskを使わずにコマンドラインでOSXのアプリのインストールを半自動化しました。全自動ではなく半自動化といっているのは、アプリによってパスワード入力が必要だったり、ダイアログが表示されてボタンを押す必要があるからです。&lt;/p&gt;
-
-&lt;p&gt;アプリのバージョンが今後上がった時にダウンロードURLを再度調べる必要があるのが面倒ではありますが、OSXを一からセットアップするのはたまにしか行わないのでよしとします。&lt;/p&gt;
 </description>
     </item>
     
