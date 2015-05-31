@@ -5,7 +5,7 @@
         <meta http-equiv="content-type" content="text/html; charset=utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
 
-        <title>Xcode 4.3.1のファイルテンプレートをカスタマイズ &middot; hnakamur&#39;s blog at github</title>
+        <title>Vagrant &#43; Virtualboxでのディスク追加 &middot; hnakamur&#39;s blog at github</title>
         <link rel='stylesheet' href='http://fonts.googleapis.com/css?family=Open+Sans:400,300,600' type='text/css'>
         <link rel="stylesheet" href="/blog//libraries/normalize.3.0.1.css" />
         <link rel="stylesheet" href="/blog//css/liquorice.css" />
@@ -56,25 +56,53 @@
             <div class="sixteen columns">
                 <article class="li-article">
                     <header class="li-article-header">
-                        <h1 class="li-article-title">Xcode 4.3.1のファイルテンプレートをカスタマイズ</h1>
-                        <time class="li-article-date">2012-03-11</time>
+                        <h1 class="li-article-title">Vagrant &#43; Virtualboxでのディスク追加</h1>
+                        <time class="li-article-date">2015-06-01</time>
                     </header>
                     <section>
-                        <p><a href="http://meandmark.com/blog/2011/11/creating-custom-xcode-4-file-templates/">Creating Custom Xcode 4 File Templates</a>を参考に作成してみました。</p>
+                        
 
-<p>Apple提供のファイルテンプレートは
-/Developer/Platforms/iPhoneOS.platform/Developer/Library/Xcode/Templates/File Templates
-にあるとのこと。ですが、Xcode 4.3.1からは/Developperではなく/Applications/Xcodeにインストールされるので、Xcode 4.3.1のみの環境ではここにはないかもしれません。</p>
+<p>Vagrant + Virtualboxでのディスク追加についてのメモです。</p>
 
-<p>私は<a href="https://github.com/MacRuby/MacRuby">MacRubyのgithubレポジトリ</a>をクローンして、misc/xcode4-templates/File Templates/Ruby/Ruby File.xctemplate/ をコピーして書き換えてカスタマイズしました。</p>
+<h2 id="ディスク追加の設定:40c70228a5a6466de34e77416297a27f">ディスク追加の設定</h2>
 
-<p>コピー先は
-/Users/ユーザ名/Library/Developer/Xcode/Templates/File Templates/グループ名/ファイルタイプ.xctemplate/
-です。</p>
+<ul>
+<li><a href="http://stackoverflow.com/questions/21050496/vagrant-virtualbox-second-disk-path/26743144#26743144">http://stackoverflow.com/questions/21050496/vagrant-virtualbox-second-disk-path/26743144#26743144</a></li>
+<li><a href="https://gist.github.com/leifg/4713995#comment-1206250">https://gist.github.com/leifg/4713995#comment-1206250</a></li>
+</ul>
 
-<p>コピー後Xcodeを再起動すると認識されました。</p>
+<p>を参考に以下のようにしました。</p>
 
-<p>なお、オリジナルと同じグループ名とファイルタイプにすると、同じ名前のものが2つ並んで紛らわしい状態になります。ですので、違う名前にしたほうが良いです。</p>
+<pre><code># -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure(2) do |config|
+  config.vm.box = 'base'
+
+  config.vm.provider &quot;virtualbox&quot; do |p|
+    vagrant_root = File.dirname(File.expand_path(__FILE__))
+    file_to_disk = File.join(vagrant_root, 'ad1.vdi')
+    unless File.exist?(file_to_disk)
+      vb.customize ['createhd', '--filename', file_to_disk, '--size', 500 * 1024]
+    end
+    vb.customize ['storageattach', :id, '--storagectl', 'SATA Controller', '--port', 1, '--device', 0, '--type', 'hdd', '--medium', file_to_disk]
+  end
+end
+</code></pre>
+
+<p>上記の後者のリンク先では <code>Vagrantfile</code> のあるディレクトリを <code>VAGRANT_ROOT</code> と大文字で定数に設定していますが、私は <code>vagrant_root</code> と小文字で変数にしました。</p>
+
+<p>デバッグプリントを入れてみてわかったのですが、このブロックは1度ではなく複数回呼ばれます。定数だと既に初期化済みの警告が出るので変数にしたというわけです。</p>
+
+<h2 id="sata-controllerの作成はpackerで行っておく:40c70228a5a6466de34e77416297a27f">SATA Controllerの作成はpackerで行っておく</h2>
+
+<p>上の設定だけでは <a href="https://github.com/hnakamur/freebsd-packer/tree/ef57aff51b02a03e658f0348eb5e463ed08735aa">https://github.com/hnakamur/freebsd-packer/tree/ef57aff51b02a03e658f0348eb5e463ed08735aa</a> で作ったFreeBSD 10.1 amd64のboxではSATA Controllerが無いためうまく行きませんでした。</p>
+
+<p><a href="https://gist.github.com/leifg/4713995#comment-1374268">https://gist.github.com/leifg/4713995#comment-1374268</a> でVagrantにモンキーパッチで対応しようとしているがうまくいかない例がありました。</p>
+
+<p><a href="https://github.com/mitchellh/vagrant/issues/4015#issuecomment-45930125">Rescue customization exception · Issue #4015 · mitchellh/vagrant</a>のVagrant開発者のコメントで、Vagrantfileの設定は手続き型ではなく宣言型なので、Vagrantfileの設定では無理でVagrantプラグインを作る必要があると書かれています。</p>
+
+<p>結局 <a href="https://github.com/hnakamur/freebsd-packer/commit/fc041427ffd9de330d390036ebd0948f01e707fe">https://github.com/hnakamur/freebsd-packer/commit/fc041427ffd9de330d390036ebd0948f01e707fe</a> のようにpackerのテンプレートを作る際にSATA Controllerも作っておくのがお手軽だったのでそうしました。</p>
 
                     </section>
                 </article>
@@ -92,8 +120,7 @@
             <div class="eight columns">
                 <div class="li-pagination-previous">
                     
-                        Later article<br />
-                        <a href="/blog/2012/05/04/use-slash-etc-slash-sudoers-dot-d-slash/"> /etc/sudoers.d/を使う→やっぱり止め</a>
+                        &nbsp;
                     
                 </div>
             </div>
@@ -101,7 +128,7 @@
                 <div class="li-pagination-next">
                     
                         Older article<br />
-                        <a href="/blog/2012/03/11/try-macruby-0-dot-10-with-xcode-4-dot-2-1/"> Xcode 4.2.1でMacRuby 0.10を試す</a>
+                        <a href="/blog/2015/05/31/how_to_use_glog/"> goでglogを使うときのメモ</a>
                     
                 </div>
             </div>

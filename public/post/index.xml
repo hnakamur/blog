@@ -6,8 +6,60 @@
     <description>Recent content in Posts on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Sun, 31 May 2015 02:30:02 +0900</lastBuildDate>
+    <lastBuildDate>Mon, 01 Jun 2015 06:04:04 +0900</lastBuildDate>
     <atom:link href="/blog/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>Vagrant &#43; Virtualboxでのディスク追加</title>
+      <link>/blog/2015/06/01/add_secondary_disk_to_vagrant_virtualbox/</link>
+      <pubDate>Mon, 01 Jun 2015 06:04:04 +0900</pubDate>
+      
+      <guid>/blog/2015/06/01/add_secondary_disk_to_vagrant_virtualbox/</guid>
+      <description>
+
+&lt;p&gt;Vagrant + Virtualboxでのディスク追加についてのメモです。&lt;/p&gt;
+
+&lt;h2 id=&#34;ディスク追加の設定:40c70228a5a6466de34e77416297a27f&#34;&gt;ディスク追加の設定&lt;/h2&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://stackoverflow.com/questions/21050496/vagrant-virtualbox-second-disk-path/26743144#26743144&#34;&gt;http://stackoverflow.com/questions/21050496/vagrant-virtualbox-second-disk-path/26743144#26743144&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://gist.github.com/leifg/4713995#comment-1206250&#34;&gt;https://gist.github.com/leifg/4713995#comment-1206250&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;を参考に以下のようにしました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure(2) do |config|
+  config.vm.box = &#39;base&#39;
+
+  config.vm.provider &amp;quot;virtualbox&amp;quot; do |p|
+    vagrant_root = File.dirname(File.expand_path(__FILE__))
+    file_to_disk = File.join(vagrant_root, &#39;ad1.vdi&#39;)
+    unless File.exist?(file_to_disk)
+      vb.customize [&#39;createhd&#39;, &#39;--filename&#39;, file_to_disk, &#39;--size&#39;, 500 * 1024]
+    end
+    vb.customize [&#39;storageattach&#39;, :id, &#39;--storagectl&#39;, &#39;SATA Controller&#39;, &#39;--port&#39;, 1, &#39;--device&#39;, 0, &#39;--type&#39;, &#39;hdd&#39;, &#39;--medium&#39;, file_to_disk]
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;上記の後者のリンク先では &lt;code&gt;Vagrantfile&lt;/code&gt; のあるディレクトリを &lt;code&gt;VAGRANT_ROOT&lt;/code&gt; と大文字で定数に設定していますが、私は &lt;code&gt;vagrant_root&lt;/code&gt; と小文字で変数にしました。&lt;/p&gt;
+
+&lt;p&gt;デバッグプリントを入れてみてわかったのですが、このブロックは1度ではなく複数回呼ばれます。定数だと既に初期化済みの警告が出るので変数にしたというわけです。&lt;/p&gt;
+
+&lt;h2 id=&#34;sata-controllerの作成はpackerで行っておく:40c70228a5a6466de34e77416297a27f&#34;&gt;SATA Controllerの作成はpackerで行っておく&lt;/h2&gt;
+
+&lt;p&gt;上の設定だけでは &lt;a href=&#34;https://github.com/hnakamur/freebsd-packer/tree/ef57aff51b02a03e658f0348eb5e463ed08735aa&#34;&gt;https://github.com/hnakamur/freebsd-packer/tree/ef57aff51b02a03e658f0348eb5e463ed08735aa&lt;/a&gt; で作ったFreeBSD 10.1 amd64のboxではSATA Controllerが無いためうまく行きませんでした。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://gist.github.com/leifg/4713995#comment-1374268&#34;&gt;https://gist.github.com/leifg/4713995#comment-1374268&lt;/a&gt; でVagrantにモンキーパッチで対応しようとしているがうまくいかない例がありました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/mitchellh/vagrant/issues/4015#issuecomment-45930125&#34;&gt;Rescue customization exception · Issue #4015 · mitchellh/vagrant&lt;/a&gt;のVagrant開発者のコメントで、Vagrantfileの設定は手続き型ではなく宣言型なので、Vagrantfileの設定では無理でVagrantプラグインを作る必要があると書かれています。&lt;/p&gt;
+
+&lt;p&gt;結局 &lt;a href=&#34;https://github.com/hnakamur/freebsd-packer/commit/fc041427ffd9de330d390036ebd0948f01e707fe&#34;&gt;https://github.com/hnakamur/freebsd-packer/commit/fc041427ffd9de330d390036ebd0948f01e707fe&lt;/a&gt; のようにpackerのテンプレートを作る際にSATA Controllerも作っておくのがお手軽だったのでそうしました。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>goでglogを使うときのメモ</title>
@@ -1778,140 +1830,6 @@ total size is 449371583  speedup is 1.00
 
 &lt;pre&gt;&lt;code&gt;./deploy.sh
 &lt;/code&gt;&lt;/pre&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>JXA (JavaScript for Automation)を使ってOSXの初期設定を半自動化してみた</title>
-      <link>/blog/2015/04/06/jxa-osx-automation-with-javascript/</link>
-      <pubDate>Mon, 06 Apr 2015 04:40:43 +0900</pubDate>
-      
-      <guid>/blog/2015/04/06/jxa-osx-automation-with-javascript/</guid>
-      <description>
-
-&lt;h2 id=&#34;概要:8c1e75d8144c8839eafe92c2446ba3ac&#34;&gt;概要&lt;/h2&gt;
-
-&lt;p&gt;OSXを再インストールしたときなどキーボードやトラックパッドの設定を行いますが、
-設定する項目が意外と多くて時間がかかります。&lt;/p&gt;
-
-&lt;p&gt;そこでJXA (JavaScript for Automation)で自動化してみました。
-全自動ではなく半自動化と書いているのはパスワードの入力などは手動で行う必要があるからです。&lt;/p&gt;
-
-&lt;h2 id=&#34;きっかけはapplescriptのui-elementsの記事を読んだこと:8c1e75d8144c8839eafe92c2446ba3ac&#34;&gt;きっかけはAppleScriptのUI elementsの記事を読んだこと&lt;/h2&gt;
-
-&lt;p&gt;以前からAppleScriptでOSXの初期設定の自動化をやってみたかったのですが、
-UI要素の調べ方がわからず諦めていました。&lt;/p&gt;
-
-&lt;p&gt;StackOverflowの&lt;a href=&#34;http://apple.stackexchange.com/questions/40436/how-to-know-the-name-of-ui-elements-using-accessibility-inspector-or-any-other/87412#87412&#34;&gt;applescript - How to know the name of UI elements using Accessibility inspector (or any other tool) - Ask Different&lt;/a&gt;のコメントから
-&lt;a href=&#34;http://n8henrie.com/2013/03/a-strategy-for-ui-scripting-in-applescript/&#34;&gt;n8henrie.com | A Strategy for UI Scripting in AppleScript&lt;/a&gt;という記事を見つけて、これがブレイクスルーになりました。&lt;/p&gt;
-
-&lt;p&gt;で、いろいろ試していくうちにJavaScriptで書くほうがクロージャが使えて便利ということに気づいたのでJavaScriptに切り替えました。&lt;/p&gt;
-
-&lt;p&gt;以下の記事が参考になりました。ありがとうございます！&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;https://github.com/dtinth/JXA-Cookbook/wiki&#34;&gt;Home · dtinth/JXA-Cookbook Wiki · GitHub&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;http://qiita.com/zakuroishikuro/items/afab0e33ad2030ba2f92&#34;&gt;Macのキーボード入力、マウスクリックをJavaScriptで (JXA) - Qiita&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id=&#34;自分用セットアップスクリプト:8c1e75d8144c8839eafe92c2446ba3ac&#34;&gt;自分用セットアップスクリプト&lt;/h2&gt;
-
-&lt;p&gt;私用のセットアップスクリプトを&lt;a href=&#34;https://github.com/hnakamur/my-macbook-initial-setup&#34;&gt;hnakamur/my-macbook-initial-setup · GitHub&lt;/a&gt;に置きました。完全に自分仕様ですが、ライセンスはMITなので適宜変更してご利用ください。&lt;/p&gt;
-
-&lt;h2 id=&#34;applescriptやjxaで設定している内容:8c1e75d8144c8839eafe92c2446ba3ac&#34;&gt;AppleScriptやJXAで設定している内容&lt;/h2&gt;
-
-&lt;p&gt;最初はAppleScriptで書いていたので一部はそのままです。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;App Store経由でのXcodeのインストール&lt;/li&gt;
-&lt;li&gt;Xcodeコマンドラインツールのインストール&lt;/li&gt;
-&lt;li&gt;キーボードの設定
-
-&lt;ul&gt;
-&lt;li&gt;リピート率の設定&lt;/li&gt;
-&lt;li&gt;ControlとCapsの入れ替え&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;li&gt;トラックパッドの設定
-
-&lt;ul&gt;
-&lt;li&gt;使う機能と使わない機能の設定&lt;/li&gt;
-&lt;li&gt;ドラッグロック設定&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;li&gt;ショートカットキーの設定
-
-&lt;ul&gt;
-&lt;li&gt;次のウィンドウのショートカットキー変更&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;li&gt;スクリーンロックのタイミング調整&lt;/li&gt;
-&lt;li&gt;キーボードの入力ソースにGoogle日本語入力のひらがなを追加&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;http://www.shadowlab.org/Software/spark.php&#34;&gt;Spark&lt;/a&gt;のショートカット追加&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;http://mstarke.github.io/MacPass/&#34;&gt;MacPass&lt;/a&gt;のメニューショートカット設定&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id=&#34;applescriptに比べてjxaが嬉しいところ:8c1e75d8144c8839eafe92c2446ba3ac&#34;&gt;AppleScriptに比べてJXAが嬉しいところ&lt;/h2&gt;
-
-&lt;p&gt;上にも書きましたが、クロージャが使えるのが便利です。&lt;/p&gt;
-
-&lt;p&gt;例えば特定の要素が出現するまで待つために以下の様な関数を定義しました。
-&lt;a href=&#34;https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L9-L26&#34;&gt;https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L9-L26&lt;/a&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;function isInvalidIndexError(e) {
-  return e.toString() === &#39;Error: Invalid index.&#39;
-}
-function waitUntilSuccess(f) {
-  var ret
-  do {
-    delay(1)
-    try {
-      ret = f()
-    } catch (e) {
-      if (!isInvalidIndexError(e)) {
-        throw e
-      }
-    }
-  } while (!ret)
-  return ret
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;こんな感じで使用します。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L39-L47&#34;&gt;https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L39-L47&lt;/a&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;  var storeProc = Application(&#39;System Events&#39;).processes.byName(&#39;App Store&#39;)
-  storeProc.frontmost = true
-  var win = storeProc.windows.byName(&#39;App Store&#39;)
-  // Search for Xcode
-  var textField = waitUntilSuccess(function() {
-    return win.toolbars[0].groups[6].textFields[0]
-  })
-  textField.value = &#39;Xcode&#39;
-  textField.buttons[0].click()
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;try catchを使わずにUI要素の存在をチェックするのは、上のように深い要素だと
-面倒なので、アクセスするコードを動かしてみて &lt;code&gt;Error: Invalid index.&lt;/code&gt; の
-エラーが出たら要素が存在しないと判断するようにしています。&lt;/p&gt;
-
-&lt;h2 id=&#34;うまくいってないところ:8c1e75d8144c8839eafe92c2446ba3ac&#34;&gt;うまくいってないところ&lt;/h2&gt;
-
-&lt;h3 id=&#34;sparkのショートカット追加がうまくいかないときがある:8c1e75d8144c8839eafe92c2446ba3ac&#34;&gt;Sparkのショートカット追加がうまくいかないときがある&lt;/h3&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://www.shadowlab.org/Software/spark.php&#34;&gt;Spark&lt;/a&gt;というアプリを使って
-ショートカットを登録しておくと、キーボードの1ストロークで登録したアプリの
-起動や起動済みの場合は最前面に持ってこれるので愛用しています。&lt;/p&gt;
-
-&lt;p&gt;フリーですがソースは非公開で設定ファイル形式も不明なのでJXAで登録しています。&lt;/p&gt;
-
-&lt;p&gt;しかし、アプリケーションのパスを選ぶところが、うまくいくときと行かない時があります。ファイル選択画面でパスを/から入力すると選べるのでその方式で実装しているのですが、 例えばFinderのパスを &lt;code&gt;/System/Library/CoreServices/Finder.app&lt;/code&gt; のように入力してreturnキーを押す操作をJXAで行うと、そのフォルダの中が開いた状態になってしまう時があります。&lt;/p&gt;
-
-&lt;p&gt;カラムビューにすると成功するようだったので⌘3を押して切り替えるようにしてみたのですが、2秒ディレイを入れても全体を通して実行していると途中から失敗することがあります。&lt;/p&gt;
-
-&lt;p&gt;その後run.shを書き換えてSparkのショートカット設定の部分だけ実行すると、うまくいきます。なぜ全体を通して実行した時は失敗するのかが謎です。&lt;/p&gt;
-
-&lt;h2 id=&#34;まとめ:8c1e75d8144c8839eafe92c2446ba3ac&#34;&gt;まとめ&lt;/h2&gt;
-
-&lt;p&gt;上記のように一部問題はありますが、大部分の操作は自動化できたので、全て手動で設定するのに比べるとずいぶん楽になりました。JXA (JavaScript for Automation)便利です。&lt;/p&gt;
 </description>
     </item>
     
