@@ -6,8 +6,118 @@
     <description>Recent content on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Mon, 01 Jun 2015 06:04:04 +0900</lastBuildDate>
+    <lastBuildDate>Wed, 03 Jun 2015 05:29:03 +0900</lastBuildDate>
     <atom:link href="/blog/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>LuaのGo実装GopherLuaを試してみた</title>
+      <link>/blog/2015/06/03/tried_gopher_lua/</link>
+      <pubDate>Wed, 03 Jun 2015 05:29:03 +0900</pubDate>
+      
+      <guid>/blog/2015/06/03/tried_gopher_lua/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに:e98f672e065a63864e9866ed6b15e563&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://inforno.net/articles/2015/02/15/gopher-lua-released&#34;&gt;inforno :: LuaのGo言語実装を公開しました&lt;/a&gt;を以前読んでましたが、試してなかったので試しました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://www.lua.org/about.html&#34;&gt;Lua: about&lt;/a&gt;の&amp;rdquo;What is Lua?&amp;ldquo;に&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;making it ideal for configuration, scripting, and rapid prototyping.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;とあるようにLuaは設定ファイルとして使うことも想定されています。&lt;/p&gt;
+
+&lt;p&gt;ということで試してみました。&lt;/p&gt;
+
+&lt;h2 id=&#34;gopherluaの利用例:e98f672e065a63864e9866ed6b15e563&#34;&gt;GopherLuaの利用例&lt;/h2&gt;
+
+&lt;p&gt;hello.lua&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;print(&amp;quot;hello&amp;quot;)
+
+a = 2
+b = {
+    c = 4,
+    d = a + 3
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;main.go&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;package main
+
+import (
+	&amp;quot;fmt&amp;quot;
+
+	&amp;quot;github.com/yuin/gopher-lua&amp;quot;
+)
+
+func main() {
+	l := lua.NewState()
+	defer l.Close()
+
+	if err := l.DoFile(&amp;quot;hello.lua&amp;quot;); err != nil {
+		panic(err)
+	}
+
+	a := l.GetGlobal(&amp;quot;a&amp;quot;)
+	fmt.Printf(&amp;quot;a=%v\n&amp;quot;, a)
+
+	b := l.GetGlobal(&amp;quot;b&amp;quot;)
+	l.Push(b)
+	bt := l.ToTable(1)
+	l.Pop(1)
+	bt.ForEach(func(key, value lua.LValue) {
+		fmt.Printf(&amp;quot;b.%v=%v\n&amp;quot;, key, value)
+	})
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;実行結果&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ go run main.go
+hello
+a=2
+b.c=4
+b.d=5
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;hello.luaに &lt;code&gt;print(&amp;quot;hello&amp;quot;)&lt;/code&gt; を入れているのはLuaからの出力を試してみたかったからで、実際に設定ファイルとして使うときは変数設定だけの使い方になるでしょう。&lt;/p&gt;
+
+&lt;p&gt;上記では単に値を出力していますが、変数の値がプリミティブの場合は&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://godoc.org/github.com/yuin/gopher-lua#LVAsBool&#34;&gt;LVAsBool&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://godoc.org/github.com/yuin/gopher-lua#LVAsString&#34;&gt;LVAsString&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://godoc.org/github.com/yuin/gopher-lua#LVAsNumber&#34;&gt;LVAsNumber&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;を使えばbool, string, LNumberに変換できます。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://godoc.org/github.com/yuin/gopher-lua#LNumber&#34;&gt;LNumberの定義&lt;/a&gt; を見ると&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;type LNumber float64
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;となっているので、Goでも数値として扱えます。&lt;/p&gt;
+
+&lt;p&gt;なお、&lt;a href=&#34;http://www.lua.org/manual/5.3/manual.html#8.1&#34;&gt;Luaは5.3で数値に整数型が追加されています&lt;/a&gt;が、&lt;a href=&#34;https://github.com/yuin/gopher-lua&#34;&gt;gopher-lua&lt;/a&gt;はLua 5.1相当なので数値型は64bit浮動小数点数のみです。&lt;/p&gt;
+
+&lt;p&gt;で、table (ハッシュテーブル) 型は &lt;code&gt;lua.LValue&lt;/code&gt; から変換するメソッドが用意されていないので、上の例のようにLuaのスタックに一旦PushしてToTableで取り出してからPopしています。&lt;/p&gt;
+
+&lt;p&gt;ちなみに、&lt;a href=&#34;http://www.lua.org/manual/5.1/manual.html#2.2&#34;&gt;2.2 – Values and Type - sLua 5.1 Reference Manual&lt;/a&gt;にあるようにLuaのtable型は連想配列と整数インデクスでの配列を兼用したデータ型となっています。&lt;/p&gt;
+
+&lt;h2 id=&#34;まとめ:e98f672e065a63864e9866ed6b15e563&#34;&gt;まとめ&lt;/h2&gt;
+
+&lt;p&gt;設定ファイルをLuaで書くようにすると、上記の hello.lua で &lt;code&gt;b.d&lt;/code&gt; を &lt;code&gt;a + 3&lt;/code&gt; としているように変数や式が使えます。&lt;/p&gt;
+
+&lt;p&gt;table型があるのでネストしたデータ構造も表現できます。&lt;/p&gt;
+
+&lt;p&gt;ということで、Goのプログラムの設定ファイルをluaで書いて&lt;a href=&#34;https://github.com/yuin/gopher-lua&#34;&gt;gopher-lua&lt;/a&gt;で解釈するというのは、かなり便利そうですね。今後活用していきたいです。yuinさん、便利なライブラリをありがとうございます！&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>Vagrant &#43; Virtualboxでのディスク追加</title>
@@ -1771,65 +1881,6 @@ total size is 449371583  speedup is 1.00
 &lt;/code&gt;&lt;/pre&gt;
 
 &lt;p&gt;&lt;code&gt;--partial&lt;/code&gt; を指定するとコピーが中断されてしまっても、コピーしかけのファイルが消されないので、再度実行すると続きからコピーを再開できます。&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>Hugoに移行した私のブログの記事追加手順</title>
-      <link>/blog/2015/04/19/my_hugo_blog_workflow/</link>
-      <pubDate>Sun, 19 Apr 2015 00:17:59 +0900</pubDate>
-      
-      <guid>/blog/2015/04/19/my_hugo_blog_workflow/</guid>
-      <description>
-
-&lt;h2 id=&#34;はじめに:6b00b00d433df82a395447ef0b37d2fc&#34;&gt;はじめに&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://deeeet.com/writing/2014/12/25/hugo/&#34;&gt;OctopressからHugoへ移行した | SOTA&lt;/a&gt;を参考に私のブログもしばらく前にHugoに移行しました。deeeetさん、ありがとうございます！&lt;/p&gt;
-
-&lt;p&gt;で、ブログ書く間隔が開くと手順を忘れて、毎回hugoのドキュメントを読むのが面倒なので、自分用メモです。&lt;/p&gt;
-
-&lt;h2 id=&#34;記事のファイルを作成:6b00b00d433df82a395447ef0b37d2fc&#34;&gt;記事のファイルを作成&lt;/h2&gt;
-
-&lt;p&gt;Octorpressのときのpermalinkを維持するために、記事ファイルのパスは &lt;code&gt;content/post/YYYY/MM/DD/foo.md&lt;/code&gt; というような感じになっています。&lt;/p&gt;
-
-&lt;p&gt;&lt;code&gt;hugo new&lt;/code&gt; でファイルを作成する際は &lt;code&gt;content&lt;/code&gt; を除いた部分を指定して以下のようにします。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;hugo new post/2015/04/19/my_hugo_blog_workflow.md
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id=&#34;記事を編集してローカルで表示確認:6b00b00d433df82a395447ef0b37d2fc&#34;&gt;記事を編集してローカルで表示確認&lt;/h2&gt;
-
-&lt;p&gt;以下のコマンドでローカルマシンでサーバを起動しておきます。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;hugo server --watch
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://localhost:1313/blog/&#34;&gt;http://localhost:1313/blog/&lt;/a&gt; をブラウザで開いて編集した内容を確認します。&lt;/p&gt;
-
-&lt;h2 id=&#34;テーマの調整:6b00b00d433df82a395447ef0b37d2fc&#34;&gt;テーマの調整&lt;/h2&gt;
-
-&lt;p&gt;私のブログでは &lt;a href=&#34;https://github.com/eliasson/liquorice&#34;&gt;eliasson/liquorice&lt;/a&gt; を改変した独自テーマ &lt;a href=&#34;https://github.com/hnakamur/liquorice-hn&#34;&gt;hnakamur/liquorice-hn&lt;/a&gt; を使っています。&lt;/p&gt;
-
-&lt;p&gt;テーマを調整したい場合は &lt;a href=&#34;https://github.com/hnakamur/blog&#34;&gt;hnakamur/blog&lt;/a&gt; を &lt;code&gt;git clone&lt;/code&gt; したディレクトリの &lt;code&gt;themes/liquorice-hn&lt;/code&gt; フォルダ配下のファイルを書き換えます。&lt;/p&gt;
-
-&lt;p&gt;CSSを変えた場合は &lt;a href=&#34;https://github.com/hnakamur/liquorice-hn#build-with-npm-run&#34;&gt;hnakamur/liquorice-hn&lt;/a&gt; の手順でminifyします。&lt;/p&gt;
-
-&lt;p&gt;テーマの修正が終わったら、テーマの修正したファイル &lt;code&gt;git add&lt;/code&gt; して &lt;code&gt;git commit&lt;/code&gt; します。その後 &lt;a href=&#34;https://github.com/hnakamur/blog&#34;&gt;hnakamur/blog&lt;/a&gt; を &lt;code&gt;git clone&lt;/code&gt; したディレクトリで以下のコマンドを実行してgithubにpushします。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;git subtree push --prefix themes/liquorice-hn liquorice-hn master
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;初回のみの事前準備として以下のようにremoteを追加しておきます。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;git remote add liquorice-hn https://github.com/hnakamur/liquorice-hn
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id=&#34;記事を発行:6b00b00d433df82a395447ef0b37d2fc&#34;&gt;記事を発行&lt;/h2&gt;
-
-&lt;p&gt;記事を書き終えて、ローカルで表示を確認したら、&lt;a href=&#34;https://github.com/hnakamur/blog&#34;&gt;hnakamur/blog&lt;/a&gt; を &lt;code&gt;git clone&lt;/code&gt; したディレクトリで以下のコマンドを実行してgithub-pages上のブログを更新します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;./deploy.sh
-&lt;/code&gt;&lt;/pre&gt;
 </description>
     </item>
     
