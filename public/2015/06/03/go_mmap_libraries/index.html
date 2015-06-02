@@ -5,7 +5,7 @@
         <meta http-equiv="content-type" content="text/html; charset=utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
 
-        <title>久々にoctopressをアップデート &middot; hnakamur&#39;s blog at github</title>
+        <title>Go言語用のメモリマップトファイルのライブラリを探してみた &middot; hnakamur&#39;s blog at github</title>
         <link rel='stylesheet' href='http://fonts.googleapis.com/css?family=Open+Sans:400,300,600' type='text/css'>
         <link rel="stylesheet" href="/blog//libraries/normalize.3.0.1.css" />
         <link rel="stylesheet" href="/blog//css/liquorice.css" />
@@ -56,40 +56,47 @@
             <div class="sixteen columns">
                 <article class="li-article">
                     <header class="li-article-header">
-                        <h1 class="li-article-title">久々にoctopressをアップデート</h1>
-                        <time class="li-article-date">2014-06-10</time>
+                        <h1 class="li-article-title">Go言語用のメモリマップトファイルのライブラリを探してみた</h1>
+                        <time class="li-article-date">2015-06-03</time>
                     </header>
                     <section>
                         
 
-<p>octopressをアップデートした時にハマったのでメモ。
-アップデート手順は<a href="http://blog.n-z.jp/blog/2013-12-21-update-octopress.html">octopressをアップデートしてisolateを使い始めた - @znz blog</a>の「octopress のアップデート」の部分を参考にしました。ありがとうございます。</p>
+<p>ふとGo言語でメモリマップトファイルを扱えるライブラリってあるのかなと気になったので探してみました。</p>
 
-<h2 id="octopressのアップデート:6dd973bdad9933eb852512ee60bcacb7">Octopressのアップデート</h2>
+<h2 id="標準ライブラリ:b86aa234eea6d3f9f1ee4426bc5adf77">標準ライブラリ</h2>
 
-<p><a href="http://octopress.org/docs/updating/">Updating Octopress - Octopress</a>の&rdquo;How to Update&rdquo;のコマンドを順に実行しました。</p>
+<p><a href="http://golang.org/">Goのホームページ</a>で<a href="http://golang.org/search?q=mmap">mmapで検索してみる</a>とUnix系では実装があるみたいです。</p>
 
-<pre><code>git pull octopress master     # Get the latest Octopress
-bundle install                # Keep gems updated
-rake update_source            # update the template's source
-rake update_style             # update the template's style
-</code></pre>
+<p>Did you mean: <a href="http://golang.org/search?q=Mmap">Mmap</a> と表示されているのでクリックしてみるとsyscallパッケージに<a href="http://golang.org/pkg/syscall/#Mmap">Mmap</a>があることがわかりました。</p>
 
-<p>git pullではconflictsが起きたので、適宜修正しました。基本的にはHEAD側を採用。</p>
+<p><a href="http://golang.org/search?q=Munmap">Munmapで検索してみる</a>とこちらはMmapよりは実装されているOSが少ないです。syscallパッケージに<a href="http://golang.org/pkg/syscall/#Munmap">Mummap</a>もあります。</p>
 
-<h2 id="sass-globbingをgemfileに追加:6dd973bdad9933eb852512ee60bcacb7">sass-globbingをGemfileに追加。</h2>
+<p><a href="http://golang.org/search?q=Msync">Msyncで検索してみる</a>と5件ヒットしますが、未実装となっていました。</p>
 
-<pre><code>bundle exec rake generate
-</code></pre>
+<p>また、syscallパッケージにMmapとMunmapがあるといっても、Windowsでは実装されていません。</p>
 
-<p>を実行した時に</p>
+<h2 id="github-com-edsrzf-mmap-go:b86aa234eea6d3f9f1ee4426bc5adf77">github.com/edsrzf/mmap-go</h2>
 
-<pre><code>LoadError on line [&quot;161&quot;] of /Users/hnakamur/octopress/vendor/bundle/ruby/2.1.0/gems/compass-0.12.6/lib/compass/configuration/data.rb: cannot load such file -- sass-globbing
-</code></pre>
+<ul>
+<li>ソース: <a href="https://github.com/edsrzf/mmap-go">edsrzf/mmap-go</a></li>
+<li>GoDoc:  <a href="https://godoc.org/github.com/edsrzf/mmap-go">mmap - GoDoc</a></li>
+<li>ライセンス: 3項BSD</li>
+</ul>
 
-<p>というエラーが出ました。</p>
+<p><a href="https://github.com/edsrzf/mmap-go">README</a>によるとポータブルなAPIで、Linux (386, amd64), OS X, Windows (386)でテスト済みとのことです。</p>
 
-<p>Gemfileにsass-globbingを追加して、<code>bundle</code>でインストールするとエラーは解消しました。</p>
+<p>mprotect, mincoreなどはサポートしていないのでそういうUnix特有の機能を使いたい場合はGustavo Niemeyerさんの<a href="http://labix.org/gommap">gommap</a>がおすすめとのことです。</p>
+
+<h2 id="github-com-tysontate-gommap:b86aa234eea6d3f9f1ee4426bc5adf77">github.com/tysontate/gommap</h2>
+
+<p>Gustavo Niemeyerさんの<a href="http://labix.org/gommap">gommap</a>はプロジェクトがlaunchpat.netにホスティングされているので、github.comにミラーリングされていないかなと調べると<a href="https://github.com/tysontate/gommap">tysontate/gommap</a>がありました。</p>
+
+<p>READMEによるとOS X用のパッチも適用済みとのことです。 <code>mmap_*.go</code> のファイル名から判断すると対応OSはLinux (386, amd64), OS Xのようです。</p>
+
+<h2 id="まとめ:b86aa234eea6d3f9f1ee4426bc5adf77">まとめ</h2>
+
+<p><a href="https://github.com/edsrzf/mmap-go">edsrzf/mmap-go</a>の機能で足りる場合はそちらを、Unix限定になってもいいからmprotectとかを使いたい場合は<a href="https://github.com/tysontate/gommap">tysontate/gommap</a>を使うのがよさそうです。</p>
 
                     </section>
                 </article>
@@ -107,8 +114,7 @@ rake update_style             # update the template's style
             <div class="eight columns">
                 <div class="li-pagination-previous">
                     
-                        Later article<br />
-                        <a href="/blog/2014/06/10/install-python-pillow-on-osx/"> OSX上でPythonのPILの代わりにPillowをインストールする</a>
+                        &nbsp;
                     
                 </div>
             </div>
@@ -116,7 +122,7 @@ rake update_style             # update the template's style
                 <div class="li-pagination-next">
                     
                         Older article<br />
-                        <a href="/blog/2013/09/01/tried-chef-ansible-fabric/"> Chef-soloとAnsibleとFabricを試した感想</a>
+                        <a href="/blog/2015/06/03/tried_gopher_lua/"> LuaのGo実装GopherLuaを試してみた</a>
                     
                 </div>
             </div>
