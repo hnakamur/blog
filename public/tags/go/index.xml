@@ -6,8 +6,118 @@
     <description>Recent content in Go on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Sun, 31 May 2015 02:30:02 +0900</lastBuildDate>
+    <lastBuildDate>Wed, 03 Jun 2015 05:29:03 +0900</lastBuildDate>
     <atom:link href="/blog/tags/go/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>LuaのGo実装GopherLuaを試してみた</title>
+      <link>/blog/2015/06/03/tried_gopher_lua/</link>
+      <pubDate>Wed, 03 Jun 2015 05:29:03 +0900</pubDate>
+      
+      <guid>/blog/2015/06/03/tried_gopher_lua/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに:e98f672e065a63864e9866ed6b15e563&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://inforno.net/articles/2015/02/15/gopher-lua-released&#34;&gt;inforno :: LuaのGo言語実装を公開しました&lt;/a&gt;を以前読んでましたが、試してなかったので試しました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://www.lua.org/about.html&#34;&gt;Lua: about&lt;/a&gt;の&amp;rdquo;What is Lua?&amp;ldquo;に&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;making it ideal for configuration, scripting, and rapid prototyping.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;とあるようにLuaは設定ファイルとして使うことも想定されています。&lt;/p&gt;
+
+&lt;p&gt;ということで試してみました。&lt;/p&gt;
+
+&lt;h2 id=&#34;gopherluaの利用例:e98f672e065a63864e9866ed6b15e563&#34;&gt;GopherLuaの利用例&lt;/h2&gt;
+
+&lt;p&gt;hello.lua&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;print(&amp;quot;hello&amp;quot;)
+
+a = 2
+b = {
+    c = 4,
+    d = a + 3
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;main.go&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;package main
+
+import (
+	&amp;quot;fmt&amp;quot;
+
+	&amp;quot;github.com/yuin/gopher-lua&amp;quot;
+)
+
+func main() {
+	l := lua.NewState()
+	defer l.Close()
+
+	if err := l.DoFile(&amp;quot;hello.lua&amp;quot;); err != nil {
+		panic(err)
+	}
+
+	a := l.GetGlobal(&amp;quot;a&amp;quot;)
+	fmt.Printf(&amp;quot;a=%v\n&amp;quot;, a)
+
+	b := l.GetGlobal(&amp;quot;b&amp;quot;)
+	l.Push(b)
+	bt := l.ToTable(1)
+	l.Pop(1)
+	bt.ForEach(func(key, value lua.LValue) {
+		fmt.Printf(&amp;quot;b.%v=%v\n&amp;quot;, key, value)
+	})
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;実行結果&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ go run main.go
+hello
+a=2
+b.c=4
+b.d=5
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;hello.luaに &lt;code&gt;print(&amp;quot;hello&amp;quot;)&lt;/code&gt; を入れているのはLuaからの出力を試してみたかったからで、実際に設定ファイルとして使うときは変数設定だけの使い方になるでしょう。&lt;/p&gt;
+
+&lt;p&gt;上記では単に値を出力していますが、変数の値がプリミティブの場合は&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://godoc.org/github.com/yuin/gopher-lua#LVAsBool&#34;&gt;LVAsBool&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://godoc.org/github.com/yuin/gopher-lua#LVAsString&#34;&gt;LVAsString&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://godoc.org/github.com/yuin/gopher-lua#LVAsNumber&#34;&gt;LVAsNumber&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;を使えばbool, string, LNumberに変換できます。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://godoc.org/github.com/yuin/gopher-lua#LNumber&#34;&gt;LNumberの定義&lt;/a&gt; を見ると&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;type LNumber float64
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;となっているので、Goでも数値として扱えます。&lt;/p&gt;
+
+&lt;p&gt;なお、&lt;a href=&#34;http://www.lua.org/manual/5.3/manual.html#8.1&#34;&gt;Luaは5.3で数値に整数型が追加されています&lt;/a&gt;が、&lt;a href=&#34;https://github.com/yuin/gopher-lua&#34;&gt;gopher-lua&lt;/a&gt;はLua 5.1相当なので数値型は64bit浮動小数点数のみです。&lt;/p&gt;
+
+&lt;p&gt;で、table (ハッシュテーブル) 型は &lt;code&gt;lua.LValue&lt;/code&gt; から変換するメソッドが用意されていないので、上の例のようにLuaのスタックに一旦PushしてToTableで取り出してからPopしています。&lt;/p&gt;
+
+&lt;p&gt;ちなみに、&lt;a href=&#34;http://www.lua.org/manual/5.1/manual.html#2.2&#34;&gt;2.2 – Values and Type - sLua 5.1 Reference Manual&lt;/a&gt;にあるようにLuaのtable型は連想配列と整数インデクスでの配列を兼用したデータ型となっています。&lt;/p&gt;
+
+&lt;h2 id=&#34;まとめ:e98f672e065a63864e9866ed6b15e563&#34;&gt;まとめ&lt;/h2&gt;
+
+&lt;p&gt;設定ファイルをLuaで書くようにすると、上記の hello.lua で &lt;code&gt;b.d&lt;/code&gt; を &lt;code&gt;a + 3&lt;/code&gt; としているように変数や式が使えます。&lt;/p&gt;
+
+&lt;p&gt;table型があるのでネストしたデータ構造も表現できます。&lt;/p&gt;
+
+&lt;p&gt;ということで、Goのプログラムの設定ファイルをluaで書いて&lt;a href=&#34;https://github.com/yuin/gopher-lua&#34;&gt;gopher-lua&lt;/a&gt;で解釈するというのは、かなり便利そうですね。今後活用していきたいです。yuinさん、便利なライブラリをありがとうございます！&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>goでglogを使うときのメモ</title>
