@@ -53,11 +53,8 @@ func main() {
 	a := l.GetGlobal("a")
 	fmt.Printf("a=%v\n", a)
 
-	b := l.GetGlobal("b")
-	l.Push(b)
-	bt := l.ToTable(1)
-	l.Pop(1)
-	bt.ForEach(func(key, value lua.LValue) {
+	b := l.GetGlobal("b").(*lua.LTable)
+	b.ForEach(func(key, value lua.LValue) {
 		fmt.Printf("b.%v=%v\n", key, value)
 	})
 }
@@ -93,7 +90,7 @@ type LNumber float64
 
 なお、[Luaは5.3で数値に整数型が追加されています](http://www.lua.org/manual/5.3/manual.html#8.1)が、[gopher-lua](https://github.com/yuin/gopher-lua)はLua 5.1相当なので数値型は64bit浮動小数点数のみです。
 
-で、table (ハッシュテーブル) 型は `lua.LValue` から変換するメソッドが用意されていないので、上の例のようにLuaのスタックに一旦PushしてToTableで取り出してからPopしています。
+で、table (ハッシュテーブル) 型は `lua.LValue` から `.(*lua.Table)` でTableに変換できます。
 
 ちなみに、[2.2 – Values and Type - sLua 5.1 Reference Manual](http://www.lua.org/manual/5.1/manual.html#2.2)にあるようにLuaのtable型は連想配列と整数インデクスでの配列を兼用したデータ型となっています。
 
@@ -104,3 +101,10 @@ type LNumber float64
 table型があるのでネストしたデータ構造も表現できます。
 
 ということで、Goのプログラムの設定ファイルをluaで書いて[gopher-lua](https://github.com/yuin/gopher-lua)で解釈するというのは、かなり便利そうですね。今後活用していきたいです。yuinさん、便利なライブラリをありがとうございます！
+
+## 2015-06-03 21:35 頃追記
+
+作者の方からご指摘頂いたのですが、LValueからTableへの変換方法はREADMEの[Data model](https://github.com/yuin/gopher-lua#data-model)に書いてありました。失礼いたしました。
+
+またLuaを設定ファイルとして使う場合は、そのためのライブラリも書かれているので、そちらを使うほうがよいそうです。
+[inforno :: GopherLuaを設定ファイルで使うライブラリを書きました](http://inforno.net/articles/2015/03/23/gluamapper-released)をご参照ください。Goのstructの各フィールドの値をLuaのtableのデータに応じて設定してくれます。ますます便利ですね！
