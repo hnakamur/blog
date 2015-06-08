@@ -49,7 +49,7 @@ HTMLの構造は[View](https://lhorie.github.io/mithril/getting-started.html#vie
 
 基本的な構造は[Components](https://lhorie.github.io/mithril/components.html)の[Classic MVC](https://lhorie.github.io/mithril/components.html#classic-mvc)のパターンを真似しました。
 
-ソースは[cgoroonga/index.html](https://github.com/hnakamur/cgoroonga/blob/master/examples/search_wikipedia_webapp/public/index.html)にあります。お手軽に試していたレベルなのでstyleタグやscriptタグもhtml内に書いちゃってます。
+ソースは[cgoroonga/index.html](https://github.com/hnakamur/cgoroonga/blob/8fd6f566f84fd2564a17e38bc96d8a346d2a120a/examples/search_wikipedia_webapp/public/index.html)にあります。お手軽に試していたレベルなのでstyleタグやscriptタグもhtml内に書いちゃってます。
 
 コンポーネントの階層は以下のようになっています。
 
