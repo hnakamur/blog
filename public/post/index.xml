@@ -6,8 +6,231 @@
     <description>Recent content in Posts on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Wed, 03 Jun 2015 06:29:01 +0900</lastBuildDate>
+    <lastBuildDate>Thu, 11 Jun 2015 00:45:38 +0900</lastBuildDate>
     <atom:link href="/blog/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>xhyveを試してみました</title>
+      <link>/blog/2015/06/11/tried_xhyve/</link>
+      <pubDate>Thu, 11 Jun 2015 00:45:38 +0900</pubDate>
+      
+      <guid>/blog/2015/06/11/tried_xhyve/</guid>
+      <description>
+
+&lt;p&gt;&lt;a href=&#34;http://www.pagetable.com/?p=831&#34;&gt;xhyve – Lightweight Virtualization on OS X Based on bhyve | pagetable.com&lt;/a&gt;に沿って試してみました。&lt;/p&gt;
+
+&lt;h2 id=&#34;確認した環境:dcbb8845ff06345c06bbfce39966bf55&#34;&gt;確認した環境&lt;/h2&gt;
+
+&lt;ul&gt;
+&lt;li&gt;MacBook Pro (Retina, Mid 2012)&lt;/li&gt;
+&lt;li&gt;OS X Yosemite 10.10.3&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;ソースからビルド:dcbb8845ff06345c06bbfce39966bf55&#34;&gt;ソースからビルド&lt;/h2&gt;
+
+&lt;pre&gt;&lt;code&gt;cd お好みの作業ディレクトリ
+git clone https://github.com/mist64/xhyve
+cd xhyve
+make
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;tiny-core-linuxを起動:dcbb8845ff06345c06bbfce39966bf55&#34;&gt;Tiny Core Linuxを起動&lt;/h2&gt;
+
+&lt;pre&gt;&lt;code&gt;./xhyverun.sh
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;起動メッセージが流れた後、画面がクリアされて以下のように表示されたら起動完了です。ここまで3〜4秒です。速い！&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;(�-
+ //\   Core is distributed with ABSOLUTELY NO WARRANTY.
+ v_/_           www.tinycorelinux.com
+
+tc@box:~$ Switched to clocksource tsc
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;プロンプトにかぶってメッセージが出ていますが、enterを押せばプロンプトが出ます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;tc@box:~$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;シャットダウンするには以下のコマンドを実行します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo halt
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;ubuntu-server-14-04-2のディスクイメージ作成:dcbb8845ff06345c06bbfce39966bf55&#34;&gt;Ubuntu Server 14.04.2のディスクイメージ作成&lt;/h2&gt;
+
+&lt;p&gt;Ubuntu ServerのISOイメージをダウンロードして、ディスクイメージを作成するための準備を行います。元記事によると、OS Xがハイブリッドファイルシステムを認識しないので、Linux kernelとinitrdを取り出しているそうです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;mkdir ubuntu
+cd ubuntu
+curl -O ftp://ftp.kddilabs.jp/Linux/packages/ubuntu/releases-cd/14.04.2/ubuntu-14.04.2-server-amd64.iso
+dd if=/dev/zero bs=2k count=1 of=/tmp/tmp.iso
+dd if=ubuntu-14.04.2-server-amd64.iso bs=2k skip=1 &amp;gt;&amp;gt; /tmp/tmp.iso
+hdiutil attach /tmp/tmp.iso
+cp /Volumes/Ubuntu-Server\ 14/install/vmlinuz .
+cp /Volumes/Ubuntu-Server\ 14/install/initrd.gz .
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;以下のコマンドでディスクイメージを作成します。ここでは &lt;code&gt;bs=1g count=8&lt;/code&gt; でディスクサイズを8GBとしていますが、お好みで調整してください。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;dd if=/dev/zero of=hdd.img bs=1g count=8
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;xhyve/ubuntuディレクトリではなくxhyveディレクトリにディスクイメージ作成用のスクリプトを作ります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;cd ..
+cat &amp;lt;&amp;lt;&#39;EOF&#39; &amp;gt; xhyverun_ubuntu_install.sh
+#!/bin/sh
+
+KERNEL=&amp;quot;ubuntu/vmlinuz&amp;quot;
+INITRD=&amp;quot;ubuntu/initrd.gz&amp;quot;
+CMDLINE=&amp;quot;earlyprintk=serial console=ttyS0 acpi=off&amp;quot;
+
+MEM=&amp;quot;-m 1G&amp;quot;
+#SMP=&amp;quot;-c 2&amp;quot;
+NET=&amp;quot;-s 2:0,virtio-net&amp;quot;
+IMG_CD=&amp;quot;-s 3,ahci-cd,ubuntu/ubuntu-14.04.2-server-amd64.iso&amp;quot;
+IMG_HDD=&amp;quot;-s 4,virtio-blk,ubuntu/hdd.img&amp;quot;
+PCI_DEV=&amp;quot;-s 0:0,hostbridge -s 31,lpc&amp;quot;
+LPC_DEV=&amp;quot;-l com1,stdio&amp;quot;
+
+build/xhyve $MEM $SMP $PCI_DEV $LPC_DEV $NET $IMG_CD $IMG_HDD -f kexec,$KERNEL,$INITRD,&amp;quot;$CMDLINE&amp;quot;
+EOF
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;スクリプトに実行パーミションをつけてsudo付きで実行します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;chmod +x xhyverun_ubuntu_install.sh
+sudo ./xhyverun_ubuntu_install.sh
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;テキストインストーラが起動しますので、以下のように選択してインストールしました。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Select a language: English&lt;/li&gt;
+&lt;li&gt;Select your location: other -&amp;gt; Asia -&amp;gt; Japan&lt;/li&gt;
+&lt;li&gt;Configure locales: United Status - en_US.UTF-8&lt;/li&gt;
+&lt;li&gt;Hostname: お好みの名前&lt;/li&gt;
+&lt;li&gt;Set up users and passwords: お好みのIDとパスワードで作成&lt;/li&gt;
+&lt;li&gt;time zone: Asia/Tokyo&lt;/li&gt;
+&lt;li&gt;Partition disks: Guided - use entire disk&lt;/li&gt;
+&lt;li&gt;HTTP proxy: 無し&lt;/li&gt;
+&lt;li&gt;manage upgrades: No automatic updates&lt;/li&gt;
+&lt;li&gt;Software selection:
+
+&lt;ul&gt;
+&lt;li&gt;Basic Ubuntu Server&lt;/li&gt;
+&lt;li&gt;OpenSSH server&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;Install GRUB to the master boot record: Yes&lt;/li&gt;
+&lt;li&gt;Is the system clock set to UTC: No&lt;/li&gt;
+&lt;li&gt;Installation complete: Go Back -&amp;gt; Execute a shell&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Installation completeのところでContinueではなくGo Backでメニューに戻りExecute a shellを選んで進み、シェルが起動したら以下のコマンドを実行します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;cd /target
+sbin/ifconfig
+tar c boot | nc -l -p 1234
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;上記のコマンド実行のうちsbin/ifconfigで表示されたIPアドレスをメモしておきます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;/target # sbin/ifconfig
+eth0      Link encap:Ethernet  HWaddr e6:0d:f2:6b:cf:32
+          inet addr:192.168.64.3  Bcast:192.168.64.255  Mask:255.255.255.0
+          inet6 addr: fe80::e40d:f2ff:fe6b:cf32/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:25405 errors:0 dropped:0 overruns:0 frame:85
+          TX packets:13601 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000
+          RX bytes:38179647 (38.1 MB)  TX bytes:931189 (931.1 KB)
+
+lo        Link encap:Local Loopback
+          inet addr:127.0.0.1  Mask:255.0.0.0
+          inet6 addr: ::1/128 Scope:Host
+          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0
+          RX bytes:0 (0.0 B)  TX bytes:0 (0.0 B)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Mac側では以下のコマンドを実行します。IPアドレスはifconfigで表示されたものに置き換えて実行してください。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;cd ubuntu
+nc 192.168.64.3 1234 | tar x
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;VMのシェルのプロンプトで以下のように入力してシェルを終了します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;exit
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;メニューに戻ったら &lt;code&gt;Finish the installation&lt;/code&gt; を選びます。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Is the system clock set to UTC?: No&lt;/li&gt;
+&lt;li&gt;Installation complete: Continue&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;ubuntu-server-14-04-2の起動:dcbb8845ff06345c06bbfce39966bf55&#34;&gt;Ubuntu Server 14.04.2の起動&lt;/h2&gt;
+
+&lt;p&gt;Macでxhyve/ubuntuではなくxhyveのディレクトリで起動用のスクリプトを作成します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;cat &amp;lt;&amp;lt;&#39;EOF&#39; &amp;gt; ./xhyverun_ubuntu.sh
+#!/bin/sh
+
+KERNEL=&amp;quot;ubuntu/boot/vmlinuz-3.16.0-30-generic&amp;quot;
+INITRD=&amp;quot;ubuntu/boot/initrd.img-3.16.0-30-generic&amp;quot;
+CMDLINE=&amp;quot;earlyprintk=serial console=ttyS0 acpi=off root=/dev/vda1 ro&amp;quot;
+
+MEM=&amp;quot;-m 1G&amp;quot;
+#SMP=&amp;quot;-c 2&amp;quot;
+NET=&amp;quot;-s 2:0,virtio-net&amp;quot;
+IMG_HDD=&amp;quot;-s 4,virtio-blk,ubuntu/hdd.img&amp;quot;
+PCI_DEV=&amp;quot;-s 0:0,hostbridge -s 31,lpc&amp;quot;
+LPC_DEV=&amp;quot;-l com1,stdio&amp;quot;
+
+build/xhyve $MEM $SMP $PCI_DEV $LPC_DEV $NET $IMG_CD $IMG_HDD -f kexec,$KERNEL,$INITRD,&amp;quot;$CMDLINE&amp;quot;
+EOF
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;スクリプトに実行パーミションをつけてsudo付きで実行してUbuntuを起動します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;chmod +x ./xhyverun_ubuntu.sh
+sudo ./xhyverun_ubuntu.sh
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;起動してログインプロンプトが出たらインストール時に作成したユーザでログインします。IPアドレスはDHCPで取得する設定にしたのですが、確認してみると、ディスクイメージ作成時とは違う値になっていました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ ip a s eth0
+2: eth0: &amp;lt;BROADCAST,MULTICAST,UP,LOWER_UP&amp;gt; mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 62:ca:c1:25:cf:32 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.64.4/24 brd 192.168.64.255 scope global eth0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::60ca:c1ff:fe25:cf32/64 scope link
+       valid_lft forever preferred_lft forever
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Macからsshでログインも出来ました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;ssh ubuntu@192.168.64.4
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;sshでログインすると初回だけ表示が24行に限定され、リターンを押しても24行の範囲でスクロールされるようになってしまいました。Mac側ではiTermで65行にしていました。と、この説明を書くためにiTermのウィンドウで高さを変えて行数を変えて戻してとやっていたら、次のsshログインからはiTermの行数で表示されるようになりました。&lt;/p&gt;
+
+&lt;p&gt;Ubuntuを停止するにはVM内で以下のコマンドを実行します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo shutdown -h now
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h1 id=&#34;まとめ:dcbb8845ff06345c06bbfce39966bf55&#34;&gt;まとめ&lt;/h1&gt;
+
+&lt;p&gt;xhyveをソースからビルドして、Tiny Core LinuxとUbuntu Server 14.04.2を動かしてみました。今後が楽しみです！&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>Go言語用のメモリマップトファイルのライブラリを探してみた</title>
@@ -1885,28 +2108,6 @@ vagrant@vagrant-ubuntu-trusty-64:~/go/src/github.com/lxc/lxd$
 &lt;li&gt;&lt;a href=&#34;http://d.hatena.ne.jp/defiant/20150415/1429089615&#34;&gt;lxd を使ったライブマイグレーション (1) - TenForwardの日記&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href=&#34;http://d.hatena.ne.jp/defiant/20150415/1429090896&#34;&gt;lxd を使ったライブマイグレーション (2) - TenForwardの日記&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>curlでダウンロードを中断後再開するときは-Cオプションが便利</title>
-      <link>/blog/2015/04/19/use_curl_c_option_to_resume_download/</link>
-      <pubDate>Sun, 19 Apr 2015 01:07:35 +0900</pubDate>
-      
-      <guid>/blog/2015/04/19/use_curl_c_option_to_resume_download/</guid>
-      <description>&lt;p&gt;ISOイメージのようなサイズが大きなファイルを &lt;code&gt;curl&lt;/code&gt; でダウンロードしようとして途中で中断してしまって再開するときに、 &lt;code&gt;-C&lt;/code&gt; オプションが便利だったのでメモ。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://manpages.ubuntu.com/manpages/trusty/en/man1/curl.1.html&#34;&gt;curlのマニュアル&lt;/a&gt;の &lt;code&gt;-C&lt;/code&gt; オプションのところを見ると &lt;code&gt;-C オフセットのバイト数&lt;/code&gt; のように指定するのですが &lt;code&gt;-C -&lt;/code&gt; と書けば自動でファイルサイズを指定してくれることがわかりました。&lt;/p&gt;
-
-&lt;p&gt;例えば以下のようにダウンロードしようとして&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;curl -O ftp://ftp3.jp.freebsd.org/pub/FreeBSD/ISO-IMAGES-amd64/10.1/FreeBSD-10.1-RELEASE-amd64-disc1.iso.xz
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;途中でマシンをスリープしてしまったりして中断した時は、以下のコマンドで再開します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;curl -O -C - ftp://ftp3.jp.freebsd.org/pub/FreeBSD/ISO-IMAGES-amd64/10.1/FreeBSD-10.1-RELEASE-amd64-disc1.iso.xz
-&lt;/code&gt;&lt;/pre&gt;
 </description>
     </item>
     
