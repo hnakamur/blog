@@ -226,6 +226,17 @@ Ubuntuを停止するにはVM内で以下のコマンドを実行します。
 sudo shutdown -h now
 ```
 
+## Ubuntuの起動に必要なファイル
+
+ubuntuフォルダにはビルドに使用したファイルも含まれていますが、起動スクリプトで参照されているファイル以外のファイルを別ディレクトリに移動して起動してみたら起動出来ました。ということで、起動には以下の4つのファイルだけあればOKです。
+
+```
+./xhyverun_ubuntu.sh
+ubuntu/boot/initrd.img-3.16.0-30-generic
+ubuntu/boot/vmlinuz-3.16.0-30-generic
+ubuntu/hdd.img
+```
+
 # まとめ
 
 xhyveをソースからビルドして、Tiny Core LinuxとUbuntu Server 14.04.2を動かしてみました。今後が楽しみです！
