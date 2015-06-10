@@ -303,6 +303,8 @@ $ pkg --version
 
 というわけでビルドは出来ました。が OS X用のバイナリパッケージレポジトリの情報は見つけられず。
 
+pkgコマンドの使い方については[freebsd/pkg](https://github.com/freebsd/pkg#a-quick-usage-introduction-to-pkg)のREADMEに[A quick usage introduction to pkg](https://github.com/freebsd/pkg#a-quick-usage-introduction-to-pkg)というセクションがありました。
+
 # 情報収集中
 [Baseline Mac OS X Support merged into FreeBSD package manager | Hacker News](https://news.ycombinator.com/item?id=8828866)にいくつか有用な情報がありました。
 

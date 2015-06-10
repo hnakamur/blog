@@ -239,4 +239,4 @@ ubuntu/hdd.img
 
 # まとめ
 
-xhyveをソースからビルドして、Tiny Core LinuxとUbuntu Server 14.04.2を動かしてみました。今後が楽しみです！
+xhyveをソースからビルドして、Tiny Core LinuxとUbuntu Server 14.04.2を動かしてみました。[TODO](https://github.com/mist64/xhyve#todo)によると、まだいろいろ対応予定の項目があるようです。今後が楽しみです！
