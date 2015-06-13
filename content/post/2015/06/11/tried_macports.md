@@ -316,4 +316,11 @@ pkgコマンドの使い方については[freebsd/pkg](https://github.com/freeb
 
 ということで、今後どうなっていくか要注目です。
 
+# 2015-06-13追記 pkgsrcについて訂正
 
+[pkgsrc](https://www.pkgsrc.org/)自体はFreeBSDのportsからフォークしてNetBSDで開発されているもので、Joyent, Inc.が提供しているのはSmartOS/illumos, Mac OS X, and Linux用のバイナリバッケージでした。
+
+* [pkgsrc](http://pkgsrc.joyent.com/)
+* [pkgsrc - Wikipedia, the free encyclopedia](https://en.wikipedia.org/wiki/Pkgsrc)
+
+また [saveosx](http://www.saveosx.org/)は[cmacrae/saveosx](https://github.com/cmacrae/saveosx)を見るとOS X用のpkgsrcをインストールするためのスクリプトでした。パッケージ自体はJoyentが提供しているそうです。
