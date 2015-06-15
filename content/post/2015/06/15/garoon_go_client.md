@@ -93,6 +93,8 @@ func (r CabinetGetFolderInfoRequest) MarshalXML(e *xml.Encoder, start xml.StartE
 
 のようにして呼び出しています。
 
+また、日時の項目は構造体側では `time.Time` にしたいところですが、[Issue 2771 - go - encoding/xml: MarshalXML interface is not good enough - The Go Programming Language - Google Project Hosting](https://code.google.com/p/go/issues/detail?id=2771#c2)の[コメント#2](https://code.google.com/p/go/issues/detail?id=2771#c2)を読んで `string` にしました。
+
 ## レスポンスのパース処理
 レスポンスのパースは[Cybozu ガルーン API のレスポンスのXMLを golang でパースする - Qiita](http://qiita.com/yamasaki-masahide/items/f20a2ca4700e00777303)を見たのですが、[Parsing huge XML files with Go - david singleton](http://blog.davidsingleton.org/parsing-huge-xml-files-with-go/)の方法のほうが楽なのでこちらを参考にしました。
 
