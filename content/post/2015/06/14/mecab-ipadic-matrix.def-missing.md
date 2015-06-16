@@ -6,13 +6,13 @@ date = "2015-06-14T16:40:05+09:00"
 title = "mecab-ipadicでconfigure実行したらmatrix.defが無いというエラー"
 
 +++
-# TL;DR
+## TL;DR
 
 https://github.com/taku910/mecab/tree/master/mecab-ipadic を取得して
 `./configure --with-charset="utf-8"` と実行したら
 `configure: error: cannot find sources (matrix.def) in . or ..` というエラーが出て困ってます。解決策を知っている方ぜひ教えてください。
 
-# 経緯と詳細な手順
+## 経緯と詳細な手順
 
 [rmecab](https://sites.google.com/site/rmecab/)をインストールしたくて、[RMeCab - RとLinuxと...](http://rmecab.jp/wiki/index.php?RMeCab)に沿ってまずはMeCabをインストールしました。
 
@@ -68,7 +68,7 @@ EOS
 
 と書いてたら、イシュー立てるべきと気づいたので立てました。[mecab-ipadicでconfigure実行したらmatrix.defが無いというエラーが出る · Issue #18 · taku910/mecab](https://github.com/taku910/mecab/issues/18) ぜひそちらにコメントお願いします！
 
-# 2015-06-17追記
+## 2015-06-17追記
 
 イシューにコメントを頂きました。
 https://github.com/taku910/mecab/issues/18#issuecomment-112474144
