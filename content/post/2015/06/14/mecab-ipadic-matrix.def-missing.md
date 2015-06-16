@@ -67,3 +67,10 @@ EOS
 ということで、mecab-ipadicの正しいビルド方法をご存知のかたはぜひ教えてください！
 
 と書いてたら、イシュー立てるべきと気づいたので立てました。[mecab-ipadicでconfigure実行したらmatrix.defが無いというエラーが出る · Issue #18 · taku910/mecab](https://github.com/taku910/mecab/issues/18) ぜひそちらにコメントお願いします！
+
+# 2015-06-17追記
+
+イシューにコメントを頂きました。
+https://github.com/taku910/mecab/issues/18#issuecomment-112474144
+
+IPA辞書は http://taku910.github.io/mecab/#download  からtarballをダウンロードするのが推奨とのことです。
