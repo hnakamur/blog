@@ -25,12 +25,46 @@ FreeBSD-10.1-RELEASE-amd64.raw.xzを取得、解凍します。解凍後のフ�
 
 ## FreeBSDのVM起動
 
+ネットワークを使うためには `./xhyverun-freebsd.sh` の `NET="-s 2:0,virtio-net"` の行を有効にする必要がありました。これを有効にすると起動には `sudo` が必要でしたので、VM起動は以下のように実行します。
+
 ```
-./xhyverun-freebsd.sh
+sudo ./xhyverun-freebsd.sh
 ```
 
 起動したら、IDはroot、パスワード無しでログインできます。
 
+## ネットワークの設定
+
+初回起動時は手動でDHCPクライアントを実行してIPアドレスを取得します。
+
+```
+dhclient vtnet0
+```
+
+完了後 `ifconfig` で確認すると 192.168.64.10 というIPアドレスが取得できていました。
+
+```
+root@:~ # ifconfig
+vtnet0: flags=8943<UP,BROADCAST,RUNNING,PROMISC,SIMPLEX,MULTICAST> metric 0 mtu 1500
+        options=80028<VLAN_MTU,JUMBO_MTU,LINKSTATE>
+        ether 6a:c9:2c:45:cf:32
+        inet 192.168.64.10 netmask 0xffffff00 broadcast 192.168.64.255
+        nd6 options=29<PERFORMNUD,IFDISABLED,AUTO_LINKLOCAL>
+        media: Ethernet 10Gbase-T <full-duplex>
+        status: active
+lo0: flags=8049<UP,LOOPBACK,RUNNING,MULTICAST> metric 0 mtu 16384
+        options=600003<RXCSUM,TXCSUM,RXCSUM_IPV6,TXCSUM_IPV6>
+        inet6 ::1 prefixlen 128
+        inet6 fe80::1%lo0 prefixlen 64 scopeid 0x2
+        inet 127.0.0.1 netmask 0xff000000
+        nd6 options=21<PERFORMNUD,AUTO_LINKLOCAL>
+```
+
+次回以降の起動時に自動的にDHCPクライアントを実行するために、以下のコマンドを実行します。 `/etc/rc.conf` は存在していないので `>>` ではなく `>` でも良いですが、良い習慣付けとして `>>` にしておきます。
+
+```
+echo ifconfig_vtnet0="DHCP" >> /etc/rc.conf
+```
 
 ## FreeBSDのVM停止
 
@@ -39,3 +73,4 @@ VM内で以下のコマンドを実行するとVMをシャットダウンして�
 ```
 shutdown -p now
 ```
+
