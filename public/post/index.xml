@@ -6,8 +6,210 @@
     <description>Recent content in Posts on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Sun, 12 Jul 2015 06:34:46 +0900</lastBuildDate>
+    <lastBuildDate>Sun, 19 Jul 2015 00:33:15 +0900</lastBuildDate>
     <atom:link href="/blog/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>OSX上でmultirustを使ったrustfmtのインストール手順</title>
+      <link>/blog/2015/07/19/install_rustfmt/</link>
+      <pubDate>Sun, 19 Jul 2015 00:33:15 +0900</pubDate>
+      
+      <guid>/blog/2015/07/19/install_rustfmt/</guid>
+      <description>&lt;p&gt;OSXでは&lt;a href=&#34;https://github.com/brson/multirust/issues/43&#34;&gt;building cargo atop multirust fails, dyn link problems (Mac OS X) · Issue #43 · brson/multirust&lt;/a&gt;のイシューの&lt;a href=&#34;https://github.com/brson/multirust/issues/43#issuecomment-106758695&#34;&gt;コメント106758695&lt;/a&gt;にあるように &lt;code&gt;rustfmt&lt;/code&gt; の実行時に環境変数 &lt;code&gt;DYLD_LIBRARY_PATH&lt;/code&gt; を設定する必要があります。&lt;/p&gt;
+
+&lt;p&gt;そこで、 &lt;code&gt;rustfmt&lt;/code&gt; の実行ファイルを &lt;code&gt;~/bin/rustfmt.bin&lt;/code&gt; と別の名前にして、起動用のスクリプトを &lt;code&gt;~/bin/rustfmt&lt;/code&gt; として作成します。&lt;/p&gt;
+
+&lt;p&gt;インストール手順は以下のとおりです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;git clone https://github.com/nrc/rustfmt
+cd rustfmt
+cargo build --release
+cp target/release/rustfmt ~/bin/rustfmt.bin
+cat &amp;lt;&amp;lt;&#39;EOF&#39; &amp;gt; ~/bin/rustfmt
+#!/bin/sh
+DYLD_LIBRARY_PATH=&amp;quot;$HOME/.multirust/toolchains/nightly/lib&amp;quot; $HOME/bin/rustfmt.bin &amp;quot;$@&amp;quot;
+EOF
+&lt;/code&gt;&lt;/pre&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>manyrustという複数バージョンのrustインストールスクリプトを書いた</title>
+      <link>/blog/2015/07/18/manyrust/</link>
+      <pubDate>Sat, 18 Jul 2015 23:13:32 +0900</pubDate>
+      
+      <guid>/blog/2015/07/18/manyrust/</guid>
+      <description>
+
+&lt;h2 id=&#34;multirustがあるのに-なぜ新たに書いたのか:dba7f7ce875f36e918dffb470ba2d4ac&#34;&gt;multirustがあるのに、なぜ新たに書いたのか&lt;/h2&gt;
+
+&lt;p&gt;rustのインストールは&lt;a href=&#34;http://www.rust-lang.org/install.html&#34;&gt;Install · The Rust Programming Language&lt;/a&gt;にあるように複数のチャネルから選んでインストールします。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;stable (安定版)チャネル&lt;/li&gt;
+&lt;li&gt;beta (ベータ版)チャネル&lt;/li&gt;
+&lt;li&gt;nightly (毎晩ビルドされる)チャネル&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;rustでunstableなAPIを使うにはnightlyを使う必要があるので、たいていはstableとnightlyの両方をインストールして使い分けたくなるはずです。
+その用途には定番のスクリプトとして&lt;a href=&#34;https://github.com/brson/multirust&#34;&gt;brson/multirust&lt;/a&gt;があります。&lt;/p&gt;
+
+&lt;p&gt;私も使っていましたが、rustのソースコードの整形ツール&lt;a href=&#34;https://github.com/nrc/rustfmt&#34;&gt;nrc/rustfmt&lt;/a&gt;をビルドして起動しようとするとエラーになってしまいました。&lt;/p&gt;
+
+&lt;p&gt;既に&lt;a href=&#34;https://github.com/brson/multirust/issues/43&#34;&gt;building cargo atop multirust fails, dyn link problems (Mac OS X) · Issue #43 · brson/multirust&lt;/a&gt;にイシューが上がっていて、&lt;a href=&#34;https://github.com/brson/multirust/issues/43#issuecomment-106758695&#34;&gt;コメント106758695&lt;/a&gt;にあるように環境変数 &lt;code&gt;DYLD_LIBRARY_PATH&lt;/code&gt; を設定すれば問題は解消するとのことです。&lt;/p&gt;
+
+&lt;p&gt;ディレクトリによって環境変数を切り替えるのは&lt;a href=&#34;https://github.com/direnv/direnv&#34;&gt;direnv/direnv&lt;/a&gt;が便利です。ただ、&lt;code&gt;direnv&lt;/code&gt; を使うのであれば、そもそも &lt;code&gt;multirust&lt;/code&gt; のように &lt;code&gt;rustc&lt;/code&gt; などの実行ファイルをラップしたシェルスクリプトを作る必要は無いわけです。&lt;/p&gt;
+
+&lt;p&gt;rustの複数のバージョンを異なるディレクトリにインストールしておいて、利用するディレクトリごとに環境変数 &lt;code&gt;PATH&lt;/code&gt; と &lt;code&gt;DYLD_LIBRARY_PATH&lt;/code&gt; を切り替えればいいだけです。&lt;/p&gt;
+
+&lt;p&gt;であれば、 &lt;code&gt;multirust&lt;/code&gt; 使わなくてももっとシンプルなスクリプトでいいよね、ということで書いたのが &lt;code&gt;manyrust&lt;/code&gt; です。現状はOSXのみサポートしています。&lt;/p&gt;
+
+&lt;h2 id=&#34;インストール手順:dba7f7ce875f36e918dffb470ba2d4ac&#34;&gt;インストール手順&lt;/h2&gt;
+
+&lt;p&gt;以下のようにして &lt;code&gt;~/bin&lt;/code&gt; に &lt;code&gt;manyrust&lt;/code&gt; スクリプトを配置します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;mkdir ~/bin
+curl -s -o ~/bin/manyrust https://raw.githubusercontent.com/hnakamur/manyrust/master/manyrust
+chmod +x ~/bin/manyrust
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;環境変数 &lt;code&gt;PATH&lt;/code&gt; に &lt;code&gt;$HOME/bin&lt;/code&gt; を追加して有効にします。
+bashの場合はこんな感じです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;echo &#39;export PATH=&amp;quot;$HOME/bin:$PATH&amp;quot;&#39; &amp;gt;&amp;gt; ~/.bash_profilie
+exec $SHELL -l
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;rustのインストール:dba7f7ce875f36e918dffb470ba2d4ac&#34;&gt;rustのインストール&lt;/h2&gt;
+
+&lt;p&gt;stableチャネルの最新版をインストール&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;manyrust install
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;betaチャネルの最新版をインストール&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;manyrust install beta
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;nightlyチャネルの最新版をインストール&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;manyrust install nightly
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;rustを利用する側の作業ディレクトリでの設定:dba7f7ce875f36e918dffb470ba2d4ac&#34;&gt;rustを利用する側の作業ディレクトリでの設定&lt;/h2&gt;
+
+&lt;p&gt;stableチャネルの最新版を使うディレクトリでの設定&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;manyrust showcfg &amp;gt;&amp;gt; .envrc
+direnv allow .
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;nightlyチャネルの最新版を使うディレクトリでの設定&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;manyrust showcfg nightly &amp;gt;&amp;gt; .envrc
+direnv allow .
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;nightlyチャネルの特定のバージョン2015-07-14を使うディレクトリでの設定&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;manyrust showcfg nightly 2015-07-14 &amp;gt;&amp;gt; .envrc
+direnv allow .
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;応用例:dba7f7ce875f36e918dffb470ba2d4ac&#34;&gt;応用例&lt;/h3&gt;
+
+&lt;p&gt;基本的にはstableチャネルのrustを使いたいが、特定のディレクトリ下ではnightlyを使いたい場合は &lt;code&gt;$HOME/.envrc&lt;/code&gt; にstableを使う設定を書いておいて、特定のディレクトリの &lt;code&gt;.envrc&lt;/code&gt; ではnightlyを使う設定を書いておけばOKです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ manyrust showcfg &amp;gt;&amp;gt; ~/.envrc
+direnv: error .envrc is blocked. Run `direnv allow` to approve its content.
+$ direnv allow ~
+direnv: loading ../../../../.envrc
+direnv: export +DYLD_LIBRARY_PATH ~PATH
+$ mkdir ~/nightly_work
+$ cd !$
+cd ~/nightly_work
+$ manyrust showcfg nightly &amp;gt;&amp;gt; .envrc
+direnv: error .envrc is blocked. Run `direnv allow` to approve its content.
+$ direnv allow .
+direnv: loading .envrc
+direnv: export +DYLD_LIBRARY_PATH ~PATH
+$ rustc --version
+rustc 1.3.0-nightly (e4e93196e 2015-07-14)
+$ echo $DYLD_LIBRARY_PATH
+/Users/hnakamur/rust/nightly/2015-07-14/rust/lib:
+$ cd
+direnv: loading .envrc
+direnv: export +DYLD_LIBRARY_PATH ~PATH
+$ rustc --version
+rustc 1.1.0 (35ceea399 2015-06-19)
+$ echo $DYLD_LIBRARY_PATH
+/Users/hnakamur/rust/stable/1.1.0/rust/lib:
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;direnvを使って設定を切り替えることの利点:dba7f7ce875f36e918dffb470ba2d4ac&#34;&gt;direnvを使って設定を切り替えることの利点&lt;/h3&gt;
+
+&lt;p&gt;上の例で生成した設定ファイルは以下のようになっています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ cat ~/.envrc
+source &amp;quot;${MANYRUST_ROOT:-$HOME/rust}/stable/current/etc/bashrc&amp;quot;
+$ cat ~/nightly_work/.envrc
+source &amp;quot;${MANYRUST_ROOT:-$HOME/rust}/nightly/current/etc/bashrc&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;souce&lt;/code&gt; で読み込むファイルは &lt;code&gt;manyrust install&lt;/code&gt; で以下のように生成されています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ cat ~/rust/stable/current/etc/bashrc
+rust_root=&amp;quot;${RUSTS_HOME:-$HOME/rust}/stable/1.1.0/rust&amp;quot;
+export PATH=&amp;quot;$rust_root/bin:$PATH&amp;quot;
+export DYLD_LIBRARY_PATH=&amp;quot;$rust_root/lib:$DYLD_LIBRARY_PATH&amp;quot;
+$ cat ~/rust/nightly/current/etc/bashrc
+rust_root=&amp;quot;${RUSTS_HOME:-$HOME/rust}/nightly/2015-07-14/rust&amp;quot;
+export PATH=&amp;quot;$rust_root/bin:$PATH&amp;quot;
+export DYLD_LIBRARY_PATH=&amp;quot;$rust_root/lib:$DYLD_LIBRARY_PATH&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;direnv&lt;/code&gt; を使わずに何回もこういうファイルを &lt;code&gt;source&lt;/code&gt; すると、 &lt;code&gt;PATH&lt;/code&gt; や &lt;code&gt;DYLD_LIBRARY_PATH&lt;/code&gt; の中身がどんどん増えてしまいます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ eval `manyrust showcfg beta`
+$ echo $DYLD_LIBRARY_PATH
+/Users/hnakamur/rust/beta/1.2.0-beta.2/rust/lib:
+$ eval `manyrust showcfg stable`
+$ echo $DYLD_LIBRARY_PATH
+/Users/hnakamur/rust/stable/1.1.0/rust/lib:/Users/hnakamur/rust/beta/1.2.0-beta.2/rust/lib:
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;長いだけではなく、この例だとstableには無いがnightlyにあるライブラリが存在するとstableのライブラリを使いたいのにnightly側が使われてしまうという問題が起きてしまいます。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;direnv&lt;/code&gt; を使っていれば、上の応用例のように &lt;code&gt;DYLD_LIBRARY_PATH&lt;/code&gt; の値が追加されるのではなく設定が切り替えられるので、この問題は起きません。&lt;/p&gt;
+
+&lt;h2 id=&#34;rustfmtのビルドとインストール:dba7f7ce875f36e918dffb470ba2d4ac&#34;&gt;rustfmtのビルドとインストール&lt;/h2&gt;
+
+&lt;p&gt;で、ここまで書いてから &lt;code&gt;rustfmt&lt;/code&gt; をビルド、インストールしようとして問題に気付きました。 &lt;code&gt;rustfmt&lt;/code&gt; は &lt;code&gt;~/rust/nightly/current/rust/bin/&lt;/code&gt; に置いて上記のように &lt;code&gt;.envrc&lt;/code&gt; で切り替えればいいかと思っていたのですが、そうすると &lt;code&gt;stable&lt;/code&gt; を使うように &lt;code&gt;.envrc&lt;/code&gt; を設定したディレクトリでは &lt;code&gt;rustfmt&lt;/code&gt; が使えなくなってしまいます。&lt;/p&gt;
+
+&lt;p&gt;またnightlyのバージョンが上がると &lt;code&gt;rustfmt&lt;/code&gt; をビルドし直す必要もあります。&lt;/p&gt;
+
+&lt;p&gt;これを回避するためにはビルドした &lt;code&gt;rustfmt&lt;/code&gt; は &lt;code&gt;~/bin/rustfmt.bin&lt;/code&gt; と名前を変えて &lt;code&gt;~/bin&lt;/code&gt; に置いて、ラップしたスクリプトを &lt;code&gt;~/bin/rustfmt&lt;/code&gt; という名前で作成します。&lt;/p&gt;
+
+&lt;p&gt;具体的な手順は以下の通りです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;git clone https://github.com/nrc/rustfmt
+cd rustfmt
+manyrust showcfg nightly &amp;gt;&amp;gt; .envrc
+direnv allow .
+cargo build --release
+cp target/release/rustfmt ~/bin/rustfmt.bin
+cat &amp;lt;&amp;lt;&#39;EOF&#39; &amp;gt; ~/bin/rustfmt
+#!/bin/sh
+DYLD_LIBRARY_PATH=&amp;quot;${MANYRUST_ROOT:-$HOME/rust}/nightly/2015-07-14/rust/lib&amp;quot; $HOME/bin/rustfmt.bin &amp;quot;$@&amp;quot;
+EOF
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;今後nightlyを追加インストールした時に &lt;code&gt;rustfmt&lt;/code&gt; が依存しているディレクトリが新しいバージョンの &lt;code&gt;lib&lt;/code&gt; ディレクトリに存在しない場合に備えて、 &lt;code&gt;DYLD_LIBRARY_PATH&lt;/code&gt; は &lt;code&gt;~/rust/nightly/current/rust/lib&lt;/code&gt; ではなく特定のバージョンの &lt;code&gt;lib&lt;/code&gt; ディレクトリを指定しています。&lt;/p&gt;
+
+&lt;p&gt;ということで、 &lt;code&gt;rustfmt&lt;/code&gt; に関しては &lt;code&gt;multirust&lt;/code&gt; でも &lt;code&gt;manyrust&lt;/code&gt; でも同じことで、&lt;code&gt;DYLD_LIBRARY_PATH&lt;/code&gt; を設定して実行するようなスクリプトを書いてラップする必要があるというオチでした。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>xhyveでFreeBSDを動かしてみた</title>
@@ -1805,274 +2007,6 @@ $ echo &#39;select Articles --limit 0&#39; | groonga ~/work/groonga/db/wikipedia
 
 &lt;p&gt;JSON形式の検索APIの応答が約80〜250ms程度で、快適に検索できました。
 Groongaすごいですね！&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>Goでdeferの処理中のエラーを返す書き方を工夫してみた</title>
-      <link>/blog/2015/04/27/write_function_for_go_defer/</link>
-      <pubDate>Mon, 27 Apr 2015 02:06:02 +0900</pubDate>
-      
-      <guid>/blog/2015/04/27/write_function_for_go_defer/</guid>
-      <description>&lt;p&gt;go-nutsのメーリングリストの記事
-&lt;a href=&#34;https://groups.google.com/d/msg/golang-nuts/qTTBENO_Em0/Y4MCVZZ3c5sJ&#34;&gt;https://groups.google.com/d/msg/golang-nuts/qTTBENO_Em0/Y4MCVZZ3c5sJ&lt;/a&gt;
-によるとdeferで呼ばれた関数の戻り値は捨てられるそうです。
-&lt;a href=&#34;https://groups.google.com/d/msg/golang-nuts/qTTBENO_Em0/UlI77BM2PUkJ&#34;&gt;https://groups.google.com/d/msg/golang-nuts/qTTBENO_Em0/UlI77BM2PUkJ&lt;/a&gt;
-で戻り値の変数に代入するという方法が紹介されていました。&lt;/p&gt;
-
-&lt;p&gt;これを参考に、deferでの後処理でエラーが起きた時はそのエラーを返す、ただし複数のエラーが起きた時は最初のエラーを返したいというときの書き方を考えてみました。&lt;/p&gt;
-
-&lt;p&gt;最初に書いたのは、上の記事で紹介されていたように無名関数を即時呼び出しする方式です。
-&lt;a href=&#34;https://github.com/hnakamur/cgoroonga/blob/70aafdeb2eb754505efe60afa1ae6d995831a063/examples/add_record/main.go&#34;&gt;https://github.com/hnakamur/cgoroonga/blob/70aafdeb2eb754505efe60afa1ae6d995831a063/examples/add_record/main.go&lt;/a&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;func run() (err error) {
-	err = grn.Init()
-	if err != nil {
-		return
-	}
-	defer func() {
-		err2 := grn.Fin()
-		if err2 != nil &amp;amp;&amp;amp; err == nil {
-			err = err2
-		}
-	}()
-
-	ctx, err := grn.CtxOpen(0)
-	if err != nil {
-		return
-	}
-	defer func() {
-		err2 := ctx.Close()
-		if err2 != nil &amp;amp;&amp;amp; err == nil {
-			err = err2
-		}
-	}()
-
-	var db *grn.Obj
-	db, err = ctx.DBOpenOrCreate(&amp;quot;hello.db&amp;quot;, nil)
-	if err != nil {
-		return
-	}
-	defer func() {
-		err2 := ctx.ObjClose(db)
-		if err2 != nil &amp;amp;&amp;amp; err == nil {
-			err = err2
-		}
-	}()
-
-	keyType := ctx.At(grn.DB_SHORT_TEXT)
-	table, err := ctx.TableOpenOrCreate(&amp;quot;table1&amp;quot;, &amp;quot;&amp;quot;,
-		grn.OBJ_TABLE_HASH_KEY|grn.OBJ_PERSISTENT, keyType, nil)
-	if err != nil {
-		return
-	}
-	fmt.Printf(&amp;quot;table=%x\n&amp;quot;, table)
-	defer func() {
-		err2 := ctx.ObjClose(table)
-		if err2 != nil &amp;amp;&amp;amp; err == nil {
-			err = err2
-		}
-	}()
-…(略)…
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;これでやりたいことは実現できているのですが、deferのところの行数が多すぎて読みにくいコードになっています。&lt;/p&gt;
-
-&lt;p&gt;そこでこの部分を関数として定義するようにしてみました。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/add_record/main.go&#34;&gt;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/add_record/main.go&lt;/a&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;func run() (err error) {
-	err = grn.Init()
-	if err != nil {
-		return
-	}
-	defer grn.FinDefer(&amp;amp;err)
-
-	ctx, err := grn.CtxOpen(0)
-	if err != nil {
-		return
-	}
-	defer ctx.CloseDefer(&amp;amp;err)
-
-	var db *grn.Obj
-	db, err = ctx.DBOpenOrCreate(&amp;quot;hello.db&amp;quot;, nil)
-	if err != nil {
-		return
-	}
-	defer ctx.ObjCloseDefer(&amp;amp;err, db)
-
-	keyType := ctx.At(grn.DB_SHORT_TEXT)
-	table, err := ctx.TableOpenOrCreate(&amp;quot;table1&amp;quot;, &amp;quot;&amp;quot;,
-		grn.OBJ_TABLE_HASH_KEY|grn.OBJ_PERSISTENT, keyType, nil)
-	if err != nil {
-		return
-	}
-	fmt.Printf(&amp;quot;table=%x\n&amp;quot;, table)
-	defer ctx.ObjCloseDefer(&amp;amp;err, table)
-…(略)…
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;関数定義は例えば &lt;code&gt;FinDefer&lt;/code&gt; なら
-&lt;a href=&#34;https://github.com/hnakamur/cgoroonga/blob/master/init.go#L25-L30&#34;&gt;https://github.com/hnakamur/cgoroonga/blob/master/init.go#L25-L30&lt;/a&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;func FinDefer(err *error) {
-	err2 := Fin()
-	if err2 != nil &amp;amp;&amp;amp; *err == nil {
-		*err = err2
-	}
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;のようになります。他の関数も同様です。&lt;/p&gt;
-
-&lt;p&gt;書き換えた &lt;code&gt;run()&lt;/code&gt; のほうが読みやすくていい感じです。&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>データ登録用にgroongaのC APIのgoバインディングを書いてみた</title>
-      <link>/blog/2015/04/27/cgoroonga/</link>
-      <pubDate>Mon, 27 Apr 2015 00:44:23 +0900</pubDate>
-      
-      <guid>/blog/2015/04/27/cgoroonga/</guid>
-      <description>
-
-&lt;h2 id=&#34;groongaで大量のデータを登録する方法を調べてみた:bd398b25ed8a2de22905a814e81be387&#34;&gt;groongaで大量のデータを登録する方法を調べてみた&lt;/h2&gt;
-
-&lt;h3 id=&#34;方法1-loadコマンドの文字列を組み立ててgroongaコマンドの標準入力に流し込む:bd398b25ed8a2de22905a814e81be387&#34;&gt;方法1: loadコマンドの文字列を組み立ててgroongaコマンドの標準入力に流し込む&lt;/h3&gt;
-
-&lt;p&gt;groongaのデータの登録はチュートリアルの&lt;a href=&#34;http://groonga.org/ja/docs/tutorial/introduction.html#load-records&#34;&gt;データのロード&lt;/a&gt;にあるように&lt;a href=&#34;http://groonga.org/ja/docs/reference/commands/load.html&#34;&gt;loadコマンド&lt;/a&gt;を使えば出来ます。&lt;/p&gt;
-
-&lt;p&gt;外部ファイルから大量のデータを登録するときはどうするのかなと思って調べてみると、 groongaのソースの examples/dictionary/eijiro/ の例では &lt;code&gt;load&lt;/code&gt; コマンドの文字列を組み立てて &lt;code&gt;groonga&lt;/code&gt; コマンドの標準入力に流し込んでいました。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/groonga/groonga/blob/59ef5d1d26b4ba47d163019a21a20519d349489b/examples/dictionary/eijiro/eijiro-import.sh#L10-L12&#34;&gt;https://github.com/groonga/groonga/blob/59ef5d1d26b4ba47d163019a21a20519d349489b/examples/dictionary/eijiro/eijiro-import.sh#L10-L12&lt;/a&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;if iconv -f UCS2 -t UTF8 $2 | ${base_dir}/eijiro2grn.rb | groonga $1 &amp;gt; /dev/null; then
-  echo &amp;quot;eijiro data loaded.&amp;quot;
-fi
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;方法2-groongaのc-apiを使う:bd398b25ed8a2de22905a814e81be387&#34;&gt;方法2: groongaのC APIを使う&lt;/h3&gt;
-
-&lt;p&gt;この方法はお手軽ですが、エラー処理が難しそうと重い、さらに調べてみると、groongaのC APIを使ってデータ登録する例を見つけました。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://createfield.com/C%E8%A8%80%E8%AA%9E%E3%81%A7Groonga%E3%81%AEAPI%E3%82%92%E4%BD%BF%E3%81%86%E6%96%B9%E6%B3%95&#34;&gt;C言語でGroongaのAPIを使う方法 - CreateField&lt;/a&gt;&lt;/p&gt;
-
-&lt;h2 id=&#34;go言語用のライブラリを作ってみました:bd398b25ed8a2de22905a814e81be387&#34;&gt;go言語用のライブラリを作ってみました&lt;/h2&gt;
-
-&lt;p&gt;折角なのでCのライブラリのgo言語バインディングを作る練習を兼ねてgo言語用のライブラリを作ってみました。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/cgoroonga&#34;&gt;hnakamur/cgoroonga&lt;/a&gt;&lt;/p&gt;
-
-&lt;h3 id=&#34;テーブルとカラムを作ってレコードを1件登録するサンプルコード:bd398b25ed8a2de22905a814e81be387&#34;&gt;テーブルとカラムを作ってレコードを1件登録するサンプルコード&lt;/h3&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/add_record/main.go&#34;&gt;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/add_record/main.go&lt;/a&gt;&lt;/p&gt;
-
-&lt;p&gt;OSX + homebrewという環境で試しました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;brew install groonga
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;でgroongaをインストールして、以下の手順で実行します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;go get github.com/hnakamur/cgoroonga
-cd $GOPATH/src/github.com/hnakamur/cgoroonga/examples/add_record
-go build
-./add_record
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;wikipedia日本語版の記事データを登録するサンプルコード:bd398b25ed8a2de22905a814e81be387&#34;&gt;Wikipedia日本語版の記事データを登録するサンプルコード&lt;/h3&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/import_wikipedia/main.go&#34;&gt;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/import_wikipedia/main.go&lt;/a&gt;&lt;/p&gt;
-
-&lt;p&gt;データファイルは
-&lt;a href=&#34;http://dumps.wikimedia.org/jawiki/20150422/&#34;&gt;jawiki dump progress on 20150422&lt;/a&gt;
-から以下の4つのファイルをダウンロードしました。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;jawiki-20150422-pages-articles1.xml.bz2&lt;/li&gt;
-&lt;li&gt;jawiki-20150422-pages-articles2.xml.bz2&lt;/li&gt;
-&lt;li&gt;jawiki-20150422-pages-articles3.xml.bz2&lt;/li&gt;
-&lt;li&gt;jawiki-20150422-pages-articles4.xml.bz2&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;Wikipediaのデータファイルはxmlをbzip2で圧縮した形式になっているので、Goの標準ライブラリの&lt;a href=&#34;http://golang.org/pkg/compress/bzip2/&#34;&gt;bzip2&lt;/a&gt;と&lt;a href=&#34;http://golang.org/pkg/encoding/xml/&#34;&gt;xml&lt;/a&gt;パッケージを使って読み込むようにしています。&lt;/p&gt;
-
-&lt;p&gt;サイズの大きいXMLファイルを読み込んで処理するときにおすすめの方法が
-&lt;a href=&#34;http://blog.davidsingleton.org/parsing-huge-xml-files-with-go/&#34;&gt;Parsing huge XML files with Go - david singleton&lt;/a&gt;で紹介されていたので、それを真似しました。ありがとうございます！&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;cd $GOPATH/src/github.com/hnakamur/cgoroonga/examples/import_wikipedia
-go build
-./import_wikipedia jawiki-20150422-pages-articles1.xml.bz2
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;のように実行します。&lt;/p&gt;
-
-&lt;h2 id=&#34;cライブラリのgoバインディングを書くときのtips:bd398b25ed8a2de22905a814e81be387&#34;&gt;Cライブラリのgoバインディングを書くときのtips&lt;/h2&gt;
-
-&lt;p&gt;基本的には&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;https://golang.org/cmd/cgo/&#34;&gt;cgo - The Go Programming Language&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://github.com/golang/go/wiki/cgo&#34;&gt;cgo · golang/go Wiki&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;を読めばOKなのですが、ハマった点をメモしておきます。&lt;/p&gt;
-
-&lt;h3 id=&#34;import-c-の上に空行を入れないように注意:bd398b25ed8a2de22905a814e81be387&#34;&gt;import &amp;ldquo;C&amp;rdquo;の上に空行を入れないように注意&lt;/h3&gt;
-
-&lt;p&gt;たとえば
-&lt;a href=&#34;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/column.go#L7&#34;&gt;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/column.go#L7&lt;/a&gt;
-で &lt;code&gt;import &amp;quot;C&amp;quot;&lt;/code&gt; の上に空行を入れて &lt;code&gt;go build&lt;/code&gt; を実行すると以下の様なエラーになります。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ go build
-# github.com/hnakamur/cgoroonga
-could not determine kind of name for C.free
-could not determine kind of name for C.grn_column_create
-could not determine kind of name for C.grn_obj_column
-could not determine kind of name for C.grn_obj_flags
-could not determine kind of name for C.strlen
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;cのマクロはgoから呼べないのでcの関数でラップする:bd398b25ed8a2de22905a814e81be387&#34;&gt;Cのマクロはgoから呼べないのでCの関数でラップする&lt;/h3&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/cgoroonga.c&#34;&gt;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/cgoroonga.c&lt;/a&gt;
-のようにマクロをラップしたCの関数を書いて、それをgoから呼ぶようにします。&lt;/p&gt;
-
-&lt;h3 id=&#34;エラーコードが有るエラーと無いエラーを統一的に扱うようにした:bd398b25ed8a2de22905a814e81be387&#34;&gt;エラーコードが有るエラーと無いエラーを統一的に扱うようにした&lt;/h3&gt;
-
-&lt;p&gt;groongaのC APIはほとんどが&lt;a href=&#34;http://groonga.org/ja/docs/reference/api/grn_table.html&#34;&gt;7.20.21. grn_table — Groonga v5.0.2ドキュメント&lt;/a&gt;の &lt;a href=&#34;http://groonga.org/ja/docs/reference/api/grn_table.html#c.grn_table_delete&#34;&gt;grn_table_delete&lt;/a&gt;  のように &lt;a href=&#34;https://github.com/groonga/groonga/blob/v5.0.2/include/groonga/groonga.h#L44-L125&#34;&gt;grn_rc&lt;/a&gt; を返します。&lt;/p&gt;
-
-&lt;p&gt;が、 &lt;a href=&#34;http://groonga.org/ja/docs/reference/api/grn_table.html#c.grn_table_create&#34;&gt;grn_table_create&lt;/a&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;grn_obj *grn_table_create(grn_ctx *ctx, const char *name, unsigned int name_size, const char *path, grn_obj_flags flags, grn_obj *key_type, grn_obj *value_type)
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;のように &lt;code&gt;grn_rc&lt;/code&gt; を返さないAPIもあります。ドキュメントには明記されていませんが、Cの慣例としてエラーのときはおそらく戻り値が &lt;code&gt;NULL&lt;/code&gt; になるのだと予想します。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/groonga/groonga/blob/v5.0.2/lib/db.c#L744-L930&#34;&gt;https://github.com/groonga/groonga/blob/v5.0.2/lib/db.c#L744-L930&lt;/a&gt; を見るとやはりNULLを返すケースが有りました。&lt;/p&gt;
-
-&lt;p&gt;そこで、
-&lt;a href=&#34;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/error.go&#34;&gt;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/error.go&lt;/a&gt;
-のようにエラーコードが有るエラーと無いエラーを全てGoの変数として定義するようにしてみました。&lt;/p&gt;
-
-&lt;p&gt;これにより
-&lt;a href=&#34;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/import_wikipedia/main.go#L59-L63&#34;&gt;https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/import_wikipedia/main.go#L59-L63&lt;/a&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;	table, err := ctx.TableOpenOrCreate(&amp;quot;Articles&amp;quot;, &amp;quot;&amp;quot;,
-		grn.OBJ_TABLE_HASH_KEY|grn.OBJ_PERSISTENT, keyType, nil)
-	if err != nil {
-		return
-	}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;のようにエラーを常に戻り値で受け取るように統一することができ、見通しのよいコードが実現できました。&lt;/p&gt;
-
-&lt;h2 id=&#34;まとめ:bd398b25ed8a2de22905a814e81be387&#34;&gt;まとめ&lt;/h2&gt;
-
-&lt;p&gt;データ登録用にgroongaのC APIのgoバインディングを書きました。
-C APIがエラーコードを返さない場合でもGo側ではエラーを返し &lt;code&gt;if err != nil&lt;/code&gt; というのようにエラーチェックの方式を統一することで、エラー処理の漏れに気づきやすくする事が出来ました。&lt;/p&gt;
 </description>
     </item>
     
