@@ -6,8 +6,58 @@
     <description>Recent content in Posts on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Tue, 22 Sep 2015 22:35:21 +0900</lastBuildDate>
+    <lastBuildDate>Thu, 22 Oct 2015 01:22:10 +0900</lastBuildDate>
     <atom:link href="/blog/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>mattn/gomにGoのvendoringサポートが追加されました</title>
+      <link>/blog/2015/10/22/gom_got_go_vendoring_support/</link>
+      <pubDate>Thu, 22 Oct 2015 01:22:10 +0900</pubDate>
+      
+      <guid>/blog/2015/10/22/gom_got_go_vendoring_support/</guid>
+      <description>
+
+&lt;p&gt;以前&lt;a href=&#34;http://deeeet.com/writing/2015/06/26/golang-dependency-vendoring/&#34;&gt;Go言語のDependency/Vendoringの問題と今後．gbあるいはGo1.5 | SOTA&lt;/a&gt;を読んだのですが、その時は様子見にしていました。&lt;/p&gt;
+
+&lt;p&gt;しかし、仕事でGoを書くとなるとやはりVendoringは必要だろうと思い、遅ればせながら今回&lt;a href=&#34;https://getgb.io/examples/getting-started/&#34;&gt;gb&lt;/a&gt;, &lt;a href=&#34;https://github.com/tools/godep&#34;&gt;tools/godep&lt;/a&gt;, &lt;a href=&#34;https://github.com/mattn/gom&#34;&gt;mattn/gom&lt;/a&gt;を試してみました。&lt;/p&gt;
+
+&lt;h2 id=&#34;gbの不満:96cfedbb6d327eac2c80a70b44a7b99d&#34;&gt;gbの不満&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://getgb.io/examples/getting-started/&#34;&gt;gb&lt;/a&gt;の例を見ると、自分のプロジェクトのトップディレクトリに &lt;code&gt;src/cmd&lt;/code&gt; あるいは &lt;code&gt;src/github.com/ユーザID/プロジェクト名&lt;/code&gt; というディレクトリを作ってそこにソースを置く必要があるようです。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://getgb.io/faq/#cannot-build-src-root&#34;&gt;FAQ&lt;/a&gt;にも&lt;a href=&#34;http://getgb.io/faq/#cannot-build-src-root&#34;&gt;Why can&amp;rsquo;t I place source in $PROJECT/src?&lt;/a&gt;という項があるので、これは仕様のようです。&lt;/p&gt;
+
+&lt;p&gt;でもこれだと、自分のプロジェクトを他のプロジェクトで使いたい時に &lt;code&gt;go get&lt;/code&gt; で使えないですよね。
+FAQに &amp;ldquo;Can I use gb if I am working on a Go library?&amp;rdquo; とか &amp;ldquo;Copying code is gross! Can I use git submodules?&amp;rdquo; とかあるんですが、git submoduleにせよgit subtreeにせよ面倒だなと思いました。&lt;/p&gt;
+
+&lt;h2 id=&#34;godepsの不満:96cfedbb6d327eac2c80a70b44a7b99d&#34;&gt;godepsの不満&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/tools/godep&#34;&gt;tools/godep&lt;/a&gt; の&amp;rdquo;Go 1.5 vendor/ experiment&amp;rdquo;の項を読んで試してみたところ、&lt;code&gt;go build&lt;/code&gt; が使用する環境変数 &lt;code&gt;GO15VENDOREXPERIMENT&lt;/code&gt; を &lt;code&gt;export GO15VENDOREXPERIMENT=1&lt;/code&gt; のように設定しておくと、そうでないときは &lt;code&gt;Godeps/_workspace/&lt;/code&gt; に置かれる依存ライブラリが &lt;code&gt;vendor/&lt;/code&gt; 以下に置かれるようになることがわかりました。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;vendor/&lt;/code&gt; を &lt;code&gt;.gitignore&lt;/code&gt; で除外してコミットしたいので、後から &lt;code&gt;Godeps/Godeps.json&lt;/code&gt; から &lt;code&gt;vendor/&lt;/code&gt; を再構成する必要があります。READMEには書いてないですが、 &lt;code&gt;godep get&lt;/code&gt; でダウンロードして、 &lt;code&gt;godep save&lt;/code&gt; で &lt;code&gt;vendor/&lt;/code&gt; に反映できることがわかりました。&lt;/p&gt;
+
+&lt;p&gt;ただ、 &lt;code&gt;godep get&lt;/code&gt; でダウンロードする先は環境変数 &lt;code&gt;GOPATH&lt;/code&gt; で指しているディレクトリなんですよね。 &lt;code&gt;godep save&lt;/code&gt; は &lt;code&gt;$GOPATH&lt;/code&gt; から &lt;code&gt;vendor/&lt;/code&gt; に反映するコマンドです。&lt;/p&gt;
+
+&lt;p&gt;ちなみに &lt;code&gt;godep restore&lt;/code&gt; というコマンドもありますが、これは &lt;code&gt;vendor/&lt;/code&gt; から &lt;code&gt;$GOPATH&lt;/code&gt; に反映します。GoにVendoringサポートがなかったときは、これで &lt;code&gt;$GOPATH&lt;/code&gt; に反映してから &lt;code&gt;go build&lt;/code&gt; という手順も妥当な気がしますが、Vendoringがある今となってはグローバルの &lt;code&gt;$GOPATH&lt;/code&gt; 配下は触らずに &lt;code&gt;vendor/&lt;/code&gt; 以下を直接更新したいところです。&lt;/p&gt;
+
+&lt;p&gt;とりあえずイシュー&lt;a href=&#34;https://github.com/tools/godep/issues/299&#34;&gt;Download dependency to vendor/ directory with godep get when GO15VENDOREXPERIMENT=1 · Issue #299 · tools/godep&lt;/a&gt; を立ててみたところ、同じことを考えていたというコメントがついていました。&lt;/p&gt;
+
+&lt;h2 id=&#34;gomならバッチリ:96cfedbb6d327eac2c80a70b44a7b99d&#34;&gt;gomならバッチリ！&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/mattn/gom&#34;&gt;mattn/gom&lt;/a&gt;を見ると&lt;a href=&#34;https://github.com/mattn/gom/issues/51&#34;&gt;Consider adding GO15VENDOREXPERIMENT support · Issue #51 · mattn/gom&lt;/a&gt;というイシューがあったので、対応するコードを書いて &lt;a href=&#34;https://github.com/mattn/gom/pull/57&#34;&gt;Support go15vendorexperiment by mattn · Pull Request #57 · mattn/gom&lt;/a&gt;で追加修正の上マージしていただきました。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;gom install&lt;/code&gt; では内部的に &lt;code&gt;go get&lt;/code&gt; を呼び出しているので、ターゲットディレクトリを &lt;code&gt;vendor/&lt;/code&gt; にしても &lt;code&gt;vendor/src/github.com/...&lt;/code&gt; のように &lt;code&gt;src&lt;/code&gt; フォルダが作られてしまいます。上の修正では対処療法的に &lt;code&gt;gom install&lt;/code&gt; 内で &lt;code&gt;vendor/*&lt;/code&gt; を &lt;code&gt;vendor/src/*&lt;/code&gt; に移動して、終わったら &lt;code&gt;vendor/src/*&lt;/code&gt; を &lt;code&gt;vendor/*&lt;/code&gt; に移動して対応しています。&lt;/p&gt;
+
+&lt;p&gt;正確には最初の移動では &lt;code&gt;vendor/&lt;/code&gt; 以下の &lt;code&gt;bin&lt;/code&gt;, &lt;code&gt;pkg&lt;/code&gt;, &lt;code&gt;src&lt;/code&gt; は除外しています。&lt;/p&gt;
+
+&lt;p&gt;これで、 &lt;code&gt;export GO15VENDOREXPERIMENT=1&lt;/code&gt; さえしておけば、 &lt;code&gt;gom install&lt;/code&gt; で &lt;code&gt;$GOPATH&lt;/code&gt; 配下は変更せずに直接 &lt;code&gt;vendor/&lt;/code&gt; 以下を更新できるようになりました。&lt;/p&gt;
+
+&lt;p&gt;READMEには書いてないですが、 &lt;code&gt;gom lock&lt;/code&gt; を実行すれば &lt;code&gt;Gomfile.lock&lt;/code&gt; が作られて、以降の &lt;code&gt;gom install&lt;/code&gt; では依存ライブラリのバージョンを正確に反映できます。&lt;/p&gt;
+
+&lt;p&gt;ということで、gomならバッチリ私の希望を満たしてくれることがわかりました。
+mattnさん、便利なツールをありがとうございます！&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>MySQL APT repositoryからMySQL 5.7.xをインストールするスクリプト</title>
@@ -1629,239 +1679,6 @@ $ pkg --version
 &lt;/ul&gt;
 
 &lt;p&gt;また &lt;a href=&#34;http://www.saveosx.org/&#34;&gt;saveosx&lt;/a&gt;は&lt;a href=&#34;https://github.com/cmacrae/saveosx&#34;&gt;cmacrae/saveosx&lt;/a&gt;を見るとOS X用のpkgsrcをインストールするためのスクリプトでした。パッケージ自体はJoyentが提供しているそうです。&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>xhyveを試してみました</title>
-      <link>/blog/2015/06/11/tried_xhyve/</link>
-      <pubDate>Thu, 11 Jun 2015 00:45:38 +0900</pubDate>
-      
-      <guid>/blog/2015/06/11/tried_xhyve/</guid>
-      <description>
-
-&lt;p&gt;&lt;a href=&#34;http://www.pagetable.com/?p=831&#34;&gt;xhyve – Lightweight Virtualization on OS X Based on bhyve | pagetable.com&lt;/a&gt;に沿って試してみました。&lt;/p&gt;
-
-&lt;h2 id=&#34;確認した環境:dcbb8845ff06345c06bbfce39966bf55&#34;&gt;確認した環境&lt;/h2&gt;
-
-&lt;ul&gt;
-&lt;li&gt;MacBook Pro (Retina, Mid 2012)&lt;/li&gt;
-&lt;li&gt;OS X Yosemite 10.10.3&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id=&#34;ソースからビルド:dcbb8845ff06345c06bbfce39966bf55&#34;&gt;ソースからビルド&lt;/h2&gt;
-
-&lt;pre&gt;&lt;code&gt;cd お好みの作業ディレクトリ
-git clone https://github.com/mist64/xhyve
-cd xhyve
-make
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id=&#34;tiny-core-linuxを起動:dcbb8845ff06345c06bbfce39966bf55&#34;&gt;Tiny Core Linuxを起動&lt;/h2&gt;
-
-&lt;pre&gt;&lt;code&gt;./xhyverun.sh
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;起動メッセージが流れた後、画面がクリアされて以下のように表示されたら起動完了です。ここまで3〜4秒です。速い！&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;(�-
- //\   Core is distributed with ABSOLUTELY NO WARRANTY.
- v_/_           www.tinycorelinux.com
-
-tc@box:~$ Switched to clocksource tsc
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;プロンプトにかぶってメッセージが出ていますが、enterを押せばプロンプトが出ます。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;tc@box:~$
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;シャットダウンするには以下のコマンドを実行します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;sudo halt
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id=&#34;ubuntu-server-14-04-2のディスクイメージ作成:dcbb8845ff06345c06bbfce39966bf55&#34;&gt;Ubuntu Server 14.04.2のディスクイメージ作成&lt;/h2&gt;
-
-&lt;p&gt;Ubuntu ServerのISOイメージをダウンロードして、ディスクイメージを作成するための準備を行います。元記事によると、OS Xがハイブリッドファイルシステムを認識しないので、Linux kernelとinitrdを取り出しているそうです。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;mkdir ubuntu
-cd ubuntu
-curl -O ftp://ftp.kddilabs.jp/Linux/packages/ubuntu/releases-cd/14.04.2/ubuntu-14.04.2-server-amd64.iso
-dd if=/dev/zero bs=2k count=1 of=/tmp/tmp.iso
-dd if=ubuntu-14.04.2-server-amd64.iso bs=2k skip=1 &amp;gt;&amp;gt; /tmp/tmp.iso
-hdiutil attach /tmp/tmp.iso
-cp /Volumes/Ubuntu-Server\ 14/install/vmlinuz .
-cp /Volumes/Ubuntu-Server\ 14/install/initrd.gz .
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;以下のコマンドでディスクイメージを作成します。ここでは &lt;code&gt;bs=1g count=8&lt;/code&gt; でディスクサイズを8GBとしていますが、お好みで調整してください。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;dd if=/dev/zero of=hdd.img bs=1g count=8
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;xhyve/ubuntuディレクトリではなくxhyveディレクトリにディスクイメージ作成用のスクリプトを作ります。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;cd ..
-cat &amp;lt;&amp;lt;&#39;EOF&#39; &amp;gt; xhyverun_ubuntu_install.sh
-#!/bin/sh
-
-KERNEL=&amp;quot;ubuntu/vmlinuz&amp;quot;
-INITRD=&amp;quot;ubuntu/initrd.gz&amp;quot;
-CMDLINE=&amp;quot;earlyprintk=serial console=ttyS0 acpi=off&amp;quot;
-
-MEM=&amp;quot;-m 1G&amp;quot;
-#SMP=&amp;quot;-c 2&amp;quot;
-NET=&amp;quot;-s 2:0,virtio-net&amp;quot;
-IMG_CD=&amp;quot;-s 3,ahci-cd,ubuntu/ubuntu-14.04.2-server-amd64.iso&amp;quot;
-IMG_HDD=&amp;quot;-s 4,virtio-blk,ubuntu/hdd.img&amp;quot;
-PCI_DEV=&amp;quot;-s 0:0,hostbridge -s 31,lpc&amp;quot;
-LPC_DEV=&amp;quot;-l com1,stdio&amp;quot;
-
-build/xhyve $MEM $SMP $PCI_DEV $LPC_DEV $NET $IMG_CD $IMG_HDD -f kexec,$KERNEL,$INITRD,&amp;quot;$CMDLINE&amp;quot;
-EOF
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;スクリプトに実行パーミションをつけてsudo付きで実行します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;chmod +x xhyverun_ubuntu_install.sh
-sudo ./xhyverun_ubuntu_install.sh
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;テキストインストーラが起動しますので、以下のように選択してインストールしました。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Select a language: English&lt;/li&gt;
-&lt;li&gt;Select your location: other -&amp;gt; Asia -&amp;gt; Japan&lt;/li&gt;
-&lt;li&gt;Configure locales: United Status - en_US.UTF-8&lt;/li&gt;
-&lt;li&gt;Hostname: お好みの名前&lt;/li&gt;
-&lt;li&gt;Set up users and passwords: お好みのIDとパスワードで作成&lt;/li&gt;
-&lt;li&gt;time zone: Asia/Tokyo&lt;/li&gt;
-&lt;li&gt;Partition disks: Guided - use entire disk&lt;/li&gt;
-&lt;li&gt;HTTP proxy: 無し&lt;/li&gt;
-&lt;li&gt;manage upgrades: No automatic updates&lt;/li&gt;
-&lt;li&gt;Software selection:
-
-&lt;ul&gt;
-&lt;li&gt;Basic Ubuntu Server&lt;/li&gt;
-&lt;li&gt;OpenSSH server&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;li&gt;Install GRUB to the master boot record: Yes&lt;/li&gt;
-&lt;li&gt;Is the system clock set to UTC: No&lt;/li&gt;
-&lt;li&gt;Installation complete: Go Back -&amp;gt; Execute a shell&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;Installation completeのところでContinueではなくGo Backでメニューに戻りExecute a shellを選んで進み、シェルが起動したら以下のコマンドを実行します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;cd /target
-sbin/ifconfig
-tar c boot | nc -l -p 1234
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;上記のコマンド実行のうちsbin/ifconfigで表示されたIPアドレスをメモしておきます。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;/target # sbin/ifconfig
-eth0      Link encap:Ethernet  HWaddr e6:0d:f2:6b:cf:32
-          inet addr:192.168.64.3  Bcast:192.168.64.255  Mask:255.255.255.0
-          inet6 addr: fe80::e40d:f2ff:fe6b:cf32/64 Scope:Link
-          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
-          RX packets:25405 errors:0 dropped:0 overruns:0 frame:85
-          TX packets:13601 errors:0 dropped:0 overruns:0 carrier:0
-          collisions:0 txqueuelen:1000
-          RX bytes:38179647 (38.1 MB)  TX bytes:931189 (931.1 KB)
-
-lo        Link encap:Local Loopback
-          inet addr:127.0.0.1  Mask:255.0.0.0
-          inet6 addr: ::1/128 Scope:Host
-          UP LOOPBACK RUNNING  MTU:65536  Metric:1
-          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
-          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
-          collisions:0 txqueuelen:0
-          RX bytes:0 (0.0 B)  TX bytes:0 (0.0 B)
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Mac側では以下のコマンドを実行します。IPアドレスはifconfigで表示されたものに置き換えて実行してください。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;cd ubuntu
-nc 192.168.64.3 1234 | tar x
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;VMのシェルのプロンプトで以下のように入力してシェルを終了します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;exit
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;メニューに戻ったら &lt;code&gt;Finish the installation&lt;/code&gt; を選びます。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Is the system clock set to UTC?: No&lt;/li&gt;
-&lt;li&gt;Installation complete: Continue&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id=&#34;ubuntu-server-14-04-2の起動:dcbb8845ff06345c06bbfce39966bf55&#34;&gt;Ubuntu Server 14.04.2の起動&lt;/h2&gt;
-
-&lt;p&gt;Macでxhyve/ubuntuではなくxhyveのディレクトリで起動用のスクリプトを作成します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;cat &amp;lt;&amp;lt;&#39;EOF&#39; &amp;gt; ./xhyverun_ubuntu.sh
-#!/bin/sh
-
-KERNEL=&amp;quot;ubuntu/boot/vmlinuz-3.16.0-30-generic&amp;quot;
-INITRD=&amp;quot;ubuntu/boot/initrd.img-3.16.0-30-generic&amp;quot;
-CMDLINE=&amp;quot;earlyprintk=serial console=ttyS0 acpi=off root=/dev/vda1 ro&amp;quot;
-
-MEM=&amp;quot;-m 1G&amp;quot;
-#SMP=&amp;quot;-c 2&amp;quot;
-NET=&amp;quot;-s 2:0,virtio-net&amp;quot;
-IMG_HDD=&amp;quot;-s 4,virtio-blk,ubuntu/hdd.img&amp;quot;
-PCI_DEV=&amp;quot;-s 0:0,hostbridge -s 31,lpc&amp;quot;
-LPC_DEV=&amp;quot;-l com1,stdio&amp;quot;
-
-build/xhyve $MEM $SMP $PCI_DEV $LPC_DEV $NET $IMG_CD $IMG_HDD -f kexec,$KERNEL,$INITRD,&amp;quot;$CMDLINE&amp;quot;
-EOF
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;スクリプトに実行パーミションをつけてsudo付きで実行してUbuntuを起動します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;chmod +x ./xhyverun_ubuntu.sh
-sudo ./xhyverun_ubuntu.sh
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;起動してログインプロンプトが出たらインストール時に作成したユーザでログインします。IPアドレスはDHCPで取得する設定にしたのですが、確認してみると、ディスクイメージ作成時とは違う値になっていました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ ip a s eth0
-2: eth0: &amp;lt;BROADCAST,MULTICAST,UP,LOWER_UP&amp;gt; mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
-    link/ether 62:ca:c1:25:cf:32 brd ff:ff:ff:ff:ff:ff
-    inet 192.168.64.4/24 brd 192.168.64.255 scope global eth0
-       valid_lft forever preferred_lft forever
-    inet6 fe80::60ca:c1ff:fe25:cf32/64 scope link
-       valid_lft forever preferred_lft forever
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Macからsshでログインも出来ました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;ssh ubuntu@192.168.64.4
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;sshでログインすると初回だけ表示が24行に限定され、リターンを押しても24行の範囲でスクロールされるようになってしまいました。Mac側ではiTermで65行にしていました。と、この説明を書くためにiTermのウィンドウで高さを変えて行数を変えて戻してとやっていたら、次のsshログインからはiTermの行数で表示されるようになりました。&lt;/p&gt;
-
-&lt;p&gt;Ubuntuを停止するにはVM内で以下のコマンドを実行します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;sudo shutdown -h now
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id=&#34;ubuntuの起動に必要なファイル:dcbb8845ff06345c06bbfce39966bf55&#34;&gt;Ubuntuの起動に必要なファイル&lt;/h2&gt;
-
-&lt;p&gt;ubuntuフォルダにはビルドに使用したファイルも含まれていますが、起動スクリプトで参照されているファイル以外のファイルを別ディレクトリに移動して起動してみたら起動出来ました。ということで、起動には以下の4つのファイルだけあればOKです。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;./xhyverun_ubuntu.sh
-ubuntu/boot/initrd.img-3.16.0-30-generic
-ubuntu/boot/vmlinuz-3.16.0-30-generic
-ubuntu/hdd.img
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h1 id=&#34;まとめ:dcbb8845ff06345c06bbfce39966bf55&#34;&gt;まとめ&lt;/h1&gt;
-
-&lt;p&gt;xhyveをソースからビルドして、Tiny Core LinuxとUbuntu Server 14.04.2を動かしてみました。&lt;a href=&#34;https://github.com/mist64/xhyve#todo&#34;&gt;TODO&lt;/a&gt;によると、まだいろいろ対応予定の項目があるようです。今後が楽しみです！&lt;/p&gt;
 </description>
     </item>
     
