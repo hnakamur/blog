@@ -6,8 +6,217 @@
     <description>Recent content on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Thu, 22 Oct 2015 01:22:10 +0900</lastBuildDate>
+    <lastBuildDate>Thu, 26 Nov 2015 22:33:57 +0900</lastBuildDate>
     <atom:link href="/blog/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>Travis CIとcopr.fedoraproject.orgを使ってrpmをビルド・配布するのを試してみた</title>
+      <link>/blog/2015/11/26/use_travis_and_copr_to_build_and_host_rpm/</link>
+      <pubDate>Thu, 26 Nov 2015 22:33:57 +0900</pubDate>
+      
+      <guid>/blog/2015/11/26/use_travis_and_copr_to_build_and_host_rpm/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに:feab3b17551715c7fe87c510b9d66160&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;CentOSを使っていると、パッケージのバージョンが古いのでspecファイルを改変してrpmをビルドすることがちょくちょくあります。
+一度ビルドした後は、自作rpmのレポジトリサーバを立ててそこに置いておくのが本来は良いんだろうなと思います。
+ですが、サーバの運用の手間を考えると面倒だなと思って、AnsibleやDockerでのプロビジョニング中にビルドするようにしていました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://copr.fedoraproject.org/coprs/&#34;&gt;fedora projectのcoprというサービス&lt;/a&gt;を使うと、自分でサーバを用意しなくても
+自作rpmのビルドとホスティングが出来ることを知り、試してみました。&lt;/p&gt;
+
+&lt;h3 id=&#34;今回試したサンプル:feab3b17551715c7fe87c510b9d66160&#34;&gt;今回試したサンプル&lt;/h3&gt;
+
+&lt;p&gt;githubのレポジトリは&lt;a href=&#34;https://github.com/hnakamur/nodejs-rpm&#34;&gt;hnakamur/nodejs-rpm&lt;/a&gt;にあります。Node.jsをビルドするrpmです。&lt;/p&gt;
+
+&lt;p&gt;specファイルは&lt;a href=&#34;https://github.com/kazuhisya/nodejs-rpm&#34;&gt;kazuhisya/nodejs-rpm&lt;/a&gt;のをほぼ流用しています。ありがとうございます！
+一点変更したのはダウンロードするNode.jsのソースのtarballを &lt;code&gt;node-v*.tar.gz&lt;/code&gt; ではなく &lt;code&gt;node-v*.tar.xz&lt;/code&gt; にしています。&lt;/p&gt;
+
+&lt;h2 id=&#34;coprについて:feab3b17551715c7fe87c510b9d66160&#34;&gt;coprについて&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://fedorahosted.org/copr/&#34;&gt;copr&lt;/a&gt;に説明があります。FAQの&lt;a href=&#34;https://fedorahosted.org/copr/wiki/UserDocs#HowisCoprpronounced&#34;&gt;How is Copr pronounced?&lt;/a&gt;によると、銅(copper)と同じでカッパーと発音するそうです。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://fedorahosted.org/copr/wiki/UserDocs#Howlongdoyoukeepthebuilds&#34;&gt;How long do you keep the builds?&lt;/a&gt;によるとプロジェクトごとに最後に成功したビルドだけが保持されて、古いバージョンのビルドや失敗したビルドは14日後に削除されるそうです。&lt;/p&gt;
+
+&lt;p&gt;ですので、古いバージョンも残しておきたい場合は、coprは使えません。その場合は自前でレポジトリサーバを立てて運用するしかなさそうです。&lt;/p&gt;
+
+&lt;h3 id=&#34;参考-coprのウェブ管理画面にsrpmをアップロードしてrpmをビルドする手順:feab3b17551715c7fe87c510b9d66160&#34;&gt;参考: coprのウェブ管理画面にsrpmをアップロードしてrpmをビルドする手順&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://fedorahosted.org/copr/wiki/ScreenshotsTutorial&#34;&gt;ScreenshotsTutorial – copr&lt;/a&gt;にcoprのウェブ管理画面からsrpmをアップロードしてrpmをビルドする手順がスクリーンショット満載で説明されています。&lt;/p&gt;
+
+&lt;h2 id=&#34;今回試したビルド手順の流れ:feab3b17551715c7fe87c510b9d66160&#34;&gt;今回試したビルド手順の流れ&lt;/h2&gt;
+
+&lt;p&gt;今回試したビルド手順の流れは以下の通りです。&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;githubのプロジェクトにspecファイルを置きます。&lt;/li&gt;
+&lt;li&gt;git pushしたときにTravis CIでdockerコンテナを動かしてsrpmを作ってcoprに投入します。&lt;/li&gt;
+&lt;li&gt;coprでrpmをビルドしてホスティングしてもらいます。&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id=&#34;事前準備:feab3b17551715c7fe87c510b9d66160&#34;&gt;事前準備&lt;/h2&gt;
+
+&lt;h3 id=&#34;fedora-account-登録:feab3b17551715c7fe87c510b9d66160&#34;&gt;Fedora account 登録&lt;/h3&gt;
+
+&lt;p&gt;まずは &lt;a href=&#34;https://admin.fedoraproject.org/accounts/user/new&#34;&gt;Sign up for a Fedora account&lt;/a&gt; からアカウント登録します。手順はメモしてなかったので省略します。&lt;/p&gt;
+
+&lt;p&gt;私のアカウントのログイン後の「アカウントの詳細」のページを見ると「あなたの役割」のところにSigned CLA GroupとSigners of the Fedora Project Contributor Agreementという項目があり、共にステータスが「承認されました」となっているので、これらの申請の手順が必要だったと思います。&lt;/p&gt;
+
+&lt;p&gt;承認されるまでしばらく時間がかかって、その間にrpmをビルドしてみたら署名されないことがありました。今ではプロジェクトごとに鍵が自動生成されてrpmが署名されるようになっています。&lt;/p&gt;
+
+&lt;h3 id=&#34;travis-ciのプロジェクト作成:feab3b17551715c7fe87c510b9d66160&#34;&gt;Travis CIのプロジェクト作成&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://travis-ci.org/hnakamur/nodejs-rpm&#34;&gt;Travis CI上にhnakamur/nodejs-rpmプロジェクト&lt;/a&gt;を作成して、githubのレポジトリ&lt;a href=&#34;https://github.com/hnakamur/nodejs-rpm&#34;&gt;hnakamur/nodejs-rpm&lt;/a&gt;に対応付けておきます。手順はメモしてなかったので省略します。&lt;/p&gt;
+
+&lt;h3 id=&#34;travis-ciでdockerでコンテナを動かしてsrpmを作る:feab3b17551715c7fe87c510b9d66160&#34;&gt;Travis CIでdockerでコンテナを動かしてsrpmを作る&lt;/h3&gt;
+
+&lt;p&gt;Travis CIでdockerを使う方法は &lt;a href=&#34;https://docs.travis-ci.com/user/docker/&#34;&gt;Using Docker in Builds - Travis CI&lt;/a&gt; で説明されています。&lt;/p&gt;
+
+&lt;p&gt;試行錯誤の結果、以下のような &lt;a href=&#34;https://github.com/hnakamur/nodejs-rpm/blob/0ed19cd5504fcb11875f12184bdb3ccd27caa6aa/.travis.yml&#34;&gt;.travis.yml&lt;/a&gt;を作成しました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo: required
+
+services:
+  - docker
+
+branches:
+  only:
+    - master
+    - LTS
+
+install:
+  - docker build -t hnakamur/nodejsrpm .
+
+script:
+  - case $TRAVIS_BRANCH in master) project=nodejs5;; LTS) project=nodejs;; esac
+  - docker run hnakamur/nodejsrpm &amp;quot;$COPR_LOGIN&amp;quot; &amp;quot;$COPR_USERNAME&amp;quot; &amp;quot;$COPR_TOKEN&amp;quot; &amp;quot;$project&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/nodejs-rpm&#34;&gt;hnakamur/nodejs-rpm&lt;/a&gt;では、mainブランチでNode.jsのv5.x (Stable)、LTSブランチでNode.jsのv4.x (LTS)のspecファイルを保持しています。&lt;/p&gt;
+
+&lt;p&gt;coprは上記の通り1つのプロジェクトで複数バージョンは保持できないので、 &lt;a href=&#34;https://copr.fedoraproject.org/coprs/hnakamur/nodejs5/&#34;&gt;hnakamur/nodejs5 Copr&lt;/a&gt; と &lt;a href=&#34;https://copr.fedoraproject.org/coprs/hnakamur/nodejs/&#34;&gt;hnakamur/nodejs Copr&lt;/a&gt; の2つのプロジェクトを作ることにしました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://docs.travis-ci.com/user/environment-variables/#Default-Environment-Variables&#34;&gt;Environment Variables - Travis CI&lt;/a&gt;によると &lt;code&gt;TRAVIS_BRANCH&lt;/code&gt; 環境変数でgitのブランチが取得できます。ブランチ名に応じてプロジェクト名を切り替え、 &lt;code&gt;docker run&lt;/code&gt; で呼び出すスクリプトの引数に渡しています。&lt;/p&gt;
+
+&lt;p&gt;COPR_LOGIN、COPR_USERNAME、COPR_TOKENの3つの環境変数ですが、Fedora accountにログインした状態で &lt;a href=&#34;https://copr.fedoraproject.org/api/&#34;&gt;API for Copr&lt;/a&gt;にアクセスし表示された値を使います。表示されているのはcoprのコマンドラインクライアント &lt;a href=&#34;https://pypi.python.org/pypi/copr-cli&#34;&gt;copr-cli&lt;/a&gt;用の設定ファイル &lt;code&gt;~/.config/copr&lt;/code&gt; の内容です。&lt;/p&gt;
+
+&lt;p&gt;APIのアクセストークンなどは秘密にすべき情報なのでgithubのレポジトリ内のファイルには含めてはいけません。&lt;/p&gt;
+
+&lt;p&gt;そこでこれらの値は&lt;a href=&#34;https://travis-ci.org/hnakamur/nodejs-rpm&#34;&gt;Travis CI上のhnakamur/nodejs-rpmプロジェクト&lt;/a&gt;で&lt;a href=&#34;https://docs.travis-ci.com/user/environment-variables/#Defining-Variables-in-Repository-Settings&#34;&gt;Defining Variables in Repository Settings&lt;/a&gt;の手順に従って設定しておきます。&lt;/p&gt;
+
+&lt;p&gt;プロジェクトの管理画面の右上の[Settings]/[Settings]メニュー (このメニューはプロジェクトの管理者にのみ表示されます)を選んでCOPR_LOGIN、COPR_USERNAME、COPR_TOKENの3つの環境変数を追加します。COPR_LOGINとCOPR_TOKENの2つは[Display value in build log]を[ON]にしてログに出力しないようにしました。&lt;/p&gt;
+
+&lt;p&gt;docker runで実行されるスクリプトの内容は以下の通りです。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/nodejs-rpm/blob/0ed19cd5504fcb11875f12184bdb3ccd27caa6aa/copr-build.sh&#34;&gt;https://github.com/hnakamur/nodejs-rpm/blob/0ed19cd5504fcb11875f12184bdb3ccd27caa6aa/copr-build.sh&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;#!/bin/bash
+set -e
+copr_login=$1
+copr_username=$2
+copr_token=$3
+project_name=$4
+
+spec_file=/root/rpmbuild/SPECS/nodejs.spec
+
+mkdir -p /root/.config
+cat &amp;gt; /root/.config/copr &amp;lt;&amp;lt;EOF
+[copr-cli]
+login = ${copr_login}
+username = ${copr_username}
+token = ${copr_token}
+copr_url = https://copr.fedoraproject.org
+EOF
+
+status=`curl -s -o /dev/null -w &amp;quot;%{http_code}&amp;quot; https://copr.fedoraproject.org/api/coprs/${copr_username}/${project_name}/detail/`
+if [ $status = &amp;quot;404&amp;quot; ]; then
+  copr-cli create --chroot epel-7-x86_64 --description &#39;node.js repository&#39; ${project_name}
+fi
+version=`awk &#39;$1==&amp;quot;Version:&amp;quot; {print $2}&#39; ${spec_file}`
+release=$(rpm --eval `awk &#39;$1==&amp;quot;Release:&amp;quot; {print $2}&#39; ${spec_file}`)
+srpm_file=/root/rpmbuild/SRPMS/nodejs-${version}-${release}.src.rpm
+copr-cli build --nowait ${project_name} ${srpm_file}
+
+rm /root/.config/copr
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;まず、引数で渡された情報を元にcopr-cliの設定ファイル &lt;code&gt;/root/.config/copr&lt;/code&gt; を生成します。
+次にcoprのAPIでプロジェクトが作成済みかチェックし、作成されていなければ作成します。
+その後、 &lt;code&gt;copr-cli build&lt;/code&gt; でsrpmをcoprにアップロードしてビルドを開始します。&lt;/p&gt;
+
+&lt;p&gt;curlでhttpステータスだけを出力する方法は &lt;a href=&#34;http://superuser.com/questions/272265/getting-curl-to-output-http-status-code/442395#442395&#34;&gt;Getting curl to output HTTP status code? - Super User&lt;/a&gt; で知りました。ありがとうございます！&lt;/p&gt;
+
+&lt;p&gt;ビルド完了までTravis側で待つようにするのはムダだと思ったので &lt;code&gt;copr-cli build&lt;/code&gt; には &lt;code&gt;--nowait&lt;/code&gt; オプションを指定しました。代わりに &lt;a href=&#34;https://apps.fedoraproject.org/notifications/&#34;&gt;Fedora Notifications&lt;/a&gt;でメール通知を有効にして、ビルド終了時には &lt;code&gt;notifications@fedoraproject.org&lt;/code&gt; からメールが届くようにして使っています。&lt;/p&gt;
+
+&lt;h3 id=&#34;srpmのビルドとcopr-cliのインストール:feab3b17551715c7fe87c510b9d66160&#34;&gt;srpmのビルドとcopr-cliのインストール&lt;/h3&gt;
+
+&lt;p&gt;話が前後しますが、srpmのビルドとcopr-cliのインストールは &lt;code&gt;docker build&lt;/code&gt; で行っています。
+&lt;a href=&#34;https://github.com/hnakamur/nodejs-rpm/blob/0ed19cd5504fcb11875f12184bdb3ccd27caa6aa/Dockerfile&#34;&gt;Dockerfile&lt;/a&gt;の内容は以下の通りです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;FROM centos:7
+MAINTAINER Hiroaki Nakamura &amp;lt;hnakamur@gmail.com&amp;gt;
+
+RUN yum -y install rpmdevtools rpm-build \
+ &amp;amp;&amp;amp; rpmdev-setuptree
+
+RUN yum -y install epel-release \
+ &amp;amp;&amp;amp; yum -y install python-pip \
+ &amp;amp;&amp;amp; pip install copr-cli
+
+ADD nodejs.spec /root/rpmbuild/SPECS/
+ADD node-js.*patch /root/rpmbuild/SOURCES/
+
+RUN version=`awk &#39;$1==&amp;quot;Version:&amp;quot; {print $2}&#39; /root/rpmbuild/SPECS/nodejs.spec` \
+ &amp;amp;&amp;amp; curl -sL -o /root/rpmbuild/SOURCES/node-v${version}.tar.xz https://nodejs.org/dist/v${version}/node-v${version}.tar.xz \
+ &amp;amp;&amp;amp; rpmbuild -bs /root/rpmbuild/SPECS/nodejs.spec
+
+ADD copr-build.sh /root/
+ENTRYPOINT [&amp;quot;/bin/bash&amp;quot;, &amp;quot;/root/copr-build.sh&amp;quot;]
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;copr-cliはCentOS 7だとepelから &lt;code&gt;yum install&lt;/code&gt; でインストール可能なのですが、バージョンが古いため &lt;code&gt;copr-cli build&lt;/code&gt; でsrpmファイルのパスを指定してアップロードする機能が無いようです。サイトにアップロードしておいてURLを指定することは可能なのですが、それだと面倒なので &lt;code&gt;pip&lt;/code&gt; を使って最新版の &lt;code&gt;copr-cli&lt;/code&gt; をインストールしています。&lt;/p&gt;
+
+&lt;p&gt;長く運用するサーバならrpmでインストールされるパスと同じパスにpipでインストールしてしまうのは良くないかもしれませんが、ビルド終了したら破棄するコンテナなので気にせず上書きインストールとしています。&lt;/p&gt;
+
+&lt;h2 id=&#34;rpmを使う手順:feab3b17551715c7fe87c510b9d66160&#34;&gt;rpmを使う手順&lt;/h2&gt;
+
+&lt;p&gt;例えば&lt;a href=&#34;https://copr.fedoraproject.org/coprs/hnakamur/nodejs/&#34;&gt;hnakamur/nodejs Copr&lt;/a&gt;だと右の方の[Quick Enable]という欄に &lt;code&gt;dnf copr enable hnakamur/nodejs&lt;/code&gt; というコマンドで有効にできるという説明があります。&lt;/p&gt;
+
+&lt;p&gt;その下のリンクをたどると&lt;a href=&#34;https://fedorahosted.org/copr/wiki/HowToEnableRepo&#34;&gt;HowToEnableRepo – copr&lt;/a&gt;に
+yumの場合は &lt;code&gt;yum copr enable user/project&lt;/code&gt; となるとあります。ただし、 &lt;code&gt;yum-plugin-copr&lt;/code&gt; という &lt;code&gt;yum&lt;/code&gt; のプラグインが必要です。&lt;/p&gt;
+
+&lt;p&gt;これはepelとかには無いようで、&lt;a href=&#34;https://copr.fedoraproject.org/coprs/alonid/yum-plugin-copr/&#34;&gt;alonid/yum-plugin-copr Copr&lt;/a&gt;にありました。が、これをインストールするにはこのプロジェクトを有効にする必要があるので面倒です。&lt;/p&gt;
+
+&lt;p&gt;コマンドを使わなくても&lt;a href=&#34;https://copr.fedoraproject.org/coprs/hnakamur/nodejs/&#34;&gt;hnakamur/nodejs Copr&lt;/a&gt;のActive Releasesセクションの表のRepo Downloadの列にある[Epel 7]というボタンを押すと以下のようにレポジトリの設定ファイルが表示されます。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://copr.fedoraproject.org/coprs/hnakamur/nodejs/repo/epel-7/hnakamur-nodejs-epel-7.repo&#34;&gt;https://copr.fedoraproject.org/coprs/hnakamur/nodejs/repo/epel-7/hnakamur-nodejs-epel-7.repo&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[hnakamur-nodejs]
+name=Copr repo for nodejs owned by hnakamur
+baseurl=https://copr-be.cloud.fedoraproject.org/results/hnakamur/nodejs/epel-7-$basearch/
+skip_if_unavailable=True
+gpgcheck=1
+gpgkey=https://copr-be.cloud.fedoraproject.org/results/hnakamur/nodejs/pubkey.gpg
+enabled=1
+enabled_metadata=1
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;なので、これを &lt;code&gt;/etc/yum.repos.d/hnakamur-nodejs-epel-7.repo&lt;/code&gt; に保存して &lt;code&gt;yum install nodejs&lt;/code&gt; でインストールすればOKです。&lt;/p&gt;
+
+&lt;h2 id=&#34;まとめ:feab3b17551715c7fe87c510b9d66160&#34;&gt;まとめ&lt;/h2&gt;
+
+&lt;p&gt;これでスペックファイルを書いてgithubにプッシュすれば、coprでrpmをビルドして公開されるようになり便利になりました。&lt;/p&gt;
+
+&lt;p&gt;ただし問題もあって、coprのビルドはときどき失敗してしまうようです。スペックファイルの中身を変えずにREADMEに無意味な空行を入れるなどして再度pushしてビルドを再実行すると成功したりしました。&lt;/p&gt;
+
+&lt;h2 id=&#34;さらに気になっていること:feab3b17551715c7fe87c510b9d66160&#34;&gt;さらに気になっていること&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://fedorahosted.org/copr/wiki/ScreenshotsTutorial&#34;&gt;ScreenshotsTutorial – copr&lt;/a&gt;の[New Build]タブのスクリーンショットには[From URLs]と[Upload SRPM]という2つのタブしかないですが、実際の画面ではそれに加えて [Git and Tito]、[Mock SCM]というタブがあります。&lt;/p&gt;
+
+&lt;p&gt;これらを使うとTravis CIを使わずにビルドできるかもしれないと期待しているのですが、使い方の説明を見つけられておらず使い方がわからない状態です。ということで一旦この記事を書きました。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>mattn/gomにGoのvendoringサポートが追加されました</title>
@@ -1360,325 +1569,6 @@ EOS
 &lt;a href=&#34;https://github.com/taku910/mecab/issues/18#issuecomment-112474144&#34;&gt;https://github.com/taku910/mecab/issues/18#issuecomment-112474144&lt;/a&gt;&lt;/p&gt;
 
 &lt;p&gt;IPA辞書は &lt;a href=&#34;http://taku910.github.io/mecab/#download&#34;&gt;http://taku910.github.io/mecab/#download&lt;/a&gt;  からtarballをダウンロードするのが推奨とのことです。&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>Homebrewを辞めてMacPorts 2.3.3を入れてpkgngをビルドしてみた</title>
-      <link>/blog/2015/06/11/tried_macports/</link>
-      <pubDate>Thu, 11 Jun 2015 01:09:08 +0900</pubDate>
-      
-      <guid>/blog/2015/06/11/tried_macports/</guid>
-      <description>
-
-&lt;h1 id=&#34;はじめに:ad84efa08756126882b8b191ef8a11ed&#34;&gt;はじめに&lt;/h1&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://twitter.com/shibu_jp/status/598332736638582785&#34;&gt;https://twitter.com/shibu_jp/status/598332736638582785&lt;/a&gt; と &lt;a href=&#34;http://gihyo.jp/admin/serial/01/bsd-yomoyama/0002&#34;&gt;第2回　パッケージ管理システム「pkg 1.5」と基本的な使い方：BSD界隈四方山話｜gihyo.jp … 技術評論社&lt;/a&gt;で、実験段階ですがOS Xもサポート対象となったという話を見て &lt;code&gt;pkg&lt;/code&gt; と &lt;code&gt;MacPorts&lt;/code&gt; をシームレスに組み合わせて使えるかが気になっていました。&lt;/p&gt;
-
-&lt;p&gt;FreeBSDではpkgコマンドでバイナリパッケージをインストールし、Ports Collectionでソースからビルドというのが簡単にできるようになっているのですが、上記の記事によるとpkgとPorts Collectionがシームレスに連動しているそうです。&lt;/p&gt;
-
-&lt;p&gt;なので、OS X上では &lt;code&gt;pkg&lt;/code&gt; と &lt;code&gt;MacPorts&lt;/code&gt; が連動するのかな、するといいなあ、と思って、まずは &lt;code&gt;MacPorts&lt;/code&gt; を試してみます。&lt;/p&gt;
-
-&lt;p&gt;私はだいぶ前に MacPorts から Homebrew に切り替えていたので、MacPortsは久々に試します。&lt;/p&gt;
-
-&lt;h2 id=&#34;確認した環境:ad84efa08756126882b8b191ef8a11ed&#34;&gt;確認した環境&lt;/h2&gt;
-
-&lt;ul&gt;
-&lt;li&gt;MacBook Pro (Retina, Mid 2012)&lt;/li&gt;
-&lt;li&gt;OS X Yosemite 10.10.3&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h1 id=&#34;homebrewのアンインストール:ad84efa08756126882b8b191ef8a11ed&#34;&gt;Homebrewのアンインストール&lt;/h1&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://qiita.com/UmedaTakefumi/items/dc52f008586cbf06582f&#34;&gt;Homebrewをアンインストールするには - Qiita&lt;/a&gt;を参考にといいつつ、いきなりバッサリ消すとなにかあったときに戻れないので、アンインストールはせずにHomebrewでインストールしたパッケージのサービスを停止して、/usr/localディレクトリを/usr/local.bakに退避しておくことにします。移行が無事完了したらアンインストールするということで。&lt;/p&gt;
-
-&lt;p&gt;以下のコマンドを実行して~/Library/LaunchAgents/にシンボリックリンクを張ったサービスを停止・解除します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;for f in ~/Library/LaunchAgents/homebrew.*; do launchctl unload $f; done
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;/usr/localを/usr/local.bakに退避します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;sudo mv /usr/local /usr/local.bak
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h1 id=&#34;macportsのインストール:ad84efa08756126882b8b191ef8a11ed&#34;&gt;MacPortsのインストール&lt;/h1&gt;
-
-&lt;p&gt;MacPortsのバイナリパッケージをダウンロードしてインストールします。MacPorts-2.3.3-10.10-Yosemite.pkgをFinderでダブルクリックしてもいいのですが、将来スクリプトで自動化することを見据えて、OS Xの &lt;code&gt;installer&lt;/code&gt; コマンドでインストールしてみます。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;cd ~/Downloads
-curl -O https://distfiles.macports.org/MacPorts/MacPorts-2.3.3-10.10-Yosemite.pkg
-sudo installer -pkg MacPorts-2.3.3-10.10-Yosemite.pkg -target /
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://guide.macports.org/#installing.shell&#34;&gt;2.5.1. The Postflight Script&lt;/a&gt;の説明に従って、環境変数PATHとMANPATHの設定を追加します。以下はシェルはbashを使っていて~/.bash_profileに追加する場合の例です。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;cat &amp;lt;&amp;lt;&#39;EOF&#39; &amp;gt;&amp;gt; ~/.bash_profile
-export PATH=/opt/local/bin:/opt/local/sbin:$PATH
-export MANPATH=/opt/local/share/man:$MANPATH
-EOF
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;以下のコマンドを実行して、上で追加した設定を有効にします。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;exec $SHELL -l
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;portコマンドにPATHが通ったことを確認します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ which port
-/opt/local/bin/port
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://www.macports.org/install.php#pkg&#34;&gt;Mac OS X Package (.pkg) Installer&lt;/a&gt;の説明に従って、MacPorts自体のアップデートを行います。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;sudo port -v selfupdate
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;出力の最後に以下のように表示されたので、既に最新版になっていたそうです。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;---&amp;gt;  MacPorts base is already the latest version
-
-The ports tree has been updated. To upgrade your installed ports, you should run
-  port upgrade outdated
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;上記の説明によるとインストールしたportsをアップグレードするときは &lt;code&gt;ports upgrade outdated&lt;/code&gt; と実行すればよいそうです。&lt;/p&gt;
-
-&lt;h1 id=&#34;pkgngをソースからビルド:ad84efa08756126882b8b191ef8a11ed&#34;&gt;pkgngをソースからビルド&lt;/h1&gt;
-
-&lt;p&gt;FreeBSDのpkgはpkgngと呼ばれることもあります。&lt;a href=&#34;https://wiki.freebsd.org/pkgng&#34;&gt;pkgng - FreeBSD Wiki&lt;/a&gt;によるとngはNext Generationの略のようです。&lt;/p&gt;
-
-&lt;p&gt;githubにソースレポジトリ &lt;a href=&#34;https://github.com/freebsd/pkg&#34;&gt;freebsd/pkg&lt;/a&gt;があったので、ソースからビルドして入れてみます。&lt;/p&gt;
-
-&lt;p&gt;ホームディレクトリ直下にpkgディレクトリを作るようにして入れてみました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;cd
-git clone https://github.com/freebsd/pkg
-cd pkg
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;code&gt;git tag&lt;/code&gt; で確認すると最新のリリースは 1.5.3 でしたので、それにしてみます。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;git checkout 1.5.3
-git checkout -b 1.5.3
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/freebsd/pkg#building-pkg-using-sources-from-git&#34;&gt;freebsd/pkg&lt;/a&gt;を参考にやってみました。この手順ではビルドに必要なパッケージをFreeBSDにインストール済みの古いバージョンの &lt;code&gt;pkg&lt;/code&gt; コマンドで入れていますが、OS Xの場合は無いのでMacPortsで入れます。&lt;/p&gt;
-
-&lt;p&gt;また &lt;code&gt;pkgconf&lt;/code&gt; はMacPortsでは &lt;code&gt;pkgconfig&lt;/code&gt; という名前なのでそこも変えています。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;sudo port install autoconf automake libtool pkgconfig
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;./autogen.sh
-./configure
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;code&gt;./configure&lt;/code&gt; が以下のようにエラーになってしまいました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;…(略)…
-checking for library containing archive_read_open... -larchive
-checking archive.h usability... no
-checking archive.h presence... no
-checking for archive.h... no
-configure: error: Unable to find the libarchive headers
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;そこでlibarchiveをMacPortsでインストールしました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;sudo port install libarchive
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;MacPortsでインストールしたパッケージを見つけてもらうため、&lt;a href=&#34;http://blog.francoismaillet.com/compile-against-libraries-installed-with-macports/&#34;&gt;Compile against libraries installed with MacPorts | Blog de François Maillet&lt;/a&gt;を参考に以下のようにオプションをつけて &lt;code&gt;./configure&lt;/code&gt; を再度実行しました。pkgのsrcディレクトリを見ると、pkgはC++ではなくCで実装されていますので、 &lt;code&gt;configure&lt;/code&gt; の引数もCPPFLAGSではなくCFLAGSにしています。
-今度は &lt;code&gt;configure&lt;/code&gt; が成功しました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;./configure CFLAGS=&amp;quot;-I/opt/local/include&amp;quot; LDFLAGS=&amp;quot;-L/opt/local/lib&amp;quot;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;code&gt;configure&lt;/code&gt; の次は &lt;code&gt;make&lt;/code&gt; を実行します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;make
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;1つ警告が出ました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;…(略)…
-  CCLD     pkg-static
-libtool: warning: complete static linking is impossible in this configuration
-  CCLD     pkg
-…(略)…
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;code&gt;./configure --help&lt;/code&gt; してみると&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;  --with-staticonly       Only build the static version (default is no)
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;というオプションがあり、デフォルトではスタティックリンクするバージョンとしないバージョンの両方を作るようになっているようです。&lt;/p&gt;
-
-&lt;p&gt;とりあえずスタティックリンクしないバージョンはビルドできているのでとりあえず先に進みます。&lt;/p&gt;
-
-&lt;p&gt;以下のコマンドを実行してインストールします。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;sudo make install
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;/usr/localに以下のようなファイルとディレクトリが作られました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ find /usr/local
-/usr/local
-/usr/local/etc
-/usr/local/etc/bash_completion.d
-/usr/local/etc/bash_completion.d/_pkg.bash
-/usr/local/etc/periodic
-/usr/local/etc/periodic/daily
-/usr/local/etc/periodic/daily/411.pkg-backup
-/usr/local/etc/periodic/daily/490.status-pkg-changes
-/usr/local/etc/periodic/security
-/usr/local/etc/periodic/security/410.pkg-audit
-/usr/local/etc/periodic/security/460.pkg-checksum
-/usr/local/etc/periodic/weekly
-/usr/local/etc/periodic/weekly/400.status-pkg
-/usr/local/etc/pkg.conf.sample
-/usr/local/include
-/usr/local/include/pkg.h
-/usr/local/lib
-/usr/local/lib/libpkg.3.dylib
-/usr/local/lib/libpkg.dylib
-/usr/local/lib/libpkg.la
-/usr/local/lib/libpkg_static.a
-/usr/local/lib/libpkg_static.la
-/usr/local/libdata
-/usr/local/libdata/pkgconfig
-/usr/local/libdata/pkgconfig/pkg.pc
-/usr/local/man
-/usr/local/man/man3
-/usr/local/man/man3/pkg_printf.3
-/usr/local/man/man3/pkg_repos.3
-/usr/local/man/man5
-/usr/local/man/man5/pkg-repository.5
-/usr/local/man/man5/pkg.conf.5
-/usr/local/man/man8
-/usr/local/man/man8/pkg-add.8
-/usr/local/man/man8/pkg-alias.8
-/usr/local/man/man8/pkg-annotate.8
-/usr/local/man/man8/pkg-audit.8
-/usr/local/man/man8/pkg-autoremove.8
-/usr/local/man/man8/pkg-backup.8
-/usr/local/man/man8/pkg-check.8
-/usr/local/man/man8/pkg-clean.8
-/usr/local/man/man8/pkg-config.8
-/usr/local/man/man8/pkg-convert.8
-/usr/local/man/man8/pkg-create.8
-/usr/local/man/man8/pkg-delete.8
-/usr/local/man/man8/pkg-fetch.8
-/usr/local/man/man8/pkg-info.8
-/usr/local/man/man8/pkg-install.8
-/usr/local/man/man8/pkg-lock.8
-/usr/local/man/man8/pkg-query.8
-/usr/local/man/man8/pkg-register.8
-/usr/local/man/man8/pkg-remove.8
-/usr/local/man/man8/pkg-repo.8
-/usr/local/man/man8/pkg-rquery.8
-/usr/local/man/man8/pkg-search.8
-/usr/local/man/man8/pkg-set.8
-/usr/local/man/man8/pkg-shell.8
-/usr/local/man/man8/pkg-shlib.8
-/usr/local/man/man8/pkg-ssh.8
-/usr/local/man/man8/pkg-static.8
-/usr/local/man/man8/pkg-stats.8
-/usr/local/man/man8/pkg-unlock.8
-/usr/local/man/man8/pkg-update.8
-/usr/local/man/man8/pkg-updating.8
-/usr/local/man/man8/pkg-upgrade.8
-/usr/local/man/man8/pkg-version.8
-/usr/local/man/man8/pkg-which.8
-/usr/local/man/man8/pkg.8
-/usr/local/sbin
-/usr/local/sbin/pkg
-/usr/local/sbin/pkg-static
-/usr/local/sbin/pkg2ng
-/usr/local/share
-/usr/local/share/zsh
-/usr/local/share/zsh/site-functions
-/usr/local/share/zsh/site-functions/_pkg
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;pkgコマンドとpkg-staticコマンドは/usr/local/sbinにインストールされていました。
-&lt;code&gt;otool -L&lt;/code&gt; で確認すると両方ともダイナミックリンクになっていました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ otool -L /usr/local/sbin/pkg
-/usr/local/sbin/pkg:
-        /usr/local/lib/libpkg.3.dylib (compatibility version 4.0.0, current version 4.0.0)
-        /opt/local/lib/libssl.1.0.0.dylib (compatibility version 1.0.0, current version 1.0.0)
-        /usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1213.0.0)
-        /usr/lib/libutil.dylib (compatibility version 1.0.0, current version 1.0.0)
-        /opt/local/lib/libcrypto.1.0.0.dylib (compatibility version 1.0.0, current version 1.0.0)
-        /usr/lib/libresolv.9.dylib (compatibility version 1.0.0, current version 1.0.0)
-        /opt/local/lib/libarchive.13.dylib (compatibility version 15.0.0, current version 15.2.0)
-        /opt/local/lib/libz.1.dylib (compatibility version 1.0.0, current version 1.2.8)
-        /opt/local/lib/libbz2.1.0.dylib (compatibility version 1.0.0, current version 1.0.6)
-        /opt/local/lib/liblzma.5.dylib (compatibility version 8.0.0, current version 8.1.0)
-$ otool -L /usr/local/sbin/pkg-static
-/usr/local/sbin/pkg-static:
-        /usr/lib/libutil.dylib (compatibility version 1.0.0, current version 1.0.0)
-        /opt/local/lib/libssl.1.0.0.dylib (compatibility version 1.0.0, current version 1.0.0)
-        /opt/local/lib/libcrypto.1.0.0.dylib (compatibility version 1.0.0, current version 1.0.0)
-        /usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1213.0.0)
-        /usr/lib/libresolv.9.dylib (compatibility version 1.0.0, current version 1.0.0)
-        /opt/local/lib/libarchive.13.dylib (compatibility version 15.0.0, current version 15.2.0)
-        /opt/local/lib/libz.1.dylib (compatibility version 1.0.0, current version 1.2.8)
-        /opt/local/lib/libbz2.1.0.dylib (compatibility version 1.0.0, current version 1.0.6)
-        /opt/local/lib/liblzma.5.dylib (compatibility version 8.0.0, current version 8.1.0)
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;/usr/local/sbinにはPATHが通っていなかったので、設定を変更して有効にしました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;echo &#39;export PATH=/usr/local/sbin:$PATH&#39; &amp;gt;&amp;gt; ~/.bash_profile
-exec $SHELL -l
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code&gt;$ which pkg
-/usr/local/sbin/pkg
-$ pkg --version
-1.5.3-cfa5423
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;というわけでビルドは出来ました。が OS X用のバイナリパッケージレポジトリの情報は見つけられず。&lt;/p&gt;
-
-&lt;p&gt;pkgコマンドの使い方については&lt;a href=&#34;https://github.com/freebsd/pkg#a-quick-usage-introduction-to-pkg&#34;&gt;freebsd/pkg&lt;/a&gt;のREADMEに&lt;a href=&#34;https://github.com/freebsd/pkg#a-quick-usage-introduction-to-pkg&#34;&gt;A quick usage introduction to pkg&lt;/a&gt;というセクションがありました。&lt;/p&gt;
-
-&lt;h1 id=&#34;情報収集中:ad84efa08756126882b8b191ef8a11ed&#34;&gt;情報収集中&lt;/h1&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://news.ycombinator.com/item?id=8828866&#34;&gt;Baseline Mac OS X Support merged into FreeBSD package manager | Hacker News&lt;/a&gt;にいくつか有用な情報がありました。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;https://news.ycombinator.com/item?id=8829040&#34;&gt;This change was written by Landon Fuller, one of the founders of MacPorts. There&amp;hellip; | Hacker News&lt;/a&gt;
-
-&lt;ul&gt;
-&lt;li&gt;pkgngをOS X対応にするプルリクエスト &lt;a href=&#34;https://github.com/freebsd/pkg/pull/1113&#34;&gt;Baseline Mac OS X Support by landonf · Pull Request #1113 · freebsd/pkg&lt;/a&gt;はMacPorts創始者の1人によるもので、&lt;a href=&#34;https://github.com/freebsd/pkg/pull/1113#issuecomment-68063964&#34;&gt;Baseline Mac OS X Support by landonf · Pull Request #1113 · freebsd/pkg&lt;/a&gt;のコメントによるとMacPortsのtclで書いている部分をlibpkgを使って書き直すことが出来るかを模索するつもりらしいです。&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://news.ycombinator.com/item?id=8829179&#34;&gt;You can already have that with pkgsrc for osx - joyent maintains the osx binary &amp;hellip; | Hacker News&lt;/a&gt;
-
-&lt;ul&gt;
-&lt;li&gt;このスレッドによるとpkgngがOS X対応する前から&lt;a href=&#34;http://pkgsrc.joyent.com/&#34;&gt;pkgsrc&lt;/a&gt;というパッケージ管理システムがあるそうです。Node.jsのJoyent, Inc.が作ってるんですね。&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;http://www.saveosx.org/&#34;&gt;saveosx&lt;/a&gt;にYosemite 64bit用のバイナリパッケージがあるようです。&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;ということで、今後どうなっていくか要注目です。&lt;/p&gt;
-
-&lt;h1 id=&#34;2015-06-13追記-pkgsrcについて訂正:ad84efa08756126882b8b191ef8a11ed&#34;&gt;2015-06-13追記 pkgsrcについて訂正&lt;/h1&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://www.pkgsrc.org/&#34;&gt;pkgsrc&lt;/a&gt;自体はFreeBSDのportsからフォークしてNetBSDで開発されているもので、Joyent, Inc.が提供しているのはSmartOS/illumos, Mac OS X, and Linux用のバイナリバッケージでした。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;http://pkgsrc.joyent.com/&#34;&gt;pkgsrc&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://en.wikipedia.org/wiki/Pkgsrc&#34;&gt;pkgsrc - Wikipedia, the free encyclopedia&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;また &lt;a href=&#34;http://www.saveosx.org/&#34;&gt;saveosx&lt;/a&gt;は&lt;a href=&#34;https://github.com/cmacrae/saveosx&#34;&gt;cmacrae/saveosx&lt;/a&gt;を見るとOS X用のpkgsrcをインストールするためのスクリプトでした。パッケージ自体はJoyentが提供しているそうです。&lt;/p&gt;
 </description>
     </item>
     
