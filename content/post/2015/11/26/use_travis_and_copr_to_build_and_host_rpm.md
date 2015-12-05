@@ -208,3 +208,7 @@ enabled_metadata=1
 [ScreenshotsTutorial – copr](https://fedorahosted.org/copr/wiki/ScreenshotsTutorial)の[New Build]タブのスクリーンショットには[From URLs]と[Upload SRPM]という2つのタブしかないですが、実際の画面ではそれに加えて [Git and Tito]、[Mock SCM]というタブがあります。
 
 これらを使うとTravis CIを使わずにビルドできるかもしれないと期待しているのですが、使い方の説明を見つけられておらず使い方がわからない状態です。ということで一旦この記事を書きました。
+
+## 2015-12-06 追記
+
+rpmのビルドが通るまでの試行錯誤中は毎回coprでビルドするより手元の環境でビルドするほうが快適です。そのための手順を[mockコマンドでrpmをビルドする · hnakamur's blog at github](/blog/2015/12/05/build_rpm_with_mock/)に書きましたので、ご参照ください。
