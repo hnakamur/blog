@@ -6,6 +6,12 @@ date = "2015-12-05T22:10:26+09:00"
 title = "mockコマンドでrpmをビルドする"
 
 +++
+## 2015-12-15 追記
+
+[nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました · hnakamur's blog at github](/blog/2015/12/15/using_mock_and_copr_to_build_nginx_rpm_on_docker/)という記事を書きましたのでそちらもご参照ください。
+
+## 以下元記事です
+
 [Travis CIとcopr.fedoraproject.orgを使ってrpmをビルド・配布するのを試してみた · hnakamur's blog at github](/blog/2015/11/26/use_travis_and_copr_to_build_and_host_rpm/)でrpmを外部のサーバでビルドできるようになりましたが、試行錯誤中はこの手順だと時間がかかりますので、手元の環境でビルドしたいところです。
 
 ## rpmbuild
