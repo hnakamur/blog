@@ -6,8 +6,151 @@
     <description>Recent content in Copr on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Tue, 15 Dec 2015 04:19:16 +0900</lastBuildDate>
+    <lastBuildDate>Wed, 16 Dec 2015 00:06:39 +0900</lastBuildDate>
     <atom:link href="/blog/tags/copr/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>coprのAPIをcurlで呼び出す</title>
+      <link>/blog/2015/12/16/calling_copr_api_with_curl/</link>
+      <pubDate>Wed, 16 Dec 2015 00:06:39 +0900</pubDate>
+      
+      <guid>/blog/2015/12/16/calling_copr_api_with_curl/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに:d97aa5d91864f67b35847063abc7f579&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://fedorahosted.org/copr/&#34;&gt;copr&lt;/a&gt;を利用するには以下の3つの手段があります。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;ウェブ管理画面を使う
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://fedorahosted.org/copr/wiki/ScreenshotsTutorial&#34;&gt;スクリーンショットつきのチュートリアル&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://apps.fedoraproject.org/packages/copr-cli&#34;&gt;copr-cli&lt;/a&gt;というコマンドラインツールを使う
+
+&lt;ul&gt;
+&lt;li&gt;内部的に下記の&lt;a href=&#34;https://copr.fedoraproject.org/api/&#34;&gt;API for Copr&lt;/a&gt;を呼び出しています&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://copr.fedoraproject.org/api/&#34;&gt;API for Copr&lt;/a&gt;を使う&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;copr-cliを使わずにcurlでapiを呼ぶ理由:d97aa5d91864f67b35847063abc7f579&#34;&gt;copr-cliを使わずにcurlでAPIを呼ぶ理由&lt;/h2&gt;
+
+&lt;p&gt;折角copr-cliというコマンドラインツールが用意されているのでそれを活用すれば良いのですが、以下のような問題に遭遇したのでAPIをcurlで呼ぶようにしてみました。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;CentOS 7でyumでインストールできるcopr-cliはバージョンが古くてsrpmのアップロード機能が未サポート&lt;/li&gt;
+&lt;li&gt;CentOS 7のPythonが古いのでInsecurePlatformWarningが出てしまう&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&#34;centos-7でyumでインストールできるcopr-cliはバージョンが古くてsrpmのアップロード機能が未サポート:d97aa5d91864f67b35847063abc7f579&#34;&gt;CentOS 7でyumでインストールできるcopr-cliはバージョンが古くてsrpmのアップロード機能が未サポート&lt;/h3&gt;
+
+&lt;p&gt;正確にはcopr-cliが利用している&lt;a href=&#34;https://apps.fedoraproject.org/packages/python-copr/&#34;&gt;python-copr&lt;/a&gt;のバージョンの問題です。
+&lt;a href=&#34;https://apps.fedoraproject.org/packages/python-copr/changelog&#34;&gt;python-coprのChangelog&lt;/a&gt;を見ると1.58-1でsrpmをアップロードする機能が追加されています。&lt;/p&gt;
+
+&lt;p&gt;一方、CentOS 7のepelにあるpython-coprは1.57-1です。srpmをアップロードする機能を使わないとなると、インターネット上にsrpmを置いてURLを指定する必要があり面倒です。&lt;/p&gt;
+
+&lt;h3 id=&#34;centos-7のpythonが古いのでinsecureplatformwarningが出てしまう:d97aa5d91864f67b35847063abc7f579&#34;&gt;CentOS 7のPythonが古いのでInsecurePlatformWarningが出てしまう&lt;/h3&gt;
+
+&lt;p&gt;copr-cliはpipからインストールすれば1.58-1が使えて解決と思ったのですが、今度はPythonのバージョンが古くてhttps通信時にInsecurePlatformWarningが出ました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://urllib3.readthedocs.org/en/latest/security.html#insecureplatformwarning&#34;&gt;Security: Verified HTTPS with SSL/TLS — urllib3 dev documentation&lt;/a&gt;を見るとPythonを2.7.9以上にするのが一番理想なのですが、CentOS 7に入っているPythonは2.7.5です。
+softwarecollection.orgの&lt;a href=&#34;https://www.softwarecollections.org/repos/rhscl/python27/epel-7-x86_64/python27-python-2.7.8-3.el7/&#34;&gt;python27-python&lt;/a&gt;でも2.7.8です。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://urllib3.readthedocs.org/en/latest/security.html#without-modifying-code&#34;&gt;Without modifying code&lt;/a&gt;の手順で警告を無視するというあまり良くない方法も使ってみたのですが、手元のDocker環境ではよかったもののTravis CIだとエラーになってしまうという現象が起きました。&lt;/p&gt;
+
+&lt;h2 id=&#34;copr-apiの認証方法:d97aa5d91864f67b35847063abc7f579&#34;&gt;copr APIの認証方法&lt;/h2&gt;
+
+&lt;p&gt;というわけでcopr-cliを使わずにcurlでCoprのAPIを呼び出す方法を調べました。&lt;/p&gt;
+
+&lt;p&gt;まずは認証ですが、&lt;a href=&#34;https://copr.fedoraproject.org/api/&#34;&gt;API for Copr&lt;/a&gt;の先頭にcopr-cli用の設定ファイル形式でAPIトークンの情報が表示されています。が、APIの認証方法は記載されていません。&lt;/p&gt;
+
+&lt;p&gt;しかたがないので、python-coprのソースを読んでみるとcopr/client/client.pyに以下のようなコードがありました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;...(snip)...
+    def _fetch(self, url, data=None, username=None, method=None,
+               skip_auth=False, on_error_response=None, headers=None):
+...(snip)...
+        if not skip_auth:
+            kwargs[&amp;quot;auth&amp;quot;] = (self.login, self.token)
+...(snip)...
+        try:
+            response = requests.request(
+                method=method.upper(),
+                url=url,
+                **kwargs
+            )
+...(snip)...
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://docs.python-requests.org/en/latest/&#34;&gt;PythonのRequestsライブラリ&lt;/a&gt;の&lt;a href=&#34;http://docs.python-requests.org/en/latest/user/authentication/#basic-authentication&#34;&gt;Basic Authentication&lt;/a&gt;のドキュメントを見ると、上記のコードは &lt;code&gt;self.login&lt;/code&gt; の値をユーザ名、 &lt;code&gt;self.token&lt;/code&gt; の値をパスワードとしてBASIC認証していることがわかりました。&lt;/p&gt;
+
+&lt;h2 id=&#34;apiの呼び出し例:d97aa5d91864f67b35847063abc7f579&#34;&gt;APIの呼び出し例&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/nginx-rpm/&#34;&gt;hnakamur/nginx-rpm&lt;/a&gt;の&lt;a href=&#34;https://github.com/hnakamur/nginx-rpm/blob/358d646a22c9c516a9247595e296b256d61a86f6/scripts/build.sh#L72-L95&#34;&gt;scripts/build.sh&lt;/a&gt;のコードで説明します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;build_rpm_on_copr() {
+  build_srpm
+
+  # Check the project is already created on copr.
+  status=`curl -s -o /dev/null -w &amp;quot;%{http_code}&amp;quot; https://copr.fedoraproject.org/api/coprs/${COPR_USERNAME}/${copr_project_name}/detail/`
+  if [ $status = &amp;quot;404&amp;quot; ]; then
+    # Create the project on copr.
+    # We call copr APIs with curl to work around the InsecurePlatformWarning problem
+    # since system python in CentOS 7 is old.
+    # I read the source code of https://pypi.python.org/pypi/copr/1.62.1
+    # since the API document at https://copr.fedoraproject.org/api/ is old.
+    curl -s -X POST -u &amp;quot;${COPR_LOGIN}:${COPR_TOKEN}&amp;quot; \
+      --data-urlencode &amp;quot;name=${copr_project_name}&amp;quot; \
+      --data-urlencode &amp;quot;${mock_chroot}=y&amp;quot; \
+      --data-urlencode &amp;quot;description=$copr_project_description&amp;quot; \
+      --data-urlencode &amp;quot;instructions=$copr_project_instructions&amp;quot; \
+      https://copr.fedoraproject.org/api/coprs/${COPR_USERNAME}/new/
+  fi
+  # Add a new build on copr with uploading a srpm file.
+  curl -s -X POST -u &amp;quot;${COPR_LOGIN}:${COPR_TOKEN}&amp;quot; \
+    -F &amp;quot;${mock_chroot}=y&amp;quot; \
+    -F &amp;quot;pkgs=@${topdir}/SRPMS/${srpm_file};type=application/x-rpm&amp;quot; \
+    https://copr.fedoraproject.org/api/coprs/${COPR_USERNAME}/${copr_project_name}/new_build_upload/
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;最初の &lt;code&gt;https://copr.fedoraproject.org/api/coprs/${COPR_USERNAME}/${copr_project_name}/detail/&lt;/code&gt; はプロジェクトの詳細情報取得です。これはログイン不要です。&lt;/p&gt;
+
+&lt;p&gt;次の &lt;code&gt;https://copr.fedoraproject.org/api/coprs/${COPR_USERNAME}/new/&lt;/code&gt; にPOSTしているのがプロジェクト作成です。&lt;/p&gt;
+
+&lt;p&gt;最後の &lt;code&gt;https://copr.fedoraproject.org/api/coprs/${COPR_USERNAME}/${copr_project_name}/new_build_upload/&lt;/code&gt; がsrpmをアップロードしてビルド開始のAPIです。&lt;a href=&#34;https://copr.fedoraproject.org/api/&#34;&gt;API for Copr&lt;/a&gt;には &lt;code&gt;/new_build/&lt;/code&gt; は記載がありますが、 &lt;code&gt;/new_build_upload/&lt;/code&gt; は記載が無いです。python-coprのcopr/client/client.pyのソースで見つけました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;...(snip)...
+    def create_new_build(self, projectname, pkgs, username=None,
+                         timeout=None, memory=None, chroots=None,
+                         progress_callback=None):
+...(snip)...
+        if urlparse(pkgs[0]).scheme != &amp;quot;&amp;quot;:
+            api_endpoint = &amp;quot;new_build&amp;quot;
+            data[&amp;quot;pkgs&amp;quot;] = &amp;quot; &amp;quot;.join(pkgs)
+        else:
+            try:
+                api_endpoint = &amp;quot;new_build_upload&amp;quot;
+                f = open(pkgs[0], &amp;quot;rb&amp;quot;)
+                data[&amp;quot;pkgs&amp;quot;] = (os.path.basename(f.name), f, &amp;quot;application/x-rpm&amp;quot;)
+            except IOError as e:
+                raise CoprRequestException(e)
+
+        url = &amp;quot;{0}/coprs/{1}/{2}/{3}/&amp;quot;.format(
+            self.api_url, username, projectname, api_endpoint
+        )
+...(snip)...
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;まとめ:d97aa5d91864f67b35847063abc7f579&#34;&gt;まとめ&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://copr.fedoraproject.org/api/&#34;&gt;API for Copr&lt;/a&gt;のAPIドキュメントが不完全ですが、python-coprのソースを参考にしてcurlでCopr APIを呼び出すことが出来ました。&lt;/p&gt;
+
+&lt;p&gt;これによりCentOS 7でcopr-cliやPythonのバージョンが古いことによる問題を回避できるので良かったです。curlでのcopr APIの呼び出しも上記のようにシンプルに書けるのでこれで十分だと思います。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました</title>
