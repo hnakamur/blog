@@ -6,8 +6,151 @@
     <description>Recent content in Posts on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Tue, 15 Dec 2015 04:19:16 +0900</lastBuildDate>
+    <lastBuildDate>Wed, 16 Dec 2015 00:06:39 +0900</lastBuildDate>
     <atom:link href="/blog/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>coprのAPIをcurlで呼び出す</title>
+      <link>/blog/2015/12/16/calling_copr_api_with_curl/</link>
+      <pubDate>Wed, 16 Dec 2015 00:06:39 +0900</pubDate>
+      
+      <guid>/blog/2015/12/16/calling_copr_api_with_curl/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに:d97aa5d91864f67b35847063abc7f579&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://fedorahosted.org/copr/&#34;&gt;copr&lt;/a&gt;を利用するには以下の3つの手段があります。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;ウェブ管理画面を使う
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://fedorahosted.org/copr/wiki/ScreenshotsTutorial&#34;&gt;スクリーンショットつきのチュートリアル&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://apps.fedoraproject.org/packages/copr-cli&#34;&gt;copr-cli&lt;/a&gt;というコマンドラインツールを使う
+
+&lt;ul&gt;
+&lt;li&gt;内部的に下記の&lt;a href=&#34;https://copr.fedoraproject.org/api/&#34;&gt;API for Copr&lt;/a&gt;を呼び出しています&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://copr.fedoraproject.org/api/&#34;&gt;API for Copr&lt;/a&gt;を使う&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;copr-cliを使わずにcurlでapiを呼ぶ理由:d97aa5d91864f67b35847063abc7f579&#34;&gt;copr-cliを使わずにcurlでAPIを呼ぶ理由&lt;/h2&gt;
+
+&lt;p&gt;折角copr-cliというコマンドラインツールが用意されているのでそれを活用すれば良いのですが、以下のような問題に遭遇したのでAPIをcurlで呼ぶようにしてみました。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;CentOS 7でyumでインストールできるcopr-cliはバージョンが古くてsrpmのアップロード機能が未サポート&lt;/li&gt;
+&lt;li&gt;CentOS 7のPythonが古いのでInsecurePlatformWarningが出てしまう&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&#34;centos-7でyumでインストールできるcopr-cliはバージョンが古くてsrpmのアップロード機能が未サポート:d97aa5d91864f67b35847063abc7f579&#34;&gt;CentOS 7でyumでインストールできるcopr-cliはバージョンが古くてsrpmのアップロード機能が未サポート&lt;/h3&gt;
+
+&lt;p&gt;正確にはcopr-cliが利用している&lt;a href=&#34;https://apps.fedoraproject.org/packages/python-copr/&#34;&gt;python-copr&lt;/a&gt;のバージョンの問題です。
+&lt;a href=&#34;https://apps.fedoraproject.org/packages/python-copr/changelog&#34;&gt;python-coprのChangelog&lt;/a&gt;を見ると1.58-1でsrpmをアップロードする機能が追加されています。&lt;/p&gt;
+
+&lt;p&gt;一方、CentOS 7のepelにあるpython-coprは1.57-1です。srpmをアップロードする機能を使わないとなると、インターネット上にsrpmを置いてURLを指定する必要があり面倒です。&lt;/p&gt;
+
+&lt;h3 id=&#34;centos-7のpythonが古いのでinsecureplatformwarningが出てしまう:d97aa5d91864f67b35847063abc7f579&#34;&gt;CentOS 7のPythonが古いのでInsecurePlatformWarningが出てしまう&lt;/h3&gt;
+
+&lt;p&gt;copr-cliはpipからインストールすれば1.58-1が使えて解決と思ったのですが、今度はPythonのバージョンが古くてhttps通信時にInsecurePlatformWarningが出ました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://urllib3.readthedocs.org/en/latest/security.html#insecureplatformwarning&#34;&gt;Security: Verified HTTPS with SSL/TLS — urllib3 dev documentation&lt;/a&gt;を見るとPythonを2.7.9以上にするのが一番理想なのですが、CentOS 7に入っているPythonは2.7.5です。
+softwarecollection.orgの&lt;a href=&#34;https://www.softwarecollections.org/repos/rhscl/python27/epel-7-x86_64/python27-python-2.7.8-3.el7/&#34;&gt;python27-python&lt;/a&gt;でも2.7.8です。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://urllib3.readthedocs.org/en/latest/security.html#without-modifying-code&#34;&gt;Without modifying code&lt;/a&gt;の手順で警告を無視するというあまり良くない方法も使ってみたのですが、手元のDocker環境ではよかったもののTravis CIだとエラーになってしまうという現象が起きました。&lt;/p&gt;
+
+&lt;h2 id=&#34;copr-apiの認証方法:d97aa5d91864f67b35847063abc7f579&#34;&gt;copr APIの認証方法&lt;/h2&gt;
+
+&lt;p&gt;というわけでcopr-cliを使わずにcurlでCoprのAPIを呼び出す方法を調べました。&lt;/p&gt;
+
+&lt;p&gt;まずは認証ですが、&lt;a href=&#34;https://copr.fedoraproject.org/api/&#34;&gt;API for Copr&lt;/a&gt;の先頭にcopr-cli用の設定ファイル形式でAPIトークンの情報が表示されています。が、APIの認証方法は記載されていません。&lt;/p&gt;
+
+&lt;p&gt;しかたがないので、python-coprのソースを読んでみるとcopr/client/client.pyに以下のようなコードがありました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;...(snip)...
+    def _fetch(self, url, data=None, username=None, method=None,
+               skip_auth=False, on_error_response=None, headers=None):
+...(snip)...
+        if not skip_auth:
+            kwargs[&amp;quot;auth&amp;quot;] = (self.login, self.token)
+...(snip)...
+        try:
+            response = requests.request(
+                method=method.upper(),
+                url=url,
+                **kwargs
+            )
+...(snip)...
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://docs.python-requests.org/en/latest/&#34;&gt;PythonのRequestsライブラリ&lt;/a&gt;の&lt;a href=&#34;http://docs.python-requests.org/en/latest/user/authentication/#basic-authentication&#34;&gt;Basic Authentication&lt;/a&gt;のドキュメントを見ると、上記のコードは &lt;code&gt;self.login&lt;/code&gt; の値をユーザ名、 &lt;code&gt;self.token&lt;/code&gt; の値をパスワードとしてBASIC認証していることがわかりました。&lt;/p&gt;
+
+&lt;h2 id=&#34;apiの呼び出し例:d97aa5d91864f67b35847063abc7f579&#34;&gt;APIの呼び出し例&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/nginx-rpm/&#34;&gt;hnakamur/nginx-rpm&lt;/a&gt;の&lt;a href=&#34;https://github.com/hnakamur/nginx-rpm/blob/358d646a22c9c516a9247595e296b256d61a86f6/scripts/build.sh#L72-L95&#34;&gt;scripts/build.sh&lt;/a&gt;のコードで説明します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;build_rpm_on_copr() {
+  build_srpm
+
+  # Check the project is already created on copr.
+  status=`curl -s -o /dev/null -w &amp;quot;%{http_code}&amp;quot; https://copr.fedoraproject.org/api/coprs/${COPR_USERNAME}/${copr_project_name}/detail/`
+  if [ $status = &amp;quot;404&amp;quot; ]; then
+    # Create the project on copr.
+    # We call copr APIs with curl to work around the InsecurePlatformWarning problem
+    # since system python in CentOS 7 is old.
+    # I read the source code of https://pypi.python.org/pypi/copr/1.62.1
+    # since the API document at https://copr.fedoraproject.org/api/ is old.
+    curl -s -X POST -u &amp;quot;${COPR_LOGIN}:${COPR_TOKEN}&amp;quot; \
+      --data-urlencode &amp;quot;name=${copr_project_name}&amp;quot; \
+      --data-urlencode &amp;quot;${mock_chroot}=y&amp;quot; \
+      --data-urlencode &amp;quot;description=$copr_project_description&amp;quot; \
+      --data-urlencode &amp;quot;instructions=$copr_project_instructions&amp;quot; \
+      https://copr.fedoraproject.org/api/coprs/${COPR_USERNAME}/new/
+  fi
+  # Add a new build on copr with uploading a srpm file.
+  curl -s -X POST -u &amp;quot;${COPR_LOGIN}:${COPR_TOKEN}&amp;quot; \
+    -F &amp;quot;${mock_chroot}=y&amp;quot; \
+    -F &amp;quot;pkgs=@${topdir}/SRPMS/${srpm_file};type=application/x-rpm&amp;quot; \
+    https://copr.fedoraproject.org/api/coprs/${COPR_USERNAME}/${copr_project_name}/new_build_upload/
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;最初の &lt;code&gt;https://copr.fedoraproject.org/api/coprs/${COPR_USERNAME}/${copr_project_name}/detail/&lt;/code&gt; はプロジェクトの詳細情報取得です。これはログイン不要です。&lt;/p&gt;
+
+&lt;p&gt;次の &lt;code&gt;https://copr.fedoraproject.org/api/coprs/${COPR_USERNAME}/new/&lt;/code&gt; にPOSTしているのがプロジェクト作成です。&lt;/p&gt;
+
+&lt;p&gt;最後の &lt;code&gt;https://copr.fedoraproject.org/api/coprs/${COPR_USERNAME}/${copr_project_name}/new_build_upload/&lt;/code&gt; がsrpmをアップロードしてビルド開始のAPIです。&lt;a href=&#34;https://copr.fedoraproject.org/api/&#34;&gt;API for Copr&lt;/a&gt;には &lt;code&gt;/new_build/&lt;/code&gt; は記載がありますが、 &lt;code&gt;/new_build_upload/&lt;/code&gt; は記載が無いです。python-coprのcopr/client/client.pyのソースで見つけました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;...(snip)...
+    def create_new_build(self, projectname, pkgs, username=None,
+                         timeout=None, memory=None, chroots=None,
+                         progress_callback=None):
+...(snip)...
+        if urlparse(pkgs[0]).scheme != &amp;quot;&amp;quot;:
+            api_endpoint = &amp;quot;new_build&amp;quot;
+            data[&amp;quot;pkgs&amp;quot;] = &amp;quot; &amp;quot;.join(pkgs)
+        else:
+            try:
+                api_endpoint = &amp;quot;new_build_upload&amp;quot;
+                f = open(pkgs[0], &amp;quot;rb&amp;quot;)
+                data[&amp;quot;pkgs&amp;quot;] = (os.path.basename(f.name), f, &amp;quot;application/x-rpm&amp;quot;)
+            except IOError as e:
+                raise CoprRequestException(e)
+
+        url = &amp;quot;{0}/coprs/{1}/{2}/{3}/&amp;quot;.format(
+            self.api_url, username, projectname, api_endpoint
+        )
+...(snip)...
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;まとめ:d97aa5d91864f67b35847063abc7f579&#34;&gt;まとめ&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://copr.fedoraproject.org/api/&#34;&gt;API for Copr&lt;/a&gt;のAPIドキュメントが不完全ですが、python-coprのソースを参考にしてcurlでCopr APIを呼び出すことが出来ました。&lt;/p&gt;
+
+&lt;p&gt;これによりCentOS 7でcopr-cliやPythonのバージョンが古いことによる問題を回避できるので良かったです。curlでのcopr APIの呼び出しも上記のようにシンプルに書けるのでこれで十分だと思います。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました</title>
@@ -1333,184 +1476,6 @@ cat &amp;lt;&amp;lt;&#39;EOF&#39; &amp;gt; ~/bin/rustfmt
 DYLD_LIBRARY_PATH=&amp;quot;$HOME/.multirust/toolchains/nightly/lib&amp;quot; $HOME/bin/rustfmt.bin &amp;quot;$@&amp;quot;
 EOF
 &lt;/code&gt;&lt;/pre&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>manyrustという複数バージョンのrustインストールスクリプトを書いた</title>
-      <link>/blog/2015/07/18/manyrust/</link>
-      <pubDate>Sat, 18 Jul 2015 23:13:32 +0900</pubDate>
-      
-      <guid>/blog/2015/07/18/manyrust/</guid>
-      <description>
-
-&lt;h2 id=&#34;multirustがあるのに-なぜ新たに書いたのか:dba7f7ce875f36e918dffb470ba2d4ac&#34;&gt;multirustがあるのに、なぜ新たに書いたのか&lt;/h2&gt;
-
-&lt;p&gt;rustのインストールは&lt;a href=&#34;http://www.rust-lang.org/install.html&#34;&gt;Install · The Rust Programming Language&lt;/a&gt;にあるように複数のチャネルから選んでインストールします。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;stable (安定版)チャネル&lt;/li&gt;
-&lt;li&gt;beta (ベータ版)チャネル&lt;/li&gt;
-&lt;li&gt;nightly (毎晩ビルドされる)チャネル&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;rustでunstableなAPIを使うにはnightlyを使う必要があるので、たいていはstableとnightlyの両方をインストールして使い分けたくなるはずです。
-その用途には定番のスクリプトとして&lt;a href=&#34;https://github.com/brson/multirust&#34;&gt;brson/multirust&lt;/a&gt;があります。&lt;/p&gt;
-
-&lt;p&gt;私も使っていましたが、rustのソースコードの整形ツール&lt;a href=&#34;https://github.com/nrc/rustfmt&#34;&gt;nrc/rustfmt&lt;/a&gt;をビルドして起動しようとするとエラーになってしまいました。&lt;/p&gt;
-
-&lt;p&gt;既に&lt;a href=&#34;https://github.com/brson/multirust/issues/43&#34;&gt;building cargo atop multirust fails, dyn link problems (Mac OS X) · Issue #43 · brson/multirust&lt;/a&gt;にイシューが上がっていて、&lt;a href=&#34;https://github.com/brson/multirust/issues/43#issuecomment-106758695&#34;&gt;コメント106758695&lt;/a&gt;にあるように環境変数 &lt;code&gt;DYLD_LIBRARY_PATH&lt;/code&gt; を設定すれば問題は解消するとのことです。&lt;/p&gt;
-
-&lt;p&gt;ディレクトリによって環境変数を切り替えるのは&lt;a href=&#34;https://github.com/direnv/direnv&#34;&gt;direnv/direnv&lt;/a&gt;が便利です。ただ、&lt;code&gt;direnv&lt;/code&gt; を使うのであれば、そもそも &lt;code&gt;multirust&lt;/code&gt; のように &lt;code&gt;rustc&lt;/code&gt; などの実行ファイルをラップしたシェルスクリプトを作る必要は無いわけです。&lt;/p&gt;
-
-&lt;p&gt;rustの複数のバージョンを異なるディレクトリにインストールしておいて、利用するディレクトリごとに環境変数 &lt;code&gt;PATH&lt;/code&gt; と &lt;code&gt;DYLD_LIBRARY_PATH&lt;/code&gt; を切り替えればいいだけです。&lt;/p&gt;
-
-&lt;p&gt;であれば、 &lt;code&gt;multirust&lt;/code&gt; 使わなくてももっとシンプルなスクリプトでいいよね、ということで書いたのが &lt;code&gt;manyrust&lt;/code&gt; です。現状はOSXのみサポートしています。&lt;/p&gt;
-
-&lt;h2 id=&#34;インストール手順:dba7f7ce875f36e918dffb470ba2d4ac&#34;&gt;インストール手順&lt;/h2&gt;
-
-&lt;p&gt;以下のようにして &lt;code&gt;~/bin&lt;/code&gt; に &lt;code&gt;manyrust&lt;/code&gt; スクリプトを配置します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;mkdir ~/bin
-curl -s -o ~/bin/manyrust https://raw.githubusercontent.com/hnakamur/manyrust/master/manyrust
-chmod +x ~/bin/manyrust
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;環境変数 &lt;code&gt;PATH&lt;/code&gt; に &lt;code&gt;$HOME/bin&lt;/code&gt; を追加して有効にします。
-bashの場合はこんな感じです。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;echo &#39;export PATH=&amp;quot;$HOME/bin:$PATH&amp;quot;&#39; &amp;gt;&amp;gt; ~/.bash_profilie
-exec $SHELL -l
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id=&#34;rustのインストール:dba7f7ce875f36e918dffb470ba2d4ac&#34;&gt;rustのインストール&lt;/h2&gt;
-
-&lt;p&gt;stableチャネルの最新版をインストール&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;manyrust install
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;betaチャネルの最新版をインストール&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;manyrust install beta
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;nightlyチャネルの最新版をインストール&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;manyrust install nightly
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id=&#34;rustを利用する側の作業ディレクトリでの設定:dba7f7ce875f36e918dffb470ba2d4ac&#34;&gt;rustを利用する側の作業ディレクトリでの設定&lt;/h2&gt;
-
-&lt;p&gt;stableチャネルの最新版を使うディレクトリでの設定&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;manyrust showcfg &amp;gt;&amp;gt; .envrc
-direnv allow .
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;nightlyチャネルの最新版を使うディレクトリでの設定&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;manyrust showcfg nightly &amp;gt;&amp;gt; .envrc
-direnv allow .
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;nightlyチャネルの特定のバージョン2015-07-14を使うディレクトリでの設定&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;manyrust showcfg nightly 2015-07-14 &amp;gt;&amp;gt; .envrc
-direnv allow .
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;応用例:dba7f7ce875f36e918dffb470ba2d4ac&#34;&gt;応用例&lt;/h3&gt;
-
-&lt;p&gt;基本的にはstableチャネルのrustを使いたいが、特定のディレクトリ下ではnightlyを使いたい場合は &lt;code&gt;$HOME/.envrc&lt;/code&gt; にstableを使う設定を書いておいて、特定のディレクトリの &lt;code&gt;.envrc&lt;/code&gt; ではnightlyを使う設定を書いておけばOKです。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ manyrust showcfg &amp;gt;&amp;gt; ~/.envrc
-direnv: error .envrc is blocked. Run `direnv allow` to approve its content.
-$ direnv allow ~
-direnv: loading ../../../../.envrc
-direnv: export +DYLD_LIBRARY_PATH ~PATH
-$ mkdir ~/nightly_work
-$ cd !$
-cd ~/nightly_work
-$ manyrust showcfg nightly &amp;gt;&amp;gt; .envrc
-direnv: error .envrc is blocked. Run `direnv allow` to approve its content.
-$ direnv allow .
-direnv: loading .envrc
-direnv: export +DYLD_LIBRARY_PATH ~PATH
-$ rustc --version
-rustc 1.3.0-nightly (e4e93196e 2015-07-14)
-$ echo $DYLD_LIBRARY_PATH
-/Users/hnakamur/rust/nightly/2015-07-14/rust/lib:
-$ cd
-direnv: loading .envrc
-direnv: export +DYLD_LIBRARY_PATH ~PATH
-$ rustc --version
-rustc 1.1.0 (35ceea399 2015-06-19)
-$ echo $DYLD_LIBRARY_PATH
-/Users/hnakamur/rust/stable/1.1.0/rust/lib:
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;direnvを使って設定を切り替えることの利点:dba7f7ce875f36e918dffb470ba2d4ac&#34;&gt;direnvを使って設定を切り替えることの利点&lt;/h3&gt;
-
-&lt;p&gt;上の例で生成した設定ファイルは以下のようになっています。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ cat ~/.envrc
-source &amp;quot;${MANYRUST_ROOT:-$HOME/rust}/stable/current/etc/bashrc&amp;quot;
-$ cat ~/nightly_work/.envrc
-source &amp;quot;${MANYRUST_ROOT:-$HOME/rust}/nightly/current/etc/bashrc&amp;quot;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;code&gt;souce&lt;/code&gt; で読み込むファイルは &lt;code&gt;manyrust install&lt;/code&gt; で以下のように生成されています。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ cat ~/rust/stable/current/etc/bashrc
-rust_root=&amp;quot;${RUSTS_HOME:-$HOME/rust}/stable/1.1.0/rust&amp;quot;
-export PATH=&amp;quot;$rust_root/bin:$PATH&amp;quot;
-export DYLD_LIBRARY_PATH=&amp;quot;$rust_root/lib:$DYLD_LIBRARY_PATH&amp;quot;
-$ cat ~/rust/nightly/current/etc/bashrc
-rust_root=&amp;quot;${RUSTS_HOME:-$HOME/rust}/nightly/2015-07-14/rust&amp;quot;
-export PATH=&amp;quot;$rust_root/bin:$PATH&amp;quot;
-export DYLD_LIBRARY_PATH=&amp;quot;$rust_root/lib:$DYLD_LIBRARY_PATH&amp;quot;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;code&gt;direnv&lt;/code&gt; を使わずに何回もこういうファイルを &lt;code&gt;source&lt;/code&gt; すると、 &lt;code&gt;PATH&lt;/code&gt; や &lt;code&gt;DYLD_LIBRARY_PATH&lt;/code&gt; の中身がどんどん増えてしまいます。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ eval `manyrust showcfg beta`
-$ echo $DYLD_LIBRARY_PATH
-/Users/hnakamur/rust/beta/1.2.0-beta.2/rust/lib:
-$ eval `manyrust showcfg stable`
-$ echo $DYLD_LIBRARY_PATH
-/Users/hnakamur/rust/stable/1.1.0/rust/lib:/Users/hnakamur/rust/beta/1.2.0-beta.2/rust/lib:
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;長いだけではなく、この例だとstableには無いがnightlyにあるライブラリが存在するとstableのライブラリを使いたいのにnightly側が使われてしまうという問題が起きてしまいます。&lt;/p&gt;
-
-&lt;p&gt;&lt;code&gt;direnv&lt;/code&gt; を使っていれば、上の応用例のように &lt;code&gt;DYLD_LIBRARY_PATH&lt;/code&gt; の値が追加されるのではなく設定が切り替えられるので、この問題は起きません。&lt;/p&gt;
-
-&lt;h2 id=&#34;rustfmtのビルドとインストール:dba7f7ce875f36e918dffb470ba2d4ac&#34;&gt;rustfmtのビルドとインストール&lt;/h2&gt;
-
-&lt;p&gt;で、ここまで書いてから &lt;code&gt;rustfmt&lt;/code&gt; をビルド、インストールしようとして問題に気付きました。 &lt;code&gt;rustfmt&lt;/code&gt; は &lt;code&gt;~/rust/nightly/current/rust/bin/&lt;/code&gt; に置いて上記のように &lt;code&gt;.envrc&lt;/code&gt; で切り替えればいいかと思っていたのですが、そうすると &lt;code&gt;stable&lt;/code&gt; を使うように &lt;code&gt;.envrc&lt;/code&gt; を設定したディレクトリでは &lt;code&gt;rustfmt&lt;/code&gt; が使えなくなってしまいます。&lt;/p&gt;
-
-&lt;p&gt;またnightlyのバージョンが上がると &lt;code&gt;rustfmt&lt;/code&gt; をビルドし直す必要もあります。&lt;/p&gt;
-
-&lt;p&gt;これを回避するためにはビルドした &lt;code&gt;rustfmt&lt;/code&gt; は &lt;code&gt;~/bin/rustfmt.bin&lt;/code&gt; と名前を変えて &lt;code&gt;~/bin&lt;/code&gt; に置いて、ラップしたスクリプトを &lt;code&gt;~/bin/rustfmt&lt;/code&gt; という名前で作成します。&lt;/p&gt;
-
-&lt;p&gt;具体的な手順は以下の通りです。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;git clone https://github.com/nrc/rustfmt
-cd rustfmt
-manyrust showcfg nightly &amp;gt;&amp;gt; .envrc
-direnv allow .
-cargo build --release
-cp target/release/rustfmt ~/bin/rustfmt.bin
-cat &amp;lt;&amp;lt;&#39;EOF&#39; &amp;gt; ~/bin/rustfmt
-#!/bin/sh
-DYLD_LIBRARY_PATH=&amp;quot;${MANYRUST_ROOT:-$HOME/rust}/nightly/2015-07-14/rust/lib&amp;quot; $HOME/bin/rustfmt.bin &amp;quot;$@&amp;quot;
-EOF
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;今後nightlyを追加インストールした時に &lt;code&gt;rustfmt&lt;/code&gt; が依存しているディレクトリが新しいバージョンの &lt;code&gt;lib&lt;/code&gt; ディレクトリに存在しない場合に備えて、 &lt;code&gt;DYLD_LIBRARY_PATH&lt;/code&gt; は &lt;code&gt;~/rust/nightly/current/rust/lib&lt;/code&gt; ではなく特定のバージョンの &lt;code&gt;lib&lt;/code&gt; ディレクトリを指定しています。&lt;/p&gt;
-
-&lt;p&gt;ということで、 &lt;code&gt;rustfmt&lt;/code&gt; に関しては &lt;code&gt;multirust&lt;/code&gt; でも &lt;code&gt;manyrust&lt;/code&gt; でも同じことで、&lt;code&gt;DYLD_LIBRARY_PATH&lt;/code&gt; を設定して実行するようなスクリプトを書いてラップする必要があるというオチでした。&lt;/p&gt;
 </description>
     </item>
     
