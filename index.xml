@@ -6,8 +6,72 @@
     <description>Recent content on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Wed, 16 Dec 2015 00:06:39 +0900</lastBuildDate>
+    <lastBuildDate>Wed, 16 Dec 2015 01:10:33 +0900</lastBuildDate>
     <atom:link href="/blog/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>mockを使ったrpmビルドが失敗した時の調査方法</title>
+      <link>/blog/2015/12/16/how_to_debug_errors_in_rpm_build_using_mock/</link>
+      <pubDate>Wed, 16 Dec 2015 01:10:33 +0900</pubDate>
+      
+      <guid>/blog/2015/12/16/how_to_debug_errors_in_rpm_build_using_mock/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに:b171a244e2b9b7684f6e19368a4843b1&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;/blog/blog/2015/12/15/using_mock_and_copr_to_build_nginx_rpm_on_docker/&#34;&gt;nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました · hnakamur&amp;rsquo;s blog at github&lt;/a&gt;でspecファイルを書いている最中はmockでのrpmのビルドに失敗することがよくあります。&lt;/p&gt;
+
+&lt;p&gt;私は「なんとなくこんな感じか？」と書いて動かしてみてエラーを見て修正していくスタイルなので、失敗時の調査は重要です。&lt;/p&gt;
+
+&lt;h2 id=&#34;ビルドログ:b171a244e2b9b7684f6e19368a4843b1&#34;&gt;ビルドログ&lt;/h2&gt;
+
+&lt;p&gt;&lt;code&gt;sudo mock -r epel-7-x86_64 --rebuild ${srpmファイル名}&lt;/code&gt; のように実行してビルドした場合、 &lt;code&gt;/var/lib/mock/epel-7-x86_64/result/&lt;/code&gt; に &lt;code&gt;build.log&lt;/code&gt; というファイルができるのでそれを見ます。&lt;/p&gt;
+
+&lt;h2 id=&#34;mockコマンドでchroot環境内に入る:b171a244e2b9b7684f6e19368a4843b1&#34;&gt;mockコマンドでchroot環境内に入る&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://linux.die.net/man/1/mock&#34;&gt;mock(1)のmanページ&lt;/a&gt;によると &lt;code&gt;sudo mock -r epel-7-x86_64 --shell&lt;/code&gt; でchroot環境内に入ることが出来ます。 &lt;code&gt;exit&lt;/code&gt; で抜けます。&lt;/p&gt;
+
+&lt;p&gt;mockで作られるchroot環境はビルドに必要な最低限のパッケージしかインストールされておらず、 &lt;code&gt;vim&lt;/code&gt; や &lt;code&gt;less&lt;/code&gt; も使えません。 &lt;code&gt;yum&lt;/code&gt; で入れようにも &lt;code&gt;yum&lt;/code&gt; も無いと言われてしまいます。&lt;/p&gt;
+
+&lt;p&gt;chroot環境に入る前に &lt;code&gt;sudo mock -r epel-7-x86_64 --install vim less&lt;/code&gt; のようにしてインストールしておけばchroot内でvimやlessが使えます。&lt;/p&gt;
+
+&lt;p&gt;あるいはchroot外で &lt;code&gt;/var/lib/mock/epel-7-x86_64/root/&lt;/code&gt; 配下のファイルをvimやlessで見るという手もあります。&lt;/p&gt;
+
+&lt;h2 id=&#34;chroot環境内のrpmビルドディレクトリ:b171a244e2b9b7684f6e19368a4843b1&#34;&gt;chroot環境内のrpmビルドディレクトリ&lt;/h2&gt;
+
+&lt;p&gt;chroot環境内では &lt;code&gt;/builddir/build/&lt;/code&gt; 以下に &lt;code&gt;BUILD&lt;/code&gt;, &lt;code&gt;BUILDDIR&lt;/code&gt;, &lt;code&gt;SOURCES&lt;/code&gt;, &lt;code&gt;SPECS&lt;/code&gt; などのディレクトリが作られているので、これらの中を見ればビルド失敗時の状況を調べられます。&lt;/p&gt;
+
+&lt;h2 id=&#34;chroot環境内でファイルを修正してビルドを再実行:b171a244e2b9b7684f6e19368a4843b1&#34;&gt;chroot環境内でファイルを修正してビルドを再実行&lt;/h2&gt;
+
+&lt;p&gt;mockを使ったrpmビルドはchroot環境を作成してその中で行われるのですが、毎回chroot環境を作るところからやっていると時間がかかって効率が悪いです。&lt;/p&gt;
+
+&lt;p&gt;ですので、chroot環境内のspecファイルや &lt;code&gt;SOURCES&lt;/code&gt; ディレクトリ下のファイルを直接修正して、その後 &lt;code&gt;rpmbuild -bb ${specファイル名}&lt;/code&gt; でrpmのビルドを再度試します。&lt;/p&gt;
+
+&lt;h2 id=&#34;修正したファイルをdockerコンテナ外に取り出す:b171a244e2b9b7684f6e19368a4843b1&#34;&gt;修正したファイルをdockerコンテナ外に取り出す&lt;/h2&gt;
+
+&lt;p&gt;修正のきりが良い所で、chroot環境内の修正したファイルを &lt;code&gt;docker cp&lt;/code&gt; コマンドでdockerコンテナ内からコンテナ外に取り出します。&lt;/p&gt;
+
+&lt;p&gt;まずdockerホストで &lt;code&gt;docker ps&lt;/code&gt; コマンドでコンテナIDかコンテナ名を調べます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ docker ps
+CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
+363ad4f85fda        nginxrpm            &amp;quot;/bin/bash&amp;quot;         18 hours ago        Up 18 hours                             romantic_fermi
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;次に &lt;code&gt;docker cp&lt;/code&gt; コマンドでファイルをコピーします。例えばこんな感じです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ docker cp romantic_fermi:/var/lib/mock/epel-7-x86_64/root/builddir/build/SPECS/nginx.spec SPECS/nginx.spec
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;取り出した修正ファイルはgitにコミットして、さらに修正作業を続けていきます。&lt;/p&gt;
+
+&lt;p&gt;修正が一通り終わったら、クリーンな状態からビルドが成功することを確認するため、dockerコンテナを一度破棄して&lt;a href=&#34;http://localhost:1313/blog/2015/12/15/using_mock_and_copr_to_build_nginx_rpm_on_docker/&#34;&gt;nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました · hnakamur&amp;rsquo;s blog at github&lt;/a&gt; の手順で再度ビルドしてみます。これでエラーが出なければOKです。&lt;/p&gt;
+
+&lt;h2 id=&#34;まとめ:b171a244e2b9b7684f6e19368a4843b1&#34;&gt;まとめ&lt;/h2&gt;
+
+&lt;p&gt;mockを使ったrpmのビルドが失敗した場合の調査方法を紹介しました。もっと良い方法などありましたら、ぜひ教えてください。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>coprのAPIをcurlで呼び出す</title>
@@ -1452,30 +1516,6 @@ CPU executed 583004 iterations while waiting for GPU to finish
 &lt;/code&gt;&lt;/pre&gt;
 
 &lt;p&gt;動きました！&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>OSX上でmultirustを使ったrustfmtのインストール手順</title>
-      <link>/blog/2015/07/19/install_rustfmt/</link>
-      <pubDate>Sun, 19 Jul 2015 00:33:15 +0900</pubDate>
-      
-      <guid>/blog/2015/07/19/install_rustfmt/</guid>
-      <description>&lt;p&gt;OSXでは&lt;a href=&#34;https://github.com/brson/multirust/issues/43&#34;&gt;building cargo atop multirust fails, dyn link problems (Mac OS X) · Issue #43 · brson/multirust&lt;/a&gt;のイシューの&lt;a href=&#34;https://github.com/brson/multirust/issues/43#issuecomment-106758695&#34;&gt;コメント106758695&lt;/a&gt;にあるように &lt;code&gt;rustfmt&lt;/code&gt; の実行時に環境変数 &lt;code&gt;DYLD_LIBRARY_PATH&lt;/code&gt; を設定する必要があります。&lt;/p&gt;
-
-&lt;p&gt;そこで、 &lt;code&gt;rustfmt&lt;/code&gt; の実行ファイルを &lt;code&gt;~/bin/rustfmt.bin&lt;/code&gt; と別の名前にして、起動用のスクリプトを &lt;code&gt;~/bin/rustfmt&lt;/code&gt; として作成します。&lt;/p&gt;
-
-&lt;p&gt;インストール手順は以下のとおりです。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;git clone https://github.com/nrc/rustfmt
-cd rustfmt
-cargo build --release
-cp target/release/rustfmt ~/bin/rustfmt.bin
-cat &amp;lt;&amp;lt;&#39;EOF&#39; &amp;gt; ~/bin/rustfmt
-#!/bin/sh
-DYLD_LIBRARY_PATH=&amp;quot;$HOME/.multirust/toolchains/nightly/lib&amp;quot; $HOME/bin/rustfmt.bin &amp;quot;$@&amp;quot;
-EOF
-&lt;/code&gt;&lt;/pre&gt;
 </description>
     </item>
     
