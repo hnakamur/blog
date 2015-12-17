@@ -6,8 +6,201 @@
     <description>Recent content on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Wed, 16 Dec 2015 01:10:33 +0900</lastBuildDate>
+    <lastBuildDate>Fri, 18 Dec 2015 01:43:28 +0900</lastBuildDate>
     <atom:link href="/blog/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>Mockやcoprでrpmをビルドする際にサードパーティのレポジトリを追加する方法</title>
+      <link>/blog/2015/12/18/add_third_party_to_build_on_mock_and_copr/</link>
+      <pubDate>Fri, 18 Dec 2015 01:43:28 +0900</pubDate>
+      
+      <guid>/blog/2015/12/18/add_third_party_to_build_on_mock_and_copr/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに:10b0aafa200b57354ec517996e32ab18&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://fedoraproject.org/wiki/Mock&#34;&gt;Mock&lt;/a&gt;や&lt;a href=&#34;https://copr.fedoraproject.org/&#34;&gt;copr&lt;/a&gt;でrpmをビルドする際にCentOS標準のレポジトリ以外のサードパーティのレポジトリのrpmに依存したい場合があります。この記事ではサードパーティのレポジトリの追加方法を説明します。&lt;/p&gt;
+
+&lt;p&gt;この記事では&lt;a href=&#34;https://www.varnish-cache.org/vmod/header-manipulation&#34;&gt;libvmod-header&lt;/a&gt;をビルドするために&lt;a href=&#34;https://www.varnish-cache.org/installation/redhat&#34;&gt;varnish-cache.orgのRedHat用インストール手順&lt;/a&gt;で提供されているEL7用のレポジトリを追加する例で説明します。&lt;/p&gt;
+
+&lt;p&gt;ビルドするために私が作成したDockerfileとシェルスクリプトは&lt;a href=&#34;https://github.com/hnakamur/libvmod-header-rpm&#34;&gt;hnakamur/libvmod-header-rpm&lt;/a&gt;にあります。&lt;/p&gt;
+
+&lt;h2 id=&#34;mockでのrpmビルド時にサードパーティのレポジトリを追加する方法:10b0aafa200b57354ec517996e32ab18&#34;&gt;Mockでのrpmビルド時にサードパーティのレポジトリを追加する方法&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://lists.fedorahosted.org/pipermail/softwarecollections/2012-November/000018.html&#34;&gt;Building SCL packages with mock&lt;/a&gt;で紹介されていた方法です。&lt;/p&gt;
+
+&lt;p&gt;CentOS 7用のrpmをビルドする場合 &lt;code&gt;/etc/mock/epel-7-x86_64.cfg&lt;/code&gt; をコピーして &lt;code&gt;/etc/mock/epel-7-varnish-x86_64.cfg&lt;/code&gt; のように別名で保存します。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;/etc/mock/epel-7-varnish-x86_64.cfg&lt;/code&gt; の最後に &lt;code&gt;config_opts[&#39;yum.conf&#39;]&lt;/code&gt; の設定があります。変更前は以下のようになっています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;config_opts[&#39;root&#39;] = &#39;epel-7-x86_64&#39;
+config_opts[&#39;target_arch&#39;] = &#39;x86_64&#39;
+config_opts[&#39;legal_host_arches&#39;] = (&#39;x86_64&#39;,)
+config_opts[&#39;chroot_setup_cmd&#39;] = &#39;install @buildsys-build&#39;
+config_opts[&#39;dist&#39;] = &#39;el7&#39;  # only useful for --resultdir variable subst
+config_opts[&#39;releasever&#39;] = &#39;7&#39;
+
+config_opts[&#39;yum.conf&#39;] = &amp;quot;&amp;quot;&amp;quot;
+[main]
+keepcache=1
+debuglevel=2
+reposdir=/dev/null
+logfile=/var/log/yum.log
+retries=20
+obsoletes=1
+gpgcheck=0
+assumeyes=1
+syslog_ident=mock
+syslog_device=
+
+# repos
+[base]
+name=BaseOS
+mirrorlist=http://mirrorlist.centos.org/?release=7&amp;amp;arch=x86_64&amp;amp;repo=os
+failovermethod=priority
+gpgkey=file:///etc/pki/mock/RPM-GPG-KEY-CentOS-7
+gpgcheck=1
+
+[updates]
+name=updates
+enabled=1
+mirrorlist=http://mirrorlist.centos.org/?release=7&amp;amp;arch=x86_64&amp;amp;repo=updates
+failovermethod=priority
+gpgkey=file:///etc/pki/mock/RPM-GPG-KEY-CentOS-7
+gpgcheck=1
+
+[epel]
+name=epel
+mirrorlist=http://mirrors.fedoraproject.org/mirrorlist?repo=epel-7&amp;amp;arch=x86_64
+failovermethod=priority
+gpgkey=file:///etc/pki/mock/RPM-GPG-KEY-EPEL-7
+gpgcheck=1
+
+[extras]
+name=extras
+mirrorlist=http://mirrorlist.centos.org/?release=7&amp;amp;arch=x86_64&amp;amp;repo=extras
+failovermethod=priority
+gpgkey=file:///etc/pki/mock/RPM-GPG-KEY-EPEL-7
+gpgcheck=1
+
+[testing]
+name=epel-testing
+enabled=0
+mirrorlist=http://mirrors.fedoraproject.org/mirrorlist?repo=testing-epel7&amp;amp;arch=x86_64
+failovermethod=priority
+
+
+[local]
+name=local
+baseurl=http://kojipkgs.fedoraproject.org/repos/epel7-build/latest/x86_64/
+cost=2000
+enabled=0
+
+[epel-debug]
+name=epel-debug
+mirrorlist=http://mirrors.fedoraproject.org/mirrorlist?repo=epel-debug-7&amp;amp;arch=x86_64
+failovermethod=priority
+enabled=0
+&amp;quot;&amp;quot;&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;失敗例1:10b0aafa200b57354ec517996e32ab18&#34;&gt;失敗例1&lt;/h3&gt;
+
+&lt;p&gt;varnish-cache.orgではEL7用のレポジトリ定義が &lt;a href=&#34;https://repo.varnish-cache.org/redhat/varnish-4.1.el7.rpm&#34;&gt;https://repo.varnish-cache.org/redhat/varnish-4.1.el7.rpm&lt;/a&gt; で配布されています。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;config_opts[&#39;chroot_setup_cmd&#39;] = &#39;install @buildsys-build&#39;&lt;/code&gt; にこのrpmのURLを追加して
+&lt;code&gt;config_opts[&#39;chroot_setup_cmd&#39;] = &#39;install @buildsys-build https://repo.varnish-cache.org/redhat/varnish-4.1.el7.rpm&#39;&lt;/code&gt; にするというのを試してみましたが、これは失敗でした。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;sudo mock -r epel-7-varnish-x86_64 --init&lt;/code&gt; で &lt;code&gt;varnish-4.1&lt;/code&gt; というレポジトリのrpmがインストールされるところまではOKでした。
+が、 &lt;code&gt;sudo mock -r epel-7-varnish-x86_64 --install varnish&lt;/code&gt; としてvarnishをインストールすると、このレポジトリからvarnish 4.1.0がインストールされずにepelから4.0.3がインストールされてしまいました。&lt;/p&gt;
+
+&lt;h3 id=&#34;うまくいく方法:10b0aafa200b57354ec517996e32ab18&#34;&gt;うまくいく方法&lt;/h3&gt;
+
+&lt;p&gt;ということでmockで作成するchroot環境では &lt;code&gt;config_opts[&#39;yum.conf&#39;]&lt;/code&gt; に予めレポジトリ定義を書いておく必要があるようです。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://repo.varnish-cache.org/redhat/varnish-4.1.el7.rpm&#34;&gt;https://repo.varnish-cache.org/redhat/varnish-4.1.el7.rpm&lt;/a&gt; に含まれる &lt;code&gt;etc/yum.repos.d/varnish-4.1.repo&lt;/code&gt; には以下の様なレポジトリ定義が含まれています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[varnish-4.1]
+name=Varnish Cache 4.1 for Enterprise Linux
+baseurl=https://repo.varnish-cache.org/redhat/varnish-4.1/el7/$basearch
+enabled=1
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-VARNISH
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;/etc/pki/rpm-gpg/RPM-GPG-KEY-VARNISH&lt;/code&gt; というgpgkeyが折角用意されているので使いたいのですが良い方法が思いつきませんでした。 &lt;code&gt;config_opts[&#39;chroot_setup_cmd&#39;]&lt;/code&gt; にセットアップ時に実行されるコマンドを書けるのですが、先頭に &lt;code&gt;yum&lt;/code&gt; を追加して実行されるので任意のコマンドを実行できるわけではないです。&lt;/p&gt;
+
+&lt;p&gt;今回は諦めてgpgkeyを使うのは諦めて、下記の内容を &lt;code&gt;config_opts[&#39;yum.conf&#39;]&lt;/code&gt; の最後に追加するようにしました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[varnish-4.1]
+name=Varnish Cache 4.1 for Enterprise Linux
+baseurl=https://repo.varnish-cache.org/redhat/varnish-4.1/el7/$basearch
+enabled=1
+gpgcheck=0
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;スクリプトでは以下のようにしています。
+&lt;a href=&#34;https://github.com/hnakamur/libvmod-header-rpm/blob/5d5b2e580b11944ee630c6fbc2bea81b9fa7bb9a/scripts/build.sh#L47-L75&#34;&gt;https://github.com/hnakamur/libvmod-header-rpm/blob/5d5b2e580b11944ee630c6fbc2bea81b9fa7bb9a/scripts/build.sh#L47-L75&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;create_varnish_repo_file() {
+  varnish_repo_file=varnish-4.1.repo
+  if [ ! -f $varnish_repo_file ]; then
+    # NOTE: Although https://repo.varnish-cache.org/redhat/varnish-4.1.el7.rpm at https://www.varnish-cache.org/installation/redhat
+    #       has the gpgkey in it, I don&#39;t use it since I don&#39;t know how to add it to /etc/mock/*.cfg
+    cat &amp;gt; ${varnish_repo_file} &amp;lt;&amp;lt;EOF
+[${varnish_repo_id}]
+name=${varnish_repo_name}
+baseurl=${varnish_repo_baseurl}
+enabled=1
+gpgcheck=0
+EOF
+  fi
+}
+
+create_mock_chroot_cfg() {
+  create_varnish_repo_file
+
+  # Insert ${scl_repo_file} before closing &amp;quot;&amp;quot;&amp;quot; of config_opts[&#39;yum.conf&#39;]
+  # See: http://unix.stackexchange.com/a/193513/135274
+  #
+  # NOTE: Support of adding repository was added to mock,
+  #       so you can use it in the future.
+  # See: https://github.com/rpm-software-management/ci-dnf-stack/issues/30
+  (cd ${topdir} \
+    &amp;amp;&amp;amp; echo | sed -e &#39;$d;N;P;/\n&amp;quot;&amp;quot;&amp;quot;$/i\
+&#39; -e &#39;/\n&amp;quot;&amp;quot;&amp;quot;$/r &#39;${varnish_repo_file} -e &#39;/\n&amp;quot;&amp;quot;&amp;quot;$/a\
+&#39; -e D /etc/mock/${base_chroot}.cfg - | sudo sh -c &amp;quot;cat &amp;gt; /etc/mock/${mock_chroot}.cfg&amp;quot;)
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;sedでパターンにマッチした行の後にファイルを挿入するのは &lt;code&gt;/パターン/r ファイル名&lt;/code&gt;ですが、マッチした行の前に挿入するのはトリッキーです。
+ここでは &lt;a href=&#34;http://unix.stackexchange.com/a/193513/135274&#34;&gt;http://unix.stackexchange.com/a/193513/135274&lt;/a&gt; で紹介されていた &lt;code&gt;echo | sed -e &#39;$d;N;P;/\nPointer/r file1&#39; -e D file2 -&lt;/code&gt; という手法を使っています。
+ただし、ファイルを挿入する前後に改行を入れたかったので &lt;code&gt;i&lt;/code&gt; や &lt;code&gt;a&lt;/code&gt; も使っています。&lt;/p&gt;
+
+&lt;p&gt;これで &lt;code&gt;sudo mock -r epel-7-varnish-x86_64 --rebuild ${SRPMのパス}&lt;/code&gt; でrpmをビルドできます。&lt;/p&gt;
+
+&lt;h2 id=&#34;coprでのrpmビルド時にサードパーティのレポジトリを追加する方法:10b0aafa200b57354ec517996e32ab18&#34;&gt;coprでのrpmビルド時にサードパーティのレポジトリを追加する方法&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://copr.fedoraproject.org/api/&#34;&gt;API for Copr&lt;/a&gt;の&amp;rdquo;Create new project&amp;rdquo;のAPIにreposパラメータがありますので、ここに &lt;code&gt;*.repo&lt;/code&gt; ファイルの &lt;code&gt;baseurl&lt;/code&gt; の値、 &lt;code&gt;https://repo.varnish-cache.org/redhat/varnish-4.1/el7/$basearch&lt;/code&gt; を指定すればOKです。&lt;/p&gt;
+
+&lt;p&gt;実際のスクリプトでは以下の箇所です。
+&lt;a href=&#34;https://github.com/hnakamur/libvmod-header-rpm/blob/5d5b2e580b11944ee630c6fbc2bea81b9fa7bb9a/scripts/build.sh#L108-L119&#34;&gt;https://github.com/hnakamur/libvmod-header-rpm/blob/5d5b2e580b11944ee630c6fbc2bea81b9fa7bb9a/scripts/build.sh#L108-L119&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    # Create the project on copr.
+    # We call copr APIs with curl to work around the InsecurePlatformWarning problem
+    # since system python in CentOS 7 is old.
+    # I read the source code of https://pypi.python.org/pypi/copr/1.62.1
+    # since the API document at https://copr.fedoraproject.org/api/ is old.
+    curl -s -X POST -u &amp;quot;${COPR_LOGIN}:${COPR_TOKEN}&amp;quot; \
+      --data-urlencode &amp;quot;name=${project_name}&amp;quot; \
+      --data-urlencode &amp;quot;${base_chroot}=y&amp;quot; \
+      --data-urlencode &amp;quot;repos=${varnish_repo_baseurl}&amp;quot; \
+      --data-urlencode &amp;quot;description=$copr_project_description&amp;quot; \
+      --data-urlencode &amp;quot;instructions=$copr_project_instructions&amp;quot; \
+      https://copr.fedoraproject.org/api/coprs/${COPR_USERNAME}/new/
+&lt;/code&gt;&lt;/pre&gt;
+</description>
+    </item>
     
     <item>
       <title>mockを使ったrpmビルドが失敗した時の調査方法</title>
@@ -1408,114 +1601,6 @@ print(a_gpu)
  [ 0.14650279 -0.201966    1.57666266 -0.95099533]
  [ 1.43512011  0.32386738  1.32702446 -1.48546445]]
 &lt;/code&gt;&lt;/pre&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>GeForce搭載の旧モデルMacBook ProでCUDAをセットアップする手順のメモ</title>
-      <link>/blog/2015/07/25/setup_cuda_on_macbook_pro_with_geforce/</link>
-      <pubDate>Sat, 25 Jul 2015 17:37:59 +0900</pubDate>
-      
-      <guid>/blog/2015/07/25/setup_cuda_on_macbook_pro_with_geforce/</guid>
-      <description>
-
-&lt;h2 id=&#34;はじめに:a311e6dec28847b69a9c104c237fbeb5&#34;&gt;はじめに&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://www.apple.com/jp/macbook-pro/specs-retina/&#34;&gt;MacBook Pro現行モデルの技術仕様&lt;/a&gt;を見ると最上位機種のグラフィックスチップはIntel Iris Pro GraphicsとAMD Radeon R9 M370Xとなっており、NVIDIA GeForceは搭載されていません。&lt;/p&gt;
-
-&lt;p&gt;ですが、&lt;a href=&#34;https://support.apple.com/kb/SP694?locale=ja_JP&amp;amp;viewlocale=ja_JP&#34;&gt;MacBook Pro (15-inch, Mid 2012) - 技術仕様&lt;/a&gt;を見ると、私が持っているMacBook Proは15インチ2.6GHzモデルなのでNVIDIA GeForce GT 650M、1GB GDDR5メモリが搭載されています。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://www.nvidia.co.jp/object/geforce-gt-650m-jp.html#pdpContent=2&#34;&gt;GeForce GT 650M | NVIDIA&lt;/a&gt;には「プログラミング環境」の行に「CUDA」とあるのでCUDAが使えるようです。&lt;/p&gt;
-
-&lt;p&gt;ということでCUDAを試してみたので、手順をメモしておきます。試した時のOS Xのバージョンは10.10.4、Xcodeのバージョンは6.4です。&lt;/p&gt;
-
-&lt;h2 id=&#34;cudaドライバのインストールとアップデート:a311e6dec28847b69a9c104c237fbeb5&#34;&gt;CUDAドライバのインストールとアップデート&lt;/h2&gt;
-
-&lt;p&gt;後述のCUDAツールキットのインストール中の画面にCUDAドライバも含まれているような記述があったので、この手順は不要かもしれません。が、今回はそれを知らずに先にCUDAドライバを単体でインストールしたので、一応書いておきます。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://www.nvidia.co.jp/object/mac-driver-archive-jp.html&#34;&gt;MAC アーカイブ用CUDA ドライバ | NVIDIA&lt;/a&gt;から最新のドライバをダウンロード、インストールします。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://www.nvidia.co.jp/object/macosx-cuda-7.0.36-driver-jp.html&#34;&gt;NVIDIA DRIVERS 7.0.36&lt;/a&gt;の「リリースハイライト」によると、[システム環境設定]→[CUDA]でインストール済みのCUDAドライバのバージョンと最新バージョンの確認が出来て、アップデートもできるそうです。&lt;/p&gt;
-
-&lt;p&gt;早速確認してみると、インストール済みのCUDA Driver Versionは7.0.29となっており、CUDA 7.0.52 Driver update is availableと表示されていました。&lt;/p&gt;
-
-&lt;p&gt;7.0.36のドライバを単体でインストールしたのに7.0.29になっているのは後述のCUDAツールキットのインストールで上書きされたのだと思われます。ついでなので、[Install CUDA Update]ボタンを押してアップデートしておきました。&lt;/p&gt;
-
-&lt;h2 id=&#34;cudaツールキットのインストール:a311e6dec28847b69a9c104c237fbeb5&#34;&gt;CUDAツールキットのインストール&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://docs.nvidia.com/cuda/index.html#axzz3gt2fIbGh&#34;&gt;CUDA Toolkit Documentation&lt;/a&gt;のページから&lt;a href=&#34;http://docs.nvidia.com/cuda/cuda-getting-started-guide-for-mac-os-x/index.html#axzz3gt2fIbGh&#34;&gt;Getting Started Mac OS X&lt;/a&gt;に進み、&lt;a href=&#34;http://docs.nvidia.com/cuda/cuda-getting-started-guide-for-mac-os-x/index.html#installation&#34;&gt;3. Installation&lt;/a&gt;を参考にCUDAツールキットをインストールしました。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://developer.nvidia.com/cuda-downloads&#34;&gt;CUDA 7 Downloads&lt;/a&gt;で[Mac OSX]のタブに切り替えてインストーラをダウンロードします。最初Network Installerを試したのですが、ダウンロードしたdmgファイルを開いてCUDAMacOSXInstallerをダブルクリックしたら「“CUDAMacOSXInstaller”はこわれているため開けません。」というエラーが出たので、Local Installer (977MB)を試したら、こちらは無事インストール出来ました。&lt;/p&gt;
-
-&lt;p&gt;その後、cuFFT Patchをダウンロードして、&lt;a href=&#34;http://developer.download.nvidia.com/compute/cuda/7_0/Prod/cufft_update/README_mac.txt&#34;&gt;README&lt;/a&gt;を参考にターミナルで以下のコマンドを実行してパッチを適用しました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;sudo tar zxf ~/Downloads/cufft_patch_mac.tar.gz -C /Developer/NVIDIA/CUDA-7.0
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;cudaツールキット用の環境変数設定:a311e6dec28847b69a9c104c237fbeb5&#34;&gt;CUDAツールキット用の環境変数設定&lt;/h3&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://docs.nvidia.com/cuda/cuda-getting-started-guide-for-mac-os-x/index.html#axzz3gt2fIbGh&#34;&gt;Getting Started Mac OS X&lt;/a&gt;の&lt;a href=&#34;http://docs.nvidia.com/cuda/cuda-getting-started-guide-for-mac-os-x/index.html#install&#34;&gt;3.2. Install&lt;/a&gt;で環境変数 &lt;code&gt;PATH&lt;/code&gt; と &lt;code&gt;DYLD_LIBRARY_PATH&lt;/code&gt; の設定方法が書いてあるのですが、この通りだとあとでPyCUDAをインストールするときに &lt;code&gt;-lcuda&lt;/code&gt; が見つからずリンクエラーになりました。&lt;/p&gt;
-
-&lt;p&gt;検索してみると&lt;a href=&#34;https://code.google.com/p/pyrit/issues/detail?id=248&#34;&gt;Issue 248 - pyrit - Build script can&amp;rsquo;t find CUDA library directory on OS X. - WPA/WPA2-PSK and a world of affordable many-core platforms - Google Project Hosting&lt;/a&gt; で &lt;code&gt;/usr/local/cuda&lt;/code&gt; というディレクトリがあることを知り、&lt;code&gt;/usr/local/cuda/lib&lt;/code&gt; と &lt;code&gt;/Developer/NVIDIA/CUDA-7.0/lib&lt;/code&gt; の中身を見てみると &lt;code&gt;libcuda.dylib&lt;/code&gt; だけは前者にしか無いことが判明しました。&lt;/p&gt;
-
-&lt;p&gt;結局以下のように設定する必要がありました (bash以外の場合は適宜変更してください)。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;echo &amp;lt;&amp;lt;&#39;EOF&#39; &amp;gt;&amp;gt; ~/.bash_profile
-# CUDA
-export CUDA_ROOT=/usr/local/cuda
-export PATH=$CUDA_ROOT/bin:$PATH
-export DYLD_LIBRARY_PATH=$CUDA_ROOT/lib:$PATH
-EOF
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;設定ファイルを書き換えたら以下のコマンドでシェルを再起動して設定を読み込んでおきます。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;exec $SHELL -l
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;統合gpuではなくgeforceを使うように切り替える設定:a311e6dec28847b69a9c104c237fbeb5&#34;&gt;統合GPUではなくGeForceを使うように切り替える設定&lt;/h3&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://docs.nvidia.com/cuda/cuda-getting-started-guide-for-mac-os-x/index.html#axzz3gt2fIbGh&#34;&gt;Getting Started Mac OS X&lt;/a&gt;の&lt;a href=&#34;http://docs.nvidia.com/cuda/cuda-getting-started-guide-for-mac-os-x/index.html#install&#34;&gt;3.2. Install&lt;/a&gt;の説明に従って、以下のように設定しました。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;[システム環境設定]→[省エネルギー]を開きます&lt;/li&gt;
-&lt;li&gt;[グラフィックスの自動切り替え]のチェックを外します&lt;/li&gt;
-&lt;li&gt;電源アダプタに繋いでいる場合は[電源アダプタ]、繋いでいない場合は[バッテリー]を選びます&lt;/li&gt;
-&lt;li&gt;[コンピュータのスリープ]のスライダーを[しない]に調節します。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id=&#34;cudaのサンプルを試す:a311e6dec28847b69a9c104c237fbeb5&#34;&gt;CUDAのサンプルを試す&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://docs.nvidia.com/cuda/cuda-getting-started-guide-for-mac-os-x/index.html#axzz3gt2fIbGh&#34;&gt;Getting Started Mac OS X&lt;/a&gt;の&lt;a href=&#34;http://docs.nvidia.com/cuda/cuda-getting-started-guide-for-mac-os-x/index.html#install&#34;&gt;3.2. Install&lt;/a&gt;の説明に従って、 &lt;code&gt;cuda-install-samples-7.0.sh&lt;/code&gt; を使ってサンプルプログラムを取得して試してみました。&lt;/p&gt;
-
-&lt;p&gt;&lt;code&gt;~/sandbox/cuda&lt;/code&gt; という作業用のディレクトリを作って以下の手順で試しました。 &lt;code&gt;cuda-install-samples-7.0.sh&lt;/code&gt; はインストール先のディレクトリを引数で指定する必要がありました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;mkdir -p ~/sandbox/cuda
-cd !$
-cuda-install-samples-7.0.sh .
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;実行すると &lt;code&gt;NVIDIA_CUDA-7.0_Samples&lt;/code&gt; というディレクトリが作成され、配下にサンプルプログラムのソースファイルが展開されていました。&lt;/p&gt;
-
-&lt;p&gt;そのうちの1つ &lt;code&gt;asyncAPI&lt;/code&gt; というのを試してみました。以下の手順でビルドします。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;cd NVIDIA_CUDA-7.0_Samples/0_Simple/asyncAPI
-make
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;実行してみました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ ../../bin/x86_64/darwin/release/asyncAPI
-[../../bin/x86_64/darwin/release/asyncAPI] - Starting...
-GPU Device 0: &amp;quot;GeForce GT 650M&amp;quot; with compute capability 3.0
-
-CUDA device [GeForce GT 650M]
-time spent executing by the GPU: 99.45
-time spent by CPU in CUDA calls: 0.05
-CPU executed 583004 iterations while waiting for GPU to finish
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;動きました！&lt;/p&gt;
 </description>
     </item>
     
