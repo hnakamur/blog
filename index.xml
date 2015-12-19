@@ -6,8 +6,176 @@
     <description>Recent content on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Sat, 19 Dec 2015 01:45:25 +0900</lastBuildDate>
+    <lastBuildDate>Sat, 19 Dec 2015 11:51:30 +0900</lastBuildDate>
     <atom:link href="/blog/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>CentOS 7用にPython2最新版のrpmを作ってみた</title>
+      <link>/blog/2015/12/19/build_latest_python2_rpm_for_centos7/</link>
+      <pubDate>Sat, 19 Dec 2015 11:51:30 +0900</pubDate>
+      
+      <guid>/blog/2015/12/19/build_latest_python2_rpm_for_centos7/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに:053f4a73ac9fb47562c779868bba4af5&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;/blog/blog/2015/12/16/calling_copr_api_with_curl/&#34;&gt;coprのAPIをcurlで呼び出す · hnakamur&amp;rsquo;s blog at github&lt;/a&gt;にも書きましたが、CentOS 7のPythonは古くてhttps通信時にInsecurePlatformWarningが出てしまいます。&lt;/p&gt;
+
+&lt;p&gt;そこで、&lt;a href=&#34;https://www.softwarecollections.org/repos/rhscl/python27/epel-7-x86_64/python27-python-2.7.8-3.el7/&#34;&gt;Software CollectionsのPython27のpythonパッケージ&lt;/a&gt;を改変してPython2の最新版2.7.11のrpmを作ってみました。
+&lt;a href=&#34;https://www.softwarecollections.org/en/&#34;&gt;Software Collections&lt;/a&gt;のrpmをベースにしていますので、CentOS 7にインストールされているPythonとは共存可能となっています。&lt;/p&gt;
+
+&lt;h2 id=&#34;python2の最新版rpmの利用方法:053f4a73ac9fb47562c779868bba4af5&#34;&gt;Python2の最新版rpmの利用方法&lt;/h2&gt;
+
+&lt;p&gt;先に利用方法を書いておきます。&lt;/p&gt;
+
+&lt;h3 id=&#34;インストール手順:053f4a73ac9fb47562c779868bba4af5&#34;&gt;インストール手順&lt;/h3&gt;
+
+&lt;p&gt;dockerのcentos:7コンテナにインストールする例で説明します。まず以下のコマンドでコンテナを起動します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;docker run -it centos:7 /bin/bash
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;次に以下のコマンドを実行してPython2をインストールします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;curl -sL -o /etc/yum.repos.d/hnakamur-hnscl-python2.repo https://copr.fedoraproject.org/coprs/hnakamur/hnscl-python2/repo/epel-7/hnakamur-hnscl-python2-epel-7.repo
+curl -sL -o /etc/yum.repos.d/hnakamur-hnscl-python2-python.repo https://copr.fedoraproject.org/coprs/hnakamur/hnscl-python2-python/repo/epel-7/hnakamur-hnscl-python2-python-epel-7.repo
+yum -y install hn-python2-python
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;使い方:053f4a73ac9fb47562c779868bba4af5&#34;&gt;使い方&lt;/h3&gt;
+
+&lt;p&gt;以下のコマンドでPython2最新版用のシェルを起動します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;scl enable hn-python2 bash
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;あとは通常通りpythonコマンドを実行すればOKです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# which python
+/opt/hn/hn-python2/root/usr/bin/python
+# python -V
+Python 2.7.11
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;使い終わったら &lt;code&gt;exit&lt;/code&gt; で上記で起動したシェルを抜けてください。&lt;/p&gt;
+
+&lt;p&gt;ちなみに、Software Collectionsで提供されているPython 2.7のインストール方法は&lt;a href=&#34;https://www.softwarecollections.org/en/scls/rhscl/python27/&#34;&gt;Python 2.7 — Software Collections&lt;/a&gt;です。&lt;/p&gt;
+
+&lt;h2 id=&#34;python2の最新版rpmを作った時のメモ:053f4a73ac9fb47562c779868bba4af5&#34;&gt;Python2の最新版rpmを作った時のメモ&lt;/h2&gt;
+
+&lt;p&gt;以下はrpmを作った時のメモです。&lt;a href=&#34;https://www.softwarecollections.org/en/docs/guide/&#34;&gt;Packaging Guide — Software Collections&lt;/a&gt;を読みながら試行錯誤してrpmを作りました。&lt;/p&gt;
+
+&lt;h3 id=&#34;software-collectionsのメタパッケージ:053f4a73ac9fb47562c779868bba4af5&#34;&gt;Software Collectionsのメタパッケージ&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://www.softwarecollections.org/en/docs/guide/#sect-Package_Layout&#34;&gt;Packaging Guide — Software Collections&lt;/a&gt;で説明されていますが、Software Collectionsではメタパッケージというのを作成します。&lt;/p&gt;
+
+&lt;p&gt;例えば今回ベースにしたPython 2.7だと&lt;a href=&#34;https://www.softwarecollections.org/repos/rhscl/python27/epel-7-x86_64/python27-1.1-20.el7/&#34;&gt;python27&lt;/a&gt;というのがメタパッケージで、　Python2本体のパッケージは&lt;a href=&#34;https://www.softwarecollections.org/repos/rhscl/python27/epel-7-x86_64/python27-python-2.7.8-3.el7/&#34;&gt;Software CollectionsのPython27のpythonパッケージ&lt;/a&gt;です。&lt;/p&gt;
+
+&lt;p&gt;Software Collectionsを自作する場合は、パッケージ名が衝突しないように「組織名-」という接頭辞をつけるようにと&lt;a href=&#34;https://www.softwarecollections.org/en/docs/guide/#sect-The_Software_Collections_Prefix&#34;&gt;2.4. The Software Collection Prefix&lt;/a&gt;に書かれています。公式のソフトウェアコレクションは接頭辞無しで &lt;code&gt;python27&lt;/code&gt; のようなコレクション名になっています。&lt;/p&gt;
+
+&lt;p&gt;また、&lt;a href=&#34;https://www.softwarecollections.org/en/docs/guide/#sect-The_File_System_Hierarchy&#34;&gt;2.2. The File System Hierarchy&lt;/a&gt;に書かれているように、ソフトウェアコレクションのrpmに含まれるファイルは &lt;code&gt;/opt/提供者名/ソフトウェアコレクション名/&lt;/code&gt; というディレクトリ構成を取ります。公式のソフトウェアコレクションは &lt;code&gt;/opt/rh/ソフトウェアコレクション名/&lt;/code&gt; というディレクトリになっています。rhはredhatの略だと思います。&lt;/p&gt;
+
+&lt;p&gt;今回は &lt;code&gt;hn-python2&lt;/code&gt; というメタパッケージ名とし、ディレクトリは &lt;code&gt;/opt/hn/python2/&lt;/code&gt; としました。&lt;/p&gt;
+
+&lt;h3 id=&#34;software-collectionsのメタパッケージのビルド:053f4a73ac9fb47562c779868bba4af5&#34;&gt;Software Collectionsのメタパッケージのビルド&lt;/h3&gt;
+
+&lt;p&gt;ビルド用のファイルは&lt;a href=&#34;https://github.com/hnakamur/hnscl-python2-rpm&#34;&gt;hnakamur/hnscl-python2-rpm&lt;/a&gt;に置いてあります。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://www.softwarecollections.org/en/docs/guide/#sect-The_Software_Collection_Root_Directory&#34;&gt;2.3. The Software Collection Root Directory&lt;/a&gt;によるとspecファイルに以下のように書けばよいそうです。providerの箇所は提供者ごとの値に変えます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;%global _scl_prefix /opt/provider
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ですが、実際に試してみるとこの設定だけだと、ビルドされたrpm内のファイルパスだったりファイルの中身に &lt;code&gt;/opt/rh/&lt;/code&gt; というパスが残ってしまいました。試行錯誤の結果以下のように書くことで全て &lt;code&gt;/opt/hn/&lt;/code&gt; に変わりました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/hnscl-python2-rpm/blob/06a6fa366bd485d722139f0637ce2def364eaef3/SPECS/hn-python2.spec#L1-L22&#34;&gt;hn-python2-spec&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;%global scl_name_prefix hn-
+%global scl_name_base python
+%global scl_name_version 2
+%global scl %{scl_name_prefix}%{scl_name_base}%{scl_name_version}
+
+# NOTE: You must set _scl_prefix before &#39;%scl_package %scl&#39;.
+%global _scl_prefix /opt/hn
+# NOTE: The following variables must be re-evaluated after changing _scl_prefix above.
+# I got these settings after trials and errors.
+# I don&#39;t know this is the right way to set directories with my _scl_prefix.
+%global _scl_scripts            %{_scl_prefix}/%{scl}
+%global _scl_root               %{_scl_prefix}/%{scl}/root
+%global _prefix                 %{_scl_root}/usr
+%global _sysconfdir             %{_scl_root}/etc
+%global _sharedstatedir         %{_scl_root}/var/lib
+%global _localstatedir          %{_scl_root}/var
+%global _datadir                %{_scl_root}/share
+%global _docdir                 %{_datadir}/doc
+%global _mandir                 %{_datadir}/man
+
+
+%scl_package %scl
+...(snip)...
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;python本体のパッケージのビルド:053f4a73ac9fb47562c779868bba4af5&#34;&gt;Python本体のパッケージのビルド&lt;/h3&gt;
+
+&lt;p&gt;ビルド用のファイルは&lt;a href=&#34;https://github.com/hnakamur/hnscl-python2-python-rpm&#34;&gt;hnakamur/hnscl-python2-python-rpm&lt;/a&gt;に置いてあります。&lt;/p&gt;
+
+&lt;p&gt;インストールディレクトリを &lt;code&gt;/opt/hn/&lt;/code&gt; 以下にするため、試行錯誤した結果specファイルに以下のように書けばOKでした。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/hnscl-python2-python-rpm/blob/3a13fe74587d6beca871d28a68149a2273488672/SPECS/python.spec#L1-L31&#34;&gt;python.spec&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;%global scl_name_prefix hn-
+%global scl_name_base python
+%global scl_name_version 2
+%global scl %{scl_name_prefix}%{scl_name_base}%{scl_name_version}
+
+# NOTE: You must set _scl_prefix before &#39;%scl_package %scl&#39;.
+%global _scl_prefix /opt/hn
+# NOTE: The following variables must be re-evaluated after changing _scl_prefix above.
+%global _scl_scripts            %{_scl_prefix}/%{scl}
+%global _scl_root               %{_scl_prefix}/%{scl}/root
+%global _prefix                 %{_scl_root}/usr
+%global _sysconfdir             %{_scl_root}/etc
+%global _sharedstatedir         %{_scl_root}/var/lib
+%global _localstatedir          %{_scl_root}/var
+
+%global _includedir             %{_prefix}/include
+%if &amp;quot;%{_lib}&amp;quot; == &amp;quot;lib64&amp;quot;
+%global _libdir                 %{_prefix}/lib64
+%else
+%global _libdir                 %{_prefix}/lib
+%endif
+%global _datadir                %{_prefix}/share
+%global _docdir                 %{_prefix}/share/doc
+%global _datarootdir            %{_prefix}/share
+%global _infodir                %{_prefix}/share/info
+%global _mandir                 %{_prefix}/share/man
+%global _defaultdocdir          %{_prefix}/share/doc
+
+%global _exec_prefix            %{_prefix}
+%global _bindir                 %{_exec_prefix}/bin
+%global _sbindir                %{_exec_prefix}/sbin
+...(snip)...
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;python本体のspecファイルのパッチ更新:053f4a73ac9fb47562c779868bba4af5&#34;&gt;Python本体のspecファイルのパッチ更新&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/hnscl-python2-python-rpm/blob/3a13fe74587d6beca871d28a68149a2273488672/SPECS/python.spec&#34;&gt;python.spec&lt;/a&gt;には約60個のパッチが含まれています。&lt;/p&gt;
+
+&lt;p&gt;Pythonのソースのバージョンを上げたのでパッチが当たらなくなるケースが出てきました。patchを実行した時に生成される &lt;code&gt;*.rej&lt;/code&gt; ファイルを見て、なんとなくこんな感じだろという軽いノリでパッチを一通り更新しました。&lt;/p&gt;
+
+&lt;p&gt;作業手順は&lt;a href=&#34;/blog/blog/2015/12/16/how_to_debug_errors_in_rpm_build_using_mock/&#34;&gt;mockを使ったrpmビルドが失敗した時の調査方法 · hnakamur&amp;rsquo;s blog at github&lt;/a&gt;に書いた手順で、mockのchroot環境内でパッチを修正して &lt;code&gt;rpmbuild -bp specファイル名&lt;/code&gt; でパッチを当てるというのをひたすら繰り返した感じです。&lt;/p&gt;
+
+&lt;p&gt;パッチ1つごとの修正を&lt;a href=&#34;https://github.com/hnakamur/hnscl-python2-python-rpm/commits/master&#34;&gt;Commits · hnakamur/hnscl-python2-python-rpm&lt;/a&gt;のだいたい1つのコミットにしています。ただ、後からさらに修正が必要だったものは別コミットになっていますが。&lt;/p&gt;
+
+&lt;p&gt;また、CentOSのPythonのspecファイルではリリースビルドとデバッグビルドを作ってテストも実行するようになっています。これがかなり時間がかるので、ビルドが通らない段階では&lt;a href=&#34;https://github.com/hnakamur/hnscl-python2-python-rpm/commit/ebb31040e3e5bfe0ceb62cd4eb67793bd1a333b0&#34;&gt;リリースビルドだけにしてテストは実行しないようにしていました&lt;/a&gt;。ビルドが落ち着いてきたところで&lt;a href=&#34;https://github.com/hnakamur/hnscl-python2-python-rpm/commit/8a293e3dbd25f6cb6638b00efc07ce5cf962a397&#34;&gt;この変更をgit revert&lt;/a&gt;してビルド・テストするようにしました。&lt;/p&gt;
+
+&lt;h2 id=&#34;おわりに:053f4a73ac9fb47562c779868bba4af5&#34;&gt;おわりに&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://www.softwarecollections.org/repos/rhscl/python27/epel-7-x86_64/python27-python-2.7.8-3.el7/&#34;&gt;Software CollectionsのPython27のpythonパッケージ&lt;/a&gt;を改変して作ったPython2の最新版2.7.11のrpmについて説明しました。&lt;/p&gt;
+
+&lt;p&gt;CentOS 7でもPython2の最新版が手軽に利用可能になるので、ぜひご活用ください。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>direnvでgo1.5.2とgo1.6beta1を切り替える設定</title>
@@ -1393,139 +1561,6 @@ source venv/bin/activate
 &lt;p&gt;&lt;code&gt;python3 -m venv venv&lt;/code&gt; の1つめの &lt;code&gt;venv&lt;/code&gt; はモジュール名で2つめの &lt;code&gt;venv&lt;/code&gt; は作成するサブディレクトリ名です。&lt;/p&gt;
 
 &lt;p&gt;&lt;code&gt;source venv/bin/activate&lt;/code&gt; でvenv環境を有効化した後は &lt;code&gt;python3&lt;/code&gt; と &lt;code&gt;pip3&lt;/code&gt; ではなく &lt;code&gt;python&lt;/code&gt; と &lt;code&gt;pip&lt;/code&gt; でコマンドを実行します。&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>GeForce搭載の旧モデルMacBook ProでCaffeをビルドする手順メモ</title>
-      <link>/blog/2015/07/26/build_caffe_on_macbook_with_geforce/</link>
-      <pubDate>Sun, 26 Jul 2015 00:53:52 +0900</pubDate>
-      
-      <guid>/blog/2015/07/26/build_caffe_on_macbook_with_geforce/</guid>
-      <description>
-
-&lt;h2 id=&#34;はじめに:4909c7b84850df25b3daeddabfd8580e&#34;&gt;はじめに&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;/blog/blog/2015/07/25/setup_cuda_on_macbook_pro_with_geforce/&#34;&gt;GeForce搭載の旧モデルMacBook ProでCUDAをセットアップする手順のメモ&lt;/a&gt;でCUDA 7.0.29をインストールしたMacBook Proで&lt;a href=&#34;http://caffe.berkeleyvision.org/&#34;&gt;Caffe | Deep Learning Framework&lt;/a&gt;をビルドしてみた手順メモです。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://pypi.python.org/pypi?%3Aaction=search&amp;amp;term=caffe&amp;amp;submit=search&#34;&gt;PyPIでCaffeで検索&lt;/a&gt;しても出てこないので、ソースからビルドするしかないようです。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://caffe.berkeleyvision.org/install_osx.html&#34;&gt;OS X Installation&lt;/a&gt;を参考にしつつ、一部手順を変更してインストールしました。&lt;/p&gt;
-
-&lt;h2 id=&#34;caffeはpython3非対応:4909c7b84850df25b3daeddabfd8580e&#34;&gt;CaffeはPython3非対応&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://qiita.com/icoxfog417/items/65e800c3a2094457c3a0&#34;&gt;Python - はじめるDeep learning - Qiita&lt;/a&gt;で紹介されていた&lt;a href=&#34;https://github.com/BVLC/caffe/issues/293&#34;&gt;Python3 support · Issue #293 · BVLC/caffe&lt;/a&gt;によると、オフィシャルでPython3対応の予定はないとのこと。Python3でも動かないこともないそうですが、初心者なのでまずはPython2で動かすことにします。&lt;/p&gt;
-
-&lt;h2 id=&#34;依存ライブラリのインストール:4909c7b84850df25b3daeddabfd8580e&#34;&gt;依存ライブラリのインストール&lt;/h2&gt;
-
-&lt;p&gt;依存するライブラリを以下のコマンドでインストールしました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;brew install -vd snappy leveldb gflags glog szip lmdb
-brew tap homebrew/science
-brew install hdf5 opencv
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;protobufのインストール:4909c7b84850df25b3daeddabfd8580e&#34;&gt;protobufのインストール&lt;/h3&gt;
-
-&lt;p&gt;以下のコマンドでprotobufをインストールします。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;brew install protobuf
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://caffe.berkeleyvision.org/install_osx.html&#34;&gt;OS X Installation&lt;/a&gt;の手順では &lt;code&gt;--with-python&lt;/code&gt; オプションを指定していますが、 &lt;code&gt;brew info protobuf&lt;/code&gt; で確認すると2.6.1用のformulaでは &lt;code&gt;--with-python&lt;/code&gt; オプションは無くなって代わりに &lt;code&gt;--without-python&lt;/code&gt; オプションが出来ていました。何も指定しなければpythonサポートが入るようです。&lt;/p&gt;
-
-&lt;p&gt;なお、インストール完了時に以下のメッセージが出ますが、後でvirtualenvで作った環境内で &lt;code&gt;pip install protobuf&lt;/code&gt; すればいけるので、ここに書かれている対応は不要でした。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;==&amp;gt; Caveats
-Editor support and examples have been installed to:
-  /usr/local/Cellar/protobuf/2.6.1/share/doc/protobuf
-
-Python modules have been installed and Homebrew&#39;s site-packages is not
-in your Python sys.path, so you will not be able to import the modules
-this formula installed. If you plan to develop with these modules,
-please run:
-  mkdir -p
-  echo &#39;import site; site.addsitedir(&amp;quot;/usr/local/lib/python2.7/site-packages&amp;quot;)&#39; &amp;gt;&amp;gt; homebrew.pth
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;boost-1-57-0-boost-python-1-57-0-のインストール:4909c7b84850df25b3daeddabfd8580e&#34;&gt;boost 1.57.0, boost-python 1.57.0 のインストール&lt;/h3&gt;
-
-&lt;p&gt;&lt;code&gt;brew install boost boost-python&lt;/code&gt; だと1.58.0が入ったのですが、Caffeのビルド時にコンパイルエラーが出ました。&lt;a href=&#34;http://itinerantbioinformaticist.blogspot.jp/2015/05/caffe-incompatible-with-boost-1580.html&#34;&gt;Itinerant Bioinformaticist: Caffe incompatible with Boost 1.58.0&lt;/a&gt;と同じエラーですが、ここに回避方法も書かれていたので、これに従いました。&lt;/p&gt;
-
-&lt;p&gt;まず、boost 1.58.0, boost-python 1.58.0が入っている場合はアンインストールします。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;brew uninstall boost boost-python
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;以下の手順で1.57.0をソースからインストールします。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;cd `brew --prefix`/Library/Formula
-curl -O https://raw.githubusercontent.com/Homebrew/homebrew/6fd6a9b6b2f56139a44dd689d30b7168ac13effb/Library/Formula/boost.rb
-curl -O https://raw.githubusercontent.com/Homebrew/homebrew/3141234b3473717e87f3958d4916fe0ada0baba9/Library/Formula/boost-python.rb
-brew install --build-from-source -vd boost boost-python
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id=&#34;python2でvirtualenvで作業用の環境を作成して依存ライブラリをインストール:4909c7b84850df25b3daeddabfd8580e&#34;&gt;Python2でvirtualenvで作業用の環境を作成して依存ライブラリをインストール&lt;/h2&gt;
-
-&lt;p&gt;個人的にはAnaconda Pythonのようなオールインワンのインストーラはあまり好きではないので、&lt;a href=&#34;https://github.com/riywo/anyenv&#34;&gt;riywo/anyenv&lt;/a&gt;と&lt;a href=&#34;https://github.com/yyuu/pyenv&#34;&gt;yyuu/pyenv&lt;/a&gt;で入れたPython 2.7.10を使いました。&lt;/p&gt;
-
-&lt;p&gt;作業用のディレクトリ &lt;code&gt;~/work/caffe&lt;/code&gt; を作ってvirtualenvで環境を作りました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;mkdir -p ~/work/caffe
-cd !$
-pyenv local 2.7.10
-virtualenv venv
-source venv/bin/activate
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;HomebrewでインストールしたPython 2.7.10でも &lt;code&gt;pyenv local 2.7.10&lt;/code&gt; の行を除けば同じ手順で行けました。&lt;/p&gt;
-
-&lt;p&gt;Caffeで必要なprotobufとnumpyを以下の手順でインストールします。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;pip install protobuf
-pip install numpy
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id=&#34;caffeのソースを取得してビルド:4909c7b84850df25b3daeddabfd8580e&#34;&gt;Caffeのソースを取得してビルド&lt;/h2&gt;
-
-&lt;p&gt;ソースを取得してディレクトリに入ります。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;cd ~/work/caffe
-git clone https://github.com/BVLC/caffe
-cd caffe
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://caffe.berkeleyvision.org/installation.html#compilation&#34;&gt;Installation&lt;/a&gt;を参考にビルドします。virtualenv環境のincludeとlibディレクトリを参照するように以下のように加工してMakefile.configを作成します。Caffeのソースを違うディレクトリに配置した場合は適宜変更してください。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;sed &#39;
-s|/usr/include/python2.7|$(HOME)/work/caffe/venv/include/python2.7|
-s|/usr/lib/python2.7/dist-packages|$(HOME)/work/caffe/venv/lib/python2.7/site-packages|
-&#39; Makefile.config.example &amp;gt; Makefile.config
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Caffeをビルドします。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;make all
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;テストコードをビルドします。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;make test
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;テストを実行します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;(venv)$ make runtest
-...(略)...
-[----------] Global test environment tear-down
-[==========] 1356 tests from 214 test cases ran. (306870 ms total)
-[  PASSED  ] 1356 tests.
-
-  YOU HAVE 2 DISABLED TESTS
-
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;ということで、Caffeをビルドする手順でした。&lt;/p&gt;
 </description>
     </item>
     
