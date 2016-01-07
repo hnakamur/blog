@@ -83,3 +83,5 @@ UDP、TCP、Unixソケットでの受信が出来るそうです。READMEに"usi
 
 RELPは非対応のようです。ソースコードで大文字小文字無視でrelpで検索してヒットしなかったので。
 
+軽く試してみた結果をgistに貼りました。
+https://gist.github.com/hnakamur/75385e5572262b5ce9f6
