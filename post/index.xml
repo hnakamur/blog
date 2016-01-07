@@ -6,8 +6,125 @@
     <description>Recent content in Posts on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Tue, 29 Dec 2015 00:53:53 +0900</lastBuildDate>
+    <lastBuildDate>Fri, 08 Jan 2016 01:12:13 +0900</lastBuildDate>
     <atom:link href="/blog/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>rsyslogで信頼性のあるログ転送について調べたメモ</title>
+      <link>/blog/2016/01/08/reliable_log_forward_with_rsyslog/</link>
+      <pubDate>Fri, 08 Jan 2016 01:12:13 +0900</pubDate>
+      
+      <guid>/blog/2016/01/08/reliable_log_forward_with_rsyslog/</guid>
+      <description>
+
+&lt;p&gt;事の発端は fluentd を使ってみようかと思って &lt;a href=&#34;http://changineer.info/server/logging/fluentd-td-agent.html&#34;&gt;fluentd(td-agent)のインストールと設定&lt;/a&gt; を読んだことで す。fluentd のデメリットのところを読んで、ちょっと気になりました。&lt;/p&gt;
+
+&lt;p&gt;Goで書かれた&lt;a href=&#34;https://github.com/moriyoshi/ik&#34;&gt;moriyoshi/ik&lt;/a&gt;も気になったのですが、最近話聞かないし最終コミットも3ヶ月前だったので、今回は見送りました。&lt;/p&gt;
+
+&lt;p&gt;そこで、rsyslogでのログ転送について調査してみようと思いました。&lt;/p&gt;
+
+&lt;p&gt;rsyslog自体についてはこちらのスライド&lt;a href=&#34;http://www.slideshare.net/ttkzw/logstudy01-rsyslog-primer&#34;&gt;#logstudy 01 rsyslog入門&lt;/a&gt;が分かりやすかったです。&lt;/p&gt;
+
+&lt;h2 id=&#34;syslog形式での出力サポート:dfd1f8fb29d18851ce9cb3c96f51168d&#34;&gt;syslog形式での出力サポート&lt;/h2&gt;
+
+&lt;h3 id=&#34;nginx:dfd1f8fb29d18851ce9cb3c96f51168d&#34;&gt;nginx&lt;/h3&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://nginx.org/en/docs/syslog.html&#34;&gt;Logging to syslog&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&#34;apache-http-server:dfd1f8fb29d18851ce9cb3c96f51168d&#34;&gt;Apache HTTP server&lt;/h3&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.fnal.gov/docs/products/apache/syslog_logs_notes.html&#34;&gt;Sending our web logs to syslog&lt;/a&gt;
+
+&lt;ul&gt;
+&lt;li&gt;ErrorLogやCustomLogに以下の様な感じで書く。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;CustomLog &amp;quot;|/usr/bin/tee -a /var/log/www/access.log | /usr/bin/logger -thttpd -plocal6.notice&amp;quot; combined&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;teeでファイルに出力しつつloggerコマンドでsyslogにも出力。&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://d.hatena.ne.jp/oratta/20101121/1290341166&#34;&gt;syslogで複数のapacheサーバのログを集積する - orattaの日記&lt;/a&gt;
+
+&lt;ul&gt;
+&lt;li&gt;こちらもCustomLogでloggerコマンドを呼び出す方式。&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://dsas.blog.klab.org/archives/51500856.html&#34;&gt;DSAS開発者の部屋:Apacheのアクセスログをsyslog経由で出力するためのモジュールを作りました&lt;/a&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Apache 2.2以降で使えるカスタムモジュール&lt;/li&gt;
+&lt;li&gt;Cのsyslog関数を使っている&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://httpd.apache.org/docs/trunk/mod/mod_syslog.html&#34;&gt;mod_syslog - Apache HTTP Server Version 2.5&lt;/a&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Apache 2.5からは標準モジュールになったらしい&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&#34;apache-traffic-server:dfd1f8fb29d18851ce9cb3c96f51168d&#34;&gt;Apache Traffic Server&lt;/h3&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://trafficserver.readthedocs.org/en/latest/admin-guide/files/records.config.en.html#proxy-config-syslog-facility&#34;&gt;proxy.config.syslog_facility&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://trafficserver.readthedocs.org/en/latest/admin-guide/files/records.config.en.html#proxy-config-diags-output-emergency&#34;&gt;proxy.config.diags.output.emergency&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&#34;cのsyslog出力関数:dfd1f8fb29d18851ce9cb3c96f51168d&#34;&gt;Cのsyslog出力関数&lt;/h3&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://linux.die.net/man/3/syslog&#34;&gt;syslog(3): send messages to system logger - Linux man page&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&#34;goのsyslogクライアントライブラリ:dfd1f8fb29d18851ce9cb3c96f51168d&#34;&gt;Goのsyslogクライアントライブラリ&lt;/h3&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://golang.org/pkg/log/syslog/&#34;&gt;syslog - The Go Programming Language&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&#34;loggerコマンド-シェルスクリプトから出力したい時に使用:dfd1f8fb29d18851ce9cb3c96f51168d&#34;&gt;loggerコマンド (シェルスクリプトから出力したい時に使用)&lt;/h3&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://linux.die.net/man/1/logger&#34;&gt;logger(1) - Linux man page&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;信頼性のあるログ転送のためのrelpプロトコル:dfd1f8fb29d18851ce9cb3c96f51168d&#34;&gt;信頼性のあるログ転送のためのRELPプロトコル&lt;/h2&gt;
+
+&lt;p&gt;UDPで転送するとパケットロスしてログが消失する恐れがあります。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://www.slideshare.net/ttkzw/logstudy01-rsyslog-primer&#34;&gt;#logstudy 01 rsyslog入門&lt;/a&gt;の&lt;a href=&#34;http://www.slideshare.net/ttkzw/logstudy01-rsyslog-primer/81&#34;&gt;81枚目のスライド&lt;/a&gt;によると、TCPで転送しておけば、転送先のsyslogサーバがダウンしたら、キューイングして、復活したら再送するそうです。&lt;/p&gt;
+
+&lt;p&gt;これで十分そうな気もしたのですが、syslog forwardでググっていると&lt;a href=&#34;http://ubuntuforums.org/showthread.php?t=2151986&#34;&gt;[SOLVED] Rsyslog forward log to other syslog server&lt;/a&gt;というページからリンクされている&lt;a href=&#34;http://blog.gerhards.net/2008/04/on-unreliability-of-plain-tcp-syslog.html&#34;&gt;Rainer&amp;rsquo;s Blog: On the (un)reliability of plain tcp syslog&amp;hellip;&lt;/a&gt;という記事を見つけました。&lt;/p&gt;
+
+&lt;p&gt;さらにそこからリンクされている&lt;a href=&#34;http://blog.gerhards.net/2008/05/why-you-cant-build-reliable-tcp.html&#34;&gt;Rainer&amp;rsquo;s Blog: why you can&amp;rsquo;t build a reliable TCP protocol without app-level acks&amp;hellip;&lt;/a&gt;という記事も読んでみました。&lt;/p&gt;
+
+&lt;p&gt;一言で言うと、信頼性の有るログ転送を実現するためには、TCPレベルでACKがあってもだめで、アプリケーションレベルのACKが必要ということです。&lt;/p&gt;
+
+&lt;p&gt;アプリケーションレベルのACKが無いと、サーバのバッファスペースが溢れてもクライアントが気づけないというのが問題の本質のようです。&lt;/p&gt;
+
+&lt;p&gt;これを解決するために作られたのが、&lt;a href=&#34;http://blog.gerhards.net/2008/03/relp-reliable-event-logging-protocol.html&#34;&gt;Rainer&amp;rsquo;s Blog: RELP - the reliable event logging protocol&lt;/a&gt;です。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://www.librelp.com/&#34;&gt;librelp - a reliable logging library&lt;/a&gt;というのがCの実装で、ソースを見るとライセンスはGPLv3でした。&lt;/p&gt;
+
+&lt;p&gt;RELPはrsyslogdにすでに取り込まれていました。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.rsyslog.com/doc/v8-stable/tutorials/reliable_forwarding.html&#34;&gt;Reliable Forwarding of syslog Messages with Rsyslog — rsyslog 8.14.0 documentation&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.rsyslog.com/doc/v8-stable/configuration/modules/imrelp.html?highlight=relp&#34;&gt;imrelp: RELP Input Module — rsyslog 8.14.0 documentation&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.rsyslog.com/doc/v8-stable/configuration/modules/omrelp.html?highlight=relp&#34;&gt;omrelp: RELP Output Module — rsyslog 8.14.0 documentation&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;ただし、imrelpの &lt;code&gt;Ruleset&lt;/code&gt; パラメータはrsyslogdのバージョン7.5.0以降が必要らしいです。CentOS 7のrsyslogdは &lt;code&gt;yum info rsyslogd&lt;/code&gt; によると 7.4.7 なのでこれは使えないようです。&lt;/p&gt;
+
+&lt;p&gt;CentOS 7では &lt;code&gt;rsyslog-relp.x86_64 : RELP protocol support for rsyslog&lt;/code&gt; というパッケージをインストールすればRELPが使えるようです (まだ試してないです)。&lt;/p&gt;
+
+&lt;h2 id=&#34;参考-goで書かれたrsyslogサーバ:dfd1f8fb29d18851ce9cb3c96f51168d&#34;&gt;参考: goで書かれたrsyslogサーバ&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/mcuadros/go-syslog&#34;&gt;mcuadros/go-syslog&lt;/a&gt;というgoで書かれたrsyslogサーバも見つけました。&lt;/p&gt;
+
+&lt;p&gt;UDP、TCP、Unixソケットでの受信が出来るそうです。READMEに&amp;rdquo;using RFC3164, RFC6587 or RFC5424&amp;rdquo;とありますが、どこまで対応しているかは未調査です。&lt;/p&gt;
+
+&lt;p&gt;RELPは非対応のようです。ソースコードで大文字小文字無視でrelpで検索してヒットしなかったので。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>ambiguous width cjk patchを当てたhomebrew用tmux</title>
@@ -1474,61 +1591,6 @@ sys     0m0.007s
 &lt;/code&gt;&lt;/pre&gt;
 
 &lt;p&gt;私が試した環境では、whatismyip.akamai.comとifconfig.meにhttpで問い合わせる方法は約0.6秒弱ですが、OpenDNSにdigで問い合わせる方法だと約0.06秒と一桁速いということがわかりました。&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>Ubuntu 14.04のPython3でvenvを使う手順のメモ</title>
-      <link>/blog/2015/07/26/use_python3_venv_on_ubuntu_14.04/</link>
-      <pubDate>Sun, 26 Jul 2015 23:09:17 +0900</pubDate>
-      
-      <guid>/blog/2015/07/26/use_python3_venv_on_ubuntu_14.04/</guid>
-      <description>
-
-&lt;p&gt;Ubuntu 14.04のPython3でvenv環境をつくろうとしたらエラーになったのですが、&lt;a href=&#34;http://www.thefourtheye.in/2014/12/Python-venv-problem-with-ensurepip-in-Ubuntu.html&#34;&gt;thefourtheye&amp;rsquo;s Tech Blog: Python&amp;rsquo;s venv problem with ensurepip in Ubuntu&lt;/a&gt;に回避方法が紹介されていました。&lt;/p&gt;
-
-&lt;p&gt;venv環境の作成手順をメモしておきます。&lt;/p&gt;
-
-&lt;h2 id=&#34;事前準備:05eb07f168fcd264f562f523d3cefc83&#34;&gt;事前準備&lt;/h2&gt;
-
-&lt;pre&gt;&lt;code&gt;sudo apt-get install python3 python3-pip
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id=&#34;venv環境作成手順:05eb07f168fcd264f562f523d3cefc83&#34;&gt;venv環境作成手順&lt;/h2&gt;
-
-&lt;pre&gt;&lt;code&gt;pyvenv-3.4 --without-pip venv
-source venv/bin/activate
-curl -LO https://bootstrap.pypa.io/get-pip.py
-python3 get-pip.py
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id=&#34;2015-08-29追記-スクリプトを書きました:05eb07f168fcd264f562f523d3cefc83&#34;&gt;2015-08-29追記: スクリプトを書きました&lt;/h2&gt;
-
-&lt;p&gt;以下の内容を~/bin/venv3などというファイル名で保存します。sourceで実行するので実行パーミションは付けないでください。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;venv_dir=&amp;quot;${1:-venv}&amp;quot;
-pyvenv-3.4 --without-pip &amp;quot;${venv_dir}&amp;quot;
-source &amp;quot;${venv_dir}/bin/activate&amp;quot;
-curl -L https://bootstrap.pypa.io/get-pip.py | python3
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;使い方は &lt;code&gt;source ~/bin/venv3 作成するディレクトリ名&lt;/code&gt; です。作成するディレクトリ名を省略するとカレントディレクトリ下のvenvになります。
-使用例は以下の通りです。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;vagrant@vagrant-ubuntu-trusty-64:/tmp$ source ~/bin/venv3 venv3
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-100 1379k  100 1379k    0     0  2741k      0 --:--:-- --:--:-- --:--:-- 2737k
-Collecting pip
-  Using cached pip-7.1.2-py2.py3-none-any.whl
-Collecting setuptools
-  Using cached setuptools-18.2-py2.py3-none-any.whl
-Collecting wheel
-  Using cached wheel-0.24.0-py2.py3-none-any.whl
-Installing collected packages: pip, setuptools, wheel
-Successfully installed pip-7.1.2 setuptools-18.2 wheel-0.24.0
-(venv3) vagrant@vagrant-ubuntu-trusty-64:/tmp$
-&lt;/code&gt;&lt;/pre&gt;
 </description>
     </item>
     
