@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Apache Traffic Server on hnakamur&#39;s blog at github</title>
+    <link>/blog/tags/apache-traffic-server/</link>
+    <description>Recent content in Apache Traffic Server on hnakamur&#39;s blog at github</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>ja-JP</language>
+    <lastBuildDate>Thu, 11 Feb 2016 23:11:50 +0900</lastBuildDate>
+    <atom:link href="/blog/tags/apache-traffic-server/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>Apache Traffic Server のコードリーディング</title>
+      <link>/blog/2016/02/11/apache-traffic-server-code-reading/</link>
+      <pubDate>Thu, 11 Feb 2016 23:11:50 +0900</pubDate>
+      
+      <guid>/blog/2016/02/11/apache-traffic-server-code-reading/</guid>
+      <description>
+
+&lt;p&gt;Apache Traffic Server のコードリーディングを少しやってみたので、将来の自分に向けてメモ。&lt;/p&gt;
+
+&lt;h2 id=&#34;コードリーディングの方法についての参考文献:0af5e1c76a1f6c4753d48d00c2585a54&#34;&gt;コードリーディングの方法についての参考文献&lt;/h2&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://gihyo.jp/magazine/wdpress/archive/2012/vol69&#34;&gt;WEB+DB PRESS Vol.69｜技術評論社&lt;/a&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://dev.ariel-networks.com/wp/archives/author/inoue&#34;&gt;アリエル・ネットワーク㈱の井上さん&lt;/a&gt;による「大規模コードリーディング」の特集&lt;/li&gt;
+&lt;li&gt;私は&lt;a href=&#34;http://gihyo.jp/book/2013/978-4-7741-5783-2&#34;&gt;WEB+DB PRESS総集編［Vol.1～72］：書籍案内｜技術評論社&lt;/a&gt;を買ってたので、これに入っています。&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://gihyo.jp/book/2015/978-4-7741-7538-6&#34;&gt;WEB+DB PRESS総集編［Vol.1～84］：書籍案内｜技術評論社&lt;/a&gt;というのも出ていました。将来チェックするときはより新しい総集編が出ているかチェックしましょう。&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.slideshare.net/satorutakeuchi18/viewing-source-code&#34;&gt;大規模ソースコードの読み方&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;ツール:0af5e1c76a1f6c4753d48d00c2585a54&#34;&gt;ツール&lt;/h2&gt;
+
+&lt;p&gt;以下の 2 つのツールを使ってみました。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.doxygen.jp/&#34;&gt;Doxygen&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.tamacom.com/global-j.html&#34;&gt;GNU GLOBAL&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Apache Traffic Server は C++ で書かれています。 C 言語に対応したツールなら他にもあるのですが、 C++ に対応していてちゃんと動いたのはこの 2 つでした。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://gccxml.github.io/HTML/Index.html&#34;&gt;GCC-XML&lt;/a&gt; とその後継の &lt;a href=&#34;https://github.com/CastXML/CastXML#readme&#34;&gt;CastXML/CastXML: C-family Abstract Syntax Tree XML Output&lt;/a&gt; はうまくいかなくて諦めました。&lt;/p&gt;
+
+&lt;h3 id=&#34;doxygen:0af5e1c76a1f6c4753d48d00c2585a54&#34;&gt;Doxygen&lt;/h3&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.doxygen.jp/starting.html&#34;&gt;Doxygen&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://onlineconsultant.jp/pukiwiki/?Doxygen%2FGraphviz%E3%81%A7%E3%83%89%E3%82%AD%E3%83%A5%E3%83%A1%E3%83%B3%E3%83%88%E3%82%92%E8%87%AA%E5%8B%95%E7%94%9F%E6%88%90%E3%81%99%E3%82%8B&#34;&gt;Doxygen/Graphvizでドキュメントを自動生成する -でじうぃき&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;あたりを参考にしました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/apache/trafficserver&#34;&gt;https://github.com/apache/trafficserver&lt;/a&gt; を &lt;code&gt;git clone&lt;/code&gt; したディレクトリで作業しました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;doxygen -g
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;で &lt;code&gt;Doxyfile&lt;/code&gt; を生成して、以下のように編集しました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;--- Doxyfile.generated	2016-02-11 23:27:47.000000000 +0900
++++ Doxyfile	2016-01-22 20:52:30.000000000 +0900
+@@ -32,13 +32,13 @@
+ # title of most generated pages and in a few other places.
+ # The default value is: My Project.
+ 
+-PROJECT_NAME           = &amp;quot;My Project&amp;quot;
++PROJECT_NAME           = &amp;quot;Apache Traffic Server&amp;quot;
+ 
+ # The PROJECT_NUMBER tag can be used to enter a project or revision number. This
+ # could be handy for archiving the generated documentation or if some version
+ # control system is used.
+ 
+-PROJECT_NUMBER         =
++PROJECT_NUMBER         = 6.0
+ 
+ # Using the PROJECT_BRIEF tag one can provide an optional one line description
+ # for a project that appears at the top of each page and should give viewer a
+@@ -58,7 +58,7 @@
+ # entered, it will be relative to the location where doxygen was started. If
+ # left blank the current directory will be used.
+ 
+-OUTPUT_DIRECTORY       =
++OUTPUT_DIRECTORY       = ../trafficserver-doxygen
+ 
+ # If the CREATE_SUBDIRS tag is set to YES then doxygen will create 4096 sub-
+ # directories (in 2 levels) under the output directory of each output format and
+@@ -802,7 +802,7 @@
+ # be searched for input files as well.
+ # The default value is: NO.
+ 
+-RECURSIVE              = NO
++RECURSIVE              = YES
+ 
+ # The EXCLUDE tag can be used to specify files and/or directories that should be
+ # excluded from the INPUT source files. This way you can easily exclude a
+@@ -933,13 +933,13 @@
+ # also VERBATIM_HEADERS is set to NO.
+ # The default value is: NO.
+ 
+-SOURCE_BROWSER         = NO
++SOURCE_BROWSER         = YES
+ 
+ # Setting the INLINE_SOURCES tag to YES will include the body of functions,
+ # classes and enums directly into the documentation.
+ # The default value is: NO.
+ 
+-INLINE_SOURCES         = NO
++INLINE_SOURCES         = YES
+ 
+ # Setting the STRIP_CODE_COMMENTS tag to YES will instruct doxygen to hide any
+ # special comment blocks from generated source code fragments. Normal C, C++ and
+@@ -1865,7 +1865,7 @@
+ # captures the structure of the code including all documentation.
+ # The default value is: NO.
+ 
+-GENERATE_XML           = NO
++GENERATE_XML           = YES
+ 
+ # The XML_OUTPUT tag is used to specify where the XML pages will be put. If a
+ # relative path is entered the value of OUTPUT_DIRECTORY will be put in front of
+@@ -2250,7 +2250,7 @@
+ # The default value is: NO.
+ # This tag requires that the tag HAVE_DOT is set to YES.
+ 
+-CALL_GRAPH             = NO
++CALL_GRAPH             = YES
+ 
+ # If the CALLER_GRAPH tag is set to YES then doxygen will generate a caller
+ # dependency graph for every global function or class method.
+@@ -2262,7 +2262,7 @@
+ # The default value is: NO.
+ # This tag requires that the tag HAVE_DOT is set to YES.
+ 
+-CALLER_GRAPH           = NO
++CALLER_GRAPH           = YES
+ 
+ # If the GRAPHICAL_HIERARCHY tag is set to YES then doxygen will graphical
+ # hierarchy of all classes instead of a textual one.
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;Doxyfile&lt;/code&gt; を編集したら、以下のように実行するとドキュメントが生成されます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;doxygen
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;上記では &lt;code&gt;GENERATE_XML&lt;/code&gt; を &lt;code&gt;YES&lt;/code&gt; にしていますが、通常は &lt;code&gt;NO&lt;/code&gt; で良いです。生成された HTML に不満がある場合は &lt;code&gt;YES&lt;/code&gt; にして xml ファイルを生成し好みに加工すれば良いということです。&lt;/p&gt;
+
+&lt;p&gt;CALL_GRAPH と CALLER_GRAPH を作るには GraphViz をインストールしておく必要があります。メソッドの呼び出し図ではなくファイルのインクルード関係図っぽかったです (図のあるページへのたどり着き方を見失ってしまって現在確認できず)。&lt;/p&gt;
+
+&lt;h3 id=&#34;gnu-global:0af5e1c76a1f6c4753d48d00c2585a54&#34;&gt;GNU GLOBAL&lt;/h3&gt;
+
+&lt;p&gt;コードリーディング用にはこちらのほうが使いやすかったです。Homebrewからインストールしました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;brew install global
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/apache/trafficserver&#34;&gt;https://github.com/apache/trafficserver&lt;/a&gt; を &lt;code&gt;git clone&lt;/code&gt; したディレクトリで以下のコマンドを実行して &lt;code&gt;HTML&lt;/code&gt; ディレクトリにドキュメントが生成しました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;htags -sa
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;-s&lt;/code&gt; をつけると関数などの定義箇所で名前がリンクになり、クリックすると参照箇所一覧のページに飛べます。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;-a&lt;/code&gt; はアルファベットの索引を作るオプションです。&lt;/p&gt;
+
+&lt;p&gt;以下のように &lt;code&gt;-n&lt;/code&gt; も追加するとソースリストに行番号が追加されます。ただし、コピペしようとコードを選択すると行番号も混ざってしまいます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;htags -sa
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ソースコードのフォントを Monaco にするには &lt;code&gt;HTML/styles.css&lt;/code&gt; に以下のコードを追加します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;pre {
+        font-family: Monaco;
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;時々参照箇所へのリンクが違うクラスに飛んだりすることがあったので、その場合は &lt;a href=&#34;https://github.com/monochromegane/the_platinum_searcher&#34;&gt;the_platinum_searcher&lt;/a&gt; で&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;pt -G &#39;\.(h|cc)$&#39; 文字列
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;や&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;pt -e -G &#39;\.(h|cc)$&#39; 正規表現
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;で検索しました。&lt;/p&gt;
+
+&lt;h2 id=&#34;コードリーディングのメモ:0af5e1c76a1f6c4753d48d00c2585a54&#34;&gt;コードリーディングのメモ&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/trafficserver-code-reading&#34;&gt;hnakamur/trafficserver-code-reading: This is my code reading memo for Apache Traffic Server&lt;/a&gt; に置きました。&lt;/p&gt;
+</description>
+    </item>
+    
+  </channel>
+</rss>

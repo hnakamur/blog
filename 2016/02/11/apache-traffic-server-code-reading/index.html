@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en-us">
+    <head>
+        
+        <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+
+        <title>Apache Traffic Server のコードリーディング &middot; hnakamur&#39;s blog at github</title>
+        <link rel='stylesheet' href='http://fonts.googleapis.com/css?family=Open+Sans:400,300,600' type='text/css'>
+        <link rel="stylesheet" href="/blog//libraries/normalize.3.0.1.css" />
+        <link rel="stylesheet" href="/blog//css/liquorice.css" />
+        <link rel="shortcut icon" href="/favicon.ico" />
+        <link rel="apple-touch-icon-precomposed" href="/apple-touch-icon-144-precomposed.png" sizes="144x144" />
+        <link rel="alternate" href="" type="application/rss+xml" title="hnakamur&#39;s blog at github" />
+        
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+      (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+      m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+          })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', "UA-53263855-1", 'auto');
+    ga('send', 'pageview');
+</script>
+
+
+    </head>
+    <body class="li-body">
+
+<header class="li-page-header">
+    <div class="container">
+        <div class="row">
+            <div class="sixteen columns">
+                <div class="li-brand li-left">
+                <a href="/blog/">hnakamur&#39;s blog at github</a></div>
+                <div class="li-menu li-right">
+                    <span class="li-menu-icon" onclick="javascript:toggle('menu');">&#9776;</span>
+                    <ul id="menu2" class="li-menu-items">
+                        
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="sixteen columns">
+                <ul id="menu" class="li-menu-items li-menu-mobile">
+                    
+                </ul>
+            </div>
+        </div>
+    </div>
+</header>
+
+
+    <div class="container">
+        <div class="row">
+            <div class="sixteen columns">
+                <article class="li-article">
+                    <header class="li-article-header">
+                        <h1 class="li-article-title">Apache Traffic Server のコードリーディング</h1>
+                        <time class="li-article-date">2016-02-11</time>
+                    </header>
+                    <section>
+                        
+
+<p>Apache Traffic Server のコードリーディングを少しやってみたので、将来の自分に向けてメモ。</p>
+
+<h2 id="コードリーディングの方法についての参考文献:0af5e1c76a1f6c4753d48d00c2585a54">コードリーディングの方法についての参考文献</h2>
+
+<ul>
+<li><a href="http://gihyo.jp/magazine/wdpress/archive/2012/vol69">WEB+DB PRESS Vol.69｜技術評論社</a>
+
+<ul>
+<li><a href="http://dev.ariel-networks.com/wp/archives/author/inoue">アリエル・ネットワーク㈱の井上さん</a>による「大規模コードリーディング」の特集</li>
+<li>私は<a href="http://gihyo.jp/book/2013/978-4-7741-5783-2">WEB+DB PRESS総集編［Vol.1～72］：書籍案内｜技術評論社</a>を買ってたので、これに入っています。</li>
+<li><a href="http://gihyo.jp/book/2015/978-4-7741-7538-6">WEB+DB PRESS総集編［Vol.1～84］：書籍案内｜技術評論社</a>というのも出ていました。将来チェックするときはより新しい総集編が出ているかチェックしましょう。</li>
+</ul></li>
+<li><a href="http://www.slideshare.net/satorutakeuchi18/viewing-source-code">大規模ソースコードの読み方</a></li>
+</ul>
+
+<h2 id="ツール:0af5e1c76a1f6c4753d48d00c2585a54">ツール</h2>
+
+<p>以下の 2 つのツールを使ってみました。</p>
+
+<ul>
+<li><a href="http://www.doxygen.jp/">Doxygen</a></li>
+<li><a href="http://www.tamacom.com/global-j.html">GNU GLOBAL</a></li>
+</ul>
+
+<p>Apache Traffic Server は C++ で書かれています。 C 言語に対応したツールなら他にもあるのですが、 C++ に対応していてちゃんと動いたのはこの 2 つでした。</p>
+
+<p><a href="http://gccxml.github.io/HTML/Index.html">GCC-XML</a> とその後継の <a href="https://github.com/CastXML/CastXML#readme">CastXML/CastXML: C-family Abstract Syntax Tree XML Output</a> はうまくいかなくて諦めました。</p>
+
+<h3 id="doxygen:0af5e1c76a1f6c4753d48d00c2585a54">Doxygen</h3>
+
+<ul>
+<li><a href="http://www.doxygen.jp/starting.html">Doxygen</a></li>
+<li><a href="http://onlineconsultant.jp/pukiwiki/?Doxygen%2FGraphviz%E3%81%A7%E3%83%89%E3%82%AD%E3%83%A5%E3%83%A1%E3%83%B3%E3%83%88%E3%82%92%E8%87%AA%E5%8B%95%E7%94%9F%E6%88%90%E3%81%99%E3%82%8B">Doxygen/Graphvizでドキュメントを自動生成する -でじうぃき</a></li>
+</ul>
+
+<p>あたりを参考にしました。</p>
+
+<p><a href="https://github.com/apache/trafficserver">https://github.com/apache/trafficserver</a> を <code>git clone</code> したディレクトリで作業しました。</p>
+
+<pre><code>doxygen -g
+</code></pre>
+
+<p>で <code>Doxyfile</code> を生成して、以下のように編集しました。</p>
+
+<pre><code>--- Doxyfile.generated	2016-02-11 23:27:47.000000000 +0900
++++ Doxyfile	2016-01-22 20:52:30.000000000 +0900
+@@ -32,13 +32,13 @@
+ # title of most generated pages and in a few other places.
+ # The default value is: My Project.
+ 
+-PROJECT_NAME           = &quot;My Project&quot;
++PROJECT_NAME           = &quot;Apache Traffic Server&quot;
+ 
+ # The PROJECT_NUMBER tag can be used to enter a project or revision number. This
+ # could be handy for archiving the generated documentation or if some version
+ # control system is used.
+ 
+-PROJECT_NUMBER         =
++PROJECT_NUMBER         = 6.0
+ 
+ # Using the PROJECT_BRIEF tag one can provide an optional one line description
+ # for a project that appears at the top of each page and should give viewer a
+@@ -58,7 +58,7 @@
+ # entered, it will be relative to the location where doxygen was started. If
+ # left blank the current directory will be used.
+ 
+-OUTPUT_DIRECTORY       =
++OUTPUT_DIRECTORY       = ../trafficserver-doxygen
+ 
+ # If the CREATE_SUBDIRS tag is set to YES then doxygen will create 4096 sub-
+ # directories (in 2 levels) under the output directory of each output format and
+@@ -802,7 +802,7 @@
+ # be searched for input files as well.
+ # The default value is: NO.
+ 
+-RECURSIVE              = NO
++RECURSIVE              = YES
+ 
+ # The EXCLUDE tag can be used to specify files and/or directories that should be
+ # excluded from the INPUT source files. This way you can easily exclude a
+@@ -933,13 +933,13 @@
+ # also VERBATIM_HEADERS is set to NO.
+ # The default value is: NO.
+ 
+-SOURCE_BROWSER         = NO
++SOURCE_BROWSER         = YES
+ 
+ # Setting the INLINE_SOURCES tag to YES will include the body of functions,
+ # classes and enums directly into the documentation.
+ # The default value is: NO.
+ 
+-INLINE_SOURCES         = NO
++INLINE_SOURCES         = YES
+ 
+ # Setting the STRIP_CODE_COMMENTS tag to YES will instruct doxygen to hide any
+ # special comment blocks from generated source code fragments. Normal C, C++ and
+@@ -1865,7 +1865,7 @@
+ # captures the structure of the code including all documentation.
+ # The default value is: NO.
+ 
+-GENERATE_XML           = NO
++GENERATE_XML           = YES
+ 
+ # The XML_OUTPUT tag is used to specify where the XML pages will be put. If a
+ # relative path is entered the value of OUTPUT_DIRECTORY will be put in front of
+@@ -2250,7 +2250,7 @@
+ # The default value is: NO.
+ # This tag requires that the tag HAVE_DOT is set to YES.
+ 
+-CALL_GRAPH             = NO
++CALL_GRAPH             = YES
+ 
+ # If the CALLER_GRAPH tag is set to YES then doxygen will generate a caller
+ # dependency graph for every global function or class method.
+@@ -2262,7 +2262,7 @@
+ # The default value is: NO.
+ # This tag requires that the tag HAVE_DOT is set to YES.
+ 
+-CALLER_GRAPH           = NO
++CALLER_GRAPH           = YES
+ 
+ # If the GRAPHICAL_HIERARCHY tag is set to YES then doxygen will graphical
+ # hierarchy of all classes instead of a textual one.
+</code></pre>
+
+<p><code>Doxyfile</code> を編集したら、以下のように実行するとドキュメントが生成されます。</p>
+
+<pre><code>doxygen
+</code></pre>
+
+<p>上記では <code>GENERATE_XML</code> を <code>YES</code> にしていますが、通常は <code>NO</code> で良いです。生成された HTML に不満がある場合は <code>YES</code> にして xml ファイルを生成し好みに加工すれば良いということです。</p>
+
+<p>CALL_GRAPH と CALLER_GRAPH を作るには GraphViz をインストールしておく必要があります。メソッドの呼び出し図ではなくファイルのインクルード関係図っぽかったです (図のあるページへのたどり着き方を見失ってしまって現在確認できず)。</p>
+
+<h3 id="gnu-global:0af5e1c76a1f6c4753d48d00c2585a54">GNU GLOBAL</h3>
+
+<p>コードリーディング用にはこちらのほうが使いやすかったです。Homebrewからインストールしました。</p>
+
+<pre><code>brew install global
+</code></pre>
+
+<p><a href="https://github.com/apache/trafficserver">https://github.com/apache/trafficserver</a> を <code>git clone</code> したディレクトリで以下のコマンドを実行して <code>HTML</code> ディレクトリにドキュメントが生成しました。</p>
+
+<pre><code>htags -sa
+</code></pre>
+
+<p><code>-s</code> をつけると関数などの定義箇所で名前がリンクになり、クリックすると参照箇所一覧のページに飛べます。</p>
+
+<p><code>-a</code> はアルファベットの索引を作るオプションです。</p>
+
+<p>以下のように <code>-n</code> も追加するとソースリストに行番号が追加されます。ただし、コピペしようとコードを選択すると行番号も混ざってしまいます。</p>
+
+<pre><code>htags -sa
+</code></pre>
+
+<p>ソースコードのフォントを Monaco にするには <code>HTML/styles.css</code> に以下のコードを追加します。</p>
+
+<pre><code>pre {
+        font-family: Monaco;
+}
+</code></pre>
+
+<p>時々参照箇所へのリンクが違うクラスに飛んだりすることがあったので、その場合は <a href="https://github.com/monochromegane/the_platinum_searcher">the_platinum_searcher</a> で</p>
+
+<pre><code>pt -G '\.(h|cc)$' 文字列
+</code></pre>
+
+<p>や</p>
+
+<pre><code>pt -e -G '\.(h|cc)$' 正規表現
+</code></pre>
+
+<p>で検索しました。</p>
+
+<h2 id="コードリーディングのメモ:0af5e1c76a1f6c4753d48d00c2585a54">コードリーディングのメモ</h2>
+
+<p><a href="https://github.com/hnakamur/trafficserver-code-reading">hnakamur/trafficserver-code-reading: This is my code reading memo for Apache Traffic Server</a> に置きました。</p>
+
+                    </section>
+                </article>
+            </div>
+        </div>
+
+        <div class="row li-author">
+    <div class="sixteen columns">
+        Written by <a href="https://hnakamur.github.io"><strong>Hiroaki Nakamura</strong></a>
+    </div>
+</div>
+
+
+        <div class="row li-pagination">
+            <div class="eight columns">
+                <div class="li-pagination-previous">
+                    
+                        &nbsp;
+                    
+                </div>
+            </div>
+            <div class="eight columns">
+                <div class="li-pagination-next">
+                    
+                        Older article<br />
+                        <a href="/blog/2016/01/08/reliable_log_forward_with_rsyslog/"> rsyslogで信頼性のあるログ転送について調べたメモ</a>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+
+<footer class="li-page-footer">
+    <div class="container">
+        <div class="row">
+            <div class="sixteen columns">
+                <div class="li-page-footer-legal">
+                    &copy; 2012-2016. All rights reserved. 
+                </div>
+                <div class="li-page-footer-theme">
+                    <span class=""><a href="http://github.com/hnakamur/liquorice-hn/">liquorice-hn</a> is a theme for <a href="http://hugo.spf13.com">hugo</a></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</footer>
+
+    <script type="text/javascript">
+    <!--
+    function toggle(id) {
+        var e = document.getElementById(id);
+        e.style.display == 'block' ? e.style.display = 'none' : e.style.display = 'block';
+    }
+    
+    </script>
+    </body>
+</html>
+
