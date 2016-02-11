@@ -6,8 +6,286 @@
     <description>Recent content on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Thu, 11 Feb 2016 23:11:50 +0900</lastBuildDate>
+    <lastBuildDate>Fri, 12 Feb 2016 00:02:11 +0900</lastBuildDate>
     <atom:link href="/blog/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>Apache Traffic Server を GDB で動かす</title>
+      <link>/blog/2016/02/12/run-apache-traffic-server-with-gdb/</link>
+      <pubDate>Fri, 12 Feb 2016 00:02:11 +0900</pubDate>
+      
+      <guid>/blog/2016/02/12/run-apache-traffic-server-with-gdb/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに:16844cae3677ced667c896b951ca0019&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://gihyo.jp/magazine/wdpress/archive/2012/vol69&#34;&gt;WEB+DB PRESS Vol.69｜技術評論社&lt;/a&gt; にあった &lt;a href=&#34;http://dev.ariel-networks.com/wp/archives/author/inoue&#34;&gt;アリエル・ネットワーク㈱の井上さん&lt;/a&gt;による「大規模コードリーディング」の特集を読んで、静的解析 (コードを読んで理解する手法) と動的解析 (実行時の動作を予測しながら構造を理解する方法) を行ったり来たり繰り返すのが良いと理解しました。&lt;/p&gt;
+
+&lt;p&gt;というわけで、 &lt;a href=&#34;/blog/blog/2016/02/11/apache-traffic-server-code-reading/&#34;&gt;Apache Traffic Server のコードリーディング · hnakamur&amp;rsquo;s blog at github&lt;/a&gt; でコードを読みつつ、デバッガ上で動かしてみました。手順は整理してないですが、とりあえず自分向けメモです。&lt;/p&gt;
+
+&lt;h2 id=&#34;試した環境:16844cae3677ced667c896b951ca0019&#34;&gt;試した環境&lt;/h2&gt;
+
+&lt;p&gt;試した環境は &lt;a href=&#34;https://github.com/hnakamur/trafficserver-ansible-playbook&#34;&gt;hnakamur/trafficserver-ansible-playbook&lt;/a&gt; で構築したものです。Apache Traffic Server のバージョンは 6.1.1 です。&lt;/p&gt;
+
+&lt;h2 id=&#34;事前準備:16844cae3677ced667c896b951ca0019&#34;&gt;事前準備&lt;/h2&gt;
+
+&lt;h3 id=&#34;debuginfo-パッケージのインストール:16844cae3677ced667c896b951ca0019&#34;&gt;debuginfo パッケージのインストール&lt;/h3&gt;
+
+&lt;p&gt;gdb でプログラムを実行するにはプログラムのパッケージと依存パッケージの debuginfo が必要です。これは、たぶん以下のコマンドでインストールできます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo yum install -y yum-utils
+sudo debuginfo-install -y trafficserver
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;debuginfo-パッケージのインストールの試行錯誤メモ:16844cae3677ced667c896b951ca0019&#34;&gt;debuginfo パッケージのインストールの試行錯誤メモ&lt;/h3&gt;
+
+&lt;p&gt;この項は上のコマンドを知る前に試した手順のメモです。&lt;/p&gt;
+
+&lt;p&gt;まずデバッグ情報のパッケージが必要だと思ったので、以下のコマンドでインストールしました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo yum install -y trafficserver-debuginfo
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;次に&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;systemctl start trafficserver
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;を実行して trafficserver のサービスを起動した状態で&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;ps auxww | grep traffic
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;を実行して &lt;code&gt;traffic_server&lt;/code&gt; のコマンドラインをメモします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;/usr/bin/traffic_server -M --bind_stdout /var/log/trafficserver/traffic.out --bind_stderr /var/log/trafficserver/traffic.out --httpport 80:fd=9
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;となっていました。 &lt;a href=&#34;https://docs.trafficserver.apache.org/en/latest/appendices/command-line/traffic_server.en.html&#34;&gt;traffic_server — Apache Traffic Server 6.2.0 documentation&lt;/a&gt; を見ると &lt;code&gt;-M&lt;/code&gt; は &lt;code&gt;--remote_management&lt;/code&gt; のショートオプションです。 &lt;code&gt;systemctl start trafficserver&lt;/code&gt; でサービスを起動すると &lt;code&gt;traffic_cop&lt;/code&gt; と &lt;code&gt;traffic_manager&lt;/code&gt; 経由で &lt;code&gt;traffic_server&lt;/code&gt; が起動するのですが、その場合に必要になるオプションのようです。 gdb で実行するときは &lt;code&gt;-M&lt;/code&gt; は外します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;systemctl stop trafficserver
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;でサービスを停止します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;gdb /usr/bin/traffic_server
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;で gdb を起動します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;break HttpSM::set_next_state
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;などとブレークポイントを設定します。ブレークポイントは Apache Traffic Server のソースコードを読んで、自分が止めたい場所にお好みで設定します。&lt;/p&gt;
+
+&lt;p&gt;gdb のプロンプトで以下のように入力して、 Apache Traffic Server を実行します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;run --bind_stdout /var/log/trafficserver/traffic.out --bind_stderr /var/log/trafficserver/traffic.out --httpport 80:fd=9
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ところがdebuginfoが足りず、以下のようなエラーになってしまいました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[Inferior 1 (process 17590) exited with code 01]
+Missing separate debuginfos, use: debuginfo-install glibc-2.17-106.el7_2.1.x86_64 hwloc-libs-1.7-5.el7.x86_64 keyutils-libs-1.5.8-3.el7.x86_64 krb5-libs-1.13.2-10.el7.x86_64 libcom_err-1.42.9-7.el7.x86_64 libgcc-4.8.5-4.el7.x86_64 libpciaccess-0.13.4-2.el7.x86_64 libselinux-2.2.2-6.el7.x86_64 libstdc++-4.8.5-4.el7.x86_64 libxml2-2.9.1-6.el7_2.2.x86_64 nss-softokn-freebl-3.16.2.3-13.el7_1.x86_64 numactl-libs-2.0.9-5.el7_1.x86_64 openssl-libs-1.0.1e-51.el7_2.2.x86_64 pcre-8.32-15.el7.x86_64 tcl-8.5.13-8.el7.x86_64 xz-libs-5.1.2-12alpha.el7.x86_64 zlib-1.2.7-15.el7.x86_64
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;use:&lt;/code&gt; の後をコピペして実行して途中で (y/n) で聞かれたら y を押すと、必要な debuginfo をイントール出来ました。&lt;/p&gt;
+
+&lt;p&gt;調べてみると、最初から以下のコマンドを実行しておけば依存するライブラリの debuginfo もインストールできるようです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo debuginfo-install -y trafficserver
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;なお、 &lt;code&gt;debuginfo-install&lt;/code&gt; コマンドは &lt;code&gt;yum-utils&lt;/code&gt; パッケージに入っているので予めインストールしておきます。&lt;/p&gt;
+
+&lt;h2 id=&#34;実行例:16844cae3677ced667c896b951ca0019&#34;&gt;実行例&lt;/h2&gt;
+
+&lt;p&gt;まず、&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;gdb /usr/bin/traffic_server
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;で gdb を起動し &lt;code&gt;HttpSM::set_next_state&lt;/code&gt; にブレークポイントを設定して traffic_server を実行しました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@localhost ~]# gdb /usr/bin/traffic_server
+GNU gdb (GDB) Red Hat Enterprise Linux 7.6.1-80.el7
+Copyright (C) 2013 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later &amp;lt;http://gnu.org/licenses/gpl.html&amp;gt;
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.  Type &amp;quot;show copying&amp;quot;
+and &amp;quot;show warranty&amp;quot; for details.
+This GDB was configured as &amp;quot;x86_64-redhat-linux-gnu&amp;quot;.
+For bug reporting instructions, please see:
+&amp;lt;http://www.gnu.org/software/gdb/bugs/&amp;gt;...
+Reading symbols from /usr/bin/traffic_server...Reading symbols from /usr/lib/debug/usr/bin/traffic_server.debug...done.
+done.
+(gdb) break HttpSM::set_next_state
+Breakpoint 1 at 0x151510: file HttpSM.cc, line 6940.
+(gdb) run --bind_stdout /var/log/trafficserver/traffic.out --bind_stderr /var/log/trafficserver/traffic.out --httpport 80:fd=9
+Starting program: /usr/bin/traffic_server --bind_stdout /var/log/trafficserver/traffic.out --bind_stderr /var/log/trafficserver/traffic.out --httpport 80:fd=9
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library &amp;quot;/lib64/libthread_db.so.1&amp;quot;.
+traffic_server: using root directory &#39;/usr&#39;
+[New Thread 0x7ffff3bde700 (LWP 19929)]
+[New Thread 0x7ffff1249700 (LWP 19930)]
+[New Thread 0x7ffff1047700 (LWP 19931)]
+[New Thread 0x7ffff0a3c700 (LWP 19932)]
+[New Thread 0x7fffebefe700 (LWP 19933)]
+[New Thread 0x7fffebcfc700 (LWP 19934)]
+[New Thread 0x7fffebafa700 (LWP 19935)]
+[New Thread 0x7fffeb8f8700 (LWP 19936)]
+[New Thread 0x7fffeb6f6700 (LWP 19937)]
+[New Thread 0x7fffeb4f4700 (LWP 19938)]
+[New Thread 0x7fffeb2f2700 (LWP 19939)]
+[New Thread 0x7fffeb0f0700 (LWP 19940)]
+[New Thread 0x7fffeac5d700 (LWP 19941)]
+[New Thread 0x7fffea95a700 (LWP 19942)]
+[New Thread 0x7fffea859700 (LWP 19943)]
+[New Thread 0x7fffea657700 (LWP 19944)]
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ここで別の端末で&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;curl -sv http://192.168.33.131/
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;を実行しました。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;HttpSM&lt;/code&gt; というクラス名は &lt;code&gt;Http State Machine&lt;/code&gt; の略と思われます。 HTTP を処理する状態遷移マシンになっています。以下のセッションでは HttpSM クラスの t_state メンバ変数の next_action を表示して、状態の遷移を確認してみました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
+6940    {
+(gdb) where
+#0  HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
+#1  0x000055555569aa96 in HttpSM::state_read_client_request_header (this=0x7fffea0d0080, event=&amp;lt;optimized out&amp;gt;, data=&amp;lt;optimized out&amp;gt;)
+    at HttpSM.cc:771
+#2  0x00005555556a7600 in HttpSM::main_handler (this=0x7fffea0d0080, event=100, data=0x7fffe0017e38) at HttpSM.cc:2561
+#3  0x00005555556a0f13 in HttpSM::state_api_callout (this=0x7fffea0d0080, event=&amp;lt;optimized out&amp;gt;, data=&amp;lt;optimized out&amp;gt;)
+    at HttpSM.cc:1464
+#4  0x00005555556a19a8 in do_api_callout (this=0x7fffea0d0080) at HttpSM.cc:391
+#5  HttpSM::state_add_to_list (this=0x7fffea0d0080, event=&amp;lt;optimized out&amp;gt;) at HttpSM.cc:418
+#6  0x00005555556a719b in HttpSM::attach_client_session (this=0x7fffea0d0080, client_vc=0x555556592d40, buffer_reader=0x555556575ea8)
+    at HttpSM.cc:544
+#7  0x0000555555682ec5 in HttpClientSession::new_transaction (this=0x555556592d40) at HttpClientSession.cc:141
+#8  0x000055555565e901 in ProxyClientSession::state_api_callout (this=0x555556592d40, event=&amp;lt;optimized out&amp;gt;)
+    at ProxyClientSession.cc:123
+#9  0x00005555556824b2 in HttpClientSession::new_connection (this=0x555556592d40, new_vc=&amp;lt;optimized out&amp;gt;, iobuf=&amp;lt;optimized out&amp;gt;,
+    reader=&amp;lt;optimized out&amp;gt;, backdoor=&amp;lt;optimized out&amp;gt;) at HttpClientSession.cc:220
+#10 0x000055555567d969 in HttpSessionAccept::accept (this=0x55555621cab0, netvc=0x7fffe0017d20, iobuf=&amp;lt;optimized out&amp;gt;,
+    reader=0x555556575ea8) at HttpSessionAccept.cc:74
+#11 0x000055555565e683 in ProtocolProbeTrampoline::ioCompletionEvent (this=0x5555563bc880, event=&amp;lt;optimized out&amp;gt;,
+    edata=&amp;lt;optimized out&amp;gt;) at ProtocolProbeSessionAccept.cc:123
+#12 0x000055555581de76 in handleEvent (data=0x7fffe0017e38, event=100, this=&amp;lt;optimized out&amp;gt;)
+    at ../../iocore/eventsystem/I_Continuation.h:153
+#13 read_signal_and_update (vc=0x7fffe0017d20, event=100) at UnixNetVConnection.cc:150
+#14 read_from_net (nh=0x7ffff31e0b90, vc=0x7fffe0017d20, thread=0x7ffff31dd010) at UnixNetVConnection.cc:390
+#15 0x000055555580e6b0 in NetHandler::mainNetEvent (this=0x7ffff31e0b90, event=&amp;lt;optimized out&amp;gt;, e=&amp;lt;optimized out&amp;gt;) at UnixNet.cc:518
+#16 0x000055555583c2d0 in handleEvent (data=0x555556172dc0, event=5, this=&amp;lt;optimized out&amp;gt;) at I_Continuation.h:153
+#17 EThread::process_event (this=this@entry=0x7ffff31dd010, e=0x555556172dc0, calling_code=calling_code@entry=5) at UnixEThread.cc:128
+#18 0x000055555583cdab in EThread::execute (this=0x7ffff31dd010) at UnixEThread.cc:252
+#19 0x000055555560af60 in main (argv=&amp;lt;optimized out&amp;gt;) at Main.cc:1918
+(gdb) p t_state.next_action
+$1 = HttpTransact::SM_ACTION_API_READ_REQUEST_HDR
+(gdb) c
+Continuing.
+
+Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
+6940    {
+(gdb) p t_state.next_action
+$2 = HttpTransact::SM_ACTION_API_PRE_REMAP
+(gdb) c
+Continuing.
+
+Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
+6940    {
+(gdb) p t_state.next_action
+$3 = HttpTransact::SM_ACTION_REMAP_REQUEST
+(gdb) c
+Continuing.
+
+Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
+6940    {
+(gdb) p t_state.next_action
+$4 = HttpTransact::SM_ACTION_API_POST_REMAP
+(gdb) c
+Continuing.
+
+Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
+6940    {
+(gdb) p t_state.next_action
+$5 = HttpTransact::SM_ACTION_CACHE_LOOKUP
+(gdb) c
+Continuing.
+
+Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
+6940    {
+(gdb) p t_state.next_action
+$6 = HttpTransact::SM_ACTION_API_READ_CACHE_HDR
+(gdb) c
+Continuing.
+
+Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
+6940    {
+(gdb) p t_state.next_action
+$7 = HttpTransact::SM_ACTION_API_CACHE_LOOKUP_COMPLETE
+(gdb) c
+Continuing.
+
+Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
+6940    {
+(gdb) p t_state.next_action
+$8 = HttpTransact::SM_ACTION_DNS_LOOKUP
+(gdb) c
+Continuing.
+
+Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
+6940    {
+(gdb) p t_state.next_action
+$9 = HttpTransact::SM_ACTION_API_OS_DNS
+(gdb) c
+Continuing.
+
+Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
+6940    {
+(gdb) p t_state.next_action
+$10 = HttpTransact::SM_ACTION_CACHE_ISSUE_WRITE
+(gdb) c
+Continuing.
+
+Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
+6940    {
+(gdb) p t_state.next_action
+$11 = HttpTransact::SM_ACTION_ORIGIN_SERVER_OPEN
+(gdb) c
+Continuing.
+
+Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
+6940    {
+(gdb) p t_state.next_action
+$12 = HttpTransact::SM_ACTION_SERVER_READ
+(gdb) c
+Continuing.
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;gdb-でよく使うコマンドのメモ:16844cae3677ced667c896b951ca0019&#34;&gt;gdb でよく使うコマンドのメモ&lt;/h2&gt;
+
+&lt;p&gt;ブレークポイント一覧表示あたりをよく忘れるのでメモ。ググってみると &lt;a href=&#34;http://wombat.cc.tsukuba.ac.jp/~furuse/jikken/text-07/text-07.html&#34;&gt;マイクロデータベース管理システムの実装&lt;/a&gt; にわかりやすくまとまっていました。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;b: break。ブレークポイント設定。b の後に「クラス名::メソッド名」、「関数名」、「ファイル名:行番号」のように止めたい箇所を指定します。&lt;/li&gt;
+&lt;li&gt;i b: info breakpointsの略。ブレークポイント一覧表示。&lt;/li&gt;
+&lt;li&gt;del [ブレークポイント番号]。ブレークポイント削除。番号を省略すると全て削除。&lt;/li&gt;
+&lt;li&gt;where: ブレークポイントで止まったときにコールスタックを表示します。&lt;/li&gt;
+&lt;li&gt;p: print。ブレークポイントで止まったときに変数の値を表示します。&lt;/li&gt;
+&lt;li&gt;c: continue。実行継続。ブレークポイントを設定していればそこで止まります。&lt;/li&gt;
+&lt;li&gt;n: next。ステップオーバー。関数呼び出しの際には中に入らずにステップ実行します。&lt;/li&gt;
+&lt;li&gt;s: step。ステップイン。関数呼び出しの際にの中に入ってステップ実行します。&lt;/li&gt;
+&lt;li&gt;q: quit。実行終了。まだ実行中だと &lt;code&gt;Quit anyway? (y or n)&lt;/code&gt; と聞かれるので y を押して終了します。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;ブレークポイントで止まっていない場合も、実行中に Ctrl-C で gdb のプロンプトが出るので、そこで上記のコマンドを実行できます。その後 c で実行再開できます。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>Apache Traffic Server のコードリーディング</title>
@@ -1619,134 +1897,6 @@ password=${mysql_root_password}
 &lt;h2 id=&#34;おわりに:7b72d99f6277ee322df194c41a872720&#34;&gt;おわりに&lt;/h2&gt;
 
 &lt;p&gt;というわけで何とか自動化出来ました。個人的にはインストール用のコマンドはコマンドラインオプションか環境変数を設定したらノンインタラクティブで実行できるように作っておいて欲しいなあと思います。インタラクティブにしたい場合もインタラクティブモードで起動するようなコマンドラインオプションをつけて、ダイアログで選択が終わったらそれに対応するコマンドラインオプションを指定して起動したかのように処理をするような作りにすればいいのではないでしょうか。&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>Goでグローバルなバッファを使いまわしてスタックトレースを取得するライブラリを書いてみた</title>
-      <link>/blog/2015/08/31/go_stacktrace_library_with_global_buffer/</link>
-      <pubDate>Mon, 31 Aug 2015 00:43:56 +0900</pubDate>
-      
-      <guid>/blog/2015/08/31/go_stacktrace_library_with_global_buffer/</guid>
-      <description>
-
-&lt;h2 id=&#34;背景と経緯:328f76ded598aa8f65807ce0ea1c89b5&#34;&gt;背景と経緯&lt;/h2&gt;
-
-&lt;p&gt;Goでもエラー処理にpanicを使えばスタックトレースが出力されます。でも、ライブラリでは &lt;code&gt;panic&lt;/code&gt; するとエラー処理して続行したいときに困るのでpanicではなく &lt;code&gt;return err&lt;/code&gt; を使うのが普通です。すると今度はスタックトレースが取れないのが残念だと思っていました。エラーが出た箇所でログ出力はするとして、やはりスタックトレースがあるほうがその関数までの呼出経路がわかってデバッグが捗ります。&lt;/p&gt;
-
-&lt;p&gt;標準ライブラリを見てみると、&lt;a href=&#34;http://golang.org/pkg/runtime/debug/#PrintStack&#34;&gt;runtime.debug.PrintStack()&lt;/a&gt; という便利そうな関数を見つけました。が、これは出力先が標準エラー出力固定となっています。私はログファイルに出したいんですよね。&lt;/p&gt;
-
-&lt;p&gt;そこでドキュメントの関数のリンクをクリックしてソースを見てみます。
-&lt;a href=&#34;http://golang.org/src/runtime/debug/stack.go?s=516:533#L15&#34;&gt;src/runtime/debug/stack.go - The Go Programming Language&lt;/a&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;func PrintStack() {
-  os.Stderr.Write(stack())
-}
-
-// Stack returns a formatted stack trace of the goroutine that calls it.
-// For each routine, it includes the source line information and PC value,
-// then attempts to discover, for Go functions, the calling function or
-// method and the text of the line containing the invocation.
-//
-// Deprecated: Use package runtime&#39;s Stack instead.
-func Stack() []byte {
-  return stack()
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;お、&lt;code&gt;Stack()&lt;/code&gt; のほうを使えば &lt;code&gt;[]byte&lt;/code&gt; で取得できるじゃないですか。あれ、でもdeprecatedなので &lt;a href=&#34;http://golang.org/pkg/runtime/#Stack&#34;&gt;runtime.Stack&lt;/a&gt; のほうを使えとあります。シグネチャ見ると &lt;code&gt;func Stack(buf []byte, all bool) int&lt;/code&gt; となっていて、こちらからバッファを渡す必要があるんですね。&lt;/p&gt;
-
-&lt;p&gt;関数定義 &lt;a href=&#34;http://golang.org/src/runtime/mprof.go?s=15278:15314#L552&#34;&gt;src/runtime/mprof.go - The Go Programming Language&lt;/a&gt;を見てみると、バッファサイズが足りない場合は、途中までしか書かれないようです。またどれだけのサイズがあれば大丈夫かを調べる方法もないようです。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;func Stack(buf []byte, all bool) int {
-  if all {
-    stopTheWorld(&amp;quot;stack trace&amp;quot;)
-  }
-
-  n := 0
-  if len(buf) &amp;gt; 0 {
-    gp := getg()
-    sp := getcallersp(unsafe.Pointer(&amp;amp;buf))
-    pc := getcallerpc(unsafe.Pointer(&amp;amp;buf))
-    systemstack(func() {
-      g0 := getg()
-      g0.writebuf = buf[0:0:len(buf)]
-      goroutineheader(gp)
-      traceback(pc, sp, 0, gp)
-      if all {
-        tracebackothers(gp)
-      }
-      n = len(g0.writebuf)
-      g0.writebuf = nil
-    })
-  }
-
-  if all {
-    startTheWorld()
-  }
-  return n
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;実はさっきの &lt;code&gt;stack()&lt;/code&gt; の定義&lt;a href=&#34;http://golang.org/src/runtime/debug/stack.go?s=516:533#L40&#34;&gt;src/runtime/debug/stack.go - The Go Programming Language&lt;/a&gt;を見ると&lt;a href=&#34;http://golang.org/pkg/runtime/#Caller&#34;&gt;runtime.Caller&lt;/a&gt;というより低レベルな関数があってこれを使って自前で実装すれば好きに作れそうではあります。&lt;/p&gt;
-
-&lt;p&gt;しかし、私は手抜きで済ませたいので大きめのバッファをグローバルに予め確保しておいてそれを&lt;a href=&#34;http://golang.org/pkg/runtime/#Stack&#34;&gt;runtime.Stack&lt;/a&gt;に渡す方式にしました。
-バッファを予め確保しておくのは、エラーが起きてからメモリ確保しようとして失敗するケースを避けたいからです。&lt;/p&gt;
-
-&lt;p&gt;と言いつつ、&lt;a href=&#34;http://golang.org/pkg/runtime/#Stack&#34;&gt;runtime.Stack&lt;/a&gt;内でメモリ割り当てが発生するかまでは確認していません。&lt;/p&gt;
-
-&lt;h2 id=&#34;実装と使い方:328f76ded598aa8f65807ce0ea1c89b5&#34;&gt;実装と使い方&lt;/h2&gt;
-
-&lt;p&gt;というわけで実装してみました。レポジトリは&lt;a href=&#34;https://github.com/hnakamur/stacktrace&#34;&gt;hnakamur/stacktrace&lt;/a&gt;で、ライセンスはMITです。&lt;/p&gt;
-
-&lt;p&gt;使用例はこちらです。&lt;a href=&#34;https://github.com/hnakamur/stacktrace/blob/ed0a2c8b61528e59f349f6c108a84a6b9dd8e981/example/main.go&#34;&gt;example.go&lt;/a&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;package main
-
-import (
-  &amp;quot;errors&amp;quot;
-  &amp;quot;log&amp;quot;
-
-  &amp;quot;github.com/hnakamur/stacktrace&amp;quot;
-)
-
-func logErrorWithStackTrace(msg interface{}) {
-  log.Printf(&amp;quot;error: %s\nstacktrace: %s\n&amp;quot;, msg, stacktrace.LockBufAndGetStackWithSkip(2))
-  defer stacktrace.UnlockBuf()
-}
-
-func b() {
-  err := errors.New(&amp;quot;some error&amp;quot;)
-  logErrorWithStackTrace(err)
-}
-
-func a() {
-  b()
-}
-
-func main() {
-  a()
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;まずお好みのロギングライブラリ用にスタックトレースを取得してログ出力する関数を定義します。この例の場合は &lt;code&gt;logErrorWithStackTrace&lt;/code&gt; です。メモリ割り当て回数を最低限にしたかったので、 &lt;code&gt;stacktrace.LockBufAndGetStackWithSkip()&lt;/code&gt; はグローバルバッファをロックした状態でそのまま返すようにしています。ですので使い終わったら、&lt;code&gt;stacktrace.UnlockBuf()&lt;/code&gt; でロックを解放する必要があります。&lt;/p&gt;
-
-&lt;p&gt;&lt;code&gt;stacktrace.LockBufAndGetStackWithSkip()&lt;/code&gt; の引数で2を渡しているのはスタックトレースから &lt;code&gt;stacktrace.LockBufAndGetStackWithSkip&lt;/code&gt; と &lt;code&gt;logErrorWithStackTrace&lt;/code&gt; の2つを除外するためです。&lt;/p&gt;
-
-&lt;p&gt;出力例は以下の通りです。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ go run main.go
-2015/08/31 01:24:42 error: some error
-stacktrace: goroutine 1 [running]:
-main.b()
-        /Users/hnakamur/gocode/src/github.com/hnakamur/stacktrace/example/main.go:17 +0xce
-main.a()
-        /Users/hnakamur/gocode/src/github.com/hnakamur/stacktrace/example/main.go:21 +0x14
-main.main()
-        /Users/hnakamur/gocode/src/github.com/hnakamur/stacktrace/example/main.go:25 +0x14
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;これでスタックトレース付きのエラーログを簡単に出力できて快適ですね！&lt;/p&gt;
 </description>
     </item>
     
