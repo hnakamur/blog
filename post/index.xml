@@ -6,8 +6,723 @@
     <description>Recent content in Posts on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Tue, 19 Apr 2016 06:37:15 +0900</lastBuildDate>
+    <lastBuildDate>Sat, 23 Apr 2016 16:45:09 +0900</lastBuildDate>
     <atom:link href="/blog/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>go-daemonとgoのos.StartProcess()のコードを読んでみた</title>
+      <link>/blog/2016/04/23/go-daemon-and-golang-os-startprocess-code-reading/</link>
+      <pubDate>Sat, 23 Apr 2016 16:45:09 +0900</pubDate>
+      
+      <guid>/blog/2016/04/23/go-daemon-and-golang-os-startprocess-code-reading/</guid>
+      <description>
+
+&lt;h2 id=&#34;発端-goでデーモンを書くのは無理と思っていたら実は出来るらしい:2b5c8b3f2d099ab733ab91c60a7ca6a5&#34;&gt;発端: Goでデーモンを書くのは無理と思っていたら実は出来るらしい&lt;/h2&gt;
+
+&lt;p&gt;Goでデーモンを書くのは無理と以前どこかで読んだ気がします。
+ところが、Pythonで書かれた&lt;a href=&#34;https://github.com/graphite-project&#34;&gt;Graphite Project&lt;/a&gt;の&lt;a href=&#34;https://github.com/graphite-project/carbon&#34;&gt;carbon&lt;/a&gt;をGo言語で実装した&lt;a href=&#34;https://github.com/lomik/go-carbon&#34;&gt;lomik/go-carbon&lt;/a&gt;の Features に Run as daemon と書かれていました。どうやって実現しているのか気になって調べてみたのでメモです。&lt;/p&gt;
+
+&lt;h2 id=&#34;go-carbonでデーモン化するための設定:2b5c8b3f2d099ab733ab91c60a7ca6a5&#34;&gt;go-carbonでデーモン化するための設定&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/lomik/go-carbon#configuration&#34;&gt;Configuration&lt;/a&gt;に書いてありますが、設定ファイルの &lt;code&gt;[common]&lt;/code&gt; セクションの &lt;code&gt;user&lt;/code&gt; を指定して、起動オプションに &lt;code&gt;-daemon&lt;/code&gt; を指定すればデーモンとして起動します。&lt;/p&gt;
+
+&lt;h2 id=&#34;コードリーディング:2b5c8b3f2d099ab733ab91c60a7ca6a5&#34;&gt;コードリーディング&lt;/h2&gt;
+
+&lt;p&gt;デーモンとして起動するためのコードは以下のようになっています。
+&lt;a href=&#34;https://github.com/lomik/go-carbon/blob/v0.7.1/carbon-agent.go#L103-L137&#34;&gt;https://github.com/lomik/go-carbon/blob/v0.7.1/carbon-agent.go#L103-L137&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;	if *isDaemon {
+		runtime.LockOSThread()
+
+		context := new(daemon.Context)
+		if *pidfile != &amp;quot;&amp;quot; {
+			context.PidFileName = *pidfile
+			context.PidFilePerm = 0644
+		}
+
+		if runAsUser != nil {
+			uid, err := strconv.ParseInt(runAsUser.Uid, 10, 0)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			gid, err := strconv.ParseInt(runAsUser.Gid, 10, 0)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			context.Credential = &amp;amp;syscall.Credential{
+				Uid: uint32(uid),
+				Gid: uint32(gid),
+			}
+		}
+
+		child, _ := context.Reborn()
+
+		if child != nil {
+			return
+		}
+		defer context.Release()
+
+		runtime.UnlockOSThread()
+	}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;daemon.Context&lt;/code&gt; は &lt;a href=&#34;https://github.com/sevlyar/go-daemon&#34;&gt;github.com/sevlyar/go-daemon&lt;/a&gt;のfork版の &lt;a href=&#34;https://github.com/lomik/go-daemon&#34;&gt;github.com/lomik/go-daemon&lt;/a&gt;で定義されています。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/lomik/go-daemon/blob/205ceae1aeac90abdbcae9fca16ba44b407c598d/daemon_posix.go#L20-L61&#34;&gt;Contextの定義&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;// A Context describes daemon context.
+type Context struct {
+	// If PidFileName is non-empty, parent process will try to create and lock
+	// pid file with given name. Child process writes process id to file.
+	PidFileName string
+	// Permissions for new pid file.
+	PidFilePerm os.FileMode
+
+	// If LogFileName is non-empty, parent process will create file with given name
+	// and will link to fd 2 (stderr) for child process.
+	LogFileName string
+	// Permissions for new log file.
+	LogFilePerm os.FileMode
+
+	// If WorkDir is non-empty, the child changes into the directory before
+	// creating the process.
+	WorkDir string
+	// If Chroot is non-empty, the child changes root directory
+	Chroot string
+
+	// If Env is non-nil, it gives the environment variables for the
+	// daemon-process in the form returned by os.Environ.
+	// If it is nil, the result of os.Environ will be used.
+	Env []string
+	// If Args is non-nil, it gives the command-line args for the
+	// daemon-process. If it is nil, the result of os.Args will be used
+	// (without program name).
+	Args []string
+
+	// Credential holds user and group identities to be assumed by a daemon-process.
+	Credential *syscall.Credential
+	// If Umask is non-zero, the daemon-process call Umask() func with given value.
+	Umask int
+
+	// Struct contains only serializable public fields (!!!)
+	abspath  string
+	pidFile  *LockFile
+	logFile  *os.File
+	nullFile *os.File
+
+	rpipe, wpipe *os.File
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;go-carbonのcarbon-agent.goから呼び出していた &lt;code&gt;Context.Reborn()&lt;/code&gt; の定義はこちらです。
+&lt;a href=&#34;https://github.com/lomik/go-daemon/blob/205ceae1aeac90abdbcae9fca16ba44b407c598d/daemon_posix.go#L63-L76&#34;&gt;Context.Reborn()&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;// Reborn runs second copy of current process in the given context.
+// function executes separate parts of code in child process and parent process
+// and provides demonization of child process. It look similar as the
+// fork-daemonization, but goroutine-safe.
+// In success returns *os.Process in parent process and nil in child process.
+// Otherwise returns error.
+func (d *Context) Reborn() (child *os.Process, err error) {
+	if !WasReborn() {
+		child, err = d.parent()
+	} else {
+		err = d.child()
+	}
+	return
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;そしてここで読んでいる &lt;code&gt;Context.parent()&lt;/code&gt; の定義がこちらです。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/lomik/go-daemon/blob/205ceae1aeac90abdbcae9fca16ba44b407c598d/daemon_posix.go#L97-L130&#34;&gt;Context.parent()&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;func (d *Context) parent() (child *os.Process, err error) {
+	if err = d.prepareEnv(); err != nil {
+		return
+	}
+
+	defer d.closeFiles()
+	if err = d.openFiles(); err != nil {
+		return
+	}
+
+	attr := &amp;amp;os.ProcAttr{
+		Dir:   d.WorkDir,
+		Env:   d.Env,
+		Files: d.files(),
+		Sys: &amp;amp;syscall.SysProcAttr{
+			//Chroot:     d.Chroot,
+			Credential: d.Credential,
+			Setsid:     true,
+		},
+	}
+
+	if child, err = os.StartProcess(d.abspath, d.Args, attr); err != nil {
+		if d.pidFile != nil {
+			d.pidFile.Remove()
+		}
+		return
+	}
+
+	d.rpipe.Close()
+	encoder := json.NewEncoder(d.wpipe)
+	err = encoder.Encode(d)
+
+	return
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Goの標準ライブラリで &lt;code&gt;os.StartProcess()&lt;/code&gt; というのがあったんですね。APIドキュメントはこちらです。&lt;a href=&#34;https://golang.org/pkg/os/#StartProcess&#34;&gt;os.StartProcess()&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/golang/go/blob/go1.6.2/src/os/doc.go#L20-L29&#34;&gt;os.StartProcess()の実装&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;// StartProcess starts a new process with the program, arguments and attributes
+// specified by name, argv and attr.
+//
+// StartProcess is a low-level interface. The os/exec package provides
+// higher-level interfaces.
+//
+// If there is an error, it will be of type *PathError.
+func StartProcess(name string, argv []string, attr *ProcAttr) (*Process, error) {
+	return startProcess(name, argv, attr)
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/golang/go/blob/go1.6.2/src/os/exec.go#L34-L56&#34;&gt;os.ProcAttrの定義&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;// ProcAttr holds the attributes that will be applied to a new process
+// started by StartProcess.
+type ProcAttr struct {
+	// If Dir is non-empty, the child changes into the directory before
+	// creating the process.
+	Dir string
+	// If Env is non-nil, it gives the environment variables for the
+	// new process in the form returned by Environ.
+	// If it is nil, the result of Environ will be used.
+	Env []string
+	// Files specifies the open files inherited by the new process.  The
+	// first three entries correspond to standard input, standard output, and
+	// standard error.  An implementation may support additional entries,
+	// depending on the underlying operating system.  A nil entry corresponds
+	// to that file being closed when the process starts.
+	Files []*File
+
+	// Operating system-specific process creation attributes.
+	// Note that setting this field means that your program
+	// may not execute properly or even compile on some
+	// operating systems.
+	Sys *syscall.SysProcAttr
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ここからはOS依存になりますが、Linuxの実装を見ていきます。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/golang/go/blob/go1.6.2/src/syscall/exec_linux.go#L21-L41&#34;&gt;SysProcAttrのLinuxでの実装&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;type SysProcAttr struct {
+	Chroot      string         // Chroot.
+	Credential  *Credential    // Credential.
+	Ptrace      bool           // Enable tracing.
+	Setsid      bool           // Create session.
+	Setpgid     bool           // Set process group ID to Pgid, or, if Pgid == 0, to new pid.
+	Setctty     bool           // Set controlling terminal to fd Ctty (only meaningful if Setsid is set)
+	Noctty      bool           // Detach fd 0 from controlling terminal
+	Ctty        int            // Controlling TTY fd
+	Foreground  bool           // Place child&#39;s process group in foreground. (Implies Setpgid. Uses Ctty as fd of controlling TTY)
+	Pgid        int            // Child&#39;s process group ID if Setpgid.
+	Pdeathsig   Signal         // Signal that the process will get when its parent dies (Linux only)
+	Cloneflags  uintptr        // Flags for clone calls (Linux only)
+	UidMappings []SysProcIDMap // User ID mappings for user namespaces.
+	GidMappings []SysProcIDMap // Group ID mappings for user namespaces.
+	// GidMappingsEnableSetgroups enabling setgroups syscall.
+	// If false, then setgroups syscall will be disabled for the child process.
+	// This parameter is no-op if GidMappings == nil. Otherwise for unprivileged
+	// users this should be set to false for mappings work.
+	GidMappingsEnableSetgroups bool
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/golang/go/blob/go1.6.2/src/syscall/exec_unix.go#L112-L118&#34;&gt;syscall.CredentialのLinuxなどでの実装&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;// Credential holds user and group identities to be assumed
+// by a child process started by StartProcess.
+type Credential struct {
+	Uid    uint32   // User ID.
+	Gid    uint32   // Group ID.
+	Groups []uint32 // Supplementary group IDs.
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/golang/go/blob/go1.6.2/src/os/exec_posix.go#L21-L50&#34;&gt;os.startProcess()のLinuxなどでの実装&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;func startProcess(name string, argv []string, attr *ProcAttr) (p *Process, err error) {
+	// If there is no SysProcAttr (ie. no Chroot or changed
+	// UID/GID), double-check existence of the directory we want
+	// to chdir into.  We can make the error clearer this way.
+	if attr != nil &amp;amp;&amp;amp; attr.Sys == nil &amp;amp;&amp;amp; attr.Dir != &amp;quot;&amp;quot; {
+		if _, err := Stat(attr.Dir); err != nil {
+			pe := err.(*PathError)
+			pe.Op = &amp;quot;chdir&amp;quot;
+			return nil, pe
+		}
+	}
+
+	sysattr := &amp;amp;syscall.ProcAttr{
+		Dir: attr.Dir,
+		Env: attr.Env,
+		Sys: attr.Sys,
+	}
+	if sysattr.Env == nil {
+		sysattr.Env = Environ()
+	}
+	for _, f := range attr.Files {
+		sysattr.Files = append(sysattr.Files, f.Fd())
+	}
+
+	pid, h, e := syscall.StartProcess(name, argv, sysattr)
+	if e != nil {
+		return nil, &amp;amp;PathError{&amp;quot;fork/exec&amp;quot;, name, e}
+	}
+	return newProcess(pid, h), nil
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/golang/go/blob/go1.6.2/src/syscall/exec_unix.go#L120-L127&#34;&gt;os.ProcAttrのLinuxなどでの実装&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;// ProcAttr holds attributes that will be applied to a new process started
+// by StartProcess.
+type ProcAttr struct {
+	Dir   string    // Current working directory.
+	Env   []string  // Environment.
+	Files []uintptr // File descriptors.
+	Sys   *SysProcAttr
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/golang/go/blob/go1.6.2/src/syscall/exec_unix.go#L238-L242&#34;&gt;syscall.StartProcess()のLinuxなどでの実装&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;// StartProcess wraps ForkExec for package os.
+func StartProcess(argv0 string, argv []string, attr *ProcAttr) (pid int, handle uintptr, err error) {
+	pid, err = forkExec(argv0, argv, attr)
+	return pid, 0, err
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/golang/go/blob/go1.6.2/src/syscall/exec_unix.go#L132-L231&#34;&gt;syscall.forkExec()のLinuxなどでの実装&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;func forkExec(argv0 string, argv []string, attr *ProcAttr) (pid int, err error) {
+	var p [2]int
+	var n int
+	var err1 Errno
+	var wstatus WaitStatus
+
+	if attr == nil {
+		attr = &amp;amp;zeroProcAttr
+	}
+	sys := attr.Sys
+	if sys == nil {
+		sys = &amp;amp;zeroSysProcAttr
+	}
+
+	p[0] = -1
+	p[1] = -1
+
+	// Convert args to C form.
+	argv0p, err := BytePtrFromString(argv0)
+	if err != nil {
+		return 0, err
+	}
+	argvp, err := SlicePtrFromStrings(argv)
+	if err != nil {
+		return 0, err
+	}
+	envvp, err := SlicePtrFromStrings(attr.Env)
+	if err != nil {
+		return 0, err
+	}
+
+	if (runtime.GOOS == &amp;quot;freebsd&amp;quot; || runtime.GOOS == &amp;quot;dragonfly&amp;quot;) &amp;amp;&amp;amp; len(argv[0]) &amp;gt; len(argv0) {
+		argvp[0] = argv0p
+	}
+
+	var chroot *byte
+	if sys.Chroot != &amp;quot;&amp;quot; {
+		chroot, err = BytePtrFromString(sys.Chroot)
+		if err != nil {
+			return 0, err
+		}
+	}
+	var dir *byte
+	if attr.Dir != &amp;quot;&amp;quot; {
+		dir, err = BytePtrFromString(attr.Dir)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	// Acquire the fork lock so that no other threads
+	// create new fds that are not yet close-on-exec
+	// before we fork.
+	ForkLock.Lock()
+
+	// Allocate child status pipe close on exec.
+	if err = forkExecPipe(p[:]); err != nil {
+		goto error
+	}
+
+	// Kick off child.
+	pid, err1 = forkAndExecInChild(argv0p, argvp, envvp, chroot, dir, attr, sys, p[1])
+	if err1 != 0 {
+		err = Errno(err1)
+		goto error
+	}
+	ForkLock.Unlock()
+
+	// Read child error status from pipe.
+	Close(p[1])
+	n, err = readlen(p[0], (*byte)(unsafe.Pointer(&amp;amp;err1)), int(unsafe.Sizeof(err1)))
+	Close(p[0])
+	if err != nil || n != 0 {
+		if n == int(unsafe.Sizeof(err1)) {
+			err = Errno(err1)
+		}
+		if err == nil {
+			err = EPIPE
+		}
+
+		// Child failed; wait for it to exit, to make sure
+		// the zombies don&#39;t accumulate.
+		_, err1 := Wait4(pid, &amp;amp;wstatus, 0, nil)
+		for err1 == EINTR {
+			_, err1 = Wait4(pid, &amp;amp;wstatus, 0, nil)
+		}
+		return 0, err
+	}
+
+	// Read got EOF, so pipe closed on exec, so exec succeeded.
+	return pid, nil
+
+error:
+	if p[0] &amp;gt;= 0 {
+		Close(p[0])
+		Close(p[1])
+	}
+	ForkLock.Unlock()
+	return 0, err
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;いよいよ核心に迫ります。
+&lt;a href=&#34;https://github.com/golang/go/blob/go1.6.2/src/syscall/exec_linux.go#L47-L325&#34;&gt;syscall.forkAndExecInChild()のLinuxでの実装&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;// Fork, dup fd onto 0..len(fd), and exec(argv0, argvv, envv) in child.
+// If a dup or exec fails, write the errno error to pipe.
+// (Pipe is close-on-exec so if exec succeeds, it will be closed.)
+// In the child, this function must not acquire any locks, because
+// they might have been locked at the time of the fork.  This means
+// no rescheduling, no malloc calls, and no new stack segments.
+// For the same reason compiler does not race instrument it.
+// The calls to RawSyscall are okay because they are assembly
+// functions that do not grow the stack.
+//go:norace
+func forkAndExecInChild(argv0 *byte, argv, envv []*byte, chroot, dir *byte, attr *ProcAttr, sys *SysProcAttr, pipe int) (pid int, err Errno) {
+	// Declare all variables at top in case any
+	// declarations require heap allocation (e.g., err1).
+	var (
+		r1     uintptr
+		err1   Errno
+		err2   Errno
+		nextfd int
+		i      int
+		p      [2]int
+	)
+
+	// Record parent PID so child can test if it has died.
+	ppid, _, _ := RawSyscall(SYS_GETPID, 0, 0, 0)
+
+	// Guard against side effects of shuffling fds below.
+	// Make sure that nextfd is beyond any currently open files so
+	// that we can&#39;t run the risk of overwriting any of them.
+	fd := make([]int, len(attr.Files))
+	nextfd = len(attr.Files)
+	for i, ufd := range attr.Files {
+		if nextfd &amp;lt; int(ufd) {
+			nextfd = int(ufd)
+		}
+		fd[i] = int(ufd)
+	}
+	nextfd++
+
+	// Allocate another pipe for parent to child communication for
+	// synchronizing writing of User ID/Group ID mappings.
+	if sys.UidMappings != nil || sys.GidMappings != nil {
+		if err := forkExecPipe(p[:]); err != nil {
+			return 0, err.(Errno)
+		}
+	}
+
+	// About to call fork.
+	// No more allocation or calls of non-assembly functions.
+	runtime_BeforeFork()
+	r1, _, err1 = RawSyscall6(SYS_CLONE, uintptr(SIGCHLD)|sys.Cloneflags, 0, 0, 0, 0, 0)
+	if err1 != 0 {
+		runtime_AfterFork()
+		return 0, err1
+	}
+
+	if r1 != 0 {
+		// parent; return PID
+		runtime_AfterFork()
+		pid = int(r1)
+
+		if sys.UidMappings != nil || sys.GidMappings != nil {
+			Close(p[0])
+			err := writeUidGidMappings(pid, sys)
+			if err != nil {
+				err2 = err.(Errno)
+			}
+			RawSyscall(SYS_WRITE, uintptr(p[1]), uintptr(unsafe.Pointer(&amp;amp;err2)), unsafe.Sizeof(err2))
+			Close(p[1])
+		}
+
+		return pid, 0
+	}
+
+	// Fork succeeded, now in child.
+
+	// Wait for User ID/Group ID mappings to be written.
+	if sys.UidMappings != nil || sys.GidMappings != nil {
+		if _, _, err1 = RawSyscall(SYS_CLOSE, uintptr(p[1]), 0, 0); err1 != 0 {
+			goto childerror
+		}
+		r1, _, err1 = RawSyscall(SYS_READ, uintptr(p[0]), uintptr(unsafe.Pointer(&amp;amp;err2)), unsafe.Sizeof(err2))
+		if err1 != 0 {
+			goto childerror
+		}
+		if r1 != unsafe.Sizeof(err2) {
+			err1 = EINVAL
+			goto childerror
+		}
+		if err2 != 0 {
+			err1 = err2
+			goto childerror
+		}
+	}
+
+	// Enable tracing if requested.
+	if sys.Ptrace {
+		_, _, err1 = RawSyscall(SYS_PTRACE, uintptr(PTRACE_TRACEME), 0, 0)
+		if err1 != 0 {
+			goto childerror
+		}
+	}
+
+	// Session ID
+	if sys.Setsid {
+		_, _, err1 = RawSyscall(SYS_SETSID, 0, 0, 0)
+		if err1 != 0 {
+			goto childerror
+		}
+	}
+
+	// Set process group
+	if sys.Setpgid || sys.Foreground {
+		// Place child in process group.
+		_, _, err1 = RawSyscall(SYS_SETPGID, 0, uintptr(sys.Pgid), 0)
+		if err1 != 0 {
+			goto childerror
+		}
+	}
+
+	if sys.Foreground {
+		pgrp := int32(sys.Pgid)
+		if pgrp == 0 {
+			r1, _, err1 = RawSyscall(SYS_GETPID, 0, 0, 0)
+			if err1 != 0 {
+				goto childerror
+			}
+
+			pgrp = int32(r1)
+		}
+
+		// Place process group in foreground.
+		_, _, err1 = RawSyscall(SYS_IOCTL, uintptr(sys.Ctty), uintptr(TIOCSPGRP), uintptr(unsafe.Pointer(&amp;amp;pgrp)))
+		if err1 != 0 {
+			goto childerror
+		}
+	}
+
+	// Chroot
+	if chroot != nil {
+		_, _, err1 = RawSyscall(SYS_CHROOT, uintptr(unsafe.Pointer(chroot)), 0, 0)
+		if err1 != 0 {
+			goto childerror
+		}
+	}
+
+	// User and groups
+	if cred := sys.Credential; cred != nil {
+		ngroups := uintptr(len(cred.Groups))
+		if ngroups &amp;gt; 0 {
+			groups := unsafe.Pointer(&amp;amp;cred.Groups[0])
+			_, _, err1 = RawSyscall(SYS_SETGROUPS, ngroups, uintptr(groups), 0)
+			if err1 != 0 {
+				goto childerror
+			}
+		}
+		_, _, err1 = RawSyscall(SYS_SETGID, uintptr(cred.Gid), 0, 0)
+		if err1 != 0 {
+			goto childerror
+		}
+		_, _, err1 = RawSyscall(SYS_SETUID, uintptr(cred.Uid), 0, 0)
+		if err1 != 0 {
+			goto childerror
+		}
+	}
+
+	// Chdir
+	if dir != nil {
+		_, _, err1 = RawSyscall(SYS_CHDIR, uintptr(unsafe.Pointer(dir)), 0, 0)
+		if err1 != 0 {
+			goto childerror
+		}
+	}
+
+	// Parent death signal
+	if sys.Pdeathsig != 0 {
+		_, _, err1 = RawSyscall6(SYS_PRCTL, PR_SET_PDEATHSIG, uintptr(sys.Pdeathsig), 0, 0, 0, 0)
+		if err1 != 0 {
+			goto childerror
+		}
+
+		// Signal self if parent is already dead. This might cause a
+		// duplicate signal in rare cases, but it won&#39;t matter when
+		// using SIGKILL.
+		r1, _, _ = RawSyscall(SYS_GETPPID, 0, 0, 0)
+		if r1 != ppid {
+			pid, _, _ := RawSyscall(SYS_GETPID, 0, 0, 0)
+			_, _, err1 := RawSyscall(SYS_KILL, pid, uintptr(sys.Pdeathsig), 0)
+			if err1 != 0 {
+				goto childerror
+			}
+		}
+	}
+
+	// Pass 1: look for fd[i] &amp;lt; i and move those up above len(fd)
+	// so that pass 2 won&#39;t stomp on an fd it needs later.
+	if pipe &amp;lt; nextfd {
+		_, _, err1 = RawSyscall(_SYS_dup, uintptr(pipe), uintptr(nextfd), 0)
+		if err1 != 0 {
+			goto childerror
+		}
+		RawSyscall(SYS_FCNTL, uintptr(nextfd), F_SETFD, FD_CLOEXEC)
+		pipe = nextfd
+		nextfd++
+	}
+	for i = 0; i &amp;lt; len(fd); i++ {
+		if fd[i] &amp;gt;= 0 &amp;amp;&amp;amp; fd[i] &amp;lt; int(i) {
+			_, _, err1 = RawSyscall(_SYS_dup, uintptr(fd[i]), uintptr(nextfd), 0)
+			if err1 != 0 {
+				goto childerror
+			}
+			RawSyscall(SYS_FCNTL, uintptr(nextfd), F_SETFD, FD_CLOEXEC)
+			fd[i] = nextfd
+			nextfd++
+			if nextfd == pipe { // don&#39;t stomp on pipe
+				nextfd++
+			}
+		}
+	}
+
+	// Pass 2: dup fd[i] down onto i.
+	for i = 0; i &amp;lt; len(fd); i++ {
+		if fd[i] == -1 {
+			RawSyscall(SYS_CLOSE, uintptr(i), 0, 0)
+			continue
+		}
+		if fd[i] == int(i) {
+			// dup2(i, i) won&#39;t clear close-on-exec flag on Linux,
+			// probably not elsewhere either.
+			_, _, err1 = RawSyscall(SYS_FCNTL, uintptr(fd[i]), F_SETFD, 0)
+			if err1 != 0 {
+				goto childerror
+			}
+			continue
+		}
+		// The new fd is created NOT close-on-exec,
+		// which is exactly what we want.
+		_, _, err1 = RawSyscall(_SYS_dup, uintptr(fd[i]), uintptr(i), 0)
+		if err1 != 0 {
+			goto childerror
+		}
+	}
+
+	// By convention, we don&#39;t close-on-exec the fds we are
+	// started with, so if len(fd) &amp;lt; 3, close 0, 1, 2 as needed.
+	// Programs that know they inherit fds &amp;gt;= 3 will need
+	// to set them close-on-exec.
+	for i = len(fd); i &amp;lt; 3; i++ {
+		RawSyscall(SYS_CLOSE, uintptr(i), 0, 0)
+	}
+
+	// Detach fd 0 from tty
+	if sys.Noctty {
+		_, _, err1 = RawSyscall(SYS_IOCTL, 0, uintptr(TIOCNOTTY), 0)
+		if err1 != 0 {
+			goto childerror
+		}
+	}
+
+	// Set the controlling TTY to Ctty
+	if sys.Setctty {
+		_, _, err1 = RawSyscall(SYS_IOCTL, uintptr(sys.Ctty), uintptr(TIOCSCTTY), 0)
+		if err1 != 0 {
+			goto childerror
+		}
+	}
+
+	// Time to exec.
+	_, _, err1 = RawSyscall(SYS_EXECVE,
+		uintptr(unsafe.Pointer(argv0)),
+		uintptr(unsafe.Pointer(&amp;amp;argv[0])),
+		uintptr(unsafe.Pointer(&amp;amp;envv[0])))
+
+childerror:
+	// send error code on pipe
+	RawSyscall(SYS_WRITE, uintptr(pipe), uintptr(unsafe.Pointer(&amp;amp;err1)), unsafe.Sizeof(err1))
+	for {
+		RawSyscall(SYS_EXIT, 253, 0, 0)
+	}
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Linuxシステムコールの呼び出しのうち気になったところだけをピックアップします。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://man7.org/linux/man-pages/man2/clone.2.html&#34;&gt;clone(2) - Linux manual page&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://man7.org/linux/man-pages/man2/setsid.2.html&#34;&gt;setsid(2) - Linux manual page&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://man7.org/linux/man-pages/man2/chroot.2.html&#34;&gt;chroot(2) - Linux manual page&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://man7.org/linux/man-pages/man2/setgid.2.html&#34;&gt;setgid(2) - Linux manual page&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://man7.org/linux/man-pages/man2/setuid.2.html&#34;&gt;setuid(2) - Linux manual page&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://man7.org/linux/man-pages/man2/chdir.2.html&#34;&gt;chdir(2) - Linux manual page&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://www.oreilly.co.jp/books/9784873115856/&#34;&gt;O&amp;rsquo;Reilly Japan - Linuxプログラミングインタフェース&lt;/a&gt;の「デーモン」の章を見ると、デーモン化の手順として7つの項目が上げられていますが、それら全てを行っているわけではないようです。&lt;/p&gt;
+
+&lt;p&gt;例えばumaskのクリアは、上のコードをざっと見た感じではやってなさそうな感じです。&lt;/p&gt;
+
+&lt;p&gt;また、ファイルディスクリプタ0, 1, 2をクローズはしていますが、 /dev/null をオープンはしていないようです。「通常は /dev/null をオープンする」と書いてあるので問題はなさそうです。&lt;/p&gt;
+
+&lt;p&gt;端末デバイスからの切り離しは &lt;a href=&#34;http://man7.org/linux/man-pages/man2/ioctl.2.html&#34;&gt;ioctl(2) - Linux manual page&lt;/a&gt; に &lt;code&gt;TIOCNOTTY&lt;/code&gt; を指定して行っています。 &lt;code&gt;TIOCNOTTY&lt;/code&gt; については &lt;a href=&#34;http://man7.org/linux/man-pages/man4/tty.4.html&#34;&gt;tty(4) - Linux manual page&lt;/a&gt; に説明がありました。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;syscall.SysProcAttr&lt;/code&gt; の &lt;code&gt;Setctty&lt;/code&gt; に &lt;code&gt;true&lt;/code&gt; を指定していた場合は、 &lt;a href=&#34;http://man7.org/linux/man-pages/man2/ioctl.2.html&#34;&gt;ioctl(2) - Linux manual page&lt;/a&gt; に &lt;code&gt;TIOCSCTTY&lt;/code&gt; を指定して制御端末の設定を行っています。 &lt;code&gt;TIOCSCTTY&lt;/code&gt; については &lt;a href=&#34;http://man7.org/linux/man-pages/man4/tty.4.html&#34;&gt;tty(4) - Linux manual page&lt;/a&gt; に説明がありました。&lt;/p&gt;
+
+&lt;p&gt;ということで、&lt;a href=&#34;http://www.oreilly.co.jp/books/9784873115856/&#34;&gt;O&amp;rsquo;Reilly Japan - Linuxプログラミングインタフェース&lt;/a&gt;のデーモン化の手順の全てではないですが、かなりの部分は &lt;a href=&#34;https://golang.org/pkg/os/#StartProcess&#34;&gt;os - The Go Programming Language&lt;/a&gt; で実現できるということがわかりました。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>LXC 2.0でCentOS 7のコンテナを動かしてみた</title>
@@ -1746,223 +2461,6 @@ fedora-21-aarch64.cfg  fedora-22-armhfp.cfg   fedora-23-i386.cfg     fedora-rawh
 &lt;p&gt;実は&lt;a href=&#34;https://fedoraproject.org/wiki/Mock&#34;&gt;Mock - FedoraProject&lt;/a&gt;や&lt;a href=&#34;https://copr.fedoraproject.org/&#34;&gt;Project List&lt;/a&gt;はしばらく前に存在を知っていたのですが、ググっても情報が少ないしよくわからないのでスルーしていました。今回ついに使ってみたのですが、非常に便利なツールとサービスだということがわかりました。もっと前から使っておけばよかったです。&lt;/p&gt;
 
 &lt;p&gt;みなさんも&lt;a href=&#34;https://fedoraproject.org/wiki/Mock&#34;&gt;Mock - FedoraProject&lt;/a&gt;と&lt;a href=&#34;https://copr.fedoraproject.org/&#34;&gt;Project List&lt;/a&gt;を活用して、快適なrpmビルド・配布環境を手に入れましょう！&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>Travis CIとcopr.fedoraproject.orgを使ってrpmをビルド・配布するのを試してみた</title>
-      <link>/blog/2015/11/26/use_travis_and_copr_to_build_and_host_rpm/</link>
-      <pubDate>Thu, 26 Nov 2015 22:33:57 +0900</pubDate>
-      
-      <guid>/blog/2015/11/26/use_travis_and_copr_to_build_and_host_rpm/</guid>
-      <description>
-
-&lt;h2 id=&#34;2015-12-15-追記:feab3b17551715c7fe87c510b9d66160&#34;&gt;2015-12-15 追記&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;/blog/blog/2015/12/15/using_mock_and_copr_to_build_nginx_rpm_on_docker/&#34;&gt;nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました · hnakamur&amp;rsquo;s blog at github&lt;/a&gt;という記事を書きましたのでそちらもご参照ください。&lt;/p&gt;
-
-&lt;h2 id=&#34;はじめに:feab3b17551715c7fe87c510b9d66160&#34;&gt;はじめに&lt;/h2&gt;
-
-&lt;p&gt;CentOSを使っていると、パッケージのバージョンが古いのでspecファイルを改変してrpmをビルドすることがちょくちょくあります。
-一度ビルドした後は、自作rpmのレポジトリサーバを立ててそこに置いておくのが本来は良いんだろうなと思います。
-ですが、サーバの運用の手間を考えると面倒だなと思って、AnsibleやDockerでのプロビジョニング中にビルドするようにしていました。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://copr.fedoraproject.org/coprs/&#34;&gt;fedora projectのcoprというサービス&lt;/a&gt;を使うと、自分でサーバを用意しなくても
-自作rpmのビルドとホスティングが出来ることを知り、試してみました。&lt;/p&gt;
-
-&lt;h3 id=&#34;今回試したサンプル:feab3b17551715c7fe87c510b9d66160&#34;&gt;今回試したサンプル&lt;/h3&gt;
-
-&lt;p&gt;githubのレポジトリは&lt;a href=&#34;https://github.com/hnakamur/nodejs-rpm&#34;&gt;hnakamur/nodejs-rpm&lt;/a&gt;にあります。Node.jsをビルドするrpmです。&lt;/p&gt;
-
-&lt;p&gt;specファイルは&lt;a href=&#34;https://github.com/kazuhisya/nodejs-rpm&#34;&gt;kazuhisya/nodejs-rpm&lt;/a&gt;のをほぼ流用しています。ありがとうございます！
-一点変更したのはダウンロードするNode.jsのソースのtarballを &lt;code&gt;node-v*.tar.gz&lt;/code&gt; ではなく &lt;code&gt;node-v*.tar.xz&lt;/code&gt; にしています。&lt;/p&gt;
-
-&lt;h2 id=&#34;coprについて:feab3b17551715c7fe87c510b9d66160&#34;&gt;coprについて&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://fedorahosted.org/copr/&#34;&gt;copr&lt;/a&gt;に説明があります。FAQの&lt;a href=&#34;https://fedorahosted.org/copr/wiki/UserDocs#HowisCoprpronounced&#34;&gt;How is Copr pronounced?&lt;/a&gt;によると、銅(copper)と同じでカッパーと発音するそうです。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://fedorahosted.org/copr/wiki/UserDocs#Howlongdoyoukeepthebuilds&#34;&gt;How long do you keep the builds?&lt;/a&gt;によるとプロジェクトごとに最後に成功したビルドだけが保持されて、古いバージョンのビルドや失敗したビルドは14日後に削除されるそうです。&lt;/p&gt;
-
-&lt;p&gt;ですので、古いバージョンも残しておきたい場合は、coprは使えません。その場合は自前でレポジトリサーバを立てて運用するしかなさそうです。&lt;/p&gt;
-
-&lt;h3 id=&#34;参考-coprのウェブ管理画面にsrpmをアップロードしてrpmをビルドする手順:feab3b17551715c7fe87c510b9d66160&#34;&gt;参考: coprのウェブ管理画面にsrpmをアップロードしてrpmをビルドする手順&lt;/h3&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://fedorahosted.org/copr/wiki/ScreenshotsTutorial&#34;&gt;ScreenshotsTutorial – copr&lt;/a&gt;にcoprのウェブ管理画面からsrpmをアップロードしてrpmをビルドする手順がスクリーンショット満載で説明されています。&lt;/p&gt;
-
-&lt;h2 id=&#34;今回試したビルド手順の流れ:feab3b17551715c7fe87c510b9d66160&#34;&gt;今回試したビルド手順の流れ&lt;/h2&gt;
-
-&lt;p&gt;今回試したビルド手順の流れは以下の通りです。&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;githubのプロジェクトにspecファイルを置きます。&lt;/li&gt;
-&lt;li&gt;git pushしたときにTravis CIでdockerコンテナを動かしてsrpmを作ってcoprに投入します。&lt;/li&gt;
-&lt;li&gt;coprでrpmをビルドしてホスティングしてもらいます。&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;h2 id=&#34;事前準備:feab3b17551715c7fe87c510b9d66160&#34;&gt;事前準備&lt;/h2&gt;
-
-&lt;h3 id=&#34;fedora-account-登録:feab3b17551715c7fe87c510b9d66160&#34;&gt;Fedora account 登録&lt;/h3&gt;
-
-&lt;p&gt;まずは &lt;a href=&#34;https://admin.fedoraproject.org/accounts/user/new&#34;&gt;Sign up for a Fedora account&lt;/a&gt; からアカウント登録します。手順はメモしてなかったので省略します。&lt;/p&gt;
-
-&lt;p&gt;私のアカウントのログイン後の「アカウントの詳細」のページを見ると「あなたの役割」のところにSigned CLA GroupとSigners of the Fedora Project Contributor Agreementという項目があり、共にステータスが「承認されました」となっているので、これらの申請の手順が必要だったと思います。&lt;/p&gt;
-
-&lt;p&gt;承認されるまでしばらく時間がかかって、その間にrpmをビルドしてみたら署名されないことがありました。今ではプロジェクトごとに鍵が自動生成されてrpmが署名されるようになっています。&lt;/p&gt;
-
-&lt;h3 id=&#34;travis-ciのプロジェクト作成:feab3b17551715c7fe87c510b9d66160&#34;&gt;Travis CIのプロジェクト作成&lt;/h3&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://travis-ci.org/hnakamur/nodejs-rpm&#34;&gt;Travis CI上にhnakamur/nodejs-rpmプロジェクト&lt;/a&gt;を作成して、githubのレポジトリ&lt;a href=&#34;https://github.com/hnakamur/nodejs-rpm&#34;&gt;hnakamur/nodejs-rpm&lt;/a&gt;に対応付けておきます。手順はメモしてなかったので省略します。&lt;/p&gt;
-
-&lt;h3 id=&#34;travis-ciでdockerでコンテナを動かしてsrpmを作る:feab3b17551715c7fe87c510b9d66160&#34;&gt;Travis CIでdockerでコンテナを動かしてsrpmを作る&lt;/h3&gt;
-
-&lt;p&gt;Travis CIでdockerを使う方法は &lt;a href=&#34;https://docs.travis-ci.com/user/docker/&#34;&gt;Using Docker in Builds - Travis CI&lt;/a&gt; で説明されています。&lt;/p&gt;
-
-&lt;p&gt;試行錯誤の結果、以下のような &lt;a href=&#34;https://github.com/hnakamur/nodejs-rpm/blob/0ed19cd5504fcb11875f12184bdb3ccd27caa6aa/.travis.yml&#34;&gt;.travis.yml&lt;/a&gt;を作成しました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;sudo: required
-
-services:
-  - docker
-
-branches:
-  only:
-    - master
-    - LTS
-
-install:
-  - docker build -t hnakamur/nodejsrpm .
-
-script:
-  - case $TRAVIS_BRANCH in master) project=nodejs5;; LTS) project=nodejs;; esac
-  - docker run hnakamur/nodejsrpm &amp;quot;$COPR_LOGIN&amp;quot; &amp;quot;$COPR_USERNAME&amp;quot; &amp;quot;$COPR_TOKEN&amp;quot; &amp;quot;$project&amp;quot;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/nodejs-rpm&#34;&gt;hnakamur/nodejs-rpm&lt;/a&gt;では、mainブランチでNode.jsのv5.x (Stable)、LTSブランチでNode.jsのv4.x (LTS)のspecファイルを保持しています。&lt;/p&gt;
-
-&lt;p&gt;coprは上記の通り1つのプロジェクトで複数バージョンは保持できないので、 &lt;a href=&#34;https://copr.fedoraproject.org/coprs/hnakamur/nodejs5/&#34;&gt;hnakamur/nodejs5 Copr&lt;/a&gt; と &lt;a href=&#34;https://copr.fedoraproject.org/coprs/hnakamur/nodejs/&#34;&gt;hnakamur/nodejs Copr&lt;/a&gt; の2つのプロジェクトを作ることにしました。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://docs.travis-ci.com/user/environment-variables/#Default-Environment-Variables&#34;&gt;Environment Variables - Travis CI&lt;/a&gt;によると &lt;code&gt;TRAVIS_BRANCH&lt;/code&gt; 環境変数でgitのブランチが取得できます。ブランチ名に応じてプロジェクト名を切り替え、 &lt;code&gt;docker run&lt;/code&gt; で呼び出すスクリプトの引数に渡しています。&lt;/p&gt;
-
-&lt;p&gt;COPR_LOGIN、COPR_USERNAME、COPR_TOKENの3つの環境変数ですが、Fedora accountにログインした状態で &lt;a href=&#34;https://copr.fedoraproject.org/api/&#34;&gt;API for Copr&lt;/a&gt;にアクセスし表示された値を使います。表示されているのはcoprのコマンドラインクライアント &lt;a href=&#34;https://pypi.python.org/pypi/copr-cli&#34;&gt;copr-cli&lt;/a&gt;用の設定ファイル &lt;code&gt;~/.config/copr&lt;/code&gt; の内容です。&lt;/p&gt;
-
-&lt;p&gt;APIのアクセストークンなどは秘密にすべき情報なのでgithubのレポジトリ内のファイルには含めてはいけません。&lt;/p&gt;
-
-&lt;p&gt;そこでこれらの値は&lt;a href=&#34;https://travis-ci.org/hnakamur/nodejs-rpm&#34;&gt;Travis CI上のhnakamur/nodejs-rpmプロジェクト&lt;/a&gt;で&lt;a href=&#34;https://docs.travis-ci.com/user/environment-variables/#Defining-Variables-in-Repository-Settings&#34;&gt;Defining Variables in Repository Settings&lt;/a&gt;の手順に従って設定しておきます。&lt;/p&gt;
-
-&lt;p&gt;プロジェクトの管理画面の右上の[Settings]/[Settings]メニュー (このメニューはプロジェクトの管理者にのみ表示されます)を選んでCOPR_LOGIN、COPR_USERNAME、COPR_TOKENの3つの環境変数を追加します。COPR_LOGINとCOPR_TOKENの2つは[Display value in build log]を[ON]にしてログに出力しないようにしました。&lt;/p&gt;
-
-&lt;p&gt;docker runで実行されるスクリプトの内容は以下の通りです。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/nodejs-rpm/blob/0ed19cd5504fcb11875f12184bdb3ccd27caa6aa/copr-build.sh&#34;&gt;https://github.com/hnakamur/nodejs-rpm/blob/0ed19cd5504fcb11875f12184bdb3ccd27caa6aa/copr-build.sh&lt;/a&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;#!/bin/bash
-set -e
-copr_login=$1
-copr_username=$2
-copr_token=$3
-project_name=$4
-
-spec_file=/root/rpmbuild/SPECS/nodejs.spec
-
-mkdir -p /root/.config
-cat &amp;gt; /root/.config/copr &amp;lt;&amp;lt;EOF
-[copr-cli]
-login = ${copr_login}
-username = ${copr_username}
-token = ${copr_token}
-copr_url = https://copr.fedoraproject.org
-EOF
-
-status=`curl -s -o /dev/null -w &amp;quot;%{http_code}&amp;quot; https://copr.fedoraproject.org/api/coprs/${copr_username}/${project_name}/detail/`
-if [ $status = &amp;quot;404&amp;quot; ]; then
-  copr-cli create --chroot epel-7-x86_64 --description &#39;node.js repository&#39; ${project_name}
-fi
-version=`awk &#39;$1==&amp;quot;Version:&amp;quot; {print $2}&#39; ${spec_file}`
-release=$(rpm --eval `awk &#39;$1==&amp;quot;Release:&amp;quot; {print $2}&#39; ${spec_file}`)
-srpm_file=/root/rpmbuild/SRPMS/nodejs-${version}-${release}.src.rpm
-copr-cli build --nowait ${project_name} ${srpm_file}
-
-rm /root/.config/copr
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;まず、引数で渡された情報を元にcopr-cliの設定ファイル &lt;code&gt;/root/.config/copr&lt;/code&gt; を生成します。
-次にcoprのAPIでプロジェクトが作成済みかチェックし、作成されていなければ作成します。
-その後、 &lt;code&gt;copr-cli build&lt;/code&gt; でsrpmをcoprにアップロードしてビルドを開始します。&lt;/p&gt;
-
-&lt;p&gt;curlでhttpステータスだけを出力する方法は &lt;a href=&#34;http://superuser.com/questions/272265/getting-curl-to-output-http-status-code/442395#442395&#34;&gt;Getting curl to output HTTP status code? - Super User&lt;/a&gt; で知りました。ありがとうございます！&lt;/p&gt;
-
-&lt;p&gt;ビルド完了までTravis側で待つようにするのはムダだと思ったので &lt;code&gt;copr-cli build&lt;/code&gt; には &lt;code&gt;--nowait&lt;/code&gt; オプションを指定しました。代わりに &lt;a href=&#34;https://apps.fedoraproject.org/notifications/&#34;&gt;Fedora Notifications&lt;/a&gt;でメール通知を有効にして、ビルド終了時には &lt;code&gt;notifications@fedoraproject.org&lt;/code&gt; からメールが届くようにして使っています。&lt;/p&gt;
-
-&lt;h3 id=&#34;srpmのビルドとcopr-cliのインストール:feab3b17551715c7fe87c510b9d66160&#34;&gt;srpmのビルドとcopr-cliのインストール&lt;/h3&gt;
-
-&lt;p&gt;話が前後しますが、srpmのビルドとcopr-cliのインストールは &lt;code&gt;docker build&lt;/code&gt; で行っています。
-&lt;a href=&#34;https://github.com/hnakamur/nodejs-rpm/blob/0ed19cd5504fcb11875f12184bdb3ccd27caa6aa/Dockerfile&#34;&gt;Dockerfile&lt;/a&gt;の内容は以下の通りです。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;FROM centos:7
-MAINTAINER Hiroaki Nakamura &amp;lt;hnakamur@gmail.com&amp;gt;
-
-RUN yum -y install rpmdevtools rpm-build \
- &amp;amp;&amp;amp; rpmdev-setuptree
-
-RUN yum -y install epel-release \
- &amp;amp;&amp;amp; yum -y install python-pip \
- &amp;amp;&amp;amp; pip install copr-cli
-
-ADD nodejs.spec /root/rpmbuild/SPECS/
-ADD node-js.*patch /root/rpmbuild/SOURCES/
-
-RUN version=`awk &#39;$1==&amp;quot;Version:&amp;quot; {print $2}&#39; /root/rpmbuild/SPECS/nodejs.spec` \
- &amp;amp;&amp;amp; curl -sL -o /root/rpmbuild/SOURCES/node-v${version}.tar.xz https://nodejs.org/dist/v${version}/node-v${version}.tar.xz \
- &amp;amp;&amp;amp; rpmbuild -bs /root/rpmbuild/SPECS/nodejs.spec
-
-ADD copr-build.sh /root/
-ENTRYPOINT [&amp;quot;/bin/bash&amp;quot;, &amp;quot;/root/copr-build.sh&amp;quot;]
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;copr-cliはCentOS 7だとepelから &lt;code&gt;yum install&lt;/code&gt; でインストール可能なのですが、バージョンが古いため &lt;code&gt;copr-cli build&lt;/code&gt; でsrpmファイルのパスを指定してアップロードする機能が無いようです。サイトにアップロードしておいてURLを指定することは可能なのですが、それだと面倒なので &lt;code&gt;pip&lt;/code&gt; を使って最新版の &lt;code&gt;copr-cli&lt;/code&gt; をインストールしています。&lt;/p&gt;
-
-&lt;p&gt;長く運用するサーバならrpmでインストールされるパスと同じパスにpipでインストールしてしまうのは良くないかもしれませんが、ビルド終了したら破棄するコンテナなので気にせず上書きインストールとしています。&lt;/p&gt;
-
-&lt;h2 id=&#34;rpmを使う手順:feab3b17551715c7fe87c510b9d66160&#34;&gt;rpmを使う手順&lt;/h2&gt;
-
-&lt;p&gt;例えば&lt;a href=&#34;https://copr.fedoraproject.org/coprs/hnakamur/nodejs/&#34;&gt;hnakamur/nodejs Copr&lt;/a&gt;だと右の方の[Quick Enable]という欄に &lt;code&gt;dnf copr enable hnakamur/nodejs&lt;/code&gt; というコマンドで有効にできるという説明があります。&lt;/p&gt;
-
-&lt;p&gt;その下のリンクをたどると&lt;a href=&#34;https://fedorahosted.org/copr/wiki/HowToEnableRepo&#34;&gt;HowToEnableRepo – copr&lt;/a&gt;に
-yumの場合は &lt;code&gt;yum copr enable user/project&lt;/code&gt; となるとあります。ただし、 &lt;code&gt;yum-plugin-copr&lt;/code&gt; という &lt;code&gt;yum&lt;/code&gt; のプラグインが必要です。&lt;/p&gt;
-
-&lt;p&gt;これはepelとかには無いようで、&lt;a href=&#34;https://copr.fedoraproject.org/coprs/alonid/yum-plugin-copr/&#34;&gt;alonid/yum-plugin-copr Copr&lt;/a&gt;にありました。が、これをインストールするにはこのプロジェクトを有効にする必要があるので面倒です。&lt;/p&gt;
-
-&lt;p&gt;コマンドを使わなくても&lt;a href=&#34;https://copr.fedoraproject.org/coprs/hnakamur/nodejs/&#34;&gt;hnakamur/nodejs Copr&lt;/a&gt;のActive Releasesセクションの表のRepo Downloadの列にある[Epel 7]というボタンを押すと以下のようにレポジトリの設定ファイルが表示されます。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://copr.fedoraproject.org/coprs/hnakamur/nodejs/repo/epel-7/hnakamur-nodejs-epel-7.repo&#34;&gt;https://copr.fedoraproject.org/coprs/hnakamur/nodejs/repo/epel-7/hnakamur-nodejs-epel-7.repo&lt;/a&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;[hnakamur-nodejs]
-name=Copr repo for nodejs owned by hnakamur
-baseurl=https://copr-be.cloud.fedoraproject.org/results/hnakamur/nodejs/epel-7-$basearch/
-skip_if_unavailable=True
-gpgcheck=1
-gpgkey=https://copr-be.cloud.fedoraproject.org/results/hnakamur/nodejs/pubkey.gpg
-enabled=1
-enabled_metadata=1
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;なので、これを &lt;code&gt;/etc/yum.repos.d/hnakamur-nodejs-epel-7.repo&lt;/code&gt; に保存して &lt;code&gt;yum install nodejs&lt;/code&gt; でインストールすればOKです。&lt;/p&gt;
-
-&lt;h2 id=&#34;まとめ:feab3b17551715c7fe87c510b9d66160&#34;&gt;まとめ&lt;/h2&gt;
-
-&lt;p&gt;これでスペックファイルを書いてgithubにプッシュすれば、coprでrpmをビルドして公開されるようになり便利になりました。&lt;/p&gt;
-
-&lt;p&gt;ただし問題もあって、coprのビルドはときどき失敗してしまうようです。スペックファイルの中身を変えずにREADMEに無意味な空行を入れるなどして再度pushしてビルドを再実行すると成功したりしました。&lt;/p&gt;
-
-&lt;h2 id=&#34;さらに気になっていること:feab3b17551715c7fe87c510b9d66160&#34;&gt;さらに気になっていること&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://fedorahosted.org/copr/wiki/ScreenshotsTutorial&#34;&gt;ScreenshotsTutorial – copr&lt;/a&gt;の[New Build]タブのスクリーンショットには[From URLs]と[Upload SRPM]という2つのタブしかないですが、実際の画面ではそれに加えて [Git and Tito]、[Mock SCM]というタブがあります。&lt;/p&gt;
-
-&lt;p&gt;これらを使うとTravis CIを使わずにビルドできるかもしれないと期待しているのですが、使い方の説明を見つけられておらず使い方がわからない状態です。ということで一旦この記事を書きました。&lt;/p&gt;
-
-&lt;h2 id=&#34;2015-12-06-追記:feab3b17551715c7fe87c510b9d66160&#34;&gt;2015-12-06 追記&lt;/h2&gt;
-
-&lt;p&gt;rpmのビルドが通るまでの試行錯誤中は毎回coprでビルドするより手元の環境でビルドするほうが快適です。そのための手順を&lt;a href=&#34;/blog/blog/2015/12/05/build_rpm_with_mock/&#34;&gt;mockコマンドでrpmをビルドする · hnakamur&amp;rsquo;s blog at github&lt;/a&gt;に書きましたので、ご参照ください。&lt;/p&gt;
 </description>
     </item>
     
