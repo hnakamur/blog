@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Ansible on hnakamur&#39;s blog at github</title>
+    <link>/blog/tags/ansible/</link>
+    <description>Recent content in Ansible on hnakamur&#39;s blog at github</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>ja-JP</language>
+    <lastBuildDate>Sat, 07 May 2016 20:32:13 +0900</lastBuildDate>
+    <atom:link href="/blog/tags/ansible/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>AnsibleのLXDコネクションプラグインを試してみた</title>
+      <link>/blog/2016/05/07/tried-ansible-lxd-connection-plugin/</link>
+      <pubDate>Sat, 07 May 2016 20:32:13 +0900</pubDate>
+      
+      <guid>/blog/2016/05/07/tried-ansible-lxd-connection-plugin/</guid>
+      <description>
+
+&lt;p&gt;LXDを使うとなるとAnsibleのLXDコネクションプラグインが欲しいなと思って&lt;a href=&#34;https://github.com/ansible/ansible&#34;&gt;ansible/ansibleのgithubのレポジトリ&lt;/a&gt;を眺めていたら &lt;a href=&#34;https://github.com/ansible/ansible/blob/fca5ba153e9258d6a9a28c418d8339d507eee81c/lib/ansible/plugins/connection/lxd.py&#34;&gt;lib/ansible/plugins/connection/lxd.py&lt;/a&gt; に既に作られていることに気付きました。&lt;/p&gt;
+
+&lt;p&gt;ソースを見ると &lt;code&gt;lxc&lt;/code&gt; コマンドを使った実装になっていました。aptでインストールしたansible 2.0.0.2にこのファイルだけ追加して使えないか試してみたのですが、 &lt;code&gt;AttributeError: &#39;PlayContext&#39; object has no attribute &#39;executable&#39;&lt;/code&gt; というエラーが出て使えませんでした。&lt;/p&gt;
+
+&lt;p&gt;そこでvirtualenvで環境を作ってpipでgithubのmasterのansibleをインストールして試してみました。&lt;/p&gt;
+
+&lt;h2 id=&#34;インストール手順:13ce47f5622032d397b4204850206b47&#34;&gt;インストール手順&lt;/h2&gt;
+
+&lt;p&gt;インストール手順は以下の通りです。
+まず、virtualenv環境でAnsibleをインストールするのに必要なパッケージをインストールします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo apt update
+sudo apt install -y virtualenv build-essential python-dev libffi-dev libssl-dev
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;作業ディレクトリを作ってそこに移動し、virtualenvで環境を作ってansibleをインストールします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;mkdir ~/ansible-lxd-example
+cd ~/ansible-lxd-example
+virtualenv venv
+. venv/bin/activate
+pip install git+https://github.com/ansible/ansible
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;使ってみる:13ce47f5622032d397b4204850206b47&#34;&gt;使ってみる&lt;/h2&gt;
+
+&lt;p&gt;以下のような設定ファイルとテスト用のプレイブックを作りました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ cat ansible.cfg
+[defaults]
+inventory = hosts
+$ cat hosts
+[containers]
+cent01 ansible_connection=lxd
+cent02 ansible_connection=lxd
+$ cat test.yml
+---
+- hosts: containers
+  remote_user: root
+  tasks:
+    - debug: msg=ipv4_address={{ ansible_default_ipv4.address }}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;実行してみると、問題なく動作しました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ ansible-playbook test.yml
+
+PLAY [containers] **************************************************************
+
+TASK [setup] *******************************************************************
+ok: [cent01]
+ok: [cent02]
+
+TASK [debug] *******************************************************************
+ok: [cent01] =&amp;gt; {
+    &amp;quot;msg&amp;quot;: &amp;quot;ipv4_address=10.155.92.101&amp;quot;
+}
+ok: [cent02] =&amp;gt; {
+    &amp;quot;msg&amp;quot;: &amp;quot;ipv4_address=10.155.92.103&amp;quot;
+}
+
+PLAY RECAP *********************************************************************
+cent01                     : ok=2    changed=0    unreachable=0    failed=0
+cent02                     : ok=2    changed=0    unreachable=0    failed=0
+
+&lt;/code&gt;&lt;/pre&gt;
+</description>
+    </item>
+    
+  </channel>
+</rss>
