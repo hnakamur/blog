@@ -6,8 +6,143 @@
     <description>Recent content in Curl on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Sun, 19 Apr 2015 01:07:35 +0900</lastBuildDate>
+    <lastBuildDate>Sat, 07 May 2016 21:17:34 +0900</lastBuildDate>
     <atom:link href="/blog/tags/curl/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>LXDのREST APIをcurlで試してみた</title>
+      <link>/blog/2016/05/07/tried-lxd-rest-api-with-curl/</link>
+      <pubDate>Sat, 07 May 2016 21:17:34 +0900</pubDate>
+      
+      <guid>/blog/2016/05/07/tried-lxd-rest-api-with-curl/</guid>
+      <description>
+
+&lt;h2 id=&#34;lxdのrest-api:7237ac0558fc8bd24e4a1da16716b70c&#34;&gt;LXDのREST API&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://linuxcontainers.org/ja/lxd/rest-api/&#34;&gt;Linux Containers - LXD - REST API&lt;/a&gt;と&lt;a href=&#34;https://github.com/lxc/lxd/blob/master/doc/rest-api.md&#34;&gt;lxd/rest-api.md at master · lxc/lxd&lt;/a&gt;にLXDのREST APIについて説明があります。&lt;/p&gt;
+
+&lt;p&gt;また&lt;a href=&#34;https://github.com/lxc/lxd#using-the-rest-api&#34;&gt;Using the REST API&lt;/a&gt;に &lt;code&gt;curl&lt;/code&gt; コマンドでのAPI呼び出し例が書かれていました。&lt;/p&gt;
+
+&lt;h2 id=&#34;curlでhttpsのエンドポイントにアクセスしてみたがエラー:7237ac0558fc8bd24e4a1da16716b70c&#34;&gt;curlでhttpsのエンドポイントにアクセスしてみたがエラー&lt;/h2&gt;
+
+&lt;p&gt;まずはhttpsのURLで &lt;a href=&#34;https://github.com/lxc/lxd/blob/master/doc/rest-api.md#10&#34;&gt;/1.0&lt;/a&gt; エンドポイントを試してみたのですが、 &lt;code&gt;ALPN, server did not agree to a protocol&lt;/code&gt; というエラーになってしまいました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ curl -k -v --cert ~/.config/lxc/client.crt --key ~/.config/lxc/client.key https://127.0.0.1:8443/1.0
+*   Trying 127.0.0.1...
+* Connected to 127.0.0.1 (127.0.0.1) port 8443 (#0)
+* found 173 certificates in /etc/ssl/certs/ca-certificates.crt
+* found 692 certificates in /etc/ssl/certs
+* ALPN, offering http/1.1
+* SSL connection using TLS1.2 / ECDHE_RSA_AES_128_GCM_SHA256
+*        server certificate verification SKIPPED
+*        server certificate status verification SKIPPED
+*        common name: root@express (does not match &#39;127.0.0.1&#39;)
+*        server certificate expiration date OK
+*        server certificate activation date OK
+*        certificate public key: RSA
+*        certificate version: #3
+*        subject: O=linuxcontainers.org,CN=root@express
+*        start date: Tue, 03 May 2016 11:26:51 GMT
+*        expire date: Fri, 01 May 2026 11:26:51 GMT
+*        issuer: O=linuxcontainers.org,CN=root@express
+*        compression: NULL
+* ALPN, server did not agree to a protocol
+&amp;gt; GET /1.0 HTTP/1.1
+&amp;gt; Host: 127.0.0.1:8443
+&amp;gt; User-Agent: curl/7.47.0
+&amp;gt; Accept: */*
+&amp;gt;
+&amp;lt; HTTP/1.1 200 OK
+&amp;lt; Content-Type: application/json
+&amp;lt; Date: Sat, 07 May 2016 12:25:53 GMT
+&amp;lt; Content-Length: 162
+&amp;lt;
+{&amp;quot;type&amp;quot;:&amp;quot;sync&amp;quot;,&amp;quot;status&amp;quot;:&amp;quot;Success&amp;quot;,&amp;quot;status_code&amp;quot;:200,&amp;quot;metadata&amp;quot;:{&amp;quot;api_extensions&amp;quot;:[],&amp;quot;api_status&amp;quot;:&amp;quot;stable&amp;quot;,&amp;quot;api_version&amp;quot;:&amp;quot;1.0&amp;quot;,&amp;quot;auth&amp;quot;:&amp;quot;untrusted&amp;quot;,&amp;quot;public&amp;quot;:false}}
+* Connection #0 to host 127.0.0.1 left intact
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;この件は&lt;a href=&#34;https://lists.linuxcontainers.org/pipermail/lxc-users/2016-May/011603.html&#34;&gt;[lxc-users] The error &amp;ldquo;ALPN, server did not agree to a protocol&amp;rdquo; from LXD Rest API&lt;/a&gt;で質問してみました。&lt;/p&gt;
+
+&lt;h2 id=&#34;curlでunix-domain-socket経由でアクセスしてみたら成功:7237ac0558fc8bd24e4a1da16716b70c&#34;&gt;curlでunix domain socket経由でアクセスしてみたら成功&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://qiita.com/toritori0318/items/193df8f749a9c4bda883&#34;&gt;curlでunix domain socket経由アクセスする - Qiita&lt;/a&gt;を参考に以下のようにアクセスしてみると成功しました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ curl -s --unix-socket /var/lib/lxd/unix.socket https:/1.0 | jq .
+{
+  &amp;quot;type&amp;quot;: &amp;quot;sync&amp;quot;,
+  &amp;quot;status&amp;quot;: &amp;quot;Success&amp;quot;,
+  &amp;quot;status_code&amp;quot;: 200,
+  &amp;quot;metadata&amp;quot;: {
+    &amp;quot;api_extensions&amp;quot;: [],
+    &amp;quot;api_status&amp;quot;: &amp;quot;stable&amp;quot;,
+    &amp;quot;api_version&amp;quot;: &amp;quot;1.0&amp;quot;,
+    &amp;quot;auth&amp;quot;: &amp;quot;trusted&amp;quot;,
+    &amp;quot;config&amp;quot;: {
+      &amp;quot;core.https_address&amp;quot;: &amp;quot;127.0.0.1:8443&amp;quot;,
+      &amp;quot;core.trust_password&amp;quot;: true
+    },
+    &amp;quot;environment&amp;quot;: {
+      &amp;quot;addresses&amp;quot;: [
+        &amp;quot;127.0.0.1:8443&amp;quot;
+      ],
+      &amp;quot;architectures&amp;quot;: [
+        &amp;quot;x86_64&amp;quot;,
+        &amp;quot;i686&amp;quot;
+      ],
+      &amp;quot;certificate&amp;quot;: &amp;quot;-----BEGIN CERTIFICATE-----\n …(略)… \n-----END CERTIFICATE-----\n&amp;quot;,
+      &amp;quot;driver&amp;quot;: &amp;quot;lxc&amp;quot;,
+      &amp;quot;driver_version&amp;quot;: &amp;quot;2.0.0&amp;quot;,
+      &amp;quot;kernel&amp;quot;: &amp;quot;Linux&amp;quot;,
+      &amp;quot;kernel_architecture&amp;quot;: &amp;quot;x86_64&amp;quot;,
+      &amp;quot;kernel_version&amp;quot;: &amp;quot;4.4.0-21-generic&amp;quot;,
+      &amp;quot;server&amp;quot;: &amp;quot;lxd&amp;quot;,
+      &amp;quot;server_pid&amp;quot;: 6446,
+      &amp;quot;server_version&amp;quot;: &amp;quot;2.0.0&amp;quot;,
+      &amp;quot;storage&amp;quot;: &amp;quot;dir&amp;quot;,
+      &amp;quot;storage_version&amp;quot;: &amp;quot;&amp;quot;
+    },
+    &amp;quot;public&amp;quot;: false
+  }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;sudo lxd init&lt;/code&gt; でLXDをネットワーク越しに使うかの問いにnoと答えた環境では以下のような出力になりました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ curl -s --unix-socket /var/lib/lxd/unix.socket http:/1.0 | jq .
+{
+  &amp;quot;type&amp;quot;: &amp;quot;sync&amp;quot;,
+  &amp;quot;status&amp;quot;: &amp;quot;Success&amp;quot;,
+  &amp;quot;status_code&amp;quot;: 200,
+  &amp;quot;metadata&amp;quot;: {
+    &amp;quot;api_extensions&amp;quot;: [],
+    &amp;quot;api_status&amp;quot;: &amp;quot;stable&amp;quot;,
+    &amp;quot;api_version&amp;quot;: &amp;quot;1.0&amp;quot;,
+    &amp;quot;auth&amp;quot;: &amp;quot;trusted&amp;quot;,
+    &amp;quot;config&amp;quot;: {},
+    &amp;quot;environment&amp;quot;: {
+      &amp;quot;addresses&amp;quot;: [],
+      &amp;quot;architectures&amp;quot;: [
+        &amp;quot;x86_64&amp;quot;,
+        &amp;quot;i686&amp;quot;
+      ],
+      &amp;quot;certificate&amp;quot;: &amp;quot;-----BEGIN CERTIFICATE-----\n …(略)… \n-----END CERTIFICATE-----\n&amp;quot;,
+      &amp;quot;driver&amp;quot;: &amp;quot;lxc&amp;quot;,
+      &amp;quot;driver_version&amp;quot;: &amp;quot;2.0.0&amp;quot;,
+      &amp;quot;kernel&amp;quot;: &amp;quot;Linux&amp;quot;,
+      &amp;quot;kernel_architecture&amp;quot;: &amp;quot;x86_64&amp;quot;,
+      &amp;quot;kernel_version&amp;quot;: &amp;quot;4.4.0-21-generic&amp;quot;,
+      &amp;quot;server&amp;quot;: &amp;quot;lxd&amp;quot;,
+      &amp;quot;server_pid&amp;quot;: 2150,
+      &amp;quot;server_version&amp;quot;: &amp;quot;2.0.0&amp;quot;,
+      &amp;quot;storage&amp;quot;: &amp;quot;dir&amp;quot;,
+      &amp;quot;storage_version&amp;quot;: &amp;quot;&amp;quot;
+    },
+    &amp;quot;public&amp;quot;: false
+  }
+}
+&lt;/code&gt;&lt;/pre&gt;
+</description>
+    </item>
     
     <item>
       <title>curlでダウンロードを中断後再開するときは-Cオプションが便利</title>
