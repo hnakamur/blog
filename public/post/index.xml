@@ -6,8 +6,125 @@
     <description>Recent content in Posts on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Sat, 04 Jun 2016 22:17:52 +0900</lastBuildDate>
+    <lastBuildDate>Sun, 12 Jun 2016 21:53:35 +0900</lastBuildDate>
     <atom:link href="/blog/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>Goで複数のリモートのワーカーにジョブを実行させるremoteworkersというパッケージを書いた</title>
+      <link>/blog/2016/06/12/wrote_remoteworkers_go_pacakge/</link>
+      <pubDate>Sun, 12 Jun 2016 21:53:35 +0900</pubDate>
+      
+      <guid>/blog/2016/06/12/wrote_remoteworkers_go_pacakge/</guid>
+      <description>
+
+&lt;h2 id=&#34;なぜ書いたか:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;なぜ書いたか&lt;/h2&gt;
+
+&lt;p&gt;仕事で複数のサーバで同じ処理を実行して結果を集めたいというニーズがあって、各サーバをgRPCのサーバにするという実装でとりあえず実現していました。でも、出来れば処理を実行するワーカーサーバから制御サーバに接続して繋ぎっぱなしにしておいて、制御サーバからジョブを送り込む方式にしたいなーと思っていて、家で実装を進めていました。&lt;/p&gt;
+
+&lt;h2 id=&#34;これまでに試したこと:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;これまでに試したこと&lt;/h2&gt;
+
+&lt;p&gt;gRPCに&lt;a href=&#34;http://www.grpc.io/docs/tutorials/basic/go.html#bidirectional-streaming-rpc&#34;&gt;Bidirectional streaming RPC&lt;/a&gt;というのがあったので、&lt;a href=&#34;https://github.com/hnakamur/grpc_notification_experiment&#34;&gt;hnakamur/grpc_notification_experiment&lt;/a&gt;で試してみたのですが、複数クライアントがサーバに接続した状態で、サーバからクライアントにジョブを投げても、1つのクライアントでしか処理が実行されないということがわかりました。&lt;/p&gt;
+
+&lt;p&gt;次に、ワーカーサーバから制御サーバにTCPのソケットで接続しておいて、制御サーバからワーカーサーバにジョブを投げて結果を集めるサンプルを書いてみました。
+&lt;a href=&#34;https://github.com/hnakamur/tcp_pubsubreply_experiment&#34;&gt;hnakamur/tcp_pubsubreply_experiment&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;複数のワーカーに同じジョブを投げて結果を集めて、全てのワーカーからの結果が揃ったらクライアントに結果を返すというものです。 &lt;a href=&#34;https://github.com/hnakamur/tcp_pubsubreply_experiment/blob/f9201c075661c5d58895f9a30b47f73f5c4cc13d/main.go#L167-L189&#34;&gt;https://github.com/hnakamur/tcp_pubsubreply_experiment/blob/f9201c075661c5d58895f9a30b47f73f5c4cc13d/main.go#L167-L189&lt;/a&gt; でジョブを各ワーカーのコネクションが持つチャンネルに送って、各ワーカーの結果を返すチャンネルから受け取るという素朴な実装になっています。&lt;/p&gt;
+
+&lt;p&gt;しかし、この実装では1つのジョブを実行中は他のジョブを実行できないという制限があります。また試しているとタイミングによっては期待通りの動きにならないことがありました。&lt;/p&gt;
+
+&lt;h2 id=&#34;今回の実装:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;今回の実装&lt;/h2&gt;
+
+&lt;p&gt;実装は&lt;a href=&#34;https://github.com/hnakamur/remoteworkers&#34;&gt;hnakamur/remoteworkers&lt;/a&gt;で公開しています。使用例は&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/tree/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example&#34;&gt;remoteworkers/example&lt;/a&gt;、APIドキュメントは&lt;a href=&#34;https://godoc.org/github.com/hnakamur/remoteworkers&#34;&gt;remoteworkers - GoDoc&lt;/a&gt;を参照してください。&lt;/p&gt;
+
+&lt;p&gt;最初はWebSocketのライブラリ&lt;a href=&#34;https://github.com/gorilla/websocket&#34;&gt;github.com/gorilla/websocket&lt;/a&gt;の&lt;a href=&#34;https://github.com/gorilla/websocket/tree/a68708917c6a4f06314ab4e52493cc61359c9d42/examples&#34;&gt;examples&lt;/a&gt;のchatとechoのclientを組み合わせて改変していきました。chatは1つのクライアントからのメッセージを他のクライアントに送って終わりですが、今回はジョブを実行して結果を集めたいので、その処理を追加で実装しました。また、元のサンプルはグローバル変数や設定用の定数を使うようになっていたのでstructを定義してグローバル変数をやめて設定もstructのメンバーに持つようにしました。&lt;/p&gt;
+
+&lt;p&gt;ワーカーはサーバにwebsocketで接続しますが、クライアントは通常のhttpリクエストでジョブを投げてレスポンスで結果を受け取るようにしてみました。ワーカーとサーバの間のメッセージは&lt;a href=&#34;/blog/blog/2016/06/04/benchmark_go_msgpack_libraries/&#34;&gt;GoのMessagePackのライブラリのベンチマークをしてみた · hnakamur&amp;rsquo;s blog at github&lt;/a&gt;で試した&lt;a href=&#34;https://github.com/vmihailenco/msgpack&#34;&gt;vmihailenco/msgpack&lt;/a&gt;を使ってMessagePackでエンコード・デコードしています。&lt;/p&gt;
+
+&lt;p&gt;以下実装メモです。&lt;/p&gt;
+
+&lt;h3 id=&#34;connとhub:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;ConnとHub&lt;/h3&gt;
+
+&lt;p&gt;サーバ側のメインの処理は、サーバとワーカーのコネクションを扱う&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/conn.go&#34;&gt;Conn&lt;/a&gt;と複数のConnの間を取り持つ&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go&#34;&gt;Hub&lt;/a&gt;が担当しています。&lt;/p&gt;
+
+&lt;h3 id=&#34;読み取りと書き出しでgoroutineを分ける:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;読み取りと書き出しでgoroutineを分ける&lt;/h3&gt;
+
+&lt;p&gt;上記の&lt;a href=&#34;https://github.com/hnakamur/tcp_pubsubreply_experiment&#34;&gt;hnakamur/tcp_pubsubreply_experiment&lt;/a&gt;では、ワーカーとサーバ間のTCPコネクション1つのに対して1つgoroutineを作ってデータの読み書きをしていました。&lt;/p&gt;
+
+&lt;p&gt;一方、&lt;a href=&#34;https://godoc.org/github.com/gorilla/websocket&#34;&gt;github.com/gorilla/websocketのAPIドキュメント&lt;/a&gt;の&lt;a href=&#34;https://godoc.org/github.com/gorilla/websocket#hdr-Concurrency&#34;&gt;Concurrency&lt;/a&gt;にコネクションは1つのコンカレントなリーダーと1つのコンカレントなライターをサポートすると書いてあります。&lt;/p&gt;
+
+&lt;p&gt;chatのexampleを見ると&lt;a href=&#34;https://github.com/gorilla/websocket/blob/a68708917c6a4f06314ab4e52493cc61359c9d42/examples/chat/conn.go#L50-L69&#34;&gt;Conn.readPump()&lt;/a&gt;で読み取り処理のループ、&lt;a href=&#34;https://github.com/gorilla/websocket/blob/a68708917c6a4f06314ab4e52493cc61359c9d42/examples/chat/conn.go#L78-L116&#34;&gt;Conn.writePump()&lt;/a&gt;で書き出し処理のループを実装していて &lt;a href=&#34;https://github.com/gorilla/websocket/blob/a68708917c6a4f06314ab4e52493cc61359c9d42/examples/chat/conn.go#L127-L128&#34;&gt;https://github.com/gorilla/websocket/blob/a68708917c6a4f06314ab4e52493cc61359c9d42/examples/chat/conn.go#L127-L128&lt;/a&gt; でgoroutineを使って並行(concurrent)に実行しています。&lt;/p&gt;
+
+&lt;p&gt;この方式により上記の&lt;a href=&#34;https://godoc.org/github.com/gorilla/websocket#hdr-Concurrency&#34;&gt;Concurrency&lt;/a&gt;の1つのコネクションに1つのコンカレントなリーダーと1つのコンカレントなライターという条件を自動的に満たすことが出来ます。&lt;/p&gt;
+
+&lt;p&gt;さらに、ワーカーでのジョブの実行も &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/worker.go#L200-L214&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/worker.go#L200-L214&lt;/a&gt; のように別のgoroutineで実行するようにしました。読み取りと書き出しのgoroutineを分け、ジョブ実行のgoroutineも別にしたことで、ワーカーでジョブを実行中でも別のジョブを受け取って実行することが出来るようになりました。&lt;/p&gt;
+
+&lt;h3 id=&#34;ジョブのディスパッチと結果の収集:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;ジョブのディスパッチと結果の収集&lt;/h3&gt;
+
+&lt;p&gt;各ワーカーからにジョブを投げて結果を集める部分も &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L139-L171&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L139-L171&lt;/a&gt; のように書くことで、複数のジョブを並行で実行できるようになっています。&lt;/p&gt;
+
+&lt;p&gt;例えば、あるジョブを依頼されてそれの結果が集まる前に、次のジョブを受け取ってそちらの結果が先に集まった場合はそちらを先に返すことができます。&lt;/p&gt;
+
+&lt;h3 id=&#34;自動で再接続:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;自動で再接続&lt;/h3&gt;
+
+&lt;p&gt;ワーカーとの接続が切れた場合は、残ったワーカーだけで処理を実行する仕様としました。ジョブを受け取った時にワーカーが1つもいない場合はエラーとしています。また、ワーカーからサーバへの接続が切れた場合は1秒待って再起動を無限に繰り替えすようにしています。時間は設定で変更可能です。ただし、だんだん間隔を開けるといったことは出来ないのでその場合はフォークして改変してください。&lt;/p&gt;
+
+&lt;h3 id=&#34;返信用のチャンネルを渡して実行:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;返信用のチャンネルを渡して実行&lt;/h3&gt;
+
+&lt;p&gt;サーバとワーカのコネクションをHubに登録する箇所 &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/conn.go#L86-L92&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/conn.go#L86-L92&lt;/a&gt; とクライアントから依頼されたジョブをHubに投げて全ワーカーからの結果を受け取る箇所 &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L194-L203&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L194-L203&lt;/a&gt; では、結果を受け取るためのチャンネルをHubへのチャンネルに渡して実行するという方法を取りました。&lt;/p&gt;
+
+&lt;p&gt;これによってHubとのやり取りは全てチャンネル経由になりシンプルになりました。さらに関数の中に閉じ込めることで、ライブラリの利用者はチャンネルを意識することなく単なる関数呼び出しで使えるようになっています。&lt;/p&gt;
+
+&lt;h3 id=&#34;ジョブのエンコード-デコード:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;ジョブのエンコード・デコード&lt;/h3&gt;
+
+&lt;p&gt;まずクライアントではジョブをJSONでエンコードしています。
+&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/client/client.go#L25-L30&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/client/client.go#L25-L30&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;サーバでは受け取ったジョブをJSONでデコードします。
+&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/server/main.go#L52-L54&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/server/main.go#L52-L54&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;その後&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L193-L205&#34;&gt;Hub.RequestWork()&lt;/a&gt;でHubにジョブが渡されて
+&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L142&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L142&lt;/a&gt;
+でMessagePackでエンコードしてワーカーに送ります。&lt;/p&gt;
+
+&lt;p&gt;ワーカーでは
+&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/worker.go#L187-L188&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/worker.go#L187-L188&lt;/a&gt;
+で受け取ったジョブをMessagePackでデコードします。&lt;/p&gt;
+
+&lt;p&gt;ワーカーでジョブを受け取って処理する部分は
+&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/worker/main.go#L47-L58&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/worker/main.go#L47-L58&lt;/a&gt;
+です。&lt;a href=&#34;https://github.com/vmihailenco/msgpack&#34;&gt;vmihailenco/msgpack&lt;/a&gt;で &lt;code&gt;map[string]string&lt;/code&gt; 型をエンコードしてデコードすると &lt;code&gt;map[interface{}]interface{}&lt;/code&gt; になったので&lt;a href=&#34;https://golang.org/ref/spec#Type_assertions&#34;&gt;type assertion&lt;/a&gt;を使って参照する必要がありました。&lt;/p&gt;
+
+&lt;h3 id=&#34;結果のエンコード-デコード:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;結果のエンコード・デコード&lt;/h3&gt;
+
+&lt;p&gt;ワーカーでの結果は
+&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/worker.go#L202-L206&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/worker.go#L202-L206&lt;/a&gt;
+でMessagePackにエンコードしています。&lt;/p&gt;
+
+&lt;p&gt;サーバでは
+&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/conn.go#L148-L163&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/conn.go#L148-L163&lt;/a&gt;
+で結果をMessagePackでデコードしてHubに送っています。&lt;/p&gt;
+
+&lt;p&gt;Hubでは
+&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L165-L171&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L165-L171&lt;/a&gt;
+で1つのワーカーからの結果を受け取り、全てのワーカーからの結果が揃ったらクライアントへ返信するためのチャンネルに集めた結果を送ります。&lt;/p&gt;
+
+&lt;p&gt;サーバでは
+&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/server/main.go#L28-L39&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/server/main.go#L28-L39&lt;/a&gt;
+で集めた結果の構造を変形し、
+&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/server/main.go#L69-L70&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/server/main.go#L69-L70&lt;/a&gt;
+でJSONにエンコードしています。&lt;/p&gt;
+
+&lt;h3 id=&#34;tcpソケットからwebsocketにして良かったところ:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;TCPソケットからWebSocketにして良かったところ&lt;/h3&gt;
+
+&lt;p&gt;ワーカーからサーバに接続したときにワーカーのIDを登録しているのですが、TCPソケットのときはそのためにワーカーから登録用のメッセージを送って成功失敗の結果を送る必要がありました。一方WebSocketではエンドポイントに接続するときにリクエストヘッダで追加の情報を送れるので &lt;code&gt;X-Worker-ID&lt;/code&gt; と言うヘッダ名でワーカーIDを送るようにしました。&lt;/p&gt;
+
+&lt;p&gt;また、TCPソケットだと1つのポートでクライアントとワーカーからの通信を受ける場合はメッセージの内容で区別がつくようにしておく必要があります。WebSocketの場合は1つのポートでもURLのPathを別にするという手が使えるので楽です。しかも今回のようにワーカーはWebSocketで接続し、クライアントはhttpで接続ということも出来て便利です。&lt;/p&gt;
+
+&lt;h2 id=&#34;おわりに:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;おわりに&lt;/h2&gt;
+
+&lt;p&gt;当初やりたいと思っていたことがようやく実現できました。しかも、これだけ並列性が高いプログラムなのにgoroutineとchannelのおかげですっきりシンプルなコードで実装出来ています。これなら保守や改変もしやすくて助かります。やっぱりGoは素晴らしいです！&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>GoのMessagePackのライブラリのベンチマークをしてみた</title>
@@ -2956,284 +3073,6 @@ vagrant@vagrant-ubuntu-trusty-64:~$
 &lt;p&gt;「サーバ/インフラエンジニア養成読本 DevOps編」はDevOpsやInfrastructure as Codeの概要について学び、Ansible 2、CircleCI、Docker、Kubernetesについて実際に動かしつつ理解を深めることが出来るというお勧めの一冊となっています。&lt;/p&gt;
 
 &lt;p&gt;新原さんの&lt;a href=&#34;http://shin1x1.hatenablog.com/entry/gihyo-devops-ansible2&#34;&gt;「サーバ/インフラエンジニア養成読本 DevOps編」にて Ansible 2 について書きました。 - Shin x Hatena Blog&lt;/a&gt; の記事に目次がありますので、そちらもご覧の上、ぜひ購入をご検討ください。&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>Apache Traffic Server を GDB で動かす</title>
-      <link>/blog/2016/02/12/run-apache-traffic-server-with-gdb/</link>
-      <pubDate>Fri, 12 Feb 2016 00:02:11 +0900</pubDate>
-      
-      <guid>/blog/2016/02/12/run-apache-traffic-server-with-gdb/</guid>
-      <description>
-
-&lt;h2 id=&#34;はじめに:16844cae3677ced667c896b951ca0019&#34;&gt;はじめに&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://gihyo.jp/magazine/wdpress/archive/2012/vol69&#34;&gt;WEB+DB PRESS Vol.69｜技術評論社&lt;/a&gt; にあった &lt;a href=&#34;http://dev.ariel-networks.com/wp/archives/author/inoue&#34;&gt;アリエル・ネットワーク㈱の井上さん&lt;/a&gt;による「大規模コードリーディング」の特集を読んで、静的解析 (コードを読んで理解する手法) と動的解析 (実行時の動作を予測しながら構造を理解する方法) を行ったり来たり繰り返すのが良いと理解しました。&lt;/p&gt;
-
-&lt;p&gt;というわけで、 &lt;a href=&#34;/blog/blog/2016/02/11/apache-traffic-server-code-reading/&#34;&gt;Apache Traffic Server のコードリーディング · hnakamur&amp;rsquo;s blog at github&lt;/a&gt; でコードを読みつつ、デバッガ上で動かしてみました。手順は整理してないですが、とりあえず自分向けメモです。&lt;/p&gt;
-
-&lt;h2 id=&#34;試した環境:16844cae3677ced667c896b951ca0019&#34;&gt;試した環境&lt;/h2&gt;
-
-&lt;p&gt;試した環境は &lt;a href=&#34;https://github.com/hnakamur/trafficserver-ansible-playbook&#34;&gt;hnakamur/trafficserver-ansible-playbook&lt;/a&gt; で構築したものです。Apache Traffic Server のバージョンは 6.1.1 です。&lt;/p&gt;
-
-&lt;h2 id=&#34;事前準備:16844cae3677ced667c896b951ca0019&#34;&gt;事前準備&lt;/h2&gt;
-
-&lt;h3 id=&#34;debuginfo-パッケージのインストール:16844cae3677ced667c896b951ca0019&#34;&gt;debuginfo パッケージのインストール&lt;/h3&gt;
-
-&lt;p&gt;gdb でプログラムを実行するにはプログラムのパッケージと依存パッケージの debuginfo が必要です。これは、たぶん以下のコマンドでインストールできます。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;sudo yum install -y yum-utils
-sudo debuginfo-install -y trafficserver
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;debuginfo-パッケージのインストールの試行錯誤メモ:16844cae3677ced667c896b951ca0019&#34;&gt;debuginfo パッケージのインストールの試行錯誤メモ&lt;/h3&gt;
-
-&lt;p&gt;この項は上のコマンドを知る前に試した手順のメモです。&lt;/p&gt;
-
-&lt;p&gt;まずデバッグ情報のパッケージが必要だと思ったので、以下のコマンドでインストールしました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;sudo yum install -y trafficserver-debuginfo
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;次に&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;systemctl start trafficserver
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;を実行して trafficserver のサービスを起動した状態で&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;ps auxww | grep traffic
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;を実行して &lt;code&gt;traffic_server&lt;/code&gt; のコマンドラインをメモします。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;/usr/bin/traffic_server -M --bind_stdout /var/log/trafficserver/traffic.out --bind_stderr /var/log/trafficserver/traffic.out --httpport 80:fd=9
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;となっていました。 &lt;a href=&#34;https://docs.trafficserver.apache.org/en/latest/appendices/command-line/traffic_server.en.html&#34;&gt;traffic_server — Apache Traffic Server 6.2.0 documentation&lt;/a&gt; を見ると &lt;code&gt;-M&lt;/code&gt; は &lt;code&gt;--remote_management&lt;/code&gt; のショートオプションです。 &lt;code&gt;systemctl start trafficserver&lt;/code&gt; でサービスを起動すると &lt;code&gt;traffic_cop&lt;/code&gt; と &lt;code&gt;traffic_manager&lt;/code&gt; 経由で &lt;code&gt;traffic_server&lt;/code&gt; が起動するのですが、その場合に必要になるオプションのようです。 gdb で実行するときは &lt;code&gt;-M&lt;/code&gt; は外します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;systemctl stop trafficserver
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;でサービスを停止します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;gdb /usr/bin/traffic_server
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;で gdb を起動します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;break HttpSM::set_next_state
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;などとブレークポイントを設定します。ブレークポイントは Apache Traffic Server のソースコードを読んで、自分が止めたい場所にお好みで設定します。&lt;/p&gt;
-
-&lt;p&gt;gdb のプロンプトで以下のように入力して、 Apache Traffic Server を実行します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;run --bind_stdout /var/log/trafficserver/traffic.out --bind_stderr /var/log/trafficserver/traffic.out --httpport 80:fd=9
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;ところがdebuginfoが足りず、以下のようなエラーになってしまいました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;[Inferior 1 (process 17590) exited with code 01]
-Missing separate debuginfos, use: debuginfo-install glibc-2.17-106.el7_2.1.x86_64 hwloc-libs-1.7-5.el7.x86_64 keyutils-libs-1.5.8-3.el7.x86_64 krb5-libs-1.13.2-10.el7.x86_64 libcom_err-1.42.9-7.el7.x86_64 libgcc-4.8.5-4.el7.x86_64 libpciaccess-0.13.4-2.el7.x86_64 libselinux-2.2.2-6.el7.x86_64 libstdc++-4.8.5-4.el7.x86_64 libxml2-2.9.1-6.el7_2.2.x86_64 nss-softokn-freebl-3.16.2.3-13.el7_1.x86_64 numactl-libs-2.0.9-5.el7_1.x86_64 openssl-libs-1.0.1e-51.el7_2.2.x86_64 pcre-8.32-15.el7.x86_64 tcl-8.5.13-8.el7.x86_64 xz-libs-5.1.2-12alpha.el7.x86_64 zlib-1.2.7-15.el7.x86_64
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;code&gt;use:&lt;/code&gt; の後をコピペして実行して途中で (y/n) で聞かれたら y を押すと、必要な debuginfo をイントール出来ました。&lt;/p&gt;
-
-&lt;p&gt;調べてみると、最初から以下のコマンドを実行しておけば依存するライブラリの debuginfo もインストールできるようです。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;sudo debuginfo-install -y trafficserver
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;なお、 &lt;code&gt;debuginfo-install&lt;/code&gt; コマンドは &lt;code&gt;yum-utils&lt;/code&gt; パッケージに入っているので予めインストールしておきます。&lt;/p&gt;
-
-&lt;h2 id=&#34;実行例:16844cae3677ced667c896b951ca0019&#34;&gt;実行例&lt;/h2&gt;
-
-&lt;p&gt;まず、&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;gdb /usr/bin/traffic_server
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;で gdb を起動し &lt;code&gt;HttpSM::set_next_state&lt;/code&gt; にブレークポイントを設定して traffic_server を実行しました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;[root@localhost ~]# gdb /usr/bin/traffic_server
-GNU gdb (GDB) Red Hat Enterprise Linux 7.6.1-80.el7
-Copyright (C) 2013 Free Software Foundation, Inc.
-License GPLv3+: GNU GPL version 3 or later &amp;lt;http://gnu.org/licenses/gpl.html&amp;gt;
-This is free software: you are free to change and redistribute it.
-There is NO WARRANTY, to the extent permitted by law.  Type &amp;quot;show copying&amp;quot;
-and &amp;quot;show warranty&amp;quot; for details.
-This GDB was configured as &amp;quot;x86_64-redhat-linux-gnu&amp;quot;.
-For bug reporting instructions, please see:
-&amp;lt;http://www.gnu.org/software/gdb/bugs/&amp;gt;...
-Reading symbols from /usr/bin/traffic_server...Reading symbols from /usr/lib/debug/usr/bin/traffic_server.debug...done.
-done.
-(gdb) break HttpSM::set_next_state
-Breakpoint 1 at 0x151510: file HttpSM.cc, line 6940.
-(gdb) run --bind_stdout /var/log/trafficserver/traffic.out --bind_stderr /var/log/trafficserver/traffic.out --httpport 80:fd=9
-Starting program: /usr/bin/traffic_server --bind_stdout /var/log/trafficserver/traffic.out --bind_stderr /var/log/trafficserver/traffic.out --httpport 80:fd=9
-[Thread debugging using libthread_db enabled]
-Using host libthread_db library &amp;quot;/lib64/libthread_db.so.1&amp;quot;.
-traffic_server: using root directory &#39;/usr&#39;
-[New Thread 0x7ffff3bde700 (LWP 19929)]
-[New Thread 0x7ffff1249700 (LWP 19930)]
-[New Thread 0x7ffff1047700 (LWP 19931)]
-[New Thread 0x7ffff0a3c700 (LWP 19932)]
-[New Thread 0x7fffebefe700 (LWP 19933)]
-[New Thread 0x7fffebcfc700 (LWP 19934)]
-[New Thread 0x7fffebafa700 (LWP 19935)]
-[New Thread 0x7fffeb8f8700 (LWP 19936)]
-[New Thread 0x7fffeb6f6700 (LWP 19937)]
-[New Thread 0x7fffeb4f4700 (LWP 19938)]
-[New Thread 0x7fffeb2f2700 (LWP 19939)]
-[New Thread 0x7fffeb0f0700 (LWP 19940)]
-[New Thread 0x7fffeac5d700 (LWP 19941)]
-[New Thread 0x7fffea95a700 (LWP 19942)]
-[New Thread 0x7fffea859700 (LWP 19943)]
-[New Thread 0x7fffea657700 (LWP 19944)]
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;ここで別の端末で&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;curl -sv http://192.168.33.131/
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;を実行しました。&lt;/p&gt;
-
-&lt;p&gt;&lt;code&gt;HttpSM&lt;/code&gt; というクラス名は &lt;code&gt;Http State Machine&lt;/code&gt; の略と思われます。 HTTP を処理する状態遷移マシンになっています。以下のセッションでは HttpSM クラスの t_state メンバ変数の next_action を表示して、状態の遷移を確認してみました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
-6940    {
-(gdb) where
-#0  HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
-#1  0x000055555569aa96 in HttpSM::state_read_client_request_header (this=0x7fffea0d0080, event=&amp;lt;optimized out&amp;gt;, data=&amp;lt;optimized out&amp;gt;)
-    at HttpSM.cc:771
-#2  0x00005555556a7600 in HttpSM::main_handler (this=0x7fffea0d0080, event=100, data=0x7fffe0017e38) at HttpSM.cc:2561
-#3  0x00005555556a0f13 in HttpSM::state_api_callout (this=0x7fffea0d0080, event=&amp;lt;optimized out&amp;gt;, data=&amp;lt;optimized out&amp;gt;)
-    at HttpSM.cc:1464
-#4  0x00005555556a19a8 in do_api_callout (this=0x7fffea0d0080) at HttpSM.cc:391
-#5  HttpSM::state_add_to_list (this=0x7fffea0d0080, event=&amp;lt;optimized out&amp;gt;) at HttpSM.cc:418
-#6  0x00005555556a719b in HttpSM::attach_client_session (this=0x7fffea0d0080, client_vc=0x555556592d40, buffer_reader=0x555556575ea8)
-    at HttpSM.cc:544
-#7  0x0000555555682ec5 in HttpClientSession::new_transaction (this=0x555556592d40) at HttpClientSession.cc:141
-#8  0x000055555565e901 in ProxyClientSession::state_api_callout (this=0x555556592d40, event=&amp;lt;optimized out&amp;gt;)
-    at ProxyClientSession.cc:123
-#9  0x00005555556824b2 in HttpClientSession::new_connection (this=0x555556592d40, new_vc=&amp;lt;optimized out&amp;gt;, iobuf=&amp;lt;optimized out&amp;gt;,
-    reader=&amp;lt;optimized out&amp;gt;, backdoor=&amp;lt;optimized out&amp;gt;) at HttpClientSession.cc:220
-#10 0x000055555567d969 in HttpSessionAccept::accept (this=0x55555621cab0, netvc=0x7fffe0017d20, iobuf=&amp;lt;optimized out&amp;gt;,
-    reader=0x555556575ea8) at HttpSessionAccept.cc:74
-#11 0x000055555565e683 in ProtocolProbeTrampoline::ioCompletionEvent (this=0x5555563bc880, event=&amp;lt;optimized out&amp;gt;,
-    edata=&amp;lt;optimized out&amp;gt;) at ProtocolProbeSessionAccept.cc:123
-#12 0x000055555581de76 in handleEvent (data=0x7fffe0017e38, event=100, this=&amp;lt;optimized out&amp;gt;)
-    at ../../iocore/eventsystem/I_Continuation.h:153
-#13 read_signal_and_update (vc=0x7fffe0017d20, event=100) at UnixNetVConnection.cc:150
-#14 read_from_net (nh=0x7ffff31e0b90, vc=0x7fffe0017d20, thread=0x7ffff31dd010) at UnixNetVConnection.cc:390
-#15 0x000055555580e6b0 in NetHandler::mainNetEvent (this=0x7ffff31e0b90, event=&amp;lt;optimized out&amp;gt;, e=&amp;lt;optimized out&amp;gt;) at UnixNet.cc:518
-#16 0x000055555583c2d0 in handleEvent (data=0x555556172dc0, event=5, this=&amp;lt;optimized out&amp;gt;) at I_Continuation.h:153
-#17 EThread::process_event (this=this@entry=0x7ffff31dd010, e=0x555556172dc0, calling_code=calling_code@entry=5) at UnixEThread.cc:128
-#18 0x000055555583cdab in EThread::execute (this=0x7ffff31dd010) at UnixEThread.cc:252
-#19 0x000055555560af60 in main (argv=&amp;lt;optimized out&amp;gt;) at Main.cc:1918
-(gdb) p t_state.next_action
-$1 = HttpTransact::SM_ACTION_API_READ_REQUEST_HDR
-(gdb) c
-Continuing.
-
-Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
-6940    {
-(gdb) p t_state.next_action
-$2 = HttpTransact::SM_ACTION_API_PRE_REMAP
-(gdb) c
-Continuing.
-
-Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
-6940    {
-(gdb) p t_state.next_action
-$3 = HttpTransact::SM_ACTION_REMAP_REQUEST
-(gdb) c
-Continuing.
-
-Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
-6940    {
-(gdb) p t_state.next_action
-$4 = HttpTransact::SM_ACTION_API_POST_REMAP
-(gdb) c
-Continuing.
-
-Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
-6940    {
-(gdb) p t_state.next_action
-$5 = HttpTransact::SM_ACTION_CACHE_LOOKUP
-(gdb) c
-Continuing.
-
-Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
-6940    {
-(gdb) p t_state.next_action
-$6 = HttpTransact::SM_ACTION_API_READ_CACHE_HDR
-(gdb) c
-Continuing.
-
-Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
-6940    {
-(gdb) p t_state.next_action
-$7 = HttpTransact::SM_ACTION_API_CACHE_LOOKUP_COMPLETE
-(gdb) c
-Continuing.
-
-Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
-6940    {
-(gdb) p t_state.next_action
-$8 = HttpTransact::SM_ACTION_DNS_LOOKUP
-(gdb) c
-Continuing.
-
-Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
-6940    {
-(gdb) p t_state.next_action
-$9 = HttpTransact::SM_ACTION_API_OS_DNS
-(gdb) c
-Continuing.
-
-Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
-6940    {
-(gdb) p t_state.next_action
-$10 = HttpTransact::SM_ACTION_CACHE_ISSUE_WRITE
-(gdb) c
-Continuing.
-
-Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
-6940    {
-(gdb) p t_state.next_action
-$11 = HttpTransact::SM_ACTION_ORIGIN_SERVER_OPEN
-(gdb) c
-Continuing.
-
-Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
-6940    {
-(gdb) p t_state.next_action
-$12 = HttpTransact::SM_ACTION_SERVER_READ
-(gdb) c
-Continuing.
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id=&#34;gdb-でよく使うコマンドのメモ:16844cae3677ced667c896b951ca0019&#34;&gt;gdb でよく使うコマンドのメモ&lt;/h2&gt;
-
-&lt;p&gt;ブレークポイント一覧表示あたりをよく忘れるのでメモ。ググってみると &lt;a href=&#34;http://wombat.cc.tsukuba.ac.jp/~furuse/jikken/text-07/text-07.html&#34;&gt;マイクロデータベース管理システムの実装&lt;/a&gt; にわかりやすくまとまっていました。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;b: break。ブレークポイント設定。b の後に「クラス名::メソッド名」、「関数名」、「ファイル名:行番号」のように止めたい箇所を指定します。&lt;/li&gt;
-&lt;li&gt;i b: info breakpointsの略。ブレークポイント一覧表示。&lt;/li&gt;
-&lt;li&gt;del [ブレークポイント番号]。ブレークポイント削除。番号を省略すると全て削除。&lt;/li&gt;
-&lt;li&gt;where: ブレークポイントで止まったときにコールスタックを表示します。&lt;/li&gt;
-&lt;li&gt;p: print。ブレークポイントで止まったときに変数の値を表示します。&lt;/li&gt;
-&lt;li&gt;c: continue。実行継続。ブレークポイントを設定していればそこで止まります。&lt;/li&gt;
-&lt;li&gt;n: next。ステップオーバー。関数呼び出しの際には中に入らずにステップ実行します。&lt;/li&gt;
-&lt;li&gt;s: step。ステップイン。関数呼び出しの際にの中に入ってステップ実行します。&lt;/li&gt;
-&lt;li&gt;q: quit。実行終了。まだ実行中だと &lt;code&gt;Quit anyway? (y or n)&lt;/code&gt; と聞かれるので y を押して終了します。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;ブレークポイントで止まっていない場合も、実行中に Ctrl-C で gdb のプロンプトが出るので、そこで上記のコマンドを実行できます。その後 c で実行再開できます。&lt;/p&gt;
 </description>
     </item>
     
