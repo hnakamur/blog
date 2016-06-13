@@ -6,8 +6,109 @@
     <description>Recent content in Golang on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Sun, 12 Jun 2016 21:53:35 +0900</lastBuildDate>
+    <lastBuildDate>Mon, 13 Jun 2016 21:42:53 +0900</lastBuildDate>
     <atom:link href="/blog/tags/golang/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>GoでLTSV形式でログ出力するライブラリを書いた</title>
+      <link>/blog/2016/06/13/wrote_go_ltsvlog_library/</link>
+      <pubDate>Mon, 13 Jun 2016 21:42:53 +0900</pubDate>
+      
+      <guid>/blog/2016/06/13/wrote_go_ltsvlog_library/</guid>
+      <description>
+
+&lt;h2 id=&#34;なぜ書いたか:9bb767831423b01f10b84a34c21f4871&#34;&gt;なぜ書いたか&lt;/h2&gt;
+
+&lt;p&gt;Goで高機能なサードパーティのログ出力ライブラリと言えば&lt;a href=&#34;https://github.com/Sirupsen/logrus&#34;&gt;Sirupsen/logrus&lt;/a&gt;が有名です。私も&lt;a href=&#34;https://github.com/doloopwhile/logrusltsv&#34;&gt;doloopwhile/logrusltsv&lt;/a&gt;と組み合わせてLTSV形式のログ出力するのに使っていました。&lt;/p&gt;
+
+&lt;p&gt;しかし、&lt;a href=&#34;http://methane.hatenablog.jp/entry/2015/09/17/logger_%E3%81%AE%E3%83%91%E3%83%95%E3%82%A9%E3%83%BC%E3%83%9E%E3%83%B3%E3%82%B9%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6_%5BGo%5D&#34;&gt;logger のパフォーマンスについて [Go] - methaneのブログ&lt;/a&gt;にも書かれていますが、&lt;a href=&#34;https://godoc.org/github.com/Sirupsen/logrus#WithFields&#34;&gt;logrus.WithFields&lt;/a&gt;は&lt;a href=&#34;https://godoc.org/github.com/Sirupsen/logrus#Fields&#34;&gt;Fields&lt;/a&gt;、つまり &lt;code&gt;map[string]interface{}&lt;/code&gt; の値を渡す必要があります。これはGCに負荷をかけそうというのも気になりますが、Goのmapは順不同なのでログ出力の際にキーの順番がソースに書いた順番と必ずしも一致しないというのがイマイチだよなーと思っていました。&lt;/p&gt;
+
+&lt;p&gt;ログ出力ライブラリはライブラリによって違うものを使うのはよくないから、自作するよりメジャーなものを使うほうが良いと自重する思いもありました。&lt;/p&gt;
+
+&lt;p&gt;一方で、&lt;a href=&#34;http://dave.cheney.net/2015/11/05/lets-talk-about-logging&#34;&gt;Let’s talk about logging | Dave Cheney&lt;/a&gt;には賛同する点も多く、感銘を受けました。&lt;/p&gt;
+
+&lt;p&gt;で、一度自作してみようかなーと思っていたところに、&lt;a href=&#34;https://github.com/uber-go/zap&#34;&gt;uber-go/zap&lt;/a&gt;を見かけて、ログ出力の引数側を加工するという方式にインスパイアされ、ついに自分が欲しいものを自分で書いてみました。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;githubレポジトリ: &lt;a href=&#34;https://github.com/hnakamur/ltsvlog&#34;&gt;hnakamur/ltsvlog&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;APIドキュメント: &lt;a href=&#34;https://godoc.org/github.com/hnakamur/ltsvlog&#34;&gt;ltsvlog - GoDoc&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;githubレポジトリのREADMEに使用例のコードがあります。&lt;/p&gt;
+
+&lt;h2 id=&#34;ltsvlogの設計と実装:9bb767831423b01f10b84a34c21f4871&#34;&gt;ltsvlogの設計と実装&lt;/h2&gt;
+
+&lt;h3 id=&#34;ltsvlogのログレベル:9bb767831423b01f10b84a34c21f4871&#34;&gt;ltsvlogのログレベル&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://dave.cheney.net/2015/11/05/lets-talk-about-logging&#34;&gt;Let’s talk about logging | Dave Cheney&lt;/a&gt;にもありましたが、ログレベルが多すぎると使い分けで悩むので少ないほうが良いと私も思います。ただ、エラー以外にもなにかが成功したときに記録しておきたいことはあるので、ErrorとInfoは分けたほうが良いと思います。あと私はprintデバッグ信者なのでデバッグログ用のDebugレベルは必要です。&lt;/p&gt;
+
+&lt;p&gt;ということで、ltsvlogのログレベルはDebug, Info, Errorの3つです。&lt;/p&gt;
+
+&lt;p&gt;レベル毎に出力するかしないかの切り替えはDebugレベルのみ許可することにしました。InfoとErrorは本番運用時にもログ出力するものだけに使うという考えです。Debugレベルを出力するかどうかは&lt;a href=&#34;https://godoc.org/github.com/hnakamur/ltsvlog#NewLTSVLogger&#34;&gt;NewLTSVLogger&lt;/a&gt;でロガーを作るときに指定します。&lt;/p&gt;
+
+&lt;p&gt;またDebugレベルのログ出力は無効時には引数の評価もしたくないので、 &lt;a href=&#34;https://godoc.org/github.com/hnakamur/ltsvlog#LTSVLogger.DebugEnabled&#34;&gt;LTSVLogger.DebugEnabled()&lt;/a&gt;というメソッドも用意しました。使用例はこんな感じです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    if ltsvlog.Logger.DebugEnabled() {
+        ltsvlog.Logger.Debug(ltsvlog.LV{&amp;quot;msg&amp;quot;, &amp;quot;This is a debug message&amp;quot;},
+            ltsvlog.LV{&amp;quot;key&amp;quot;, &amp;quot;key1&amp;quot;}, ltsvlog.LV{&amp;quot;intValue&amp;quot;, 234})
+    }
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;スタックトレースの出力:9bb767831423b01f10b84a34c21f4871&#34;&gt;スタックトレースの出力&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://godoc.org/github.com/hnakamur/ltsvlog#LTSVLogger.ErrorWithStack&#34;&gt;LTSVLogger.ErrorWithStack&lt;/a&gt;でスタックトレース付きでログ出力できます。&lt;/p&gt;
+
+&lt;p&gt;LTSV形式ではログは1レコードで1行にする必要があります。&lt;a href=&#34;https://golang.org/pkg/runtime/#Stack&#34;&gt;runtime.Stack&lt;/a&gt;でスタックトレースをバッファに書いてくれるのですが、こちらは複数行の出力になっています。コードを適宜コピペして好きな形式で出力するようにしようかと思ったのですが、&lt;a href=&#34;https://golang.org/src/runtime/mprof.go?s=16037:16073#L574&#34;&gt;src/runtime/mprof.go&lt;/a&gt;のソースコードを見て思いとどまりました。&lt;/p&gt;
+
+&lt;p&gt;ということで、runtime.Stackの出力結果を加工するという方式で実装しています。
+実際のコードは&lt;a href=&#34;https://github.com/hnakamur/ltsvlog/blob/v0.9.3/stack.go#L13-L60&#34;&gt;ltsvlog/stack.go&lt;/a&gt;です。コールスタックから不要な部分を取り除きつつ複数行から1行に変形するということで必ず元の長さより縮むので runtime.Stack で出力したバッファをそのまま使って変形しています。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://golang.org/pkg/runtime/#Stack&#34;&gt;runtime.Stack&lt;/a&gt;は呼び出し側がバッファを渡す必要があるのですが、サイズが小さいとスタックトレースが途中で切れてしまいます。デフォルトで 8192 というサイズにしたのですが、足りない場合は &lt;a href=&#34;https://godoc.org/github.com/hnakamur/ltsvlog#NewLTSVLoggerCustomFormat&#34;&gt;NewLTSVLoggerCustomFormat&lt;/a&gt; の引数でバッファサイズを指定できるようにしてます。&lt;/p&gt;
+
+&lt;h3 id=&#34;時刻とログレベルの出力:9bb767831423b01f10b84a34c21f4871&#34;&gt;時刻とログレベルの出力&lt;/h3&gt;
+
+&lt;p&gt;時刻はUTCでフォーマットは &lt;a href=&#34;https://golang.org/pkg/time/#pkg-constants&#34;&gt;time&lt;/a&gt;パッケージの &lt;code&gt;RFC3339Nano = &amp;quot;2006-01-02T15:04:05.999999999Z07:00&amp;quot;&lt;/code&gt; に近いですが、ナノセカンドの部分は個人的な好みで9桁固定で出力するようにしました。&lt;/p&gt;
+
+&lt;h3 id=&#34;値の文字列化:9bb767831423b01f10b84a34c21f4871&#34;&gt;値の文字列化&lt;/h3&gt;
+
+&lt;p&gt;上のコード例のようにラベルと値の組は&lt;a href=&#34;https://godoc.org/github.com/hnakamur/ltsvlog#LV&#34;&gt;ltsvlog.LV&lt;/a&gt;で指定します。&lt;/p&gt;
+
+&lt;p&gt;将来 LV にフィールドが追加されるかもしれないと防御的に実装するなら、以下のように書いたほうが良いわけですが、LabelとValueでLVということでフィールド追加するつもりは無いので &lt;code&gt;L:&lt;/code&gt; や &lt;code&gt;V:&lt;/code&gt; は省略して、上記の例のように書いています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    if ltsvlog.Logger.DebugEnabled() {
+        ltsvlog.Logger.Debug(ltsvlog.LV{L: &amp;quot;msg&amp;quot;, V: &amp;quot;This is a debug message&amp;quot;},
+            ltsvlog.LV{L: &amp;quot;key&amp;quot;, V: &amp;quot;key1&amp;quot;}, ltsvlog.LV{L: &amp;quot;intValue&amp;quot;, V: 234})
+    }
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;値の文字列化は &lt;a href=&#34;https://github.com/hnakamur/ltsvlog/blob/v0.9.3/log.go#L175-L219&#34;&gt;https://github.com/hnakamur/ltsvlog/blob/v0.9.3/log.go#L175-L219&lt;/a&gt; で行っています。&lt;a href=&#34;https://golang.org/ref/spec#Type_switches&#34;&gt;Type switches&lt;/a&gt;を使って、値の型に応じて文字列化しています。コメントにも書いていますが、byteとuint8、runeとuintは別のcaseとして書くとコンパイルエラーになったので諦めてuint8とuintのほうだけを残しています。&lt;/p&gt;
+
+&lt;p&gt;時刻とログレベルの出力形式と値の文字列化の方式を変えたい場合は関数を実装して&lt;a href=&#34;https://godoc.org/github.com/hnakamur/ltsvlog#NewLTSVLoggerCustomFormat&#34;&gt;NewLTSVLoggerCustomFormat&lt;/a&gt; の引数に指定すれば良いようにしてあります。&lt;/p&gt;
+
+&lt;h3 id=&#34;グローバルロガー:9bb767831423b01f10b84a34c21f4871&#34;&gt;グローバルロガー&lt;/h3&gt;
+
+&lt;p&gt;標準の&lt;a href=&#34;https://golang.org/pkg/log/&#34;&gt;log&lt;/a&gt;パッケージではグローバルロガーの変数は非公開で&lt;a href=&#34;https://golang.org/pkg/log/#Print&#34;&gt;log.Print&lt;/a&gt;や&lt;a href=&#34;https://golang.org/pkg/log/#SetOutput&#34;&gt;log.SetOutput&lt;/a&gt;の関数で操作するようになっています。&lt;/p&gt;
+
+&lt;p&gt;私は関数を増やすのが嫌だったのとグローバルロガーの変数は公開しても良いのではと思ったのでそうしました。&lt;a href=&#34;https://godoc.org/github.com/hnakamur/ltsvlog#pkg-variables&#34;&gt;ltsvlog.Logger&lt;/a&gt;で参照できます。デフォルトでは標準出力にデバッグログありで出力するようになっています。デバッグログをオフにしたい場合はmain関数の最初のほうで(ログ出力する前に)以下のようにします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt; ltsvlog.Logger = ltsvlog.NewLTSVLogger(os.Stdout, false)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ログ出力中に設定を変えることはないという想定です。&lt;/p&gt;
+
+&lt;h3 id=&#34;logwriterインタフェースと常に何も出力しないdiscard:9bb767831423b01f10b84a34c21f4871&#34;&gt;LogWriterインタフェースと常に何も出力しないDiscard&lt;/h3&gt;
+
+&lt;p&gt;後付ですが&lt;a href=&#34;https://godoc.org/github.com/hnakamur/ltsvlog#LogWriter&#34;&gt;ltsvlog.LogWriter&lt;/a&gt;というインタフェースも定義してみました。インタフェースは Logger という名前にしたいところでしたが、グローバルロガーに Logger という名前を使っていたので仕方なく LogWriter にしました。そして常に何も出力しない Discard というのも作りました。ただし、Infoなどの引数は評価されてしまうので実行コストが0なわけではないです。&lt;/p&gt;
+
+&lt;h2 id=&#34;おわりに:9bb767831423b01f10b84a34c21f4871&#34;&gt;おわりに&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/ltsvlog#benchmark-result&#34;&gt;Benchmark result&lt;/a&gt;に標準のlogパッケージと比較したベンチマーク結果を載せています。logパッケージよりは遅い手ですがほぼ同等だと言えると思います。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/ltsvlog&#34;&gt;hnakamur/ltsvlog&lt;/a&gt;はコード量も大したことないので、保守で困ることはないと楽観視しています。&lt;/p&gt;
+
+&lt;p&gt;ということで自分で書くライブラリやアプリケーションではどんどん使っていきたいと思います。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>Goで複数のリモートのワーカーにジョブを実行させるremoteworkersというパッケージを書いた</title>
