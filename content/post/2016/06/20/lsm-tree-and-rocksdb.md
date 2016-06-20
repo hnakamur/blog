@@ -40,6 +40,8 @@ CockroachDBのデザインドキュメントの[Read vs. Write Optimization Spec
     - TiKVのストレージエンジンはLSM Treeの実装である[RocksDB](http://rocksdb.org/)を採用。Li ShenさんによるとTiDBの開発チームはRocsDBのチームとも連絡をとっているそうです。
     - TiKV用の[Goのクライアント](https://github.com/pingcap/tidb/blob/master/store/tikv/txn.go)もある。
 * 現在バリバリ開発中。[ロードマップ](https://github.com/pingcap/tidb/blob/master/docs/ROADMAP.md)
+* TiDBの紹介記事: [MySQL は分散DBの夢を見るか、Google F1 論文を実装した TiDB を使ってみた | 株式会社インフィニットループ技術ブログ](https://www.infiniteloop.co.jp/blog/2016/05/install-tidb/)
+* TiDBの起源についてのブログ記事。[Thoughts behind TiDB - Part I](http://0xffff.me/thoughts-behind-tidb-part-1/)。私は中国語読めないのでGoogle翻訳で英語にして読みました。
 
 ## CockroachDBの事例
 
@@ -67,6 +69,8 @@ InfluxDBの開発元influxdataのブログのベンチマーク記事 [Benchmark
 上記の通りTiDBでもCockroachDBでもRocksDBを採用していますし、現在のところ有望そうです。
 
 [Rocksdb: The History of RocksDB](http://rocksdb.blogspot.jp/2013/11/the-history-of-rocksdb.html)にRocksDBを開始した頃の話が書かれていました。
+
+[RocksDB FAQ](https://github.com/facebook/rocksdb/wiki/RocksDB-FAQ)の "Q: What's the maximum key and value sizes supported?" によると、RocksDBは大きなサイズのキー用にはデザインされておらず、推奨されるキーと値の最大サイズはそれぞれ8MBと3GBとのことです。
 
 ## おわりに
 書き込みが多いケースに向いているキーバリューストアであるRocksDBと、RocksDBをつかて分散トランザクションを実現しているデータベースであるTiDBとCockroachDBの今後に注目したいと思います。
