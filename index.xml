@@ -6,8 +6,214 @@
     <description>Recent content on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Wed, 22 Jun 2016 23:40:27 +0900</lastBuildDate>
+    <lastBuildDate>Thu, 30 Jun 2016 06:40:12 +0900</lastBuildDate>
     <atom:link href="/blog/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>分散SQLデータベースCockroachDBのキーバリューストレージのデバッグコマンドを試してみた</title>
+      <link>/blog/2016/06/30/experiment-cockroachdb-key-value-store/</link>
+      <pubDate>Thu, 30 Jun 2016 06:40:12 +0900</pubDate>
+      
+      <guid>/blog/2016/06/30/experiment-cockroachdb-key-value-store/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;h/blog/2016/06/20/lsm-tree-and-rocksdb/&#34;&gt;LSM-TreeとRocksDB、TiDB、CockroachDBが気になる&lt;/a&gt; で紹介した &lt;a href=&#34;https://github.com/cockroachdb/cockroach#client-drivers&#34;&gt;CockroachDB&lt;/a&gt; は &lt;a href=&#34;https://github.com/cockroachdb/cockroach#what-is-cockroachdb&#34;&gt;What is CockroachDB?&lt;/a&gt; によるとスケールアウトできる分散SQLデータベースです。 &lt;a href=&#34;https://github.com/cockroachdb/cockroach#client-drivers&#34;&gt;PostgreSQLのワイヤープロトコルをサポート&lt;/a&gt; していて、 &lt;a href=&#34;https://github.com/cockroachdb/cockroach#quickstart&#34;&gt;Quickstart&lt;/a&gt; の例のようにPostgreSQLで扱えるSQLのサブセットが使えます。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/cockroachdb/cockroach#overview&#34;&gt;Overview&lt;/a&gt; によるとストレージには &lt;a href=&#34;http://rocksdb.org/&#34;&gt;RocksDB&lt;/a&gt; を使用し、複数台のサーバ間の合意アルゴリズムにはRaftを使用しています。&lt;/p&gt;
+
+&lt;p&gt;分散SQLデータベースという本来の機能も魅力的なのですが、書き込みが多いケースに最適化したLSM Treeというデータ構造の実装であるRocksDBをRaftを使って分散トランザクションを実現しているという部分も個人的には興味があります。&lt;/p&gt;
+
+&lt;p&gt;ということで、そのへんのソースを見ていこうと思います。といっても、まだ全体を把握しているわけではないので、だらだら書いていきます。
+CockroachDBにデバッグ用のコマンドが用意されていたので、それで実験しつつ読み進めたいと思います。&lt;/p&gt;
+
+&lt;h2 id=&#34;rocksdbラッパーレイヤとengineパッケージ&#34;&gt;RocksDBラッパーレイヤとengineパッケージ&lt;/h2&gt;
+
+&lt;p&gt;RocksDBはC++で書かれているので、Goから呼び出すためcgoでラッピングしているレイヤがあります。 &lt;a href=&#34;https://github.com/cockroachdb/cockroach/tree/master/storage/engine/rocksdb&#34;&gt;cockroach/storage/engine/rocksdb&lt;/a&gt; にC++で書かれたファイルがいくつかあります。 &lt;a href=&#34;https://github.com/cockroachdb/cockroach/tree/master/storage/engine&#34;&gt;cockroach/storage/engine&lt;/a&gt; パッケージのドキュメント &lt;a href=&#34;https://godoc.org/github.com/cockroachdb/cockroach/storage/engine&#34;&gt;engine - GoDoc&lt;/a&gt; にこのパッケージで低レベルのストレージを提供しているという説明があります。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#Engine&#34;&gt;Engine&lt;/a&gt; はRocksDBなどのストレージバックエンドとやり取りするためのインターフェースです。 Engineは &lt;a href=&#34;https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#ReadWriter&#34;&gt;ReadWriter&lt;/a&gt; インタフェースをエンベッドしていて、それがさらに &lt;a href=&#34;https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#Reader&#34;&gt;Reader&lt;/a&gt; と &lt;a href=&#34;https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#Writer&#34;&gt;Writer&lt;/a&gt; インタフェースをエンベッドしています。&lt;/p&gt;
+
+&lt;p&gt;Reader や Writer インタフェースのメソッドを見るとキーバリューストアのキーは &lt;a href=&#34;https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#MVCCKey&#34;&gt;MVCCKey&lt;/a&gt; という型になっています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;type MVCCKey struct {
+    Key       roachpb.Key
+    Timestamp hlc.Timestamp
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://godoc.org/github.com/cockroachdb/cockroach/roachpb#Key&#34;&gt;roachpb.Key&lt;/a&gt; は &lt;code&gt;[]byte&lt;/code&gt; と定義されており、 &lt;a href=&#34;https://godoc.org/github.com/cockroachdb/cockroach/util/hlc#Timestamp&#34;&gt;hlc.Timestamp&lt;/a&gt; は以下のように定義されています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;type Timestamp struct {
+    // Holds a wall time, typically a unix epoch time
+    // expressed in nanoseconds.
+    WallTime int64 `protobuf:&amp;quot;varint,1,opt,name=wall_time,json=wallTime&amp;quot; json:&amp;quot;wall_time&amp;quot;`
+    // The logical component captures causality for events whose wall
+    // times are equal. It is effectively bounded by (maximum clock
+    // skew)/(minimal ns between events) and nearly impossible to
+    // overflow.
+    Logical int32 `protobuf:&amp;quot;varint,2,opt,name=logical&amp;quot; json:&amp;quot;logical&amp;quot;`
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://godoc.org/github.com/cockroachdb/cockroach/storage/engine&#34;&gt;engine - GoDoc&lt;/a&gt; にEngineインタフェースの上にMVCC (Multi-Version Concurrency Control) システムが提供されていて、それがCockroachDBが分散トランザクションをサポートするための基礎になっていると書かれています。&lt;/p&gt;
+
+&lt;p&gt;その下の &lt;a href=&#34;https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#hdr-Notes_on_MVCC_architecture&#34;&gt;Notes on MVCC architecture&lt;/a&gt; にMVCCアーキテクチャについて詳細な説明があります。じっくり読んだほうが良いと思いますが、一旦飛ばして先に進みます。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#RocksDB&#34;&gt;RocksDB&lt;/a&gt; という構造体定義があり、これが Engine インタフェースを実装しています。  &lt;a href=&#34;https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#NewRocksDB&#34;&gt;NewRocksDB&lt;/a&gt; 関数で RocksDB を作成できます。&lt;/p&gt;
+
+&lt;h2 id=&#34;newrocksdb関数の呼び出し箇所&#34;&gt;NewRocksDB関数の呼び出し箇所&lt;/h2&gt;
+
+&lt;p&gt;NewRocksDB関数は、テストコード以外では、以下の2箇所で呼ばれていました。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://godoc.org/github.com/cockroachdb/cockroach/server&#34;&gt;server&lt;/a&gt; パッケージの &lt;a href=&#34;https://godoc.org/github.com/cockroachdb/cockroach/server#Context.InitStores&#34;&gt;func (*Context) InitStores&lt;/a&gt;。
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/cockroachdb/cockroach/blob/549d9b575e06921fa96b6ff4881ea348d8b6d00c/server/context.go#L260-L261&#34;&gt;cockroach/context.go at 549d9b575e06921fa96b6ff4881ea348d8b6d00c&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/cockroachdb/cockroach/blob/master/cli/debug.go&#34;&gt;cockroach/debug.go&lt;/a&gt; の &lt;code&gt;cli.openStore(cmd *cobra.Command, dir string, stopper *stop.Stopper) (engine.Engine, error)&lt;/code&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/cockroachdb/cockroach/blob/549d9b575e06921fa96b6ff4881ea348d8b6d00c/cli/debug.go#L65-L71&#34;&gt;cockroach/debug.go at 549d9b575e06921fa96b6ff4881ea348d8b6d00c&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;後者を呼び出している箇所を見ていくとデバッグ用のサブコマンドがあることがわかりました。&lt;/p&gt;
+
+&lt;h2 id=&#34;デバッグ用サブコマンドを試してみた&#34;&gt;デバッグ用サブコマンドを試してみた&lt;/h2&gt;
+
+&lt;p&gt;前提条件としてLXDの3つのコンテナroach1, roach2, roach3で以下のようにCockroachDBを起動している状態とします。&lt;/p&gt;
+
+&lt;p&gt;roach1&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;/usr/local/sbin/cockroach start --host 192.168.0.13 --insecure
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;roach2&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;/usr/local/sbin/cockroach start --join 192.168.0.13:26257 --insecure --host 192.168.0.14
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;roach3&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;/usr/local/sbin/cockroach start --join 192.168.0.13:26257 --insecure --host 192.168.0.15
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;特にコンテナでなくても1台のサーバで &lt;a href=&#34;https://github.com/cockroachdb/cockroach#quickstart&#34;&gt;Quickstart&lt;/a&gt;のlocal clusterでも構いません。その場合は下記のコマンドの &lt;code&gt;--host&lt;/code&gt; の部分を適宜読み替えてください。&lt;/p&gt;
+
+&lt;h3 id=&#34;debug-kv-コマンドを試してみた&#34;&gt;debug kv コマンドを試してみた&lt;/h3&gt;
+
+&lt;p&gt;debug kvコマンドで、キー・バリュー・ストアに値を設定したり取得したり出来ます。&lt;/p&gt;
+
+&lt;p&gt;コンテナroach1で値をセットして取得してみました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;root@roach1:~# cockroach debug kv scan --host 192.168.0.13
+0 result(s)
+root@roach1:~# cockroach debug kv put --host 192.168.0.13 foo bar
+root@roach1:~# cockroach debug kv get --host 192.168.0.13 foo
+&amp;quot;bar&amp;quot;
+root@roach1:~# cockroach debug kv scan --host 192.168.0.13
+&amp;quot;foo&amp;quot;   &amp;quot;bar&amp;quot;
+1 result(s)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;上記で設定した値がコンテナroach2でも取得できました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;root@roach2:~# cockroach debug kv scan --host 192.168.0.14
+&amp;quot;foo&amp;quot;   &amp;quot;bar&amp;quot;
+1 result(s)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;コンテナroach2からroach1上の値を変更も出来ます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;root@roach2:~# cockroach debug kv put --host 192.168.0.13 foo &#39;Hello, key value store in CockroachDB&#39;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;コンテナroach1上の値一覧を取得して更新されていることを確認しました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;root@roach1:~# cockroach debug kv scan --host 192.168.0.13
+&amp;quot;foo&amp;quot;   &amp;quot;Hello, key value store in CockroachDB&amp;quot;
+1 result(s)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;debug-keys-コマンドを試してみた&#34;&gt;debug keys コマンドを試してみた&lt;/h3&gt;
+
+&lt;p&gt;debug keysコマンドで、キー・バリュー・ストアの内部構造をダンプして見ることが出来ます。このコマンドはサーバを停止した状態でデータのディレクトリを指定して実行するようになっています。&lt;/p&gt;
+
+&lt;p&gt;サーバが起動したまま実行すると以下のようにロックが取得できないというエラーになります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;root@roach2:~# cockroach debug keys ./cockroach-data
+Error: storage/engine/rocksdb.go:158: could not open rocksdb instance: IO error: lock ./cockroach-data/LOCK: Resource temporarily unavailable
+Usage:
+  cockroach debug keys [directory] [flags]
+
+Flags:
+      --from string
+        Start key in pretty-printed format. See also --raw.
+
+      --raw
+        Interpret keys as raw bytes.
+
+      --to string
+        Exclusive end key in pretty-printed format. See also --raw.
+
+      --values
+        Print values along with their associated key.
+
+Global Flags:
+      --alsologtostderr value[=INFO]   logs at or above this threshold go to stderr (default NONE)
+      --log-backtrace-at value         when logging hits line file:N, emit a stack trace (default :0)
+      --log-dir value                  if non-empty, write log files in this directory
+      --logtostderr                    log to standard error instead of files
+      --no-color value                 disable standard error log colorization
+      --verbosity value                log level for V logs
+      --vmodule value                  comma-separated list of pattern=N settings for file-filtered logging
+
+Failed running &amp;quot;debug&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;そこでコンテナroach2のサーバを停止してみます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;root@roach2:~# cockroach quit --host 192.168.0.14
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;サーバを停止したらキーの一覧を表示してみます。以下の例では &lt;code&gt;foo&lt;/code&gt; の前後5行を表示しています。
+fooという文字列の後にタイムスタンプがついているのがわかります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;root@roach2:~# cockroach debug keys ./cockroach-data | grep -A 5 -B 5 foo
+&amp;quot;/System/\&amp;quot;update-cluster\&amp;quot;/1466351519.447511853,0&amp;quot;
+&amp;quot;/System/\&amp;quot;update-cluster\&amp;quot;/1466265107.436191749,0&amp;quot;
+&amp;quot;/System/\&amp;quot;update-cluster\&amp;quot;/1466265097.406397710,0&amp;quot;
+&amp;quot;/System/\&amp;quot;update-cluster\&amp;quot;/1466178687.396782782,0&amp;quot;
+&amp;quot;/System/\&amp;quot;update-cluster\&amp;quot;/1466178677.619687555,85&amp;quot;
+&amp;quot;\&amp;quot;foo\&amp;quot;/1467234744.564568969,0&amp;quot;
+&amp;quot;\&amp;quot;foo\&amp;quot;/1467221373.376922221,0&amp;quot;
+&amp;quot;/Table/2/1/0/\&amp;quot;bank\&amp;quot;/3/1/1466178749.722011447,0&amp;quot;
+&amp;quot;/Table/2/1/0/\&amp;quot;system\&amp;quot;/3/1/1466178677.367397368,0&amp;quot;
+&amp;quot;/Table/2/1/1/\&amp;quot;descriptor\&amp;quot;/3/1/1466178677.367397368,0&amp;quot;
+&amp;quot;/Table/2/1/1/\&amp;quot;eventlog\&amp;quot;/3/1/1466178677.367397368,0&amp;quot;
+&amp;quot;/Table/2/1/1/\&amp;quot;lease\&amp;quot;/3/1/1466178677.367397368,0&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;--values&lt;/code&gt; オプションも追加すると、キーだけではなく値も表示されます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;cockroach debug keys --values cockroach-data/ | less
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;を実行して、 &lt;code&gt;foo&lt;/code&gt; のキーに対応する部分を見てみると以下のようになっていました。横に長過ぎるので折り返して表示しています。&lt;/p&gt;
+
+&lt;p&gt;/Local/RangeID/21/u/RaftLog/logIndex:104861: Type:EntryNormal Term:51415 Index:104861  by {2 2 2}
+  Put [&amp;ldquo;foo&amp;rdquo;,/Min)
+  range_id:21 origin_replica:&lt;node_id:2 store_id:2 replica_id:2 &gt; cmd:&lt;header:&lt;timestamp:&lt;wall_time:1467234744564568969 logical:0 &gt; replica:&lt;node_id:2 store_id:2 replica_id:2 &gt; range_id:21 user_priority:NORMAL read_consistency:CONSISTENT trace:&lt;trace_id:4947902158296355776 span_id:7041358067641207168 &gt; max_scan_results:0 distinct_spans:false &amp;gt; requests:&lt;put:&lt;header:&lt;key:&#34;foo&#34; &gt; value:&lt;raw_bytes:&#34;s|S\306\003Hello, key value store in CockroachDB&#34; timestamp:&lt;wall_time:0 logical:0 &gt; &amp;gt; inline:false blind:false &amp;gt; &amp;gt; &amp;gt; max_lease_index:990&lt;/p&gt;
+
+&lt;h2 id=&#34;おわりに&#34;&gt;おわりに&lt;/h2&gt;
+
+&lt;p&gt;CockroachDBのキーバリューストレージのデバッグコマンドを試してみました。対応するソースコードも読んでみたいところですが、
+&lt;a href=&#34;https://www.arangodb.com/2016/06/arangodb-3-0-a-solid-ground-to-scale/&#34;&gt;ArangoDB 3.0 – A Solid Ground to Scale – ArangoDB&lt;/a&gt;
+というニュースを知ったので、今後はArangoDBのほうを先に調べたいと思います。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>連番ファイル名の命名規則について実験してみた</title>
@@ -17,13 +223,13 @@
       <guid>/blog/2016/06/22/experimented_with_naming_for_many_sequential_numbered_files/</guid>
       <description>
 
-&lt;h2 id=&#34;はじめに:1f6ed6b3467dd7db9ba6f4f92a4aff0c&#34;&gt;はじめに&lt;/h2&gt;
+&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
 
 &lt;p&gt;0〜1,000,000といった連番のファイルを作るときに、1つのディレクトリに全てのファイルを入れると、遅くなるとか取り扱いが面倒になるという懸念があります。&lt;/p&gt;
 
 &lt;p&gt;そこで、ディレクトリを切って分割するのですが、数が少ない場合でも多い場合でも良さそうな方法を思いついたのでメモです。&lt;/p&gt;
 
-&lt;h2 id=&#34;素朴な案:1f6ed6b3467dd7db9ba6f4f92a4aff0c&#34;&gt;素朴な案&lt;/h2&gt;
+&lt;h2 id=&#34;素朴な案&#34;&gt;素朴な案&lt;/h2&gt;
 
 &lt;p&gt;最初に思いついたのは以下のような命名規則です。&lt;/p&gt;
 
@@ -48,7 +254,7 @@
 &lt;li&gt;ゼロパディングする際にファイルの最大数を考えて桁数を決めておく必要がある。&lt;/li&gt;
 &lt;/ul&gt;
 
-&lt;h2 id=&#34;改善案:1f6ed6b3467dd7db9ba6f4f92a4aff0c&#34;&gt;改善案&lt;/h2&gt;
+&lt;h2 id=&#34;改善案&#34;&gt;改善案&lt;/h2&gt;
 
 &lt;p&gt;上記の2つの欠点を解消する案を思いつきました。&lt;/p&gt;
 
@@ -76,7 +282,7 @@
 &lt;li&gt;ファイルの最大数を事前に決めなくても、パスの長さ制限の範囲内であればこの命名規則でどんどん深いディレクトリを作ってファイルを格納できる。&lt;/li&gt;
 &lt;/ul&gt;
 
-&lt;h2 id=&#34;サンプルコード:1f6ed6b3467dd7db9ba6f4f92a4aff0c&#34;&gt;サンプルコード&lt;/h2&gt;
+&lt;h2 id=&#34;サンプルコード&#34;&gt;サンプルコード&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/many_files_experiment&#34;&gt;hnakamur/many_files_experiment&lt;/a&gt; におきました。&lt;/p&gt;
 </description>
@@ -90,13 +296,13 @@
       <guid>/blog/2016/06/20/lsm-tree-and-rocksdb/</guid>
       <description>
 
-&lt;h2 id=&#34;はじめに:4c97747b39b98778589cfc717acd1a16&#34;&gt;はじめに&lt;/h2&gt;
+&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
 
 &lt;p&gt;キーバリューストアについて調べていたらLSM-Treeというデータ構造とRocksDBが気になったということで調査メモです。ただし、それぞれの技術詳細を調査したり自分で検証してみたというメモではないです。&lt;/p&gt;
 
 &lt;p&gt;そうではなく、いろんな記事で言及されていたり、ソフトウェアで採用されているのが気になったというだけの浅いメモです。が、脳内バッファからあふれる量になったので自分用に軽くまとめ。&lt;/p&gt;
 
-&lt;h2 id=&#34;lsm-tree:4c97747b39b98778589cfc717acd1a16&#34;&gt;LSM Tree&lt;/h2&gt;
+&lt;h2 id=&#34;lsm-tree&#34;&gt;LSM Tree&lt;/h2&gt;
 
 &lt;p&gt;Log-structured merge-treeを略してLSM Treeと呼ぶそうです。概要は&lt;a href=&#34;https://en.wikipedia.org/wiki/Log-structured_merge-tree&#34;&gt;Log-structured merge-tree - Wikipedia&lt;/a&gt;を参照してください。&lt;/p&gt;
 
@@ -104,7 +310,7 @@
 
 &lt;p&gt;一方、LSM Treeのほうはディスク使用量は肥大化しがちで定期的にコンパクションする必要があって、コンパクションには負荷がかかるので、この方式を各実装で工夫しているという話を何処かで読んだんですがリンクを紛失してしまいました。&lt;/p&gt;
 
-&lt;h2 id=&#34;influxdbの事例:4c97747b39b98778589cfc717acd1a16&#34;&gt;InfluxDBの事例&lt;/h2&gt;
+&lt;h2 id=&#34;influxdbの事例&#34;&gt;InfluxDBの事例&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://docs.influxdata.com/influxdb/v0.13/concepts/storage_engine/&#34;&gt;InfluxData | Documentation | Storage Engine&lt;/a&gt;によるとInfluxDBのストレージエンジンは以下の変遷を辿ったそうです。&lt;/p&gt;
 
@@ -114,7 +320,7 @@
 &lt;li&gt;LSM Treeに似た独自のデータ構造でストレージエンジンを自作&lt;/li&gt;
 &lt;/ol&gt;
 
-&lt;h2 id=&#34;tidbの事例:4c97747b39b98778589cfc717acd1a16&#34;&gt;TiDBの事例&lt;/h2&gt;
+&lt;h2 id=&#34;tidbの事例&#34;&gt;TiDBの事例&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/pingcap/tidb&#34;&gt;pingcap/tidb: TiDB is a distributed NewSQL database compatible with MySQL protocol&lt;/a&gt;&lt;/p&gt;
 
@@ -134,7 +340,7 @@
 &lt;li&gt;TiDBの起源についてのブログ記事。&lt;a href=&#34;http://0xffff.me/thoughts-behind-tidb-part-1/&#34;&gt;Thoughts behind TiDB - Part I&lt;/a&gt;。私は中国語読めないのでGoogle翻訳で英語にして読みました。&lt;/li&gt;
 &lt;/ul&gt;
 
-&lt;h2 id=&#34;cockroachdbの事例:4c97747b39b98778589cfc717acd1a16&#34;&gt;CockroachDBの事例&lt;/h2&gt;
+&lt;h2 id=&#34;cockroachdbの事例&#34;&gt;CockroachDBの事例&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/cockroachdb/cockroach&#34;&gt;cockroachdb/cockroach: A Scalable, Survivable, Strongly-Consistent SQL Database&lt;/a&gt;&lt;/p&gt;
 
@@ -158,7 +364,7 @@
 &lt;/ul&gt;&lt;/li&gt;
 &lt;/ul&gt;
 
-&lt;h2 id=&#34;lsm-treeの実装はいろいろあるがrocksdbが良いらしい:4c97747b39b98778589cfc717acd1a16&#34;&gt;LSM Treeの実装はいろいろあるがRocksDBが良いらしい&lt;/h2&gt;
+&lt;h2 id=&#34;lsm-treeの実装はいろいろあるがrocksdbが良いらしい&#34;&gt;LSM Treeの実装はいろいろあるがRocksDBが良いらしい&lt;/h2&gt;
 
 &lt;p&gt;InfluxDBの開発元influxdataのブログのベンチマーク記事 &lt;a href=&#34;https://influxdata.com/blog/benchmarking-leveldb-vs-rocksdb-vs-hyperleveldb-vs-lmdb-performance-for-influxdb/&#34;&gt;Benchmarking LevelDB vs. RocksDB vs. HyperLevelDB vs. LMDB Performance for InfluxDB | InfluxData&lt;/a&gt;でも値の書き込みとクエリ実行の性能が良いのはRocksDBとなっています。&lt;/p&gt;
 
@@ -170,7 +376,7 @@
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/facebook/rocksdb/wiki/RocksDB-FAQ&#34;&gt;RocksDB FAQ&lt;/a&gt;の &amp;ldquo;Q: What&amp;rsquo;s the maximum key and value sizes supported?&amp;rdquo; によると、RocksDBは大きなサイズのキー用にはデザインされておらず、推奨されるキーと値の最大サイズはそれぞれ8MBと3GBとのことです。&lt;/p&gt;
 
-&lt;h2 id=&#34;おわりに:4c97747b39b98778589cfc717acd1a16&#34;&gt;おわりに&lt;/h2&gt;
+&lt;h2 id=&#34;おわりに&#34;&gt;おわりに&lt;/h2&gt;
 
 &lt;p&gt;書き込みが多いケースに向いているキーバリューストアであるRocksDBと、RocksDBをつかて分散トランザクションを実現しているデータベースであるTiDBとCockroachDBの今後に注目したいと思います。&lt;/p&gt;
 </description>
@@ -184,11 +390,11 @@
       <guid>/blog/2016/06/15/tried-service-discovery-with-sleuth/</guid>
       <description>
 
-&lt;h2 id=&#34;はじめに:ddadb6ee7dee03e92fb3b4df013b68c7&#34;&gt;はじめに&lt;/h2&gt;
+&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;http://darian.af/post/master-less-peer-to-peer-micro-service-autodiscovery-in-golang-with-sleuth/&#34;&gt;Service autodiscovery in Go with sleuth - darian.af&lt;/a&gt;という記事を見かけて試してみたのでメモです。&lt;/p&gt;
 
-&lt;h2 id=&#34;github-com-ursiform-sleuthのセットアップ:ddadb6ee7dee03e92fb3b4df013b68c7&#34;&gt;github.com/ursiform/sleuthのセットアップ&lt;/h2&gt;
+&lt;h2 id=&#34;github-com-ursiform-sleuthのセットアップ&#34;&gt;github.com/ursiform/sleuthのセットアップ&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/ursiform/sleuth#installation&#34;&gt;Installation&lt;/a&gt;を見ながらセットアップします。&lt;/p&gt;
 
@@ -219,7 +425,7 @@ zmq4.h:2:2: error: #error &amp;quot;You need ZeroMQ version 4 to build this&amp;
 &lt;pre&gt;&lt;code&gt;$ go get -u github.com/ursiform/sleuth
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;動作確認のためエコーバックのサービスの例を試す:ddadb6ee7dee03e92fb3b4df013b68c7&#34;&gt;動作確認のためエコーバックのサービスの例を試す&lt;/h2&gt;
+&lt;h2 id=&#34;動作確認のためエコーバックのサービスの例を試す&#34;&gt;動作確認のためエコーバックのサービスの例を試す&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/ursiform/sleuth#examples&#34;&gt;Examples&lt;/a&gt;のExample (1)にエコーバックのサーバとクライアントがあるのでそれを試します。&lt;/p&gt;
 
@@ -258,7 +464,7 @@ It works.
 Hello
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;サービスディスカバリの例を試す:ddadb6ee7dee03e92fb3b4df013b68c7&#34;&gt;サービスディスカバリの例を試す&lt;/h2&gt;
+&lt;h2 id=&#34;サービスディスカバリの例を試す&#34;&gt;サービスディスカバリの例を試す&lt;/h2&gt;
 
 &lt;pre&gt;&lt;code&gt;go get -u github.com/afshin/sleuth-example/...
 &lt;/code&gt;&lt;/pre&gt;
@@ -370,13 +576,13 @@ already an incredibly effective way to use wild forage to make human food.&amp;q
 }
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;sleuthのq-aを見てみる:ddadb6ee7dee03e92fb3b4df013b68c7&#34;&gt;sleuthのQ &amp;amp; Aを見てみる&lt;/h2&gt;
+&lt;h2 id=&#34;sleuthのq-aを見てみる&#34;&gt;sleuthのQ &amp;amp; Aを見てみる&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/ursiform/sleuth#q--a&#34;&gt;Q &amp;amp; A&lt;/a&gt;を見ると、sleuthのメッセージプロトコルはJSONをgzipしてHTTPで通信しているとのことです。Protocol Buffersなどの他のライブラリに依存するのを避けたいという意図で、マイクロサービスのAPIレスポンスのほとんどは小さいのでJSONをgzipする方式で十分だし、そのほうがGo以外の言語でも利用しやすいので良いだろうということです。&lt;/p&gt;
 
 &lt;p&gt;sleuthは熊のグループの集合名詞とのことです。&lt;/p&gt;
 
-&lt;h2 id=&#34;おわりに:ddadb6ee7dee03e92fb3b4df013b68c7&#34;&gt;おわりに&lt;/h2&gt;
+&lt;h2 id=&#34;おわりに&#34;&gt;おわりに&lt;/h2&gt;
 
 &lt;p&gt;sleuthはzeromqとGoさえあれば使えるということでセットアップが簡単です。&lt;/p&gt;
 
@@ -394,18 +600,18 @@ already an incredibly effective way to use wild forage to make human food.&amp;q
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/delta24/gist&#34;&gt;delta24/gist: A command line gister in Go&lt;/a&gt;です。期待通りに動かない点があったのでプルリクエストを送ったら、すぐにマージされました。&lt;/p&gt;
 
-&lt;h2 id=&#34;インストール:fc3bd82c10a86f881e77f6b5f9ec06f5&#34;&gt;インストール&lt;/h2&gt;
+&lt;h2 id=&#34;インストール&#34;&gt;インストール&lt;/h2&gt;
 
 &lt;p&gt;Goはインストール済みという前提で、以下のコマンドを実行します。&lt;/p&gt;
 
 &lt;pre&gt;&lt;code&gt;go get -u github.com/delta24/gist
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;事前準備:fc3bd82c10a86f881e77f6b5f9ec06f5&#34;&gt;事前準備&lt;/h2&gt;
+&lt;h2 id=&#34;事前準備&#34;&gt;事前準備&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://help.github.com/articles/creating-an-access-token-for-command-line-use/&#34;&gt;Creating an access token for command-line use - User Documentation&lt;/a&gt;の手順でアクセストークンを作って、 &lt;code&gt;~/.bash_profile&lt;/code&gt; とかに &lt;code&gt;export GITHUB_TOKEN=...&lt;/code&gt; のように書くなどして環境変数として設定するか、 あるいは &lt;code&gt;~/.gist&lt;/code&gt; というファイルを作ってトークンの値を書いておきます。&lt;/p&gt;
 
-&lt;h2 id=&#34;使い方の例:fc3bd82c10a86f881e77f6b5f9ec06f5&#34;&gt;使い方の例&lt;/h2&gt;
+&lt;h2 id=&#34;使い方の例&#34;&gt;使い方の例&lt;/h2&gt;
 
 &lt;p&gt;自分のユーザでpublicなgistを作成&lt;/p&gt;
 
@@ -506,7 +712,7 @@ go version go1.6.2 linux/amd64
       <guid>/blog/2016/06/13/wrote_go_ltsvlog_library/</guid>
       <description>
 
-&lt;h2 id=&#34;なぜ書いたか:9bb767831423b01f10b84a34c21f4871&#34;&gt;なぜ書いたか&lt;/h2&gt;
+&lt;h2 id=&#34;なぜ書いたか&#34;&gt;なぜ書いたか&lt;/h2&gt;
 
 &lt;p&gt;Goで高機能なサードパーティのログ出力ライブラリと言えば&lt;a href=&#34;https://github.com/Sirupsen/logrus&#34;&gt;Sirupsen/logrus&lt;/a&gt;が有名です。私も&lt;a href=&#34;https://github.com/doloopwhile/logrusltsv&#34;&gt;doloopwhile/logrusltsv&lt;/a&gt;と組み合わせてLTSV形式のログ出力するのに使っていました。&lt;/p&gt;
 
@@ -525,9 +731,9 @@ go version go1.6.2 linux/amd64
 
 &lt;p&gt;githubレポジトリのREADMEに使用例のコードがあります。&lt;/p&gt;
 
-&lt;h2 id=&#34;ltsvlogの設計と実装:9bb767831423b01f10b84a34c21f4871&#34;&gt;ltsvlogの設計と実装&lt;/h2&gt;
+&lt;h2 id=&#34;ltsvlogの設計と実装&#34;&gt;ltsvlogの設計と実装&lt;/h2&gt;
 
-&lt;h3 id=&#34;ltsvlogのログレベル:9bb767831423b01f10b84a34c21f4871&#34;&gt;ltsvlogのログレベル&lt;/h3&gt;
+&lt;h3 id=&#34;ltsvlogのログレベル&#34;&gt;ltsvlogのログレベル&lt;/h3&gt;
 
 &lt;p&gt;&lt;a href=&#34;http://dave.cheney.net/2015/11/05/lets-talk-about-logging&#34;&gt;Let’s talk about logging | Dave Cheney&lt;/a&gt;にもありましたが、ログレベルが多すぎると使い分けで悩むので少ないほうが良いと私も思います。ただ、エラー以外にもなにかが成功したときに記録しておきたいことはあるので、ErrorとInfoは分けたほうが良いと思います。あと私はprintデバッグ信者なのでデバッグログ用のDebugレベルは必要です。&lt;/p&gt;
 
@@ -543,7 +749,7 @@ go version go1.6.2 linux/amd64
     }
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h3 id=&#34;スタックトレースの出力:9bb767831423b01f10b84a34c21f4871&#34;&gt;スタックトレースの出力&lt;/h3&gt;
+&lt;h3 id=&#34;スタックトレースの出力&#34;&gt;スタックトレースの出力&lt;/h3&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://godoc.org/github.com/hnakamur/ltsvlog#LTSVLogger.ErrorWithStack&#34;&gt;LTSVLogger.ErrorWithStack&lt;/a&gt;でスタックトレース付きでログ出力できます。&lt;/p&gt;
 
@@ -554,11 +760,11 @@ go version go1.6.2 linux/amd64
 
 &lt;p&gt;&lt;a href=&#34;https://golang.org/pkg/runtime/#Stack&#34;&gt;runtime.Stack&lt;/a&gt;は呼び出し側がバッファを渡す必要があるのですが、サイズが小さいとスタックトレースが途中で切れてしまいます。デフォルトで 8192 というサイズにしたのですが、足りない場合は &lt;a href=&#34;https://godoc.org/github.com/hnakamur/ltsvlog#NewLTSVLoggerCustomFormat&#34;&gt;NewLTSVLoggerCustomFormat&lt;/a&gt; の引数でバッファサイズを指定できるようにしてます。&lt;/p&gt;
 
-&lt;h3 id=&#34;時刻とログレベルの出力:9bb767831423b01f10b84a34c21f4871&#34;&gt;時刻とログレベルの出力&lt;/h3&gt;
+&lt;h3 id=&#34;時刻とログレベルの出力&#34;&gt;時刻とログレベルの出力&lt;/h3&gt;
 
 &lt;p&gt;時刻はUTCでフォーマットは &lt;a href=&#34;https://golang.org/pkg/time/#pkg-constants&#34;&gt;time&lt;/a&gt;パッケージの &lt;code&gt;RFC3339Nano = &amp;quot;2006-01-02T15:04:05.999999999Z07:00&amp;quot;&lt;/code&gt; に近いですが、ナノセカンドの部分は個人的な好みで9桁固定で出力するようにしました。&lt;/p&gt;
 
-&lt;h3 id=&#34;値の文字列化:9bb767831423b01f10b84a34c21f4871&#34;&gt;値の文字列化&lt;/h3&gt;
+&lt;h3 id=&#34;値の文字列化&#34;&gt;値の文字列化&lt;/h3&gt;
 
 &lt;p&gt;上のコード例のようにラベルと値の組は&lt;a href=&#34;https://godoc.org/github.com/hnakamur/ltsvlog#LV&#34;&gt;ltsvlog.LV&lt;/a&gt;で指定します。&lt;/p&gt;
 
@@ -574,7 +780,7 @@ go version go1.6.2 linux/amd64
 
 &lt;p&gt;時刻とログレベルの出力形式と値の文字列化の方式を変えたい場合は関数を実装して&lt;a href=&#34;https://godoc.org/github.com/hnakamur/ltsvlog#NewLTSVLoggerCustomFormat&#34;&gt;NewLTSVLoggerCustomFormat&lt;/a&gt; の引数に指定すれば良いようにしてあります。&lt;/p&gt;
 
-&lt;h3 id=&#34;グローバルロガー:9bb767831423b01f10b84a34c21f4871&#34;&gt;グローバルロガー&lt;/h3&gt;
+&lt;h3 id=&#34;グローバルロガー&#34;&gt;グローバルロガー&lt;/h3&gt;
 
 &lt;p&gt;標準の&lt;a href=&#34;https://golang.org/pkg/log/&#34;&gt;log&lt;/a&gt;パッケージではグローバルロガーの変数は非公開で&lt;a href=&#34;https://golang.org/pkg/log/#Print&#34;&gt;log.Print&lt;/a&gt;や&lt;a href=&#34;https://golang.org/pkg/log/#SetOutput&#34;&gt;log.SetOutput&lt;/a&gt;の関数で操作するようになっています。&lt;/p&gt;
 
@@ -585,11 +791,11 @@ go version go1.6.2 linux/amd64
 
 &lt;p&gt;ログ出力中に設定を変えることはないという想定です。&lt;/p&gt;
 
-&lt;h3 id=&#34;logwriterインタフェースと常に何も出力しないdiscard:9bb767831423b01f10b84a34c21f4871&#34;&gt;LogWriterインタフェースと常に何も出力しないDiscard&lt;/h3&gt;
+&lt;h3 id=&#34;logwriterインタフェースと常に何も出力しないdiscard&#34;&gt;LogWriterインタフェースと常に何も出力しないDiscard&lt;/h3&gt;
 
 &lt;p&gt;後付ですが&lt;a href=&#34;https://godoc.org/github.com/hnakamur/ltsvlog#LogWriter&#34;&gt;ltsvlog.LogWriter&lt;/a&gt;というインタフェースも定義してみました。インタフェースは Logger という名前にしたいところでしたが、グローバルロガーに Logger という名前を使っていたので仕方なく LogWriter にしました。そして常に何も出力しない Discard というのも作りました。ただし、Infoなどの引数は評価されてしまうので実行コストが0なわけではないです。&lt;/p&gt;
 
-&lt;h2 id=&#34;おわりに:9bb767831423b01f10b84a34c21f4871&#34;&gt;おわりに&lt;/h2&gt;
+&lt;h2 id=&#34;おわりに&#34;&gt;おわりに&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/ltsvlog#benchmark-result&#34;&gt;Benchmark result&lt;/a&gt;に標準のlogパッケージと比較したベンチマーク結果を載せています。logパッケージよりは遅い手ですがほぼ同等だと言えると思います。&lt;/p&gt;
 
@@ -607,11 +813,11 @@ go version go1.6.2 linux/amd64
       <guid>/blog/2016/06/12/wrote_remoteworkers_go_pacakge/</guid>
       <description>
 
-&lt;h2 id=&#34;なぜ書いたか:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;なぜ書いたか&lt;/h2&gt;
+&lt;h2 id=&#34;なぜ書いたか&#34;&gt;なぜ書いたか&lt;/h2&gt;
 
 &lt;p&gt;仕事で複数のサーバで同じ処理を実行して結果を集めたいというニーズがあって、各サーバをgRPCのサーバにするという実装でとりあえず実現していました。でも、出来れば処理を実行するワーカーサーバから制御サーバに接続して繋ぎっぱなしにしておいて、制御サーバからジョブを送り込む方式にしたいなーと思っていて、家で実装を進めていました。&lt;/p&gt;
 
-&lt;h2 id=&#34;これまでに試したこと:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;これまでに試したこと&lt;/h2&gt;
+&lt;h2 id=&#34;これまでに試したこと&#34;&gt;これまでに試したこと&lt;/h2&gt;
 
 &lt;p&gt;gRPCに&lt;a href=&#34;http://www.grpc.io/docs/tutorials/basic/go.html#bidirectional-streaming-rpc&#34;&gt;Bidirectional streaming RPC&lt;/a&gt;というのがあったので、&lt;a href=&#34;https://github.com/hnakamur/grpc_notification_experiment&#34;&gt;hnakamur/grpc_notification_experiment&lt;/a&gt;で試してみたのですが、複数クライアントがサーバに接続した状態で、サーバからクライアントにジョブを投げても、1つのクライアントでしか処理が実行されないということがわかりました。&lt;/p&gt;
 
@@ -622,7 +828,7 @@ go version go1.6.2 linux/amd64
 
 &lt;p&gt;しかし、この実装では1つのジョブを実行中は他のジョブを実行できないという制限があります。また試しているとタイミングによっては期待通りの動きにならないことがありました。&lt;/p&gt;
 
-&lt;h2 id=&#34;今回の実装:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;今回の実装&lt;/h2&gt;
+&lt;h2 id=&#34;今回の実装&#34;&gt;今回の実装&lt;/h2&gt;
 
 &lt;p&gt;実装は&lt;a href=&#34;https://github.com/hnakamur/remoteworkers&#34;&gt;hnakamur/remoteworkers&lt;/a&gt;で公開しています。使用例は&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/tree/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example&#34;&gt;remoteworkers/example&lt;/a&gt;、APIドキュメントは&lt;a href=&#34;https://godoc.org/github.com/hnakamur/remoteworkers&#34;&gt;remoteworkers - GoDoc&lt;/a&gt;を参照してください。&lt;/p&gt;
 
@@ -632,11 +838,11 @@ go version go1.6.2 linux/amd64
 
 &lt;p&gt;以下実装メモです。&lt;/p&gt;
 
-&lt;h3 id=&#34;connとhub:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;ConnとHub&lt;/h3&gt;
+&lt;h3 id=&#34;connとhub&#34;&gt;ConnとHub&lt;/h3&gt;
 
 &lt;p&gt;サーバ側のメインの処理は、サーバとワーカーのコネクションを扱う&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/conn.go&#34;&gt;Conn&lt;/a&gt;と複数のConnの間を取り持つ&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go&#34;&gt;Hub&lt;/a&gt;が担当しています。&lt;/p&gt;
 
-&lt;h3 id=&#34;読み取りと書き出しでgoroutineを分ける:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;読み取りと書き出しでgoroutineを分ける&lt;/h3&gt;
+&lt;h3 id=&#34;読み取りと書き出しでgoroutineを分ける&#34;&gt;読み取りと書き出しでgoroutineを分ける&lt;/h3&gt;
 
 &lt;p&gt;上記の&lt;a href=&#34;https://github.com/hnakamur/tcp_pubsubreply_experiment&#34;&gt;hnakamur/tcp_pubsubreply_experiment&lt;/a&gt;では、ワーカーとサーバ間のTCPコネクション1つのに対して1つgoroutineを作ってデータの読み書きをしていました。&lt;/p&gt;
 
@@ -648,23 +854,23 @@ go version go1.6.2 linux/amd64
 
 &lt;p&gt;さらに、ワーカーでのジョブの実行も &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/worker.go#L200-L214&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/worker.go#L200-L214&lt;/a&gt; のように別のgoroutineで実行するようにしました。読み取りと書き出しのgoroutineを分け、ジョブ実行のgoroutineも別にしたことで、ワーカーでジョブを実行中でも別のジョブを受け取って実行することが出来るようになりました。&lt;/p&gt;
 
-&lt;h3 id=&#34;ジョブのディスパッチと結果の収集:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;ジョブのディスパッチと結果の収集&lt;/h3&gt;
+&lt;h3 id=&#34;ジョブのディスパッチと結果の収集&#34;&gt;ジョブのディスパッチと結果の収集&lt;/h3&gt;
 
 &lt;p&gt;各ワーカーからにジョブを投げて結果を集める部分も &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L139-L171&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L139-L171&lt;/a&gt; のように書くことで、複数のジョブを並行で実行できるようになっています。&lt;/p&gt;
 
 &lt;p&gt;例えば、あるジョブを依頼されてそれの結果が集まる前に、次のジョブを受け取ってそちらの結果が先に集まった場合はそちらを先に返すことができます。&lt;/p&gt;
 
-&lt;h3 id=&#34;自動で再接続:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;自動で再接続&lt;/h3&gt;
+&lt;h3 id=&#34;自動で再接続&#34;&gt;自動で再接続&lt;/h3&gt;
 
 &lt;p&gt;ワーカーとの接続が切れた場合は、残ったワーカーだけで処理を実行する仕様としました。ジョブを受け取った時にワーカーが1つもいない場合はエラーとしています。また、ワーカーからサーバへの接続が切れた場合は1秒待って再起動を無限に繰り替えすようにしています。時間は設定で変更可能です。ただし、だんだん間隔を開けるといったことは出来ないのでその場合はフォークして改変してください。&lt;/p&gt;
 
-&lt;h3 id=&#34;返信用のチャンネルを渡して実行:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;返信用のチャンネルを渡して実行&lt;/h3&gt;
+&lt;h3 id=&#34;返信用のチャンネルを渡して実行&#34;&gt;返信用のチャンネルを渡して実行&lt;/h3&gt;
 
 &lt;p&gt;サーバとワーカのコネクションをHubに登録する箇所 &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/conn.go#L86-L92&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/conn.go#L86-L92&lt;/a&gt; とクライアントから依頼されたジョブをHubに投げて全ワーカーからの結果を受け取る箇所 &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L194-L203&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L194-L203&lt;/a&gt; では、結果を受け取るためのチャンネルをHubへのチャンネルに渡して実行するという方法を取りました。&lt;/p&gt;
 
 &lt;p&gt;これによってHubとのやり取りは全てチャンネル経由になりシンプルになりました。さらに関数の中に閉じ込めることで、ライブラリの利用者はチャンネルを意識することなく単なる関数呼び出しで使えるようになっています。&lt;/p&gt;
 
-&lt;h3 id=&#34;ジョブのエンコード-デコード:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;ジョブのエンコード・デコード&lt;/h3&gt;
+&lt;h3 id=&#34;ジョブのエンコード-デコード&#34;&gt;ジョブのエンコード・デコード&lt;/h3&gt;
 
 &lt;p&gt;まずクライアントではジョブをJSONでエンコードしています。
 &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/client/client.go#L25-L30&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/client/client.go#L25-L30&lt;/a&gt;&lt;/p&gt;
@@ -684,7 +890,7 @@ go version go1.6.2 linux/amd64
 &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/worker/main.go#L47-L58&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/worker/main.go#L47-L58&lt;/a&gt;
 です。&lt;a href=&#34;https://github.com/vmihailenco/msgpack&#34;&gt;vmihailenco/msgpack&lt;/a&gt;で &lt;code&gt;map[string]string&lt;/code&gt; 型をエンコードしてデコードすると &lt;code&gt;map[interface{}]interface{}&lt;/code&gt; になったので&lt;a href=&#34;https://golang.org/ref/spec#Type_assertions&#34;&gt;type assertion&lt;/a&gt;を使って参照する必要がありました。&lt;/p&gt;
 
-&lt;h3 id=&#34;結果のエンコード-デコード:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;結果のエンコード・デコード&lt;/h3&gt;
+&lt;h3 id=&#34;結果のエンコード-デコード&#34;&gt;結果のエンコード・デコード&lt;/h3&gt;
 
 &lt;p&gt;ワーカーでの結果は
 &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/worker.go#L202-L206&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/worker.go#L202-L206&lt;/a&gt;
@@ -704,13 +910,13 @@ go version go1.6.2 linux/amd64
 &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/server/main.go#L69-L70&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/server/main.go#L69-L70&lt;/a&gt;
 でJSONにエンコードしています。&lt;/p&gt;
 
-&lt;h3 id=&#34;tcpソケットからwebsocketにして良かったところ:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;TCPソケットからWebSocketにして良かったところ&lt;/h3&gt;
+&lt;h3 id=&#34;tcpソケットからwebsocketにして良かったところ&#34;&gt;TCPソケットからWebSocketにして良かったところ&lt;/h3&gt;
 
 &lt;p&gt;ワーカーからサーバに接続したときにワーカーのIDを登録しているのですが、TCPソケットのときはそのためにワーカーから登録用のメッセージを送って成功失敗の結果を送る必要がありました。一方WebSocketではエンドポイントに接続するときにリクエストヘッダで追加の情報を送れるので &lt;code&gt;X-Worker-ID&lt;/code&gt; と言うヘッダ名でワーカーIDを送るようにしました。&lt;/p&gt;
 
 &lt;p&gt;また、TCPソケットだと1つのポートでクライアントとワーカーからの通信を受ける場合はメッセージの内容で区別がつくようにしておく必要があります。WebSocketの場合は1つのポートでもURLのPathを別にするという手が使えるので楽です。しかも今回のようにワーカーはWebSocketで接続し、クライアントはhttpで接続ということも出来て便利です。&lt;/p&gt;
 
-&lt;h2 id=&#34;おわりに:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;おわりに&lt;/h2&gt;
+&lt;h2 id=&#34;おわりに&#34;&gt;おわりに&lt;/h2&gt;
 
 &lt;p&gt;当初やりたいと思っていたことがようやく実現できました。しかも、これだけ並列性が高いプログラムなのにgoroutineとchannelのおかげですっきりシンプルなコードで実装出来ています。これなら保守や改変もしやすくて助かります。やっぱりGoは素晴らしいです！&lt;/p&gt;
 </description>
@@ -803,11 +1009,11 @@ BenchmarkCSVMsgpack-2                    1000000              1541 ns/op        
 ok      gopkg.in/vmihailenco/msgpack.v2 58.623s
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;gopkg-in-vmihailenco-msgpack-v2-でgoのstructをエンコード-デコードするインターフェース:b74e35b057eed94577fdfad5f24e6611&#34;&gt;gopkg.in/vmihailenco/msgpack.v2 でGoのstructをエンコード・デコードするインターフェース&lt;/h2&gt;
+&lt;h2 id=&#34;gopkg-in-vmihailenco-msgpack-v2-でgoのstructをエンコード-デコードするインターフェース&#34;&gt;gopkg.in/vmihailenco/msgpack.v2 でGoのstructをエンコード・デコードするインターフェース&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://godoc.org/gopkg.in/vmihailenco/msgpack.v2#Marshaler&#34;&gt;Marshaler&lt;/a&gt; はdeprecatedで&lt;a href=&#34;https://godoc.org/gopkg.in/vmihailenco/msgpack.v2#CustomEncoder&#34;&gt;CustomEncoder&lt;/a&gt;を使えとのことです。&lt;a href=&#34;https://godoc.org/gopkg.in/vmihailenco/msgpack.v2#CustomEncoder&#34;&gt;CustomEncoder&lt;/a&gt; の Example を見ると使い方も簡単そうです。&lt;/p&gt;
 
-&lt;h2 id=&#34;gopkg-in-vmihailenco-msgpack-v2-を使うことにします:b74e35b057eed94577fdfad5f24e6611&#34;&gt;gopkg.in/vmihailenco/msgpack.v2 を使うことにします&lt;/h2&gt;
+&lt;h2 id=&#34;gopkg-in-vmihailenco-msgpack-v2-を使うことにします&#34;&gt;gopkg.in/vmihailenco/msgpack.v2 を使うことにします&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/vmihailenco/msgpack&#34;&gt;github.com/vmihailenco/msgpack&lt;/a&gt;も&lt;a href=&#34;https://github.com/ugorji/go/tree/master/codec&#34;&gt;go/codec at master · ugorji/go&lt;/a&gt;も活発にメンテナンスされているようです。&lt;/p&gt;
 
@@ -825,7 +1031,7 @@ ok      gopkg.in/vmihailenco/msgpack.v2 58.623s
 
 &lt;p&gt;Python Package Index (PyPI)の &lt;a href=&#34;https://pypi.python.org/pypi/pylxd/2.0.0&#34;&gt;pylxd 2.0.0&lt;/a&gt;のページにインストール方法と使い方の例が書いてあるので、これに沿って試しました。&lt;/p&gt;
 
-&lt;h2 id=&#34;インストール:bdf999a6ff5e91d3491152b509b9755e&#34;&gt;インストール&lt;/h2&gt;
+&lt;h2 id=&#34;インストール&#34;&gt;インストール&lt;/h2&gt;
 
 &lt;p&gt;Ubuntu 16.04だとaptでインストール可能なのでそちらでインストールしました。Python3用のpython3-pylxdパッケージとPython2用のpython-pylxdパッケージがありますが、今後Ansibleのモジュールを作ることを想定してPython2用のパッケージをインストールして試してみました。&lt;/p&gt;
 
@@ -838,7 +1044,7 @@ ok      gopkg.in/vmihailenco/msgpack.v2 58.623s
 2.0.0-0ubuntu1
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;試してみる:bdf999a6ff5e91d3491152b509b9755e&#34;&gt;試してみる&lt;/h2&gt;
+&lt;h2 id=&#34;試してみる&#34;&gt;試してみる&lt;/h2&gt;
 
 &lt;pre&gt;&lt;code&gt;$ python
 Python 2.7.11+ (default, Apr 17 2016, 14:00:29)
@@ -876,13 +1082,13 @@ u&#39;Running&#39;
       <guid>/blog/2016/05/07/tried-lxd-rest-api-with-curl/</guid>
       <description>
 
-&lt;h2 id=&#34;lxdのrest-api:7237ac0558fc8bd24e4a1da16716b70c&#34;&gt;LXDのREST API&lt;/h2&gt;
+&lt;h2 id=&#34;lxdのrest-api&#34;&gt;LXDのREST API&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://linuxcontainers.org/ja/lxd/rest-api/&#34;&gt;Linux Containers - LXD - REST API&lt;/a&gt;と&lt;a href=&#34;https://github.com/lxc/lxd/blob/master/doc/rest-api.md&#34;&gt;lxd/rest-api.md at master · lxc/lxd&lt;/a&gt;にLXDのREST APIについて説明があります。&lt;/p&gt;
 
 &lt;p&gt;また&lt;a href=&#34;https://github.com/lxc/lxd#using-the-rest-api&#34;&gt;Using the REST API&lt;/a&gt;に &lt;code&gt;curl&lt;/code&gt; コマンドでのAPI呼び出し例が書かれていました。&lt;/p&gt;
 
-&lt;h2 id=&#34;curlでhttpsのエンドポイントにアクセスしてみたがエラー:7237ac0558fc8bd24e4a1da16716b70c&#34;&gt;curlでhttpsのエンドポイントにアクセスしてみたがエラー&lt;/h2&gt;
+&lt;h2 id=&#34;curlでhttpsのエンドポイントにアクセスしてみたがエラー&#34;&gt;curlでhttpsのエンドポイントにアクセスしてみたがエラー&lt;/h2&gt;
 
 &lt;p&gt;まずはhttpsのURLで &lt;a href=&#34;https://github.com/lxc/lxd/blob/master/doc/rest-api.md#10&#34;&gt;/1.0&lt;/a&gt; エンドポイントを試してみたのですが、 &lt;code&gt;ALPN, server did not agree to a protocol&lt;/code&gt; というエラーになってしまいました。&lt;/p&gt;
 
@@ -922,7 +1128,7 @@ u&#39;Running&#39;
 
 &lt;p&gt;この件は&lt;a href=&#34;https://lists.linuxcontainers.org/pipermail/lxc-users/2016-May/011603.html&#34;&gt;[lxc-users] The error &amp;ldquo;ALPN, server did not agree to a protocol&amp;rdquo; from LXD Rest API&lt;/a&gt;で質問してみました。&lt;/p&gt;
 
-&lt;h2 id=&#34;curlでunix-domain-socket経由でアクセスしてみたら成功:7237ac0558fc8bd24e4a1da16716b70c&#34;&gt;curlでunix domain socket経由でアクセスしてみたら成功&lt;/h2&gt;
+&lt;h2 id=&#34;curlでunix-domain-socket経由でアクセスしてみたら成功&#34;&gt;curlでunix domain socket経由でアクセスしてみたら成功&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;http://qiita.com/toritori0318/items/193df8f749a9c4bda883&#34;&gt;curlでunix domain socket経由アクセスする - Qiita&lt;/a&gt;を参考に以下のようにアクセスしてみると成功しました。&lt;/p&gt;
 
@@ -1017,7 +1223,7 @@ u&#39;Running&#39;
 
 &lt;p&gt;そこでvirtualenvで環境を作ってpipでgithubのmasterのansibleをインストールして試してみました。&lt;/p&gt;
 
-&lt;h2 id=&#34;インストール手順:13ce47f5622032d397b4204850206b47&#34;&gt;インストール手順&lt;/h2&gt;
+&lt;h2 id=&#34;インストール手順&#34;&gt;インストール手順&lt;/h2&gt;
 
 &lt;p&gt;インストール手順は以下の通りです。
 まず、virtualenv環境でAnsibleをインストールするのに必要なパッケージをインストールします。&lt;/p&gt;
@@ -1035,7 +1241,7 @@ virtualenv venv
 pip install git+https://github.com/ansible/ansible
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;使ってみる:13ce47f5622032d397b4204850206b47&#34;&gt;使ってみる&lt;/h2&gt;
+&lt;h2 id=&#34;使ってみる&#34;&gt;使ってみる&lt;/h2&gt;
 
 &lt;p&gt;以下のような設定ファイルとテスト用のプレイブックを作りました。&lt;/p&gt;
 
@@ -1088,7 +1294,7 @@ cent02                     : ok=2    changed=0    unreachable=0    failed=0
       <guid>/blog/2016/05/07/how-to-use-fixed-ip-address-for-a-lxd-container/</guid>
       <description>
 
-&lt;h2 id=&#34;設定まとめ:de0d43504d2d04b1f52e2f979627ae1f&#34;&gt;設定まとめ&lt;/h2&gt;
+&lt;h2 id=&#34;設定まとめ&#34;&gt;設定まとめ&lt;/h2&gt;
 
 &lt;p&gt;自分が後から参照することを想定して先に設定方法をまとめます。&lt;/p&gt;
 
@@ -1111,7 +1317,7 @@ dhcp-host=cent02,10.64.177.102
 lxc restart cent02
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;調査メモ:de0d43504d2d04b1f52e2f979627ae1f&#34;&gt;調査メモ&lt;/h2&gt;
+&lt;h2 id=&#34;調査メモ&#34;&gt;調査メモ&lt;/h2&gt;
 
 &lt;p&gt;以下は調査メモです。&lt;/p&gt;
 
@@ -1121,7 +1327,7 @@ lxc restart cent02
 
 &lt;p&gt;これを実現するにはホストのDHCPサーバに各コンテナのIPアドレスを把握してもらう必要があるので、後者のDHCPサーバ側で設定するほうが良いです。&lt;/p&gt;
 
-&lt;h3 id=&#34;lxdのブリッジインターフェースとdnsmasqの設定ファイル:de0d43504d2d04b1f52e2f979627ae1f&#34;&gt;LXDのブリッジインターフェースとdnsmasqの設定ファイル&lt;/h3&gt;
+&lt;h3 id=&#34;lxdのブリッジインターフェースとdnsmasqの設定ファイル&#34;&gt;LXDのブリッジインターフェースとdnsmasqの設定ファイル&lt;/h3&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://insights.ubuntu.com/2016/04/07/lxd-networking-lxdbr0-explained/&#34;&gt;LXD networking: lxdbr0 explained | Ubuntu Insights&lt;/a&gt;と&lt;a href=&#34;https://gist.github.com/cronnelly/98345100afe21840267270da3283b371&#34;&gt;lxcbr0 is being replaced by lxdbr0&lt;/a&gt;によると、 LXCでは &lt;code&gt;lxcbr0&lt;/code&gt; というブリッジインターフェースを使っていましたが、LXDでは &lt;code&gt;lxdbr0&lt;/code&gt; と別のインターフェースを使うように変更されたそうです。&lt;/p&gt;
 
@@ -1239,7 +1445,7 @@ exit 0
 
 &lt;p&gt;&lt;code&gt;man dnsmasq&lt;/code&gt; によると &lt;code&gt;--dhcp-authoritative&lt;/code&gt; オプションはネットワーク内に他にDHCPサーバが無く唯一のDHCPになっているときに指定するオプションとのことです。ホストで稼働する &lt;code&gt;dnsmasq&lt;/code&gt; が1つという前提であれば、デフォルトの設定ファイル &lt;code&gt;/etc/dnsmasq.conf&lt;/code&gt; を作ってそこに設定を書くほうが手っ取り早いので、そうすることにしました。&lt;/p&gt;
 
-&lt;h3 id=&#34;lxd-bridge-serviceの設定変更はreloadではなくrestartが必要:de0d43504d2d04b1f52e2f979627ae1f&#34;&gt;lxd-bridge.serviceの設定変更はreloadではなくrestartが必要&lt;/h3&gt;
+&lt;h3 id=&#34;lxd-bridge-serviceの設定変更はreloadではなくrestartが必要&#34;&gt;lxd-bridge.serviceの設定変更はreloadではなくrestartが必要&lt;/h3&gt;
 
 &lt;p&gt;&lt;code&gt;sudo systemctl reload lxd-bridge&lt;/code&gt; を実行してみると以下のようなエラーが出て失敗しました。&lt;/p&gt;
 
@@ -1273,7 +1479,7 @@ $ sudo systemctl status lxd-bridge
 
 &lt;p&gt;ということで、設定ファイルを変更反映するにも &lt;code&gt;sudo systemctl restart lxd-bridge&lt;/code&gt; のように再起動する必要があります。&lt;/p&gt;
 
-&lt;h3 id=&#34;dnsmasqの再起動後-コンテナの再起動が必要:de0d43504d2d04b1f52e2f979627ae1f&#34;&gt;dnsmasqの再起動後、コンテナの再起動が必要&lt;/h3&gt;
+&lt;h3 id=&#34;dnsmasqの再起動後-コンテナの再起動が必要&#34;&gt;dnsmasqの再起動後、コンテナの再起動が必要&lt;/h3&gt;
 
 &lt;p&gt;dnsmasqを再起動しただけではコンテナのIPアドレスは変わらないのでネットワークを再起動する必要がありました。&lt;/p&gt;
 
@@ -1311,7 +1517,7 @@ sys     0m0.004s
       <guid>/blog/2016/05/07/script-to-check-running-status-of-lxd-container/</guid>
       <description>
 
-&lt;h2 id=&#34;イマイチな方法1-lxc-listの出力をawkで加工:a407ff63c19d9133860d9fcb896e88f6&#34;&gt;イマイチな方法1: lxc listの出力をawkで加工&lt;/h2&gt;
+&lt;h2 id=&#34;イマイチな方法1-lxc-listの出力をawkで加工&#34;&gt;イマイチな方法1: lxc listの出力をawkで加工&lt;/h2&gt;
 
 &lt;p&gt;&lt;code&gt;lxc list -h&lt;/code&gt; を見ると &lt;code&gt;lxc list [resource] [filters] [--format table|json] [-c columns] [--fast]&lt;/code&gt; というコマンドラインになっていて、 &lt;code&gt;-c&lt;/code&gt; オプションで表示するカラムを指定可能です。&lt;/p&gt;
 
@@ -1331,7 +1537,7 @@ sys     0m0.004s
 RUNNING
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;イマイチな方法2-lxc-list-format-jsonの出力をjqで加工:a407ff63c19d9133860d9fcb896e88f6&#34;&gt;イマイチな方法2: lxc list &amp;ndash;format jsonの出力をjqで加工&lt;/h2&gt;
+&lt;h2 id=&#34;イマイチな方法2-lxc-list-format-jsonの出力をjqで加工&#34;&gt;イマイチな方法2: lxc list &amp;ndash;format jsonの出力をjqで加工&lt;/h2&gt;
 
 &lt;p&gt;&lt;code&gt;--format json&lt;/code&gt; でJSON形式で出力できるのですが、この場合は &lt;code&gt;-c&lt;/code&gt; オプションで項目を限定することは出来ませんでした。&lt;/p&gt;
 
@@ -1348,7 +1554,7 @@ RUNNING
 Running
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;お勧めの方法-lxc-infoの出力をawkで加工:a407ff63c19d9133860d9fcb896e88f6&#34;&gt;お勧めの方法: lxc infoの出力をawkで加工&lt;/h2&gt;
+&lt;h2 id=&#34;お勧めの方法-lxc-infoの出力をawkで加工&#34;&gt;お勧めの方法: lxc infoの出力をawkで加工&lt;/h2&gt;
 
 &lt;p&gt;&lt;code&gt;lxc list&lt;/code&gt; の場合は指定した文字列は完全一致ではなくて前方一致で表示されました。上記の例のように &lt;code&gt;cent01&lt;/code&gt; と &lt;code&gt;cent02&lt;/code&gt; の2つのコンテナがあるときに、 &lt;code&gt;lxc list -c s cent0&lt;/code&gt; と実行すると以下のようになります。&lt;/p&gt;
 
@@ -1477,11 +1683,11 @@ $
       <guid>/blog/2016/05/07/start-using-lxd-2.0-on-ubuntu-16.04/</guid>
       <description>
 
-&lt;h2 id=&#34;参考記事:aa686028c3d8246ae8dfc1e7fe034b7c&#34;&gt;参考記事&lt;/h2&gt;
+&lt;h2 id=&#34;参考記事&#34;&gt;参考記事&lt;/h2&gt;
 
 &lt;p&gt;公式ドキュメントの&lt;a href=&#34;https://linuxcontainers.org/ja/lxd/getting-started-cli/&#34;&gt;Linux Containers - LXD - はじめに - コマンドライン&lt;/a&gt;によくまとまっているのですが、より詳細には &lt;a href=&#34;http://insights.ubuntu.com/2016/03/14/the-lxd-2-0-story-prologue/&#34;&gt;The LXD 2.0 Story (Prologue) | Ubuntu Insights&lt;/a&gt; にリストアップされている記事がわかりやすかったです。&lt;/p&gt;
 
-&lt;h3 id=&#34;ubuntu-16-04-serverでのlxdの初期セットアップ:aa686028c3d8246ae8dfc1e7fe034b7c&#34;&gt;Ubuntu 16.04 serverでのLXDの初期セットアップ&lt;/h3&gt;
+&lt;h3 id=&#34;ubuntu-16-04-serverでのlxdの初期セットアップ&#34;&gt;Ubuntu 16.04 serverでのLXDの初期セットアップ&lt;/h3&gt;
 
 &lt;p&gt;Ubuntu 16.04 serverならLXDはインストール済みなので、 &lt;code&gt;apt-get install lxd&lt;/code&gt; と &lt;code&gt;newgrp lxd&lt;/code&gt; は不要でした。&lt;/p&gt;
 
@@ -1545,7 +1751,7 @@ LXD has been successfully configured.
 +------+-------+------+------+------+-----------+
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h4 id=&#34;別パターンの初期化の検証:aa686028c3d8246ae8dfc1e7fe034b7c&#34;&gt;別パターンの初期化の検証&lt;/h4&gt;
+&lt;h4 id=&#34;別パターンの初期化の検証&#34;&gt;別パターンの初期化の検証&lt;/h4&gt;
 
 &lt;p&gt;このパターンではLXDをネットワーク越しに使うかの質問に &lt;code&gt;yes&lt;/code&gt; と答えました。すると、バインドするアドレスとポートを聞かれます。ポートは &lt;code&gt;8443&lt;/code&gt; がお勧めと書かれていますが、enterキー空打ちではだめで、ちゃんと値を入力する必要がありました。&lt;/p&gt;
 
@@ -1584,7 +1790,7 @@ LXD has been successfully configured.
 
 &lt;p&gt;&lt;code&gt;sudo ss -antp&lt;/code&gt; で確認したところ、LXDをネットワーク越しに使う設定を &lt;code&gt;yes&lt;/code&gt; にしたときは &lt;code&gt;lxd&lt;/code&gt; のプロセスが指定したポート（上記の例では8443番ポート）をLISTENしていますが、 &lt;code&gt;no&lt;/code&gt; にしたときはLISTENしていませんでした。&lt;/p&gt;
 
-&lt;h3 id=&#34;リモートとローカルのイメージ一覧表示:aa686028c3d8246ae8dfc1e7fe034b7c&#34;&gt;リモートとローカルのイメージ一覧表示&lt;/h3&gt;
+&lt;h3 id=&#34;リモートとローカルのイメージ一覧表示&#34;&gt;リモートとローカルのイメージ一覧表示&lt;/h3&gt;
 
 &lt;p&gt;&lt;code&gt;lxc image&lt;/code&gt; サブコマンドでイメージを取り扱います。 &lt;code&gt;lxc image -h&lt;/code&gt; と入力すると使用方法が表示されます。&lt;/p&gt;
 
@@ -1638,7 +1844,7 @@ LXD has been successfully configured.
 +-------------------------+--------------+--------+-----------------------------------+--------+---------+-----------------------------+
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h3 id=&#34;centos-7のコンテナを起動してみる:aa686028c3d8246ae8dfc1e7fe034b7c&#34;&gt;CentOS 7のコンテナを起動してみる&lt;/h3&gt;
+&lt;h3 id=&#34;centos-7のコンテナを起動してみる&#34;&gt;CentOS 7のコンテナを起動してみる&lt;/h3&gt;
 
 &lt;p&gt;起動に使用するのは &lt;code&gt;lxc launch&lt;/code&gt; サブコマンドです。 &lt;code&gt;lxc launch -h&lt;/code&gt; でヘルプが見られます。&lt;/p&gt;
 
@@ -1721,7 +1927,7 @@ sys     0m0.008s
 +--------+---------+----------------------+-----------------------------------------------+------------+-----------+
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h3 id=&#34;コンテナ内でコマンドを実行する:aa686028c3d8246ae8dfc1e7fe034b7c&#34;&gt;コンテナ内でコマンドを実行する&lt;/h3&gt;
+&lt;h3 id=&#34;コンテナ内でコマンドを実行する&#34;&gt;コンテナ内でコマンドを実行する&lt;/h3&gt;
 
 &lt;p&gt;例えば &lt;code&gt;cent01&lt;/code&gt; コンテナで &lt;code&gt;bash&lt;/code&gt; を起動するには &lt;code&gt;lxc exec cent01 bash&lt;/code&gt; と実行します。するとコンテナ内で root ユーザになってプロンプトが表示されるので、好きなコマンドを入力して実行します。&lt;/p&gt;
 
@@ -1770,16 +1976,16 @@ $ lxc exec cent01 -- ls -a /
 .  ..  .autorelabel  bin  boot  dev  etc  home  lib  lib64  media  mnt  opt  proc  root  run  sbin  selinux  srv  sys  tmp  usr  var
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;ホストosを再起動するとコンテナは自動起動されます:aa686028c3d8246ae8dfc1e7fe034b7c&#34;&gt;ホストOSを再起動するとコンテナは自動起動されます&lt;/h2&gt;
+&lt;h2 id=&#34;ホストosを再起動するとコンテナは自動起動されます&#34;&gt;ホストOSを再起動するとコンテナは自動起動されます&lt;/h2&gt;
 
 &lt;p&gt;LXCではホストOS起動時にコンテナを自動起動するには設定ファイルの編集が必要でしたが、LXDは特に設定は不要でした。　
 ホストOSを再起動して &lt;code&gt;lxc list&lt;/code&gt; を実行してみると上記で作成した2つのコンテナのSTATEがRUNNINGになっていました。&lt;/p&gt;
 
-&lt;h2 id=&#34;コンテナの停止と削除:aa686028c3d8246ae8dfc1e7fe034b7c&#34;&gt;コンテナの停止と削除&lt;/h2&gt;
+&lt;h2 id=&#34;コンテナの停止と削除&#34;&gt;コンテナの停止と削除&lt;/h2&gt;
 
 &lt;p&gt;停止は &lt;code&gt;lxc stop コンテナ名&lt;/code&gt; 、削除は &lt;code&gt;lxc delete コンテナ名&lt;/code&gt; で出来ます。が、 CentOS 7 のコンテナを停止するには以下の事前準備が必要でした。&lt;/p&gt;
 
-&lt;h3 id=&#34;centos-7-のコンテナを停止可能にするための設定:aa686028c3d8246ae8dfc1e7fe034b7c&#34;&gt;CentOS 7 のコンテナを停止可能にするための設定&lt;/h3&gt;
+&lt;h3 id=&#34;centos-7-のコンテナを停止可能にするための設定&#34;&gt;CentOS 7 のコンテナを停止可能にするための設定&lt;/h3&gt;
 
 &lt;p&gt;&lt;code&gt;cent01&lt;/code&gt; のところは実際のコンテナ名に置き換えて、各コンテナで実行が必要です。&lt;/p&gt;
 
@@ -1790,7 +1996,7 @@ $ lxc exec cent01 -- ls -a /
 
 &lt;p&gt;&lt;a href=&#34;https://lists.linuxcontainers.org/pipermail/lxc-users/2016-May/011602.html&#34;&gt;[lxc-users] lxc stop does not stop a CentOS 7 container&lt;/a&gt; で &lt;code&gt;images:&lt;/code&gt; で公開しているイメージにこの修正を取り込めないか問い合わせ中です。&lt;/p&gt;
 
-&lt;h2 id=&#34;コンテナやイメージのファイルの在り処:aa686028c3d8246ae8dfc1e7fe034b7c&#34;&gt;コンテナやイメージのファイルの在り処&lt;/h2&gt;
+&lt;h2 id=&#34;コンテナやイメージのファイルの在り処&#34;&gt;コンテナやイメージのファイルの在り処&lt;/h2&gt;
 
 &lt;p&gt;コンテナのファイルは &lt;code&gt;/var/lib/lxd/containers/&lt;/code&gt; にありました。操作しているユーザのuidとgidは1000なのですが、コンテナのディレクトリは100000と異なっていました。どこかでマッピングを持っているのだと思いますが、未調査です。&lt;/p&gt;
 
@@ -1874,47 +2080,6 @@ drwx--x--x 5 root root  4096  5月  7 12:54 shmounts
 drwx------ 2 root root  4096  5月  3 20:26 snapshots
 srw-rw---- 1 root lxd      0  5月  7 12:51 unix.socket
 &lt;/code&gt;&lt;/pre&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>Ubuntu 16.04 LTSでLXD 2.0を試してみた</title>
-      <link>/blog/2016/05/07/tried-lxd-2.0-on-ubuntu-16.04/</link>
-      <pubDate>Sat, 07 May 2016 14:12:49 +0900</pubDate>
-      
-      <guid>/blog/2016/05/07/tried-lxd-2.0-on-ubuntu-16.04/</guid>
-      <description>
-
-&lt;h2 id=&#34;はじめに:c3e9af28f06dc8ad96c391f262f1ca0c&#34;&gt;はじめに&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;/blog/blog/2016/04/19/run_centos7_containers_on_lxc2/&#34;&gt;LXC 2.0でCentOS 7のコンテナを動かしてみた · hnakamur&amp;rsquo;s blog at github&lt;/a&gt;でLXC 2.0を試しましたが、今度はLXD 2.0を試してみました。&lt;/p&gt;
-
-&lt;p&gt;実は私は、コンテナをローカルホストでしか動かさないならLXC、リモートホストでも動かすならLXDという使い分けなのかなと漠然と思っていました。&lt;/p&gt;
-
-&lt;p&gt;上記の記事ではrootユーザでコンテナを作成するという特権コンテナについて書きましたが、非rootユーザでコンテナを作成する非特権コンテナについては書いていませんでした。&lt;/p&gt;
-
-&lt;p&gt;実は CentOS 7 の非特権コンテナも試していたのですが、 DHCP で IPアドレスが付与されないという現象が起きていました。私の当面の用途は開発環境構築でありホストOS側でroot権限はあることが前提なので非特権コンテナは調査しないことにしました。&lt;/p&gt;
-
-&lt;p&gt;一方、LXDはデフォルトで非特権コンテナを作るようになっています。今回試してみたところ、 CentOS 7 のコンテナも DHCP で無事 IPアドレスが付与されました。&lt;/p&gt;
-
-&lt;p&gt;root権限を使うのは必要最小限にするのが望ましいので、この状況を見ると今後新規に環境構築するならLXCよりもLXDを使うほうが良いかなと思います。&lt;/p&gt;
-
-&lt;p&gt;ちなみに &lt;a href=&#34;https://github.com/lxc/lxd&#34;&gt;https://github.com/lxc/lxd&lt;/a&gt; によると、LXD は lex-dee と発音するそうです。カタカナで書くとレックスディーもしくはレクスディーでしょうか。&lt;/p&gt;
-
-&lt;h2 id=&#34;記事リスト:c3e9af28f06dc8ad96c391f262f1ca0c&#34;&gt;記事リスト&lt;/h2&gt;
-
-&lt;p&gt;いろいろ試していたら記事が長くなってきたので分割しました。例によって他の方に向けた入門記事ではなく、自分用の調査メモです。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;/blog/blog/2016/05/07/start-using-lxd-2.0-on-ubuntu-16.04/&#34;&gt;Ubuntu 16.04 LTSでLXD 2.0をセットアップして使ってみる&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;/blog/blog/2016/05/07/script-to-check-running-status-of-lxd-container/&#34;&gt;LXCの特定の1つのコンテナの起動状態をシェルスクリプトで確認したいときのお勧めの方法&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;/blog/blog/2016/05/07/how-to-use-fixed-ip-address-for-a-lxd-container/&#34;&gt;LXDコンテナで固定IPアドレスを使うための設定&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;/blog/blog/2016/05/07/tried-ansible-lxd-connection-plugin/&#34;&gt;AnsibleのLXDコネクションプラグインを試してみた&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;/blog/blog/2016/05/07/tried-lxd-rest-api-with-curl/&#34;&gt;LXDのREST APIをcurlで試してみた&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;/blog/blog/2016/05/07/tried-pylxd/&#34;&gt;LXDのREST APIクライアントライブラリpylxdを試してみた&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;なお、記事によってコンテナのIPアドレスのネットワークが違う場合がありますが、何回か環境を作りなおして毎回ランダムなネットワークを使っているためなので気にしないでください。&lt;/p&gt;
 </description>
     </item>
     
