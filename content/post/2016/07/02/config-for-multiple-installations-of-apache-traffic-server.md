@@ -2,7 +2,7 @@
 Categories = []
 Description = ""
 Tags = ["apachetrafficserver"]
-date = "2016-07-02T23:46:34+09:00"
+date = "2016-07-02T01:00:00+09:00"
 title = "1台のサーバに異なる設定でApache Traffic Serverを複数立ち上げるためのビルド設定"
 
 +++
