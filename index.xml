@@ -6,8 +6,219 @@
     <description>Recent content on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Fri, 01 Jul 2016 22:44:12 +0900</lastBuildDate>
+    <lastBuildDate>Sat, 02 Jul 2016 23:46:34 +0900</lastBuildDate>
     <atom:link href="/blog/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>1台のサーバに異なる設定でApache Traffic Serverを複数立ち上げるためのビルド設定</title>
+      <link>/blog/2016/07/02/config-for-multiple-installations-of-apache-traffic-server/</link>
+      <pubDate>Sat, 02 Jul 2016 23:46:34 +0900</pubDate>
+      
+      <guid>/blog/2016/07/02/config-for-multiple-installations-of-apache-traffic-server/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;Apache Traffic Serverには&lt;a href=&#34;https://docs.trafficserver.apache.org/en/latest/admin-guide/configuration/hierachical-caching.en.html&#34;&gt;Hierarchical Caching&lt;/a&gt;という機能があって、キャッシュを親と子の2階層にすることが出来ます。&lt;/p&gt;
+
+&lt;p&gt;CentOSで1つのサーバに親と子の2つのTraffic Server 6.1.1を異なる設定で起動するような構成にしたかったのですが、本家のrpmでは出来ないようでした。
+ソースを見ていたらconfigureオプションをうまく指定すれば可能だとわかり、カスタムrpmを作りました。&lt;/p&gt;
+
+&lt;p&gt;rpmのspecファイルは&lt;a href=&#34;https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec&#34;&gt;apache-traffic-server-rpm/trafficserver.spec&lt;/a&gt;、ビルドしたrpmは &lt;a href=&#34;https://copr.fedorainfracloud.org/coprs/hnakamur/apache-traffic-server-6/&#34;&gt;hnakamur/apache-traffic-server-6 Copr&lt;/a&gt; で公開しています。&lt;/p&gt;
+
+&lt;h2 id=&#34;起動オプションではやりたいことは出来なさそうでした&#34;&gt;起動オプションではやりたいことは出来なさそうでした&lt;/h2&gt;
+
+&lt;p&gt;カスタムrpmを作る前に、本家のrpmを使いつつコマンドラインオプションや環境変数の設定によってやりたいことが実現できないか調べてみたのですが、出来なさそうでした。&lt;/p&gt;
+
+&lt;p&gt;バージョン6.1.1のソースを見た時のメモです。&lt;/p&gt;
+
+&lt;p&gt;まず、 &lt;code&gt;traffic_server&lt;/code&gt; コマンドには &lt;code&gt;-conf_dir&lt;/code&gt; というオプションがあります。ソースは &lt;a href=&#34;https://github.com/apache/trafficserver/blob/6.1.1/proxy/Main.cc#L206&#34;&gt;proxy/Main.cc&lt;/a&gt; です。&lt;a href=&#34;https://docs.trafficserver.apache.org/en/6.1.x/appendices/command-line/traffic_server.en.html&#34;&gt;traffic_serverのドキュメント&lt;/a&gt;には記載がありません。&lt;/p&gt;
+
+&lt;p&gt;一方、 &lt;code&gt;traffic_manager&lt;/code&gt; コマンドには &lt;code&gt;-tsArgs&lt;/code&gt; というオプションがあります。 ソースは &lt;a href=&#34;https://github.com/apache/trafficserver/blob/6.1.1/cmd/traffic_manager/traffic_manager.cc#L453&#34;&gt;cmd/traffic_manager/traffic_manager.cc&lt;/a&gt; で &lt;a href=&#34;https://docs.trafficserver.apache.org/en/6.1.x/appendices/command-line/traffic_manager.en.html#cmdoption-traffic_manager--tsArgs&#34;&gt;traffic_managerのドキュメント&lt;/a&gt; にも説明はありませんが載っています。&lt;/p&gt;
+
+&lt;p&gt;しかし、 &lt;code&gt;traffic_cop&lt;/code&gt; コマンドが &lt;code&gt;traffic_manager&lt;/code&gt; コマンドを起動する際には &lt;code&gt;-tsArgs&lt;/code&gt; オプションは指定していません。ソースは &lt;a href=&#34;https://github.com/apache/trafficserver/blob/6.1.1/cmd/traffic_cop/traffic_cop.cc#L758&#34;&gt;cmd/traffic_cop/traffic_cop.cc&lt;/a&gt; です。 &lt;a href=&#34;https://docs.trafficserver.apache.org/en/6.1.x/appendices/command-line/traffic_cop.en.html&#34;&gt;traffic_cop&lt;/a&gt; のドキュメントを見ても traffic_manager にオプションを渡すためのオプションは無いようです。&lt;/p&gt;
+
+&lt;p&gt;rpmでインストールされるサービス起動スクリプトだと &lt;code&gt;traffic_cop&lt;/code&gt; →　&lt;code&gt;traffic_manger&lt;/code&gt; →　&lt;code&gt;traffic_sever&lt;/code&gt; という呼び出し関係になるので、こ &lt;code&gt;traffic_server&lt;/code&gt;   に &lt;code&gt;-conf_dir&lt;/code&gt; オプションを渡すことは出来なさそうです。&lt;/p&gt;
+
+&lt;h2 id=&#34;ts-rootという環境変数を発見&#34;&gt;TS_ROOTという環境変数を発見&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/apache/trafficserver/blob/6.1.1/lib/ts/Layout.cc#L146-L187&#34;&gt;lib/ts/Layout.cc&lt;/a&gt; で &lt;code&gt;TS_ROOT&lt;/code&gt; という環境変数を参照しているのを見つけました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Layout::Layout(const char *_prefix)
+{
+  if (_prefix) {
+    prefix = ats_strdup(_prefix);
+  } else {
+    char *env_path;
+    char path[PATH_NAME_MAX];
+    int len;
+
+    if ((env_path = getenv(&amp;quot;TS_ROOT&amp;quot;))) {
+      len = strlen(env_path);
+      if ((len + 1) &amp;gt; PATH_NAME_MAX) {
+        ink_error(&amp;quot;TS_ROOT environment variable is too big: %d, max %d\n&amp;quot;, len, PATH_NAME_MAX - 1);
+        return;
+      }
+      ink_strlcpy(path, env_path, sizeof(path));
+      while (len &amp;gt; 1 &amp;amp;&amp;amp; path[len - 1] == &#39;/&#39;) {
+        path[len - 1] = &#39;\0&#39;;
+        --len;
+      }
+    } else {
+      // Use compile time --prefix
+      ink_strlcpy(path, TS_BUILD_PREFIX, sizeof(path));
+    }
+
+    prefix = ats_strdup(path);
+  }
+  exec_prefix = layout_relative(prefix, TS_BUILD_EXEC_PREFIX);
+  bindir = layout_relative(prefix, TS_BUILD_BINDIR);
+  sbindir = layout_relative(prefix, TS_BUILD_SBINDIR);
+  sysconfdir = layout_relative(prefix, TS_BUILD_SYSCONFDIR);
+  datadir = layout_relative(prefix, TS_BUILD_DATADIR);
+  includedir = layout_relative(prefix, TS_BUILD_INCLUDEDIR);
+  libdir = layout_relative(prefix, TS_BUILD_LIBDIR);
+  libexecdir = layout_relative(prefix, TS_BUILD_LIBEXECDIR);
+  localstatedir = layout_relative(prefix, TS_BUILD_LOCALSTATEDIR);
+  runtimedir = layout_relative(prefix, TS_BUILD_RUNTIMEDIR);
+  logdir = layout_relative(prefix, TS_BUILD_LOGDIR);
+  mandir = layout_relative(prefix, TS_BUILD_MANDIR);
+  infodir = layout_relative(prefix, TS_BUILD_INFODIR);
+  cachedir = layout_relative(prefix, TS_BUILD_CACHEDIR);
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/apache/trafficserver/blob/6.1.1/lib/ts/Layout.cc#L51-L70&#34;&gt;layout_relative関数の定義&lt;/a&gt; と &lt;a href=&#34;https://github.com/apache/trafficserver/blob/d6906e2a59858005d09018994262562b03ca24e9/lib/ts/ink_file.cc#L132-L323&#34;&gt;ink_filepath_merge関数の定義&lt;/a&gt; を見ると、 layout_relative の第2引数が &lt;code&gt;/&lt;/code&gt; で始まっていると第2引数がそのまま使われ、 &lt;code&gt;/&lt;/code&gt; で始まっていないと第1引数と第2引数を必要に応じて &lt;code&gt;/&lt;/code&gt; を挟んで連結した値になることがわかりました。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;TS_BUILD_SYSCONFDIR&lt;/code&gt; などは&lt;a href=&#34;https://github.com/apache/trafficserver/blob/6.1.1/lib/ts/ink_config.h.in#L110-L125&#34;&gt;trafficserver/ink_config.h.in&lt;/a&gt; で定義されていました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;/* Various &amp;quot;build&amp;quot; defines */
+#define TS_BUILD_PREFIX &amp;quot;@prefix@&amp;quot;
+#define TS_BUILD_EXEC_PREFIX &amp;quot;@rel_exec_prefix@&amp;quot;
+#define TS_BUILD_BINDIR &amp;quot;@rel_bindir@&amp;quot;
+#define TS_BUILD_SBINDIR &amp;quot;@rel_sbindir@&amp;quot;
+#define TS_BUILD_SYSCONFDIR &amp;quot;@rel_sysconfdir@&amp;quot;
+#define TS_BUILD_DATADIR &amp;quot;@rel_datadir@&amp;quot;
+#define TS_BUILD_INCLUDEDIR &amp;quot;@rel_includedir@&amp;quot;
+#define TS_BUILD_LIBDIR &amp;quot;@rel_libdir@&amp;quot;
+#define TS_BUILD_LIBEXECDIR &amp;quot;@rel_libexecdir@&amp;quot;
+#define TS_BUILD_LOCALSTATEDIR &amp;quot;@rel_localstatedir@&amp;quot;
+#define TS_BUILD_RUNTIMEDIR &amp;quot;@rel_runtimedir@&amp;quot;
+#define TS_BUILD_LOGDIR &amp;quot;@rel_logdir@&amp;quot;
+#define TS_BUILD_MANDIR &amp;quot;@rel_mandir@&amp;quot;
+#define TS_BUILD_CACHEDIR &amp;quot;@rel_cachedir@&amp;quot;
+#define TS_BUILD_INFODIR &amp;quot;@rel_infodir@&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;rel_*&lt;/code&gt; という値は &lt;code&gt;configure&lt;/code&gt; 実行時にbuild/common.m4の &lt;a href=&#34;https://github.com/apache/trafficserver/blob/5a0952b01d01ef927a65fc44bac5f68c345747aa/build/common.m4#L252-L263&#34;&gt;TS_SUBST_LAYOUT_PATH&lt;/a&gt; で設定されるようです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;dnl
+dnl TS_SUBST_LAYOUT_PATH
+dnl Export (via TS_SUBST) the various path-related variables that
+dnl trafficserver will use while generating scripts and
+dnl the default config file.
+AC_DEFUN([TS_SUBST_LAYOUT_PATH], [
+  TS_EXPAND_VAR(exp_$1, [$]$1)
+  TS_PATH_RELATIVE(rel_$1, [$]exp_$1, ${prefix})
+  TS_SUBST(exp_$1)
+  TS_SUBST(rel_$1)
+  TS_SUBST($1)
+])
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ここから呼ばれる &lt;a href=&#34;https://github.com/apache/trafficserver/blob/5a0952b01d01ef927a65fc44bac5f68c345747aa/build/common.m4#L223-L241&#34;&gt;TS_PATH_RELATIVE&lt;/a&gt; で実際の値が作られます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;dnl
+dnl Removes the value of $3 from the string in $2, strips of any leading
+dnl slashes, and returns the value in $1.
+dnl
+dnl Example:
+dnl orig_path=&amp;quot;${prefix}/bar&amp;quot;
+dnl TS_PATH_RELATIVE(final_path, $orig_path, $prefix)
+dnl    $final_path now contains &amp;quot;bar&amp;quot;
+AC_DEFUN([TS_PATH_RELATIVE], [
+ats_stripped=`echo $2 | sed -e &amp;quot;s#^$3##&amp;quot;`
+# check if the stripping was successful
+if test &amp;quot;x$2&amp;quot; != &amp;quot;x${ats_stripped}&amp;quot;; then
+# it was, so strip of any leading slashes
+    $1=&amp;quot;`echo ${ats_stripped} | sed -e &#39;s#^/*##&#39;`&amp;quot;
+else
+# it wasn&#39;t so return the original
+    $1=&amp;quot;$2&amp;quot;
+fi
+])
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ということで、例えば &lt;code&gt;sysconfdir&lt;/code&gt; の値が &lt;code&gt;prefix&lt;/code&gt; の値で始まっていれば &lt;code&gt;rel_sysconfdir&lt;/code&gt; は &lt;code&gt;prefix&lt;/code&gt; からの相対パスになり、そうでなければ &lt;code&gt;sysconfdir&lt;/code&gt; そのままになるということがわかりました。&lt;/p&gt;
+
+&lt;h2 id=&#34;configureオプションの指定方法&#34;&gt;configureオプションの指定方法&lt;/h2&gt;
+
+&lt;p&gt;上記を踏まえて、私が作成した &lt;a href=&#34;https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec&#34;&gt;/trafficserver.spec&lt;/a&gt; では &lt;a href=&#34;https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec#L1&#34;&gt;1行目&lt;/a&gt;で&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;%define _prefix /opt/trafficserver
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;と設定し、 &lt;a href=&#34;https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec#L85-L94&#34;&gt;85〜94行目&lt;/a&gt; で以下のような configure オプションを指定しています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;%configure \
+  --enable-layout=opt \
+  --sysconfdir=%{_prefix}%{_sysconfdir} \
+  --localstatedir=%{_prefix}%{_localstatedir} \
+  --libexecdir=%{_prefix}/%{_lib}/plugins \
+  --with-tcl=/usr/%{_lib} \
+  --enable-luajit \
+  --with-user=ats --with-group=ats \
+  --disable-silent-rules \
+  --enable-experimental-plugins
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;これでビルドしたtrafficserverを実行する際に、環境変数TS_ROOTを設定することで以下のようなディレクトリを参照することが出来ました。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;sysconfdir: ${TS_ROOT}/etc&lt;/li&gt;
+&lt;li&gt;localstatedir: ${TS_ROOT}/var/run&lt;/li&gt;
+&lt;li&gt;libexecdir: ${TS_ROOT}/lib64/plugins&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;私が使っているディレクトリ構成&#34;&gt;私が使っているディレクトリ構成&lt;/h2&gt;
+
+&lt;p&gt;実際には以下のようなシンボリックリンクを貼って使っています。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;1段目
+
+&lt;ul&gt;
+&lt;li&gt;/opt/trafficserver-first/etc -&amp;gt; /etc/trafficserver-first&lt;/li&gt;
+&lt;li&gt;/opt/trafficserver-first/bin -&amp;gt; /opt/trafficserver/bin&lt;/li&gt;
+&lt;li&gt;/opt/trafficserver-first/lib64 -&amp;gt; /opt/trafficserver/lib64&lt;/li&gt;
+&lt;li&gt;/opt/trafficserver-first/var/cache -&amp;gt; /var/cache/trafficserver-first&lt;/li&gt;
+&lt;li&gt;/opt/trafficserver-first/var/logs -&amp;gt; /var/log/trafficserver-first&lt;/li&gt;
+&lt;li&gt;/opt/trafficserver-first/var/run -&amp;gt; /var/run/trafficserver-first&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;2段目
+
+&lt;ul&gt;
+&lt;li&gt;/opt/trafficserver-second/etc -&amp;gt; /etc/trafficserver-second&lt;/li&gt;
+&lt;li&gt;/opt/trafficserver-second/bin -&amp;gt; /opt/trafficserver/bin&lt;/li&gt;
+&lt;li&gt;/opt/trafficserver-second/lib64 -&amp;gt; /opt/trafficserver/lib64&lt;/li&gt;
+&lt;li&gt;/opt/trafficserver-second/var/cache -&amp;gt; /var/cache/trafficserver-second&lt;/li&gt;
+&lt;li&gt;/opt/trafficserver-second/var/logs -&amp;gt; /var/log/trafficserver-second&lt;/li&gt;
+&lt;li&gt;/opt/trafficserver-second/var/run -&amp;gt; /var/run/trafficserver-second&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;コマンド実行時の環境変数指定&#34;&gt;コマンド実行時の環境変数指定&lt;/h2&gt;
+
+&lt;p&gt;コマンドを実行するときはPATHを通すかフルパスで指定するだけではなく、 TS_ROOT 環境変数も指定する必要があります。&lt;/p&gt;
+
+&lt;p&gt;例えば、1段目のキャッシュを全クリアするときは &lt;a href=&#34;https://docs.trafficserver.apache.org/en/6.1.x/admin-guide/storage/index.en.html#clearing-the-cache&#34;&gt;Clearing the Cache&lt;/a&gt; の説明では &lt;code&gt;traffic_server -Cclear&lt;/code&gt; ですが、このrpmの場合は&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;TS_ROOT=/opt/trafficserver-first /opt/trafficserver-first/bin/traffic_server -Cclear
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;と実行する必要があります。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>lxd_containerというAnsibleモジュールを書いたときに学んだtips</title>
@@ -1555,172 +1766,6 @@ $ time lxc restart cent02
 real    0m1.236s
 user    0m0.004s
 sys     0m0.004s
-&lt;/code&gt;&lt;/pre&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>LXCの特定の1つのコンテナの起動状態をシェルスクリプトで確認したいときのお勧めの方法</title>
-      <link>/blog/2016/05/07/script-to-check-running-status-of-lxd-container/</link>
-      <pubDate>Sat, 07 May 2016 14:12:49 +0900</pubDate>
-      
-      <guid>/blog/2016/05/07/script-to-check-running-status-of-lxd-container/</guid>
-      <description>
-
-&lt;h2 id=&#34;イマイチな方法1-lxc-listの出力をawkで加工&#34;&gt;イマイチな方法1: lxc listの出力をawkで加工&lt;/h2&gt;
-
-&lt;p&gt;&lt;code&gt;lxc list -h&lt;/code&gt; を見ると &lt;code&gt;lxc list [resource] [filters] [--format table|json] [-c columns] [--fast]&lt;/code&gt; というコマンドラインになっていて、 &lt;code&gt;-c&lt;/code&gt; オプションで表示するカラムを指定可能です。&lt;/p&gt;
-
-&lt;p&gt;例えば　以下のようにすれば &lt;code&gt;cent01&lt;/code&gt; コンテナの起動状態だけを表示できます。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ lxc list -c s cent01
-+---------+
-|  STATE  |
-+---------+
-| RUNNING |
-+---------+
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;ただ、デフォルトの &lt;code&gt;--format table&lt;/code&gt; だとASCII文字の罫線が表示されるので、状態を抜き出すにはawkで加工する必要があります。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ lxc list -c s cent01 | awk &#39;NR==4{print $2}&#39;
-RUNNING
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id=&#34;イマイチな方法2-lxc-list-format-jsonの出力をjqで加工&#34;&gt;イマイチな方法2: lxc list &amp;ndash;format jsonの出力をjqで加工&lt;/h2&gt;
-
-&lt;p&gt;&lt;code&gt;--format json&lt;/code&gt; でJSON形式で出力できるのですが、この場合は &lt;code&gt;-c&lt;/code&gt; オプションで項目を限定することは出来ませんでした。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ lxc list --format json -c s cent01
-[{&amp;quot;architecture&amp;quot;:&amp;quot;x86_64&amp;quot;,&amp;quot;config&amp;quot;:{&amp;quot;volatile.base_image&amp;quot;:&amp;quot;a027d59858d663fb2bc12b5ba767e92196a4aee8dbb2a607db53d718b91eb5d2&amp;quot;,&amp;quot;volatile.eth0.hwaddr&amp;quot;:&amp;quot;00:16:3e:5f:01:7e&amp;quot;,&amp;quot;volatile.last_state.idmap&amp;quot;:&amp;quot;[{\&amp;quot;Isuid\&amp;quot;:true,\&amp;quot;Isgid\&amp;quot;:false,\&amp;quot;Hostid\&amp;quot;:100000,\&amp;quot;Nsid\&amp;quot;:0,\&amp;quot;Maprange\
-&amp;quot;:65536},{\&amp;quot;Isuid\&amp;quot;:false,\&amp;quot;Isgid\&amp;quot;:true,\&amp;quot;Hostid\&amp;quot;:100000,\&amp;quot;Nsid\&amp;quot;:0,\&amp;quot;Maprange\&amp;quot;:65536}]&amp;quot;},&amp;quot;created_at&amp;quot;:&amp;quot;2016-05-06T18:56:46+09:00&amp;quot;,&amp;quot;devices&amp;quot;:{&amp;quot;root&amp;quot;:{&amp;quot;path&amp;quot;:&amp;quot;/&amp;quot;,&amp;quot;type&amp;quot;:&amp;quot;disk&amp;quot;}},&amp;quot;ephemeral&amp;quot;:false,&amp;quot;expanded_config&amp;quot;:{&amp;quot;volatile.base_image&amp;quot;:&amp;quot;a027d59858d663fb2bc12b5ba767e9
-2196a4aee8dbb2a607db53d718b91eb5d2&amp;quot;,&amp;quot;volatile.eth0.hwaddr&amp;quot;:&amp;quot;00:16:3e:5f:01:7e&amp;quot;,&amp;quot;volatile.last_state.idmap&amp;quot;:&amp;quot;[{\&amp;quot;Isuid\&amp;quot;:true,\&amp;quot;Isgid\&amp;quot;:false,\&amp;quot;Hostid\&amp;quot;:100000,\&amp;quot;Nsid\&amp;quot;:0,\&amp;quot;Maprange\&amp;quot;:65536},{\&amp;quot;Isuid\&amp;quot;:false,\&amp;quot;Isgid\&amp;quot;:true,\&amp;quot;Hostid\&amp;quot;:100000,\&amp;quot;Nsid\&amp;quot;:0,\&amp;quot;Maprange\&amp;quot;:65536}
-]&amp;quot;},&amp;quot;expanded_devices&amp;quot;:{&amp;quot;eth0&amp;quot;:{&amp;quot;name&amp;quot;:&amp;quot;eth0&amp;quot;,&amp;quot;nictype&amp;quot;:&amp;quot;bridged&amp;quot;,&amp;quot;parent&amp;quot;:&amp;quot;lxdbr0&amp;quot;,&amp;quot;type&amp;quot;:&amp;quot;nic&amp;quot;},&amp;quot;root&amp;quot;:{&amp;quot;path&amp;quot;:&amp;quot;/&amp;quot;,&amp;quot;type&amp;quot;:&amp;quot;disk&amp;quot;}},&amp;quot;name&amp;quot;:&amp;quot;cent01&amp;quot;,&amp;quot;profiles&amp;quot;:[&amp;quot;default&amp;quot;],&amp;quot;stateful&amp;quot;:false,&amp;quot;status&amp;quot;:&amp;quot;Running&amp;quot;,&amp;quot;status_code&amp;quot;:103,&amp;quot;state&amp;quot;:null,&amp;quot;snapshots&amp;quot;:null}]
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;code&gt;sudo apt install jq&lt;/code&gt; で &lt;code&gt;jq&lt;/code&gt; コマンドをインストールして、それで状態を抜き出すことは可能です。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ lxc list --format json cent01 | jq -r &#39;.[0].status&#39;
-Running
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id=&#34;お勧めの方法-lxc-infoの出力をawkで加工&#34;&gt;お勧めの方法: lxc infoの出力をawkで加工&lt;/h2&gt;
-
-&lt;p&gt;&lt;code&gt;lxc list&lt;/code&gt; の場合は指定した文字列は完全一致ではなくて前方一致で表示されました。上記の例のように &lt;code&gt;cent01&lt;/code&gt; と &lt;code&gt;cent02&lt;/code&gt; の2つのコンテナがあるときに、 &lt;code&gt;lxc list -c s cent0&lt;/code&gt; と実行すると以下のようになります。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ lxc list -c s cent0
-+---------+
-|  STATE  |
-+---------+
-| RUNNING |
-+---------+
-| RUNNING |
-+---------+
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;これだとどの行がどのコンテナかわからないのでコンテナ名の列も付ける必要があります。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ lxc list -c ns cent0
-+--------+---------+
-|  NAME  |  STATE  |
-+--------+---------+
-| cent01 | RUNNING |
-+--------+---------+
-| cent02 | RUNNING |
-+--------+---------+
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;この結果をawkで加工するのでも良いのですが、もっと良いのは &lt;code&gt;lxc info&lt;/code&gt; コマンドを使うことです。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ lxc info cent01
-コンテナ名: cent01
-アーキテクチャ: x86_64
-作成日時: 2016/05/06 09:56 UTC
-状態: Running
-タイプ: persistent
-プロファイル: default
-Pid: 29354
-IPアドレス:
-  eth0: inet    10.155.92.101   vethG4XSE4
-  eth0: inet6   fe80::216:3eff:fe5f:17e vethG4XSE4
-  lo:   inet    127.0.0.1
-  lo:   inet6   ::1
-リソース:
-  プロセス数: 10
-  メモリ消費量:
-    メモリ (現在値): 23.60MB
-    メモリ (ピーク): 43.08MB
-  ネットワーク使用状況:
-    eth0:
-      受信バイト数: 24.16kB
-      送信バイト数: 8.06kB
-      受信パケット: 232
-      送信パケット: 88
-    lo:
-      受信バイト数: 0 bytes
-      送信バイト数: 0 bytes
-      受信パケット: 0
-      送信パケット: 0
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;存在しないコンテナ名を指定するとエラーになります。これは標準エラー出力に出力されています。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ lxc info hoge
-エラー: not found
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;シェルスクリプトで加工するには英語出力のほうが良いので &lt;code&gt;LANG=C&lt;/code&gt; 付きで実行します。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ LANG=C lxc info cent01
-Name: cent01
-Architecture: x86_64
-Created: 2016/05/06 09:56 UTC
-Status: Running
-Type: persistent
-Profiles: default
-Pid: 29354
-Ips:
-  eth0: inet    10.155.92.101   vethG4XSE4
-  eth0: inet6   fe80::216:3eff:fe5f:17e vethG4XSE4
-  lo:   inet    127.0.0.1
-  lo:   inet6   ::1
-Resources:
-  Processes: 10
-  Memory usage:
-    Memory (current): 23.60MB
-    Memory (peak): 43.08MB
-  Network usage:
-    eth0:
-      Bytes received: 24.58kB
-      Bytes sent: 8.56kB
-      Packets received: 235
-      Packets sent: 93
-    lo:
-      Bytes received: 0 bytes
-      Bytes sent: 0 bytes
-      Packets received: 0
-      Packets sent: 0
-$ LANG=C lxc info hoge
-error: not found
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;結局以下のように実行するのがお勧めです。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ LANG=C lxc info cent01 2&amp;gt; /dev/null | awk &#39;$1==&amp;quot;Status:&amp;quot;{print $2}&#39;
-Running
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;存在しない場合は空文字列になります。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ LANG=C lxc info hoge 2&amp;gt; /dev/null | awk &#39;$1==&amp;quot;Status:&amp;quot;{print $2}&#39;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;判定例はこんな感じです。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ [ x`LANG=C lxc info cent01 2&amp;gt; /dev/null | awk &#39;$1==&amp;quot;Status:&amp;quot;{print $2}&#39;` == xRunning ] &amp;amp;&amp;amp; echo &amp;quot;container is running&amp;quot;
-container is running
-$ [ x`LANG=C lxc info hoge 2&amp;gt; /dev/null | awk &#39;$1==&amp;quot;Status:&amp;quot;{print $2}&#39;` == xRunning ] &amp;amp;&amp;amp; echo &amp;quot;container is running&amp;quot;
-$
 &lt;/code&gt;&lt;/pre&gt;
 </description>
     </item>
