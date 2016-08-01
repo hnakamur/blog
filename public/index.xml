@@ -6,8 +6,270 @@
     <description>Recent content on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Sat, 23 Jul 2016 21:13:52 +0900</lastBuildDate>
+    <lastBuildDate>Tue, 02 Aug 2016 05:57:52 +0900</lastBuildDate>
     <atom:link href="/blog/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>ブログ記事「Go言語(Golang) はまりどころと解決策」についてのコメント</title>
+      <link>/blog/2016/08/02/about-go-pitfalls/</link>
+      <pubDate>Tue, 02 Aug 2016 05:57:52 +0900</pubDate>
+      
+      <guid>/blog/2016/08/02/about-go-pitfalls/</guid>
+      <description>
+
+&lt;p&gt;&lt;a href=&#34;http://www.yunabe.jp/docs/golang_pitfall.html&#34;&gt;Go言語(Golang) はまりどころと解決策&lt;/a&gt;の記事についてのコメント記事を誰かが書くだろうと思ってスルーしてましたが、見かけないので書いてみます。&lt;/p&gt;
+
+&lt;p&gt;ただし私はGo言語を使って開発していますが、言語自体を詳細に知るエキスパートでは無いです。Go言語にかぎらず個人的にはややこしいところにはなるべく近づかないスタンスなので、詳しい方から見ると物足りないかもしれません。そう感じた方は是非ブログ記事なりを書いていただけると嬉しいです。&lt;/p&gt;
+
+&lt;h2 id=&#34;interface-とnil-goのinterfaceは単なる参照ではない&#34;&gt;interface とnil (Goのinterfaceは単なる参照ではない)&lt;/h2&gt;
+
+&lt;p&gt;特にコメントはなくてそのとおりだと思います。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://golang.org/doc/faq&#34;&gt;Frequently Asked Questions (FAQ)&lt;/a&gt;に加えて &lt;a href=&#34;https://golang.org/doc/effective_go.html&#34;&gt;Effective Go&lt;/a&gt;も早めに読んでおいたほうが良いと思います。&lt;/p&gt;
+
+&lt;p&gt;またnilに関する文献としては &lt;a href=&#34;https://speakerdeck.com/campoy/understanding-nil&#34;&gt;Understanding Nil // Speaker Deck&lt;/a&gt; もおすすめです。&lt;/p&gt;
+
+&lt;h2 id=&#34;メソッド内でレシーバ-this-self-がnilでないことをチェックすることに意味がある&#34;&gt;メソッド内でレシーバ(this, self)がnilでないことをチェックすることに意味がある&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://golang.org/ref/spec#Method_declarations&#34;&gt;Method declarations&lt;/a&gt; に&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;The type of a method is the type of a function with the receiver as first argument.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;とあります。メソッドの型はメソッドの引数の前にレシーバを第一引数として入れた関数の型になるとのことです。&lt;/p&gt;
+
+&lt;p&gt;大雑把に言えば、メソッドは第一引数にレシーバを追加した関数と実質同じです。と考えればメソッド内でポインタ型のレシーバのnilチェックをすることは特に違和感ないと思います。&lt;/p&gt;
+
+&lt;h2 id=&#34;errorしか返り値がない関数でerrorを処理し忘れる&#34;&gt;errorしか返り値がない関数でerrorを処理し忘れる&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/alecthomas/gometalinter&#34;&gt;alecthomas/gometalinter&lt;/a&gt;でチェックできました。&lt;/p&gt;
+
+&lt;p&gt;実行例を示します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ gometalinter 
+main.go:8:6:warning: exported type Data should have comment or be unexported (golint)
+main.go:4:2:error: could not import encoding/json (reading export data: /usr/local/go1.7rc3/pkg/linux_amd64/encoding/json.a: unknown version: v1json    E$GOROOT/src/encoding/json/decode.go?Un) (gotype)
+-$GOROOT/src/fmt/scan.go not impStatr) (gotype)g export data: /usr/local/go1.7rc3/pkg/linux_amd64/fmt.a: unknown version: v1fmt
+main.go:14:2:error: undeclared name: json (gotype)
+main.go:15:2:error: undeclared name: fmt (gotype)
+main.go:14:16:warning: error return value not checked (json.Unmarshal([]byte(&amp;quot;not json&amp;quot;), d)) (errcheck)
+main.go:9:2:warning: unused struct field github.com/hnakamur/forgotten-error-experiment.Data.a (structcheck)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;jsonやfmt関連のエラーは何言ってるのかよくわからないで無視するとして&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;main.go:14:16:warning: error return value not checked (json.Unmarshal([]byte(&amp;quot;not json&amp;quot;), d)) (errcheck)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;で error の戻り値がチェックされていないことを指摘されています。&lt;/p&gt;
+
+&lt;p&gt;gometalinterのセットアップと使い方は&lt;a href=&#34;http://qiita.com/spiegel-im-spiegel/items/238f6f0ee27bdf1de2a0&#34;&gt;gometalinter で楽々 lint - Qiita&lt;/a&gt;にわかりやすい記事がありました。&lt;/p&gt;
+
+&lt;h2 id=&#34;基本型がメソッドを持たない&#34;&gt;基本型がメソッドを持たない&lt;/h2&gt;
+
+&lt;p&gt;FAQの&lt;a href=&#34;https://golang.org/doc/faq#methods_on_basics&#34;&gt;Why is len a function and not a method?&lt;/a&gt;によると &lt;code&gt;len&lt;/code&gt; などをメソッドにすることも検討したけど、 &lt;code&gt;len&lt;/code&gt; がメソッドではなく関数でも実用上困らないし、そのほうが基本型の (Go言語の型の意味での) インタフェースについての質問を複雑にしないので、 &lt;code&gt;len&lt;/code&gt; などは関数として実装することにしたそうです。&lt;/p&gt;
+
+&lt;p&gt;「インタフェースについての質問」あたりはとりあえずそう訳しましたが、意味はよくわかりません。詳しい方のコメントを期待したいところです。&lt;/p&gt;
+
+&lt;h2 id=&#34;stringが単なるバイト列&#34;&gt;stringが単なるバイト列&lt;/h2&gt;
+
+&lt;p&gt;「正直本当に正しいのかはよく分かりません」については私は正しいかどうかという話というよりは、Go言語ではそう決めたというだけの話かと思っています。&lt;/p&gt;
+
+&lt;p&gt;言語の利用者がハマりにくい決定をするほうが望ましいという意味で「正しいか」と言われているのだとは思いますが、私自身はほぼ常にUTF-8の文字列しか使ってないので特にハマったことはないです。&lt;/p&gt;
+
+&lt;p&gt;文字コード変換には&lt;a href=&#34;https://github.com/golang/text&#34;&gt;golang/text: [mirror] Go text processing support&lt;/a&gt;というパッケージがあります。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;io.Reader&lt;/code&gt; からEUC-JP, Shift_JIS, ISO-2022-JPの文字列を読み込んで UTF-8に変換するのは&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/goqueryja/blob/01aead01dd3ac586c6256140a26a50fb30451971/lib.go#L27-L40&#34;&gt;https://github.com/hnakamur/goqueryja/blob/01aead01dd3ac586c6256140a26a50fb30451971/lib.go#L27-L40&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;というコードで実現できます。&lt;/p&gt;
+
+&lt;h2 id=&#34;継承がない&#34;&gt;継承がない&lt;/h2&gt;
+
+&lt;p&gt;継承を敢えて排除したのはGoの好きな点の1つです。&lt;/p&gt;
+
+&lt;h2 id=&#34;genericsがない&#34;&gt;Genericsがない&lt;/h2&gt;
+
+&lt;p&gt;私が他の言語で知ってるのはJavaのGenericsとHaskellの型クラスです。Haskellは軽く勉強した程度ですが、型クラスはシンプルで汎用的で美しさを感じました。&lt;/p&gt;
+
+&lt;p&gt;一方Javaは10年近く仕事で書いてましたが、 &lt;code&gt;? extends&lt;/code&gt; とか &lt;code&gt;? super&lt;/code&gt; のあたりはよくわからなくて避けてました。当時はそれでも困らなかったです。&lt;/p&gt;
+
+&lt;p&gt;複雑なものが苦手な私としては、Javaのような複雑さになるぐらいならGenericsは無いほうが良いと思うので、Goの決断は私は賛成です。&lt;/p&gt;
+
+&lt;p&gt;Genericsが無いとMap, Each, Selectのような関数を []interface{} に対して書いてみたくなると思います。 &lt;a href=&#34;http://qiita.com/hnakamur/items/76b06603013279b14aeb&#34;&gt;goでEach, Map, Selectのサンプル - Qiita&lt;/a&gt;で私も昔書いてみました。でも&lt;a href=&#34;http://qiita.com/hnakamur/items/76b06603013279b14aeb#comment-3d16d66e68bad9626f56&#34;&gt;コメント&lt;/a&gt;に書いたように、Goの開発者のRob Pikeさんもこういう関数は使わずに &lt;code&gt;for&lt;/code&gt; ループを使うべきと書かれています。&lt;/p&gt;
+
+&lt;p&gt;Goに入ってはGoに従え (When in Go, do as the gophers do) ということで &lt;code&gt;for&lt;/code&gt; で書くのが良いと思います。&lt;/p&gt;
+
+&lt;h2 id=&#34;goroutine-はgcされない&#34;&gt;goroutine はGCされない&lt;/h2&gt;
+
+&lt;p&gt;同意です。&lt;/p&gt;
+
+&lt;p&gt;Dave Cheneyさんのツイート
+&lt;a href=&#34;https://twitter.com/davecheney/status/714053897841577985&#34;&gt;https://twitter.com/davecheney/status/714053897841577985&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;とスライド
+&lt;a href=&#34;https://github.com/davecheney/high-performance-go-workshop/blob/ee2e7a82092a72d742b12b00308b0145f124d593/high-performance-go-workshop.slide#L648-L658&#34;&gt;https://github.com/davecheney/high-performance-go-workshop/blob/ee2e7a82092a72d742b12b00308b0145f124d593/high-performance-go-workshop.slide#L648-L658&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;にある&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;Never start a goroutine without knowing how it will stop.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;というルールを守るのが良い習慣だと思います。&lt;/p&gt;
+
+&lt;h2 id=&#34;goroutineはgenerator-yield-の実装には使えない&#34;&gt;goroutineはgenerator (yield) の実装には使えない&lt;/h2&gt;
+
+&lt;p&gt;内容自体は同意です。&lt;/p&gt;
+
+&lt;p&gt;ちょっと脱線になりますが、こういう他の言語の仕組みを同じようなものを作ろうとするのは、そもそもGoの文化になじまないです。Goは他の言語では常識とされている仕組みも一から吟味して取捨選択して最低限のものだけを残して、それ以外は敢えて含めていないと感じていて、ミニマリストな私には非常に魅力的です。&lt;/p&gt;
+
+&lt;p&gt;less is moreの精神を感じます。言語の仕組みが最低限で、同じようなことは同じように書くことになるので、サードパーティのライブラリなど人のコードを読むときに非常に読みやすいというメリットがあります。&lt;/p&gt;
+
+&lt;p&gt;また、自分でコードを書くときにも、似たようなことを実現するために複数の仕組みがあるとこのケースではどれを選ぶべきかと考える必要がありますが、決まったパターンがあれば悩む時間がありません。&lt;/p&gt;
+
+&lt;p&gt;この結果Go言語だと言語でどう書くかよりもアプリケーションやライブラリの問題領域の方に注力しやすいと感じています。&lt;/p&gt;
+
+&lt;p&gt;yieldみたいなことはせずに、goroutineを複数動かしてchannelでデータをやり取りするか、変数を sync.Mutex などで排他制御してデータをやり取りするのがGo流だと思います。あるいは簡単なイテレータなら関数を返すような関数で実現可能だと思います。&lt;/p&gt;
+
+&lt;h2 id=&#34;例外が-推奨され-ない&#34;&gt;例外が(推奨され)ない&lt;/h2&gt;
+
+&lt;p&gt;Java, Python, Rubyなどを書いていた私としても例外がないのは不便なのではと最初は思いましたが、今では err が戻り値で毎回&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;if err != nil {
+   return err
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;と書くほうが、エラーの処理漏れが無いことが明確で安心感を感じます。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://blog.golang.org/errors-are-values&#34;&gt;Errors are values - The Go Blog&lt;/a&gt;のbufioのScannerのようにエラーがチェックする関数が別になっている例もあります。が、個人的には、記事中にある、もしもの例で &lt;code&gt;Scan()&lt;/code&gt; がエラーも返す例のほうがわかりやすいと思います。&lt;/p&gt;
+
+&lt;p&gt;というのも、初めて &lt;code&gt;bufio.Scanner&lt;/code&gt; のドキュメントを見た時は &lt;code&gt;Err()&lt;/code&gt; の存在に気づいて無かったです。ただし、 &lt;a href=&#34;https://golang.org/pkg/bufio/#Scanner&#34;&gt;https://golang.org/pkg/bufio/#Scanner&lt;/a&gt; の Example (Lines) とかを見れば &lt;code&gt;Err()&lt;/code&gt; を使ったサンプルコードが書いてあるんですけどね。&lt;/p&gt;
+
+&lt;p&gt;余談ですけど、APIドキュメントに Example でサンプルコードがついているときは必ず見たほうが良いです。関数のシグネチャ見ただけでは気づかない使い方が説明されていることが多いので。&lt;/p&gt;
+
+&lt;p&gt;エラー処理は&lt;a href=&#34;https://blog.golang.org/error-handling-and-go&#34;&gt;Error handling and Go - The Go Blog&lt;/a&gt;のブログ記事も読みましょう。&lt;/p&gt;
+
+&lt;p&gt;あと &lt;code&gt;panic&lt;/code&gt; と &lt;code&gt;recover&lt;/code&gt; で例外もどきを実現しようとするのも止めましょう。私は &lt;code&gt;recover&lt;/code&gt; は一度足りとも使ったことが無いです。&lt;/p&gt;
+
+&lt;p&gt;panic はエラーがほぼ起きないケースでerrorをreturnして呼び出し側で処理したくないケースは使うこともあります。panicすると標準エラー出力にエラーメッセージとスタックトレースが出力されて異常終了します。&lt;/p&gt;
+
+&lt;p&gt;Goのアプリケーションをsystemdから起動する場合は、panicするとjournalctlでログが見られてそちらで発生日時もわかるので、それでチェックしています。&lt;/p&gt;
+
+&lt;h2 id=&#34;繰り返す-if-err-nil-return-err&#34;&gt;繰り返す if err != nil {return err}&lt;/h2&gt;
+
+&lt;p&gt;ひとつ前の「例外が(推奨され)ない」にまとめて書きました。
+個人的には同じパターンで繰り返すほうが、ケースバイケースで書き方が違うより、読みやすいです。&lt;/p&gt;
+
+&lt;h2 id=&#34;return-nil-err-このerrorどこで発生したの&#34;&gt;return nil, err → このerrorどこで発生したの？&lt;/h2&gt;
+
+&lt;pre&gt;&lt;code&gt;if err != nil {
+  return nil, fmt.Errorf(&amp;quot;Some context: %v&amp;quot;, err)
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;でコンテキストを追加するのがGo流らしいです。&lt;/p&gt;
+
+&lt;p&gt;でも個人的にはスタックトレースのほうが楽だと感じます。あと個人的にはエラーが起きた地点での関連する変数もログ出力したいので、自作のログライブラリでは
+&lt;a href=&#34;https://godoc.org/github.com/hnakamur/ltsvlog#LTSVLogger.ErrorWithStack&#34;&gt;func (l *LTSVLogger) ErrorWithStack(lv &amp;hellip;LV)&lt;/a&gt; というメソッドを用意して、エラーが起きた箇所でメッセージと変数の値とスタックトレースを出力するようにしています。&lt;/p&gt;
+
+&lt;h2 id=&#34;関数より狭いスコープで-defer&#34;&gt;関数より狭いスコープで defer&lt;/h2&gt;
+
+&lt;p&gt;わかりやすい名前がつけられるケースならprivateの関数に切り出してそちらでdeferするようにします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;func myFuncHelper(filename string) (*dataType, error) {
+  r, err := os.Open(filename)
+  if err != nil {
+    return err
+  }
+  defer r.Close()
+  data, err := readDataFromReader(r)  // 実際にはもう少し複雑な処理
+  if err != nil {
+    return nil, err
+  }
+  return data, nil
+}
+
+func myFunc() error {
+  data, err := myFunHelper(filename)
+  if err != nil {
+    return err
+  }
+  // その後の他の処理
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;あとエラーで抜けるケースが少なければdeferを使わずに &lt;code&gt;Close()&lt;/code&gt; を呼べば良いと思います。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;func myFunc() error {
+  // ...
+  r, err := os.Open(filename)
+  if err != nil {
+    return err
+  }
+  data, err := readDataFromReader(r)  // 実際にはもう少し複雑な処理
+  if err != nil {
+    r.Close()
+    return err
+  }
+  r.Close()
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;「実際にはもう少し複雑な処理」と書いているので、&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;  if err != nil {
+    r.Close()
+    return err
+  }
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;が何回も出てくるのでしょうが、多すぎと感じたら別の方法を考える感じで。&lt;/p&gt;
+
+&lt;h2 id=&#34;structとc-javaのクラスとの違い&#34;&gt;structとC++/Javaのクラスとの違い&lt;/h2&gt;
+
+&lt;h3 id=&#34;コンストラクタがない&#34;&gt;コンストラクタがない&lt;/h3&gt;
+
+&lt;p&gt;コンストラクタは無いので &lt;code&gt;NewSomething&lt;/code&gt; とか &lt;code&gt;somepackage.New&lt;/code&gt; のような関数を定義する習慣というのはその通りです。&lt;/p&gt;
+
+&lt;h3 id=&#34;ゼロ初期化が避けられない&#34;&gt;ゼロ初期化が避けられない&lt;/h3&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;structが外部に公開されるのならばstructは全てがゼロ初期化された場合にも正しく動くように常に設計しなくてはならないのです。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;これは現実には無理だと思います。例えばファイル名のフィールドのstringが空文字だった時にはどのファイルを処理すれば良いかはわかりっこないです。zero valueでも構わないフィールドについては、zero valueだとどう解釈されるかをAPIドキュメントに書いておけば良い話です。それ以外は呼び出し側が設定する責任があるということで。&lt;/p&gt;
+
+&lt;h3 id=&#34;コピーされるのが避けられない&#34;&gt;コピーされるのが避けられない&lt;/h3&gt;
+
+&lt;p&gt;Go言語自体にコピー防止の仕組みを入れる議論はあったようです。&lt;a href=&#34;https://github.com/golang/go/issues/8005&#34;&gt;runtime: add NoCopy documentation struct type? · Issue #8005 · golang/go&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;このスレッドの&lt;a href=&#34;https://github.com/golang/go/issues/8005#issuecomment-190753527&#34;&gt;コメント&lt;/a&gt;で実現する方法が紹介されています。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/valyala/fasthttp&#34;&gt;valyala/fasthttp&lt;/a&gt;ではこの技を使っていて
+&lt;a href=&#34;https://github.com/valyala/fasthttp/blob/master/nocopy.go&#34;&gt;fasthttp/nocopy.go&lt;/a&gt;に &lt;code&gt;noCopy&lt;/code&gt; の定義があり、 &lt;a href=&#34;https://github.com/valyala/fasthttp/blob/45697fe30a130ec6a54426a069c82f3abe76b63d/http.go#L16-L45&#34;&gt;https://github.com/valyala/fasthttp/blob/45697fe30a130ec6a54426a069c82f3abe76b63d/http.go#L16-L45&lt;/a&gt; に使用例があります。&lt;/p&gt;
+
+&lt;h2 id=&#34;型が後置&#34;&gt;型が後置&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://blog.golang.org/gos-declaration-syntax&#34;&gt;Go&amp;rsquo;s Declaration Syntax - The Go Blog&lt;/a&gt; で理由が説明されています。&lt;/p&gt;
+
+&lt;h2 id=&#34;1-0-が浮動小数点型にならない-時がある&#34;&gt;1.0 が浮動小数点型にならない(時がある)&lt;/h2&gt;
+
+&lt;p&gt;これは知りませんでした。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;e := float64(a / 3.0)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;と書けば回避できました。 &lt;a href=&#34;https://play.golang.org/p/Y7_LUdQeeq&#34;&gt;https://play.golang.org/p/Y7_LUdQeeq&lt;/a&gt;&lt;/p&gt;
+
+&lt;h2 id=&#34;名前が&#34;&gt;名前が…&lt;/h2&gt;
+
+&lt;p&gt;golang で検索すればOKです。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>LXDコンテナでPostgreSQLの非同期リプリケーションを試してみた</title>
@@ -25,7 +287,7 @@
 
 &lt;p&gt;&lt;code&gt;ansible.cfg&lt;/code&gt; で &lt;code&gt;ask_vault_pass = True&lt;/code&gt; と指定しているので、プレイブック実行時に &lt;code&gt;Vault password:&lt;/code&gt; と聞かれます。パスワードは &lt;code&gt;password&lt;/code&gt; です。サンプルなので単純なパスワードにしていますが、実案件でのプレイブックはきちんとしたパスワードをつけています。&lt;/p&gt;
 
-&lt;h2 id=&#34;テスト環境構築:d1a3148f1e3eab3f266598e4a5977fd4&#34;&gt;テスト環境構築&lt;/h2&gt;
+&lt;h2 id=&#34;テスト環境構築&#34;&gt;テスト環境構築&lt;/h2&gt;
 
 &lt;p&gt;ホストマシンのディストリビューションはUbuntu 16.04でLXD 2.0.3, curl, jqをインストール済みの状態で試しました。&lt;/p&gt;
 
@@ -42,7 +304,7 @@ source venv/bin/activate
 pip install git+https://github.com/ansible/ansible
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;masterとstandbyのコンテナを作成:d1a3148f1e3eab3f266598e4a5977fd4&#34;&gt;masterとstandbyのコンテナを作成&lt;/h2&gt;
+&lt;h2 id=&#34;masterとstandbyのコンテナを作成&#34;&gt;masterとstandbyのコンテナを作成&lt;/h2&gt;
 
 &lt;pre&gt;&lt;code&gt;ansible-playbook launch_containers.yml
 &lt;/code&gt;&lt;/pre&gt;
@@ -57,7 +319,7 @@ pgsql2 postgresql_peer_ipaddr=10.155.92.202 postgressql_master_standby_type=stan
 ansible_connection=lxd
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;コンテナ内にpostgresqlの非同期レプリケーションの環境設定:d1a3148f1e3eab3f266598e4a5977fd4&#34;&gt;コンテナ内にPostgreSQLの非同期レプリケーションの環境設定&lt;/h2&gt;
+&lt;h2 id=&#34;コンテナ内にpostgresqlの非同期レプリケーションの環境設定&#34;&gt;コンテナ内にPostgreSQLの非同期レプリケーションの環境設定&lt;/h2&gt;
 
 &lt;p&gt;以下のコマンドを実行してセットアップを実行します。&lt;/p&gt;
 
@@ -87,9 +349,9 @@ sudo -u postgres -i
 
 &lt;p&gt;上記の手順を1歩ずつ試し、 test データベースを作る前は pgsql2 では &lt;code&gt;psql test&lt;/code&gt; が失敗しますが作った後は成功するなどで同期が確認できます。&lt;/p&gt;
 
-&lt;h2 id=&#34;レプリケーションの状態確認:d1a3148f1e3eab3f266598e4a5977fd4&#34;&gt;レプリケーションの状態確認&lt;/h2&gt;
+&lt;h2 id=&#34;レプリケーションの状態確認&#34;&gt;レプリケーションの状態確認&lt;/h2&gt;
 
-&lt;h3 id=&#34;master側での確認:d1a3148f1e3eab3f266598e4a5977fd4&#34;&gt;master側での確認&lt;/h3&gt;
+&lt;h3 id=&#34;master側での確認&#34;&gt;master側での確認&lt;/h3&gt;
 
 &lt;p&gt;以下のコマンドを実行します。&lt;/p&gt;
 
@@ -119,7 +381,7 @@ sync_priority    | 0
 sync_state       | async
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h3 id=&#34;standby側での確認:d1a3148f1e3eab3f266598e4a5977fd4&#34;&gt;standby側での確認&lt;/h3&gt;
+&lt;h3 id=&#34;standby側での確認&#34;&gt;standby側での確認&lt;/h3&gt;
 
 &lt;p&gt;以下のコマンドを実行します。&lt;/p&gt;
 
@@ -141,14 +403,14 @@ postgres  2078  0.0  0.0 240632  7016 ?        Ss   08:34   0:05 postgres: wal r
 reaming 0/30031E0
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;フェイルオーバー:d1a3148f1e3eab3f266598e4a5977fd4&#34;&gt;フェイルオーバー&lt;/h2&gt;
+&lt;h2 id=&#34;フェイルオーバー&#34;&gt;フェイルオーバー&lt;/h2&gt;
 
 &lt;p&gt;masterのPostgreSQLを停止し、 standbyをmasterにpromote (昇格)させます。&lt;/p&gt;
 
 &lt;pre&gt;&lt;code&gt;ansible-playbook failover.yml
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;旧masterを新standbyとして稼働再開:d1a3148f1e3eab3f266598e4a5977fd4&#34;&gt;旧masterを新standbyとして稼働再開&lt;/h2&gt;
+&lt;h2 id=&#34;旧masterを新standbyとして稼働再開&#34;&gt;旧masterを新standbyとして稼働再開&lt;/h2&gt;
 
 &lt;p&gt;ここでインベントリファイル &lt;code&gt;development&lt;/code&gt; 内の &lt;code&gt;postgressql_master_standby_type&lt;/code&gt; 変数の &lt;code&gt;master&lt;/code&gt; と &lt;code&gt;standby&lt;/code&gt; を入れ替えます。&lt;/p&gt;
 
@@ -163,19 +425,19 @@ reaming 0/30031E0
 ansible-playbook initial_setup.yml
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;フェイルバック:d1a3148f1e3eab3f266598e4a5977fd4&#34;&gt;フェイルバック&lt;/h2&gt;
+&lt;h2 id=&#34;フェイルバック&#34;&gt;フェイルバック&lt;/h2&gt;
 
 &lt;p&gt;masterとstandbyを入れ替えているので、フェイルバックの手順はフェイルオーバーと同じです。&lt;/p&gt;
 
 &lt;pre&gt;&lt;code&gt;ansible-playbook failover.yml
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;コンテナの削除:d1a3148f1e3eab3f266598e4a5977fd4&#34;&gt;コンテナの削除&lt;/h2&gt;
+&lt;h2 id=&#34;コンテナの削除&#34;&gt;コンテナの削除&lt;/h2&gt;
 
 &lt;pre&gt;&lt;code&gt;ansible-playbook delete_containers.yml
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;ansible-vaultを使う際の変数命名規則のtips:d1a3148f1e3eab3f266598e4a5977fd4&#34;&gt;Ansible vaultを使う際の変数命名規則のtips&lt;/h2&gt;
+&lt;h2 id=&#34;ansible-vaultを使う際の変数命名規則のtips&#34;&gt;Ansible vaultを使う際の変数命名規則のtips&lt;/h2&gt;
 
 &lt;p&gt;&lt;code&gt;ansible-vault encrypt&lt;/code&gt; で暗号化したファイルの内容を確認するには &lt;code&gt;ansible-vault decrypt&lt;/code&gt; で復号化する必要があります。どんな変数があったかを確認する度に行うのは面倒なので、以下のように暗号化するファイル内で定義する変数を一旦別の変数で受け取ってplaybookではそれを参照するようにしました。&lt;/p&gt;
 
@@ -201,7 +463,7 @@ group_vars/development/vars.yml
 
 &lt;p&gt;のようにその変数を参照するようにするという具合です。&lt;/p&gt;
 
-&lt;h2 id=&#34;おわりに:d1a3148f1e3eab3f266598e4a5977fd4&#34;&gt;おわりに&lt;/h2&gt;
+&lt;h2 id=&#34;おわりに&#34;&gt;おわりに&lt;/h2&gt;
 
 &lt;p&gt;LXDを使えば複数サーバ構成のテスト環境も簡単に作れてとても便利です！&lt;/p&gt;
 </description>
@@ -215,11 +477,11 @@ group_vars/development/vars.yml
       <guid>/blog/2016/07/16/my-way-of-writing-source-codes/</guid>
       <description>
 
-&lt;h2 id=&#34;はじめに:d0022439b6d3f2c82b604b566ae9df49&#34;&gt;はじめに&lt;/h2&gt;
+&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://note.mu/ruiu/n/n1083b2a5d547&#34;&gt;ソースコードって実際のところどういうふうに書いていますか？｜Rui Ueyama｜note&lt;/a&gt; を読んで参考になるなーと思ったのですが、はてブ見ても、みんなだいたい同じですみたいなコメントばかりで面白くないので、「上手い人」では無いかもしれませんが、私の書き方をまとめてみました。&lt;/p&gt;
 
-&lt;h2 id=&#34;ボトムアップアプローチ:d0022439b6d3f2c82b604b566ae9df49&#34;&gt;ボトムアップアプローチ&lt;/h2&gt;
+&lt;h2 id=&#34;ボトムアップアプローチ&#34;&gt;ボトムアップアプローチ&lt;/h2&gt;
 
 &lt;p&gt;私はわりと新規プロジェクトで一からコードを書くことが多いです。人が書いたコードを引き継いで保守した経験はほとんど無いような気がします。&lt;/p&gt;
 
@@ -232,7 +494,7 @@ group_vars/development/vars.yml
 
 &lt;p&gt;私は頭の中で全体を把握したり、先に設計してから実装とかが出来ないので、まず書いて動かしてみてから考えます。書くときもなんとなく雰囲気で書いてみることも多いです。で、動かしてみて、あ、こうなるのか、じゃあこう変えよ、という感じで理解を深めながら、コードを書き足していく感じです。&lt;/p&gt;
 
-&lt;h2 id=&#34;gitでのバージョン管理:d0022439b6d3f2c82b604b566ae9df49&#34;&gt;gitでのバージョン管理&lt;/h2&gt;
+&lt;h2 id=&#34;gitでのバージョン管理&#34;&gt;gitでのバージョン管理&lt;/h2&gt;
 
 &lt;p&gt;コンパイルが通ったところや、ちゃんと動くようになったところでGitでコミットしていますが、ついつい他のこともついでにやっているのでコミットの単位はきちんと分かれていないことが日常茶飯事です。きちんと整理したほうが良いだろうなと思いつつ、新規開発の時はさっさと開発をすすめるほうが優先と思って妥協しています。&lt;/p&gt;
 
@@ -244,13 +506,13 @@ group_vars/development/vars.yml
 
 &lt;p&gt;masterにどんどんコミットというのは1人で開発している時で、複数人で開発するようになったらプルリクエストベースに切り替えています。一方で1人で開発している時でも一連のコミットをまとめておきたいときはプルリクエストを送って自分でマージしています。&lt;/p&gt;
 
-&lt;h2 id=&#34;テスト:d0022439b6d3f2c82b604b566ae9df49&#34;&gt;テスト&lt;/h2&gt;
+&lt;h2 id=&#34;テスト&#34;&gt;テスト&lt;/h2&gt;
 
 &lt;p&gt;動いている状態を維持しつつ機能追加していきますが、私はテストはめったに書かないです。私は3歩歩けば忘れる鳥頭なのでソースコードも書いた瞬間から忘れていきますが、再度コードを読んで何やっているか理解できればOKです。コード読んだだけでは、どうなるかよくわからないところについてはテストを書きます。&lt;/p&gt;
 
 &lt;p&gt;例えば&lt;a href=&#34;https://github.com/hnakamur/ltsvlog&#34;&gt;hnakamur/ltsvlog&lt;/a&gt;というLTSV形式のログラブラリではログが出力されるかといったテストは一切書いてなくて、いろんな型の値がどう文字列化されるかという箇所だけテストを書いています。&lt;/p&gt;
 
-&lt;h2 id=&#34;デバッグはログ出力派:d0022439b6d3f2c82b604b566ae9df49&#34;&gt;デバッグはログ出力派&lt;/h2&gt;
+&lt;h2 id=&#34;デバッグはログ出力派&#34;&gt;デバッグはログ出力派&lt;/h2&gt;
 
 &lt;p&gt;デバッガはほとんど使わないです。サードパーティのアプリケーションやライブラリのコードをどこから読んでよいかわからないときに、気になる関数でブレークしてコールスタックを見たりするときとか、デバッグでたまに使う程度です。&lt;/p&gt;
 
@@ -260,11 +522,11 @@ group_vars/development/vars.yml
 
 &lt;p&gt;デバッガだとプログラム修正後に再起動してブレークポイント指定してそこまで進んでという手間が面倒ですし、変数の中から見たい情報を見たい形に加工するのも面倒だと感じます。デバッグログなら一回仕込んでビルドすれば後はプログラム実行するだけで毎回必要な情報を出力してくれるので楽です。&lt;/p&gt;
 
-&lt;h2 id=&#34;リファクタリング:d0022439b6d3f2c82b604b566ae9df49&#34;&gt;リファクタリング&lt;/h2&gt;
+&lt;h2 id=&#34;リファクタリング&#34;&gt;リファクタリング&lt;/h2&gt;
 
 &lt;p&gt;リファクタリングするときに互換レイヤを作るという発想はありませんでした。1つのコミットの変更内容が大きくなり過ぎないように、変更をいくつかのステップに分けて、それぞれコミットしておくようにはしています。&lt;/p&gt;
 
-&lt;h2 id=&#34;おわりに:d0022439b6d3f2c82b604b566ae9df49&#34;&gt;おわりに&lt;/h2&gt;
+&lt;h2 id=&#34;おわりに&#34;&gt;おわりに&lt;/h2&gt;
 
 &lt;p&gt;ということで正直ベースで書いてみました。&lt;/p&gt;
 
@@ -280,7 +542,7 @@ group_vars/development/vars.yml
       <guid>/blog/2016/07/02/config-for-multiple-installations-of-apache-traffic-server/</guid>
       <description>
 
-&lt;h2 id=&#34;はじめに:8833f81119c3dc59eaa42f06ba083a4e&#34;&gt;はじめに&lt;/h2&gt;
+&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
 
 &lt;p&gt;Apache Traffic Serverには&lt;a href=&#34;https://docs.trafficserver.apache.org/en/latest/admin-guide/configuration/hierachical-caching.en.html&#34;&gt;Hierarchical Caching&lt;/a&gt;という機能があって、キャッシュを親と子の2階層にすることが出来ます。&lt;/p&gt;
 
@@ -289,7 +551,7 @@ group_vars/development/vars.yml
 
 &lt;p&gt;rpmのspecファイルは&lt;a href=&#34;https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec&#34;&gt;apache-traffic-server-rpm/trafficserver.spec&lt;/a&gt;、ビルドしたrpmは &lt;a href=&#34;https://copr.fedorainfracloud.org/coprs/hnakamur/apache-traffic-server-6/&#34;&gt;hnakamur/apache-traffic-server-6 Copr&lt;/a&gt; で公開しています。&lt;/p&gt;
 
-&lt;h2 id=&#34;起動オプションではやりたいことは出来なさそうでした:8833f81119c3dc59eaa42f06ba083a4e&#34;&gt;起動オプションではやりたいことは出来なさそうでした&lt;/h2&gt;
+&lt;h2 id=&#34;起動オプションではやりたいことは出来なさそうでした&#34;&gt;起動オプションではやりたいことは出来なさそうでした&lt;/h2&gt;
 
 &lt;p&gt;カスタムrpmを作る前に、本家のrpmを使いつつコマンドラインオプションや環境変数の設定によってやりたいことが実現できないか調べてみたのですが、出来なさそうでした。&lt;/p&gt;
 
@@ -303,7 +565,7 @@ group_vars/development/vars.yml
 
 &lt;p&gt;rpmでインストールされるサービス起動スクリプトだと &lt;code&gt;traffic_cop&lt;/code&gt; →　&lt;code&gt;traffic_manger&lt;/code&gt; →　&lt;code&gt;traffic_sever&lt;/code&gt; という呼び出し関係になるので、こ &lt;code&gt;traffic_server&lt;/code&gt;   に &lt;code&gt;-conf_dir&lt;/code&gt; オプションを渡すことは出来なさそうです。&lt;/p&gt;
 
-&lt;h2 id=&#34;ts-rootという環境変数を発見:8833f81119c3dc59eaa42f06ba083a4e&#34;&gt;TS_ROOTという環境変数を発見&lt;/h2&gt;
+&lt;h2 id=&#34;ts-rootという環境変数を発見&#34;&gt;TS_ROOTという環境変数を発見&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/apache/trafficserver/blob/6.1.1/lib/ts/Layout.cc#L146-L187&#34;&gt;lib/ts/Layout.cc&lt;/a&gt; で &lt;code&gt;TS_ROOT&lt;/code&gt; という環境変数を参照しているのを見つけました。&lt;/p&gt;
 
@@ -414,7 +676,7 @@ fi
 
 &lt;p&gt;ということで、例えば &lt;code&gt;sysconfdir&lt;/code&gt; の値が &lt;code&gt;prefix&lt;/code&gt; の値で始まっていれば &lt;code&gt;rel_sysconfdir&lt;/code&gt; は &lt;code&gt;prefix&lt;/code&gt; からの相対パスになり、そうでなければ &lt;code&gt;sysconfdir&lt;/code&gt; そのままになるということがわかりました。&lt;/p&gt;
 
-&lt;h2 id=&#34;configureオプションの指定方法:8833f81119c3dc59eaa42f06ba083a4e&#34;&gt;configureオプションの指定方法&lt;/h2&gt;
+&lt;h2 id=&#34;configureオプションの指定方法&#34;&gt;configureオプションの指定方法&lt;/h2&gt;
 
 &lt;p&gt;上記を踏まえて、私が作成した &lt;a href=&#34;https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec&#34;&gt;/trafficserver.spec&lt;/a&gt; では &lt;a href=&#34;https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec#L1&#34;&gt;1行目&lt;/a&gt;で&lt;/p&gt;
 
@@ -443,7 +705,7 @@ fi
 &lt;li&gt;libexecdir: ${TS_ROOT}/lib64/plugins&lt;/li&gt;
 &lt;/ul&gt;
 
-&lt;h2 id=&#34;私が使っているディレクトリ構成:8833f81119c3dc59eaa42f06ba083a4e&#34;&gt;私が使っているディレクトリ構成&lt;/h2&gt;
+&lt;h2 id=&#34;私が使っているディレクトリ構成&#34;&gt;私が使っているディレクトリ構成&lt;/h2&gt;
 
 &lt;p&gt;実際には以下のようなシンボリックリンクを貼って使っています。&lt;/p&gt;
 
@@ -470,7 +732,7 @@ fi
 &lt;/ul&gt;&lt;/li&gt;
 &lt;/ul&gt;
 
-&lt;h2 id=&#34;コマンド実行時の環境変数指定:8833f81119c3dc59eaa42f06ba083a4e&#34;&gt;コマンド実行時の環境変数指定&lt;/h2&gt;
+&lt;h2 id=&#34;コマンド実行時の環境変数指定&#34;&gt;コマンド実行時の環境変数指定&lt;/h2&gt;
 
 &lt;p&gt;コマンドを実行するときはPATHを通すかフルパスで指定するだけではなく、 TS_ROOT 環境変数も指定する必要があります。&lt;/p&gt;
 
@@ -491,17 +753,17 @@ fi
       <guid>/blog/2016/07/01/tips_for_writing_ansible_module/</guid>
       <description>
 
-&lt;h2 id=&#34;はじめに:91fdf0f527761dfe68cbe531954e665b&#34;&gt;はじめに&lt;/h2&gt;
+&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
 
 &lt;p&gt;lxd_containerというAnsibleのモジュールを書いたときに学んだtipsのメモです。&lt;/p&gt;
 
-&lt;h2 id=&#34;モジュールでデバッグ出力は出来ないのでデバッグ情報は戻り値のjsonに入れる:91fdf0f527761dfe68cbe531954e665b&#34;&gt;モジュールでデバッグ出力は出来ないのでデバッグ情報は戻り値のJSONに入れる&lt;/h2&gt;
+&lt;h2 id=&#34;モジュールでデバッグ出力は出来ないのでデバッグ情報は戻り値のjsonに入れる&#34;&gt;モジュールでデバッグ出力は出来ないのでデバッグ情報は戻り値のJSONに入れる&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://groups.google.com/d/msg/ansible-devel/s0iSb7phnqY/UB9vaLFJAwAJ&#34;&gt;ansible-dev MLでの投稿&lt;/a&gt;によるとモジュールは何も出力できないとのことなので、デバッグ情報は戻り値のJSONに入れる必要があります。&lt;/p&gt;
 
 &lt;p&gt;Ansible 2.1からはAnsibleModuleクラスでは &lt;code&gt;_verbosity&lt;/code&gt;、それ以外では &lt;code&gt;_ansible_verbosity&lt;/code&gt; で &lt;code&gt;-v&lt;/code&gt;, &lt;code&gt;-vv&lt;/code&gt;, &lt;code&gt;-vvv&lt;/code&gt;, &lt;code&gt;-vvvv&lt;/code&gt; を指定した場合の &lt;code&gt;v&lt;/code&gt; の個数が取得できるので、それに応じて戻り値のJSONにデバッグ情報を含めるかどうか制御することが出来ます。値は &lt;code&gt;-v&lt;/code&gt; を指定しない場合は 0 で、 &lt;code&gt;-vvvv&lt;/code&gt; だと4という感じです。&lt;/p&gt;
 
-&lt;h2 id=&#34;コードフォーマットのチェック:91fdf0f527761dfe68cbe531954e665b&#34;&gt;コードフォーマットのチェック&lt;/h2&gt;
+&lt;h2 id=&#34;コードフォーマットのチェック&#34;&gt;コードフォーマットのチェック&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/ansible/ansible-modules-extras/pull/2208#discussion_r62996064&#34;&gt;Ansibleのコミッタの方からのコメント&lt;/a&gt; で &lt;code&gt;pep8&lt;/code&gt; というツールでコードフォーマットのチェックを行っているということを知りました。&lt;/p&gt;
 
@@ -510,7 +772,7 @@ fi
 
 &lt;p&gt;という感じで使います。 pep8はUbuntu 16.04 では &lt;code&gt;sudo apt install pep8&lt;/code&gt; でインストールできました。&lt;/p&gt;
 
-&lt;h2 id=&#34;ansibleモジュールのチェック:91fdf0f527761dfe68cbe531954e665b&#34;&gt;Ansibleモジュールのチェック&lt;/h2&gt;
+&lt;h2 id=&#34;ansibleモジュールのチェック&#34;&gt;Ansibleモジュールのチェック&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/ansible/ansible-modules-extras&#34;&gt;ansible/ansible-modules-extras&lt;/a&gt; にプルリクエストを送ると Travis CI でチェックが走るのですが、そのチェックの1つで &lt;code&gt;ansible-validate-modules&lt;/code&gt; というコマンドが使われていました。&lt;/p&gt;
 
@@ -523,7 +785,7 @@ fi
 
 &lt;p&gt;でチェックできます。&lt;/p&gt;
 
-&lt;h2 id=&#34;サードパーティのrequestsを使うとansible-module-utils-urlsを使うべきというエラーが出る:91fdf0f527761dfe68cbe531954e665b&#34;&gt;サードパーティのrequestsを使うとansible.module_utils.urlsを使うべきというエラーが出る&lt;/h2&gt;
+&lt;h2 id=&#34;サードパーティのrequestsを使うとansible-module-utils-urlsを使うべきというエラーが出る&#34;&gt;サードパーティのrequestsを使うとansible.module_utils.urlsを使うべきというエラーが出る&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;http://docs.python-requests.org/en/master/&#34;&gt;Requests: HTTP for Humans&lt;/a&gt;を使っているとansible-validate-modulesが &lt;code&gt;ansible.module_utils.urls&lt;/code&gt; を使うべきという&lt;a href=&#34;https://github.com/ansible/ansible-modules-extras/pull/2208#issuecomment-228027653&#34;&gt;エラーを出してきます&lt;/a&gt;。&lt;/p&gt;
 
@@ -541,7 +803,7 @@ fi
       <guid>/blog/2016/06/30/experiment-cockroachdb-key-value-store/</guid>
       <description>
 
-&lt;h2 id=&#34;はじめに:d4901d701062398e61ef5512c7569aa7&#34;&gt;はじめに&lt;/h2&gt;
+&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;h/blog/2016/06/20/lsm-tree-and-rocksdb/&#34;&gt;LSM-TreeとRocksDB、TiDB、CockroachDBが気になる&lt;/a&gt; で紹介した &lt;a href=&#34;https://github.com/cockroachdb/cockroach#client-drivers&#34;&gt;CockroachDB&lt;/a&gt; は &lt;a href=&#34;https://github.com/cockroachdb/cockroach#what-is-cockroachdb&#34;&gt;What is CockroachDB?&lt;/a&gt; によるとスケールアウトできる分散SQLデータベースです。 &lt;a href=&#34;https://github.com/cockroachdb/cockroach#client-drivers&#34;&gt;PostgreSQLのワイヤープロトコルをサポート&lt;/a&gt; していて、 &lt;a href=&#34;https://github.com/cockroachdb/cockroach#quickstart&#34;&gt;Quickstart&lt;/a&gt; の例のようにPostgreSQLで扱えるSQLのサブセットが使えます。&lt;/p&gt;
 
@@ -552,7 +814,7 @@ fi
 &lt;p&gt;ということで、そのへんのソースを見ていこうと思います。といっても、まだ全体を把握しているわけではないので、だらだら書いていきます。
 CockroachDBにデバッグ用のコマンドが用意されていたので、それで実験しつつ読み進めたいと思います。&lt;/p&gt;
 
-&lt;h2 id=&#34;rocksdbラッパーレイヤとengineパッケージ:d4901d701062398e61ef5512c7569aa7&#34;&gt;RocksDBラッパーレイヤとengineパッケージ&lt;/h2&gt;
+&lt;h2 id=&#34;rocksdbラッパーレイヤとengineパッケージ&#34;&gt;RocksDBラッパーレイヤとengineパッケージ&lt;/h2&gt;
 
 &lt;p&gt;RocksDBはC++で書かれているので、Goから呼び出すためcgoでラッピングしているレイヤがあります。 &lt;a href=&#34;https://github.com/cockroachdb/cockroach/tree/master/storage/engine/rocksdb&#34;&gt;cockroach/storage/engine/rocksdb&lt;/a&gt; にC++で書かれたファイルがいくつかあります。 &lt;a href=&#34;https://github.com/cockroachdb/cockroach/tree/master/storage/engine&#34;&gt;cockroach/storage/engine&lt;/a&gt; パッケージのドキュメント &lt;a href=&#34;https://godoc.org/github.com/cockroachdb/cockroach/storage/engine&#34;&gt;engine - GoDoc&lt;/a&gt; にこのパッケージで低レベルのストレージを提供しているという説明があります。&lt;/p&gt;
 
@@ -586,7 +848,7 @@ CockroachDBにデバッグ用のコマンドが用意されていたので、そ
 
 &lt;p&gt;&lt;a href=&#34;https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#RocksDB&#34;&gt;RocksDB&lt;/a&gt; という構造体定義があり、これが Engine インタフェースを実装しています。  &lt;a href=&#34;https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#NewRocksDB&#34;&gt;NewRocksDB&lt;/a&gt; 関数で RocksDB を作成できます。&lt;/p&gt;
 
-&lt;h2 id=&#34;newrocksdb関数の呼び出し箇所:d4901d701062398e61ef5512c7569aa7&#34;&gt;NewRocksDB関数の呼び出し箇所&lt;/h2&gt;
+&lt;h2 id=&#34;newrocksdb関数の呼び出し箇所&#34;&gt;NewRocksDB関数の呼び出し箇所&lt;/h2&gt;
 
 &lt;p&gt;NewRocksDB関数は、テストコード以外では、以下の2箇所で呼ばれていました。&lt;/p&gt;
 
@@ -605,7 +867,7 @@ CockroachDBにデバッグ用のコマンドが用意されていたので、そ
 
 &lt;p&gt;後者を呼び出している箇所を見ていくとデバッグ用のサブコマンドがあることがわかりました。&lt;/p&gt;
 
-&lt;h2 id=&#34;デバッグ用サブコマンドを試してみた:d4901d701062398e61ef5512c7569aa7&#34;&gt;デバッグ用サブコマンドを試してみた&lt;/h2&gt;
+&lt;h2 id=&#34;デバッグ用サブコマンドを試してみた&#34;&gt;デバッグ用サブコマンドを試してみた&lt;/h2&gt;
 
 &lt;p&gt;前提条件としてLXDの3つのコンテナroach1, roach2, roach3で以下のようにCockroachDBを起動している状態とします。&lt;/p&gt;
 
@@ -626,7 +888,7 @@ CockroachDBにデバッグ用のコマンドが用意されていたので、そ
 
 &lt;p&gt;特にコンテナでなくても1台のサーバで &lt;a href=&#34;https://github.com/cockroachdb/cockroach#quickstart&#34;&gt;Quickstart&lt;/a&gt;のlocal clusterでも構いません。その場合は下記のコマンドの &lt;code&gt;--host&lt;/code&gt; の部分を適宜読み替えてください。&lt;/p&gt;
 
-&lt;h3 id=&#34;debug-kv-コマンドを試してみた:d4901d701062398e61ef5512c7569aa7&#34;&gt;debug kv コマンドを試してみた&lt;/h3&gt;
+&lt;h3 id=&#34;debug-kv-コマンドを試してみた&#34;&gt;debug kv コマンドを試してみた&lt;/h3&gt;
 
 &lt;p&gt;debug kvコマンドで、キー・バリュー・ストアに値を設定したり取得したり出来ます。&lt;/p&gt;
 
@@ -661,7 +923,7 @@ root@roach1:~# cockroach debug kv scan --host 192.168.0.13
 1 result(s)
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h3 id=&#34;debug-keys-コマンドを試してみた:d4901d701062398e61ef5512c7569aa7&#34;&gt;debug keys コマンドを試してみた&lt;/h3&gt;
+&lt;h3 id=&#34;debug-keys-コマンドを試してみた&#34;&gt;debug keys コマンドを試してみた&lt;/h3&gt;
 
 &lt;p&gt;debug keysコマンドで、キー・バリュー・ストアの内部構造をダンプして見ることが出来ます。このコマンドはサーバを停止した状態でデータのディレクトリを指定して実行するようになっています。&lt;/p&gt;
 
@@ -731,7 +993,7 @@ fooという文字列の後にタイムスタンプがついているのがわ�
   Put [&amp;ldquo;foo&amp;rdquo;,/Min)
   range_id:21 origin_replica:&lt;node_id:2 store_id:2 replica_id:2 &gt; cmd:&lt;header:&lt;timestamp:&lt;wall_time:1467234744564568969 logical:0 &gt; replica:&lt;node_id:2 store_id:2 replica_id:2 &gt; range_id:21 user_priority:NORMAL read_consistency:CONSISTENT trace:&lt;trace_id:4947902158296355776 span_id:7041358067641207168 &gt; max_scan_results:0 distinct_spans:false &amp;gt; requests:&lt;put:&lt;header:&lt;key:&#34;foo&#34; &gt; value:&lt;raw_bytes:&#34;s|S\306\003Hello, key value store in CockroachDB&#34; timestamp:&lt;wall_time:0 logical:0 &gt; &amp;gt; inline:false blind:false &amp;gt; &amp;gt; &amp;gt; max_lease_index:990&lt;/p&gt;
 
-&lt;h2 id=&#34;おわりに:d4901d701062398e61ef5512c7569aa7&#34;&gt;おわりに&lt;/h2&gt;
+&lt;h2 id=&#34;おわりに&#34;&gt;おわりに&lt;/h2&gt;
 
 &lt;p&gt;CockroachDBのキーバリューストレージのデバッグコマンドを試してみました。対応するソースコードも読んでみたいところですが、
 &lt;a href=&#34;https://www.arangodb.com/2016/06/arangodb-3-0-a-solid-ground-to-scale/&#34;&gt;ArangoDB 3.0 – A Solid Ground to Scale – ArangoDB&lt;/a&gt;
@@ -747,13 +1009,13 @@ fooという文字列の後にタイムスタンプがついているのがわ�
       <guid>/blog/2016/06/22/experimented_with_naming_for_many_sequential_numbered_files/</guid>
       <description>
 
-&lt;h2 id=&#34;はじめに:1f6ed6b3467dd7db9ba6f4f92a4aff0c&#34;&gt;はじめに&lt;/h2&gt;
+&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
 
 &lt;p&gt;0〜1,000,000といった連番のファイルを作るときに、1つのディレクトリに全てのファイルを入れると、遅くなるとか取り扱いが面倒になるという懸念があります。&lt;/p&gt;
 
 &lt;p&gt;そこで、ディレクトリを切って分割するのですが、数が少ない場合でも多い場合でも良さそうな方法を思いついたのでメモです。&lt;/p&gt;
 
-&lt;h2 id=&#34;素朴な案:1f6ed6b3467dd7db9ba6f4f92a4aff0c&#34;&gt;素朴な案&lt;/h2&gt;
+&lt;h2 id=&#34;素朴な案&#34;&gt;素朴な案&lt;/h2&gt;
 
 &lt;p&gt;最初に思いついたのは以下のような命名規則です。&lt;/p&gt;
 
@@ -778,7 +1040,7 @@ fooという文字列の後にタイムスタンプがついているのがわ�
 &lt;li&gt;ゼロパディングする際にファイルの最大数を考えて桁数を決めておく必要がある。&lt;/li&gt;
 &lt;/ul&gt;
 
-&lt;h2 id=&#34;改善案:1f6ed6b3467dd7db9ba6f4f92a4aff0c&#34;&gt;改善案&lt;/h2&gt;
+&lt;h2 id=&#34;改善案&#34;&gt;改善案&lt;/h2&gt;
 
 &lt;p&gt;上記の2つの欠点を解消する案を思いつきました。&lt;/p&gt;
 
@@ -806,7 +1068,7 @@ fooという文字列の後にタイムスタンプがついているのがわ�
 &lt;li&gt;ファイルの最大数を事前に決めなくても、パスの長さ制限の範囲内であればこの命名規則でどんどん深いディレクトリを作ってファイルを格納できる。&lt;/li&gt;
 &lt;/ul&gt;
 
-&lt;h2 id=&#34;サンプルコード:1f6ed6b3467dd7db9ba6f4f92a4aff0c&#34;&gt;サンプルコード&lt;/h2&gt;
+&lt;h2 id=&#34;サンプルコード&#34;&gt;サンプルコード&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/many_files_experiment&#34;&gt;hnakamur/many_files_experiment&lt;/a&gt; におきました。&lt;/p&gt;
 </description>
@@ -820,13 +1082,13 @@ fooという文字列の後にタイムスタンプがついているのがわ�
       <guid>/blog/2016/06/20/lsm-tree-and-rocksdb/</guid>
       <description>
 
-&lt;h2 id=&#34;はじめに:4c97747b39b98778589cfc717acd1a16&#34;&gt;はじめに&lt;/h2&gt;
+&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
 
 &lt;p&gt;キーバリューストアについて調べていたらLSM-Treeというデータ構造とRocksDBが気になったということで調査メモです。ただし、それぞれの技術詳細を調査したり自分で検証してみたというメモではないです。&lt;/p&gt;
 
 &lt;p&gt;そうではなく、いろんな記事で言及されていたり、ソフトウェアで採用されているのが気になったというだけの浅いメモです。が、脳内バッファからあふれる量になったので自分用に軽くまとめ。&lt;/p&gt;
 
-&lt;h2 id=&#34;lsm-tree:4c97747b39b98778589cfc717acd1a16&#34;&gt;LSM Tree&lt;/h2&gt;
+&lt;h2 id=&#34;lsm-tree&#34;&gt;LSM Tree&lt;/h2&gt;
 
 &lt;p&gt;Log-structured merge-treeを略してLSM Treeと呼ぶそうです。概要は&lt;a href=&#34;https://en.wikipedia.org/wiki/Log-structured_merge-tree&#34;&gt;Log-structured merge-tree - Wikipedia&lt;/a&gt;を参照してください。&lt;/p&gt;
 
@@ -834,7 +1096,7 @@ fooという文字列の後にタイムスタンプがついているのがわ�
 
 &lt;p&gt;一方、LSM Treeのほうはディスク使用量は肥大化しがちで定期的にコンパクションする必要があって、コンパクションには負荷がかかるので、この方式を各実装で工夫しているという話を何処かで読んだんですがリンクを紛失してしまいました。&lt;/p&gt;
 
-&lt;h2 id=&#34;influxdbの事例:4c97747b39b98778589cfc717acd1a16&#34;&gt;InfluxDBの事例&lt;/h2&gt;
+&lt;h2 id=&#34;influxdbの事例&#34;&gt;InfluxDBの事例&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://docs.influxdata.com/influxdb/v0.13/concepts/storage_engine/&#34;&gt;InfluxData | Documentation | Storage Engine&lt;/a&gt;によるとInfluxDBのストレージエンジンは以下の変遷を辿ったそうです。&lt;/p&gt;
 
@@ -844,7 +1106,7 @@ fooという文字列の後にタイムスタンプがついているのがわ�
 &lt;li&gt;LSM Treeに似た独自のデータ構造でストレージエンジンを自作&lt;/li&gt;
 &lt;/ol&gt;
 
-&lt;h2 id=&#34;tidbの事例:4c97747b39b98778589cfc717acd1a16&#34;&gt;TiDBの事例&lt;/h2&gt;
+&lt;h2 id=&#34;tidbの事例&#34;&gt;TiDBの事例&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/pingcap/tidb&#34;&gt;pingcap/tidb: TiDB is a distributed NewSQL database compatible with MySQL protocol&lt;/a&gt;&lt;/p&gt;
 
@@ -864,7 +1126,7 @@ fooという文字列の後にタイムスタンプがついているのがわ�
 &lt;li&gt;TiDBの起源についてのブログ記事。&lt;a href=&#34;http://0xffff.me/thoughts-behind-tidb-part-1/&#34;&gt;Thoughts behind TiDB - Part I&lt;/a&gt;。私は中国語読めないのでGoogle翻訳で英語にして読みました。&lt;/li&gt;
 &lt;/ul&gt;
 
-&lt;h2 id=&#34;cockroachdbの事例:4c97747b39b98778589cfc717acd1a16&#34;&gt;CockroachDBの事例&lt;/h2&gt;
+&lt;h2 id=&#34;cockroachdbの事例&#34;&gt;CockroachDBの事例&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/cockroachdb/cockroach&#34;&gt;cockroachdb/cockroach: A Scalable, Survivable, Strongly-Consistent SQL Database&lt;/a&gt;&lt;/p&gt;
 
@@ -888,7 +1150,7 @@ fooという文字列の後にタイムスタンプがついているのがわ�
 &lt;/ul&gt;&lt;/li&gt;
 &lt;/ul&gt;
 
-&lt;h2 id=&#34;lsm-treeの実装はいろいろあるがrocksdbが良いらしい:4c97747b39b98778589cfc717acd1a16&#34;&gt;LSM Treeの実装はいろいろあるがRocksDBが良いらしい&lt;/h2&gt;
+&lt;h2 id=&#34;lsm-treeの実装はいろいろあるがrocksdbが良いらしい&#34;&gt;LSM Treeの実装はいろいろあるがRocksDBが良いらしい&lt;/h2&gt;
 
 &lt;p&gt;InfluxDBの開発元influxdataのブログのベンチマーク記事 &lt;a href=&#34;https://influxdata.com/blog/benchmarking-leveldb-vs-rocksdb-vs-hyperleveldb-vs-lmdb-performance-for-influxdb/&#34;&gt;Benchmarking LevelDB vs. RocksDB vs. HyperLevelDB vs. LMDB Performance for InfluxDB | InfluxData&lt;/a&gt;でも値の書き込みとクエリ実行の性能が良いのはRocksDBとなっています。&lt;/p&gt;
 
@@ -900,7 +1162,7 @@ fooという文字列の後にタイムスタンプがついているのがわ�
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/facebook/rocksdb/wiki/RocksDB-FAQ&#34;&gt;RocksDB FAQ&lt;/a&gt;の &amp;ldquo;Q: What&amp;rsquo;s the maximum key and value sizes supported?&amp;rdquo; によると、RocksDBは大きなサイズのキー用にはデザインされておらず、推奨されるキーと値の最大サイズはそれぞれ8MBと3GBとのことです。&lt;/p&gt;
 
-&lt;h2 id=&#34;おわりに:4c97747b39b98778589cfc717acd1a16&#34;&gt;おわりに&lt;/h2&gt;
+&lt;h2 id=&#34;おわりに&#34;&gt;おわりに&lt;/h2&gt;
 
 &lt;p&gt;書き込みが多いケースに向いているキーバリューストアであるRocksDBと、RocksDBをつかて分散トランザクションを実現しているデータベースであるTiDBとCockroachDBの今後に注目したいと思います。&lt;/p&gt;
 </description>
@@ -914,11 +1176,11 @@ fooという文字列の後にタイムスタンプがついているのがわ�
       <guid>/blog/2016/06/15/tried-service-discovery-with-sleuth/</guid>
       <description>
 
-&lt;h2 id=&#34;はじめに:ddadb6ee7dee03e92fb3b4df013b68c7&#34;&gt;はじめに&lt;/h2&gt;
+&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;http://darian.af/post/master-less-peer-to-peer-micro-service-autodiscovery-in-golang-with-sleuth/&#34;&gt;Service autodiscovery in Go with sleuth - darian.af&lt;/a&gt;という記事を見かけて試してみたのでメモです。&lt;/p&gt;
 
-&lt;h2 id=&#34;github-com-ursiform-sleuthのセットアップ:ddadb6ee7dee03e92fb3b4df013b68c7&#34;&gt;github.com/ursiform/sleuthのセットアップ&lt;/h2&gt;
+&lt;h2 id=&#34;github-com-ursiform-sleuthのセットアップ&#34;&gt;github.com/ursiform/sleuthのセットアップ&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/ursiform/sleuth#installation&#34;&gt;Installation&lt;/a&gt;を見ながらセットアップします。&lt;/p&gt;
 
@@ -949,7 +1211,7 @@ zmq4.h:2:2: error: #error &amp;quot;You need ZeroMQ version 4 to build this&amp;
 &lt;pre&gt;&lt;code&gt;$ go get -u github.com/ursiform/sleuth
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;動作確認のためエコーバックのサービスの例を試す:ddadb6ee7dee03e92fb3b4df013b68c7&#34;&gt;動作確認のためエコーバックのサービスの例を試す&lt;/h2&gt;
+&lt;h2 id=&#34;動作確認のためエコーバックのサービスの例を試す&#34;&gt;動作確認のためエコーバックのサービスの例を試す&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/ursiform/sleuth#examples&#34;&gt;Examples&lt;/a&gt;のExample (1)にエコーバックのサーバとクライアントがあるのでそれを試します。&lt;/p&gt;
 
@@ -988,7 +1250,7 @@ It works.
 Hello
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;サービスディスカバリの例を試す:ddadb6ee7dee03e92fb3b4df013b68c7&#34;&gt;サービスディスカバリの例を試す&lt;/h2&gt;
+&lt;h2 id=&#34;サービスディスカバリの例を試す&#34;&gt;サービスディスカバリの例を試す&lt;/h2&gt;
 
 &lt;pre&gt;&lt;code&gt;go get -u github.com/afshin/sleuth-example/...
 &lt;/code&gt;&lt;/pre&gt;
@@ -1100,13 +1362,13 @@ already an incredibly effective way to use wild forage to make human food.&amp;q
 }
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;sleuthのq-aを見てみる:ddadb6ee7dee03e92fb3b4df013b68c7&#34;&gt;sleuthのQ &amp;amp; Aを見てみる&lt;/h2&gt;
+&lt;h2 id=&#34;sleuthのq-aを見てみる&#34;&gt;sleuthのQ &amp;amp; Aを見てみる&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/ursiform/sleuth#q--a&#34;&gt;Q &amp;amp; A&lt;/a&gt;を見ると、sleuthのメッセージプロトコルはJSONをgzipしてHTTPで通信しているとのことです。Protocol Buffersなどの他のライブラリに依存するのを避けたいという意図で、マイクロサービスのAPIレスポンスのほとんどは小さいのでJSONをgzipする方式で十分だし、そのほうがGo以外の言語でも利用しやすいので良いだろうということです。&lt;/p&gt;
 
 &lt;p&gt;sleuthは熊のグループの集合名詞とのことです。&lt;/p&gt;
 
-&lt;h2 id=&#34;おわりに:ddadb6ee7dee03e92fb3b4df013b68c7&#34;&gt;おわりに&lt;/h2&gt;
+&lt;h2 id=&#34;おわりに&#34;&gt;おわりに&lt;/h2&gt;
 
 &lt;p&gt;sleuthはzeromqとGoさえあれば使えるということでセットアップが簡単です。&lt;/p&gt;
 
@@ -1124,18 +1386,18 @@ already an incredibly effective way to use wild forage to make human food.&amp;q
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/delta24/gist&#34;&gt;delta24/gist: A command line gister in Go&lt;/a&gt;です。期待通りに動かない点があったのでプルリクエストを送ったら、すぐにマージされました。&lt;/p&gt;
 
-&lt;h2 id=&#34;インストール:fc3bd82c10a86f881e77f6b5f9ec06f5&#34;&gt;インストール&lt;/h2&gt;
+&lt;h2 id=&#34;インストール&#34;&gt;インストール&lt;/h2&gt;
 
 &lt;p&gt;Goはインストール済みという前提で、以下のコマンドを実行します。&lt;/p&gt;
 
 &lt;pre&gt;&lt;code&gt;go get -u github.com/delta24/gist
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;事前準備:fc3bd82c10a86f881e77f6b5f9ec06f5&#34;&gt;事前準備&lt;/h2&gt;
+&lt;h2 id=&#34;事前準備&#34;&gt;事前準備&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://help.github.com/articles/creating-an-access-token-for-command-line-use/&#34;&gt;Creating an access token for command-line use - User Documentation&lt;/a&gt;の手順でアクセストークンを作って、 &lt;code&gt;~/.bash_profile&lt;/code&gt; とかに &lt;code&gt;export GITHUB_TOKEN=...&lt;/code&gt; のように書くなどして環境変数として設定するか、 あるいは &lt;code&gt;~/.gist&lt;/code&gt; というファイルを作ってトークンの値を書いておきます。&lt;/p&gt;
 
-&lt;h2 id=&#34;使い方の例:fc3bd82c10a86f881e77f6b5f9ec06f5&#34;&gt;使い方の例&lt;/h2&gt;
+&lt;h2 id=&#34;使い方の例&#34;&gt;使い方の例&lt;/h2&gt;
 
 &lt;p&gt;自分のユーザでpublicなgistを作成&lt;/p&gt;
 
@@ -1236,7 +1498,7 @@ go version go1.6.2 linux/amd64
       <guid>/blog/2016/06/13/wrote_go_ltsvlog_library/</guid>
       <description>
 
-&lt;h2 id=&#34;なぜ書いたか:9bb767831423b01f10b84a34c21f4871&#34;&gt;なぜ書いたか&lt;/h2&gt;
+&lt;h2 id=&#34;なぜ書いたか&#34;&gt;なぜ書いたか&lt;/h2&gt;
 
 &lt;p&gt;Goで高機能なサードパーティのログ出力ライブラリと言えば&lt;a href=&#34;https://github.com/Sirupsen/logrus&#34;&gt;Sirupsen/logrus&lt;/a&gt;が有名です。私も&lt;a href=&#34;https://github.com/doloopwhile/logrusltsv&#34;&gt;doloopwhile/logrusltsv&lt;/a&gt;と組み合わせてLTSV形式のログ出力するのに使っていました。&lt;/p&gt;
 
@@ -1255,9 +1517,9 @@ go version go1.6.2 linux/amd64
 
 &lt;p&gt;githubレポジトリのREADMEに使用例のコードがあります。&lt;/p&gt;
 
-&lt;h2 id=&#34;ltsvlogの設計と実装:9bb767831423b01f10b84a34c21f4871&#34;&gt;ltsvlogの設計と実装&lt;/h2&gt;
+&lt;h2 id=&#34;ltsvlogの設計と実装&#34;&gt;ltsvlogの設計と実装&lt;/h2&gt;
 
-&lt;h3 id=&#34;ltsvlogのログレベル:9bb767831423b01f10b84a34c21f4871&#34;&gt;ltsvlogのログレベル&lt;/h3&gt;
+&lt;h3 id=&#34;ltsvlogのログレベル&#34;&gt;ltsvlogのログレベル&lt;/h3&gt;
 
 &lt;p&gt;&lt;a href=&#34;http://dave.cheney.net/2015/11/05/lets-talk-about-logging&#34;&gt;Let’s talk about logging | Dave Cheney&lt;/a&gt;にもありましたが、ログレベルが多すぎると使い分けで悩むので少ないほうが良いと私も思います。ただ、エラー以外にもなにかが成功したときに記録しておきたいことはあるので、ErrorとInfoは分けたほうが良いと思います。あと私はprintデバッグ信者なのでデバッグログ用のDebugレベルは必要です。&lt;/p&gt;
 
@@ -1273,7 +1535,7 @@ go version go1.6.2 linux/amd64
     }
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h3 id=&#34;スタックトレースの出力:9bb767831423b01f10b84a34c21f4871&#34;&gt;スタックトレースの出力&lt;/h3&gt;
+&lt;h3 id=&#34;スタックトレースの出力&#34;&gt;スタックトレースの出力&lt;/h3&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://godoc.org/github.com/hnakamur/ltsvlog#LTSVLogger.ErrorWithStack&#34;&gt;LTSVLogger.ErrorWithStack&lt;/a&gt;でスタックトレース付きでログ出力できます。&lt;/p&gt;
 
@@ -1284,11 +1546,11 @@ go version go1.6.2 linux/amd64
 
 &lt;p&gt;&lt;a href=&#34;https://golang.org/pkg/runtime/#Stack&#34;&gt;runtime.Stack&lt;/a&gt;は呼び出し側がバッファを渡す必要があるのですが、サイズが小さいとスタックトレースが途中で切れてしまいます。デフォルトで 8192 というサイズにしたのですが、足りない場合は &lt;a href=&#34;https://godoc.org/github.com/hnakamur/ltsvlog#NewLTSVLoggerCustomFormat&#34;&gt;NewLTSVLoggerCustomFormat&lt;/a&gt; の引数でバッファサイズを指定できるようにしてます。&lt;/p&gt;
 
-&lt;h3 id=&#34;時刻とログレベルの出力:9bb767831423b01f10b84a34c21f4871&#34;&gt;時刻とログレベルの出力&lt;/h3&gt;
+&lt;h3 id=&#34;時刻とログレベルの出力&#34;&gt;時刻とログレベルの出力&lt;/h3&gt;
 
 &lt;p&gt;時刻はUTCでフォーマットは &lt;a href=&#34;https://golang.org/pkg/time/#pkg-constants&#34;&gt;time&lt;/a&gt;パッケージの &lt;code&gt;RFC3339Nano = &amp;quot;2006-01-02T15:04:05.999999999Z07:00&amp;quot;&lt;/code&gt; に近いですが、ナノセカンドの部分は個人的な好みで9桁固定で出力するようにしました。&lt;/p&gt;
 
-&lt;h3 id=&#34;値の文字列化:9bb767831423b01f10b84a34c21f4871&#34;&gt;値の文字列化&lt;/h3&gt;
+&lt;h3 id=&#34;値の文字列化&#34;&gt;値の文字列化&lt;/h3&gt;
 
 &lt;p&gt;上のコード例のようにラベルと値の組は&lt;a href=&#34;https://godoc.org/github.com/hnakamur/ltsvlog#LV&#34;&gt;ltsvlog.LV&lt;/a&gt;で指定します。&lt;/p&gt;
 
@@ -1304,7 +1566,7 @@ go version go1.6.2 linux/amd64
 
 &lt;p&gt;時刻とログレベルの出力形式と値の文字列化の方式を変えたい場合は関数を実装して&lt;a href=&#34;https://godoc.org/github.com/hnakamur/ltsvlog#NewLTSVLoggerCustomFormat&#34;&gt;NewLTSVLoggerCustomFormat&lt;/a&gt; の引数に指定すれば良いようにしてあります。&lt;/p&gt;
 
-&lt;h3 id=&#34;グローバルロガー:9bb767831423b01f10b84a34c21f4871&#34;&gt;グローバルロガー&lt;/h3&gt;
+&lt;h3 id=&#34;グローバルロガー&#34;&gt;グローバルロガー&lt;/h3&gt;
 
 &lt;p&gt;標準の&lt;a href=&#34;https://golang.org/pkg/log/&#34;&gt;log&lt;/a&gt;パッケージではグローバルロガーの変数は非公開で&lt;a href=&#34;https://golang.org/pkg/log/#Print&#34;&gt;log.Print&lt;/a&gt;や&lt;a href=&#34;https://golang.org/pkg/log/#SetOutput&#34;&gt;log.SetOutput&lt;/a&gt;の関数で操作するようになっています。&lt;/p&gt;
 
@@ -1315,11 +1577,11 @@ go version go1.6.2 linux/amd64
 
 &lt;p&gt;ログ出力中に設定を変えることはないという想定です。&lt;/p&gt;
 
-&lt;h3 id=&#34;logwriterインタフェースと常に何も出力しないdiscard:9bb767831423b01f10b84a34c21f4871&#34;&gt;LogWriterインタフェースと常に何も出力しないDiscard&lt;/h3&gt;
+&lt;h3 id=&#34;logwriterインタフェースと常に何も出力しないdiscard&#34;&gt;LogWriterインタフェースと常に何も出力しないDiscard&lt;/h3&gt;
 
 &lt;p&gt;後付ですが&lt;a href=&#34;https://godoc.org/github.com/hnakamur/ltsvlog#LogWriter&#34;&gt;ltsvlog.LogWriter&lt;/a&gt;というインタフェースも定義してみました。インタフェースは Logger という名前にしたいところでしたが、グローバルロガーに Logger という名前を使っていたので仕方なく LogWriter にしました。そして常に何も出力しない Discard というのも作りました。ただし、Infoなどの引数は評価されてしまうので実行コストが0なわけではないです。&lt;/p&gt;
 
-&lt;h2 id=&#34;おわりに:9bb767831423b01f10b84a34c21f4871&#34;&gt;おわりに&lt;/h2&gt;
+&lt;h2 id=&#34;おわりに&#34;&gt;おわりに&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/ltsvlog#benchmark-result&#34;&gt;Benchmark result&lt;/a&gt;に標準のlogパッケージと比較したベンチマーク結果を載せています。logパッケージよりは遅い手ですがほぼ同等だと言えると思います。&lt;/p&gt;
 
@@ -1337,11 +1599,11 @@ go version go1.6.2 linux/amd64
       <guid>/blog/2016/06/12/wrote_remoteworkers_go_pacakge/</guid>
       <description>
 
-&lt;h2 id=&#34;なぜ書いたか:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;なぜ書いたか&lt;/h2&gt;
+&lt;h2 id=&#34;なぜ書いたか&#34;&gt;なぜ書いたか&lt;/h2&gt;
 
 &lt;p&gt;仕事で複数のサーバで同じ処理を実行して結果を集めたいというニーズがあって、各サーバをgRPCのサーバにするという実装でとりあえず実現していました。でも、出来れば処理を実行するワーカーサーバから制御サーバに接続して繋ぎっぱなしにしておいて、制御サーバからジョブを送り込む方式にしたいなーと思っていて、家で実装を進めていました。&lt;/p&gt;
 
-&lt;h2 id=&#34;これまでに試したこと:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;これまでに試したこと&lt;/h2&gt;
+&lt;h2 id=&#34;これまでに試したこと&#34;&gt;これまでに試したこと&lt;/h2&gt;
 
 &lt;p&gt;gRPCに&lt;a href=&#34;http://www.grpc.io/docs/tutorials/basic/go.html#bidirectional-streaming-rpc&#34;&gt;Bidirectional streaming RPC&lt;/a&gt;というのがあったので、&lt;a href=&#34;https://github.com/hnakamur/grpc_notification_experiment&#34;&gt;hnakamur/grpc_notification_experiment&lt;/a&gt;で試してみたのですが、複数クライアントがサーバに接続した状態で、サーバからクライアントにジョブを投げても、1つのクライアントでしか処理が実行されないということがわかりました。&lt;/p&gt;
 
@@ -1352,7 +1614,7 @@ go version go1.6.2 linux/amd64
 
 &lt;p&gt;しかし、この実装では1つのジョブを実行中は他のジョブを実行できないという制限があります。また試しているとタイミングによっては期待通りの動きにならないことがありました。&lt;/p&gt;
 
-&lt;h2 id=&#34;今回の実装:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;今回の実装&lt;/h2&gt;
+&lt;h2 id=&#34;今回の実装&#34;&gt;今回の実装&lt;/h2&gt;
 
 &lt;p&gt;実装は&lt;a href=&#34;https://github.com/hnakamur/remoteworkers&#34;&gt;hnakamur/remoteworkers&lt;/a&gt;で公開しています。使用例は&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/tree/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example&#34;&gt;remoteworkers/example&lt;/a&gt;、APIドキュメントは&lt;a href=&#34;https://godoc.org/github.com/hnakamur/remoteworkers&#34;&gt;remoteworkers - GoDoc&lt;/a&gt;を参照してください。&lt;/p&gt;
 
@@ -1362,11 +1624,11 @@ go version go1.6.2 linux/amd64
 
 &lt;p&gt;以下実装メモです。&lt;/p&gt;
 
-&lt;h3 id=&#34;connとhub:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;ConnとHub&lt;/h3&gt;
+&lt;h3 id=&#34;connとhub&#34;&gt;ConnとHub&lt;/h3&gt;
 
 &lt;p&gt;サーバ側のメインの処理は、サーバとワーカーのコネクションを扱う&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/conn.go&#34;&gt;Conn&lt;/a&gt;と複数のConnの間を取り持つ&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go&#34;&gt;Hub&lt;/a&gt;が担当しています。&lt;/p&gt;
 
-&lt;h3 id=&#34;読み取りと書き出しでgoroutineを分ける:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;読み取りと書き出しでgoroutineを分ける&lt;/h3&gt;
+&lt;h3 id=&#34;読み取りと書き出しでgoroutineを分ける&#34;&gt;読み取りと書き出しでgoroutineを分ける&lt;/h3&gt;
 
 &lt;p&gt;上記の&lt;a href=&#34;https://github.com/hnakamur/tcp_pubsubreply_experiment&#34;&gt;hnakamur/tcp_pubsubreply_experiment&lt;/a&gt;では、ワーカーとサーバ間のTCPコネクション1つのに対して1つgoroutineを作ってデータの読み書きをしていました。&lt;/p&gt;
 
@@ -1378,23 +1640,23 @@ go version go1.6.2 linux/amd64
 
 &lt;p&gt;さらに、ワーカーでのジョブの実行も &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/worker.go#L200-L214&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/worker.go#L200-L214&lt;/a&gt; のように別のgoroutineで実行するようにしました。読み取りと書き出しのgoroutineを分け、ジョブ実行のgoroutineも別にしたことで、ワーカーでジョブを実行中でも別のジョブを受け取って実行することが出来るようになりました。&lt;/p&gt;
 
-&lt;h3 id=&#34;ジョブのディスパッチと結果の収集:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;ジョブのディスパッチと結果の収集&lt;/h3&gt;
+&lt;h3 id=&#34;ジョブのディスパッチと結果の収集&#34;&gt;ジョブのディスパッチと結果の収集&lt;/h3&gt;
 
 &lt;p&gt;各ワーカーからにジョブを投げて結果を集める部分も &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L139-L171&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L139-L171&lt;/a&gt; のように書くことで、複数のジョブを並行で実行できるようになっています。&lt;/p&gt;
 
 &lt;p&gt;例えば、あるジョブを依頼されてそれの結果が集まる前に、次のジョブを受け取ってそちらの結果が先に集まった場合はそちらを先に返すことができます。&lt;/p&gt;
 
-&lt;h3 id=&#34;自動で再接続:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;自動で再接続&lt;/h3&gt;
+&lt;h3 id=&#34;自動で再接続&#34;&gt;自動で再接続&lt;/h3&gt;
 
 &lt;p&gt;ワーカーとの接続が切れた場合は、残ったワーカーだけで処理を実行する仕様としました。ジョブを受け取った時にワーカーが1つもいない場合はエラーとしています。また、ワーカーからサーバへの接続が切れた場合は1秒待って再起動を無限に繰り替えすようにしています。時間は設定で変更可能です。ただし、だんだん間隔を開けるといったことは出来ないのでその場合はフォークして改変してください。&lt;/p&gt;
 
-&lt;h3 id=&#34;返信用のチャンネルを渡して実行:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;返信用のチャンネルを渡して実行&lt;/h3&gt;
+&lt;h3 id=&#34;返信用のチャンネルを渡して実行&#34;&gt;返信用のチャンネルを渡して実行&lt;/h3&gt;
 
 &lt;p&gt;サーバとワーカのコネクションをHubに登録する箇所 &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/conn.go#L86-L92&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/conn.go#L86-L92&lt;/a&gt; とクライアントから依頼されたジョブをHubに投げて全ワーカーからの結果を受け取る箇所 &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L194-L203&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L194-L203&lt;/a&gt; では、結果を受け取るためのチャンネルをHubへのチャンネルに渡して実行するという方法を取りました。&lt;/p&gt;
 
 &lt;p&gt;これによってHubとのやり取りは全てチャンネル経由になりシンプルになりました。さらに関数の中に閉じ込めることで、ライブラリの利用者はチャンネルを意識することなく単なる関数呼び出しで使えるようになっています。&lt;/p&gt;
 
-&lt;h3 id=&#34;ジョブのエンコード-デコード:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;ジョブのエンコード・デコード&lt;/h3&gt;
+&lt;h3 id=&#34;ジョブのエンコード-デコード&#34;&gt;ジョブのエンコード・デコード&lt;/h3&gt;
 
 &lt;p&gt;まずクライアントではジョブをJSONでエンコードしています。
 &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/client/client.go#L25-L30&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/client/client.go#L25-L30&lt;/a&gt;&lt;/p&gt;
@@ -1414,7 +1676,7 @@ go version go1.6.2 linux/amd64
 &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/worker/main.go#L47-L58&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/worker/main.go#L47-L58&lt;/a&gt;
 です。&lt;a href=&#34;https://github.com/vmihailenco/msgpack&#34;&gt;vmihailenco/msgpack&lt;/a&gt;で &lt;code&gt;map[string]string&lt;/code&gt; 型をエンコードしてデコードすると &lt;code&gt;map[interface{}]interface{}&lt;/code&gt; になったので&lt;a href=&#34;https://golang.org/ref/spec#Type_assertions&#34;&gt;type assertion&lt;/a&gt;を使って参照する必要がありました。&lt;/p&gt;
 
-&lt;h3 id=&#34;結果のエンコード-デコード:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;結果のエンコード・デコード&lt;/h3&gt;
+&lt;h3 id=&#34;結果のエンコード-デコード&#34;&gt;結果のエンコード・デコード&lt;/h3&gt;
 
 &lt;p&gt;ワーカーでの結果は
 &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/worker.go#L202-L206&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/worker.go#L202-L206&lt;/a&gt;
@@ -1434,13 +1696,13 @@ go version go1.6.2 linux/amd64
 &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/server/main.go#L69-L70&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/server/main.go#L69-L70&lt;/a&gt;
 でJSONにエンコードしています。&lt;/p&gt;
 
-&lt;h3 id=&#34;tcpソケットからwebsocketにして良かったところ:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;TCPソケットからWebSocketにして良かったところ&lt;/h3&gt;
+&lt;h3 id=&#34;tcpソケットからwebsocketにして良かったところ&#34;&gt;TCPソケットからWebSocketにして良かったところ&lt;/h3&gt;
 
 &lt;p&gt;ワーカーからサーバに接続したときにワーカーのIDを登録しているのですが、TCPソケットのときはそのためにワーカーから登録用のメッセージを送って成功失敗の結果を送る必要がありました。一方WebSocketではエンドポイントに接続するときにリクエストヘッダで追加の情報を送れるので &lt;code&gt;X-Worker-ID&lt;/code&gt; と言うヘッダ名でワーカーIDを送るようにしました。&lt;/p&gt;
 
 &lt;p&gt;また、TCPソケットだと1つのポートでクライアントとワーカーからの通信を受ける場合はメッセージの内容で区別がつくようにしておく必要があります。WebSocketの場合は1つのポートでもURLのPathを別にするという手が使えるので楽です。しかも今回のようにワーカーはWebSocketで接続し、クライアントはhttpで接続ということも出来て便利です。&lt;/p&gt;
 
-&lt;h2 id=&#34;おわりに:f08dcf6e6ce356e4d337921a2f499b3e&#34;&gt;おわりに&lt;/h2&gt;
+&lt;h2 id=&#34;おわりに&#34;&gt;おわりに&lt;/h2&gt;
 
 &lt;p&gt;当初やりたいと思っていたことがようやく実現できました。しかも、これだけ並列性が高いプログラムなのにgoroutineとchannelのおかげですっきりシンプルなコードで実装出来ています。これなら保守や改変もしやすくて助かります。やっぱりGoは素晴らしいです！&lt;/p&gt;
 </description>
@@ -1533,11 +1795,11 @@ BenchmarkCSVMsgpack-2                    1000000              1541 ns/op        
 ok      gopkg.in/vmihailenco/msgpack.v2 58.623s
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;gopkg-in-vmihailenco-msgpack-v2-でgoのstructをエンコード-デコードするインターフェース:b74e35b057eed94577fdfad5f24e6611&#34;&gt;gopkg.in/vmihailenco/msgpack.v2 でGoのstructをエンコード・デコードするインターフェース&lt;/h2&gt;
+&lt;h2 id=&#34;gopkg-in-vmihailenco-msgpack-v2-でgoのstructをエンコード-デコードするインターフェース&#34;&gt;gopkg.in/vmihailenco/msgpack.v2 でGoのstructをエンコード・デコードするインターフェース&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://godoc.org/gopkg.in/vmihailenco/msgpack.v2#Marshaler&#34;&gt;Marshaler&lt;/a&gt; はdeprecatedで&lt;a href=&#34;https://godoc.org/gopkg.in/vmihailenco/msgpack.v2#CustomEncoder&#34;&gt;CustomEncoder&lt;/a&gt;を使えとのことです。&lt;a href=&#34;https://godoc.org/gopkg.in/vmihailenco/msgpack.v2#CustomEncoder&#34;&gt;CustomEncoder&lt;/a&gt; の Example を見ると使い方も簡単そうです。&lt;/p&gt;
 
-&lt;h2 id=&#34;gopkg-in-vmihailenco-msgpack-v2-を使うことにします:b74e35b057eed94577fdfad5f24e6611&#34;&gt;gopkg.in/vmihailenco/msgpack.v2 を使うことにします&lt;/h2&gt;
+&lt;h2 id=&#34;gopkg-in-vmihailenco-msgpack-v2-を使うことにします&#34;&gt;gopkg.in/vmihailenco/msgpack.v2 を使うことにします&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/vmihailenco/msgpack&#34;&gt;github.com/vmihailenco/msgpack&lt;/a&gt;も&lt;a href=&#34;https://github.com/ugorji/go/tree/master/codec&#34;&gt;go/codec at master · ugorji/go&lt;/a&gt;も活発にメンテナンスされているようです。&lt;/p&gt;
 
@@ -1555,7 +1817,7 @@ ok      gopkg.in/vmihailenco/msgpack.v2 58.623s
 
 &lt;p&gt;Python Package Index (PyPI)の &lt;a href=&#34;https://pypi.python.org/pypi/pylxd/2.0.0&#34;&gt;pylxd 2.0.0&lt;/a&gt;のページにインストール方法と使い方の例が書いてあるので、これに沿って試しました。&lt;/p&gt;
 
-&lt;h2 id=&#34;インストール:bdf999a6ff5e91d3491152b509b9755e&#34;&gt;インストール&lt;/h2&gt;
+&lt;h2 id=&#34;インストール&#34;&gt;インストール&lt;/h2&gt;
 
 &lt;p&gt;Ubuntu 16.04だとaptでインストール可能なのでそちらでインストールしました。Python3用のpython3-pylxdパッケージとPython2用のpython-pylxdパッケージがありますが、今後Ansibleのモジュールを作ることを想定してPython2用のパッケージをインストールして試してみました。&lt;/p&gt;
 
@@ -1568,7 +1830,7 @@ ok      gopkg.in/vmihailenco/msgpack.v2 58.623s
 2.0.0-0ubuntu1
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id=&#34;試してみる:bdf999a6ff5e91d3491152b509b9755e&#34;&gt;試してみる&lt;/h2&gt;
+&lt;h2 id=&#34;試してみる&#34;&gt;試してみる&lt;/h2&gt;
 
 &lt;pre&gt;&lt;code&gt;$ python
 Python 2.7.11+ (default, Apr 17 2016, 14:00:29)
@@ -1594,141 +1856,6 @@ False
 &amp;lt;pylxd.container.Container object at 0x7fd44065dc30&amp;gt;
 &amp;gt;&amp;gt;&amp;gt; client.containers.get(u&#39;cent01&#39;).status
 u&#39;Running&#39;
-&lt;/code&gt;&lt;/pre&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>LXDのREST APIをcurlで試してみた</title>
-      <link>/blog/2016/05/07/tried-lxd-rest-api-with-curl/</link>
-      <pubDate>Sat, 07 May 2016 21:17:34 +0900</pubDate>
-      
-      <guid>/blog/2016/05/07/tried-lxd-rest-api-with-curl/</guid>
-      <description>
-
-&lt;h2 id=&#34;lxdのrest-api:7237ac0558fc8bd24e4a1da16716b70c&#34;&gt;LXDのREST API&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://linuxcontainers.org/ja/lxd/rest-api/&#34;&gt;Linux Containers - LXD - REST API&lt;/a&gt;と&lt;a href=&#34;https://github.com/lxc/lxd/blob/master/doc/rest-api.md&#34;&gt;lxd/rest-api.md at master · lxc/lxd&lt;/a&gt;にLXDのREST APIについて説明があります。&lt;/p&gt;
-
-&lt;p&gt;また&lt;a href=&#34;https://github.com/lxc/lxd#using-the-rest-api&#34;&gt;Using the REST API&lt;/a&gt;に &lt;code&gt;curl&lt;/code&gt; コマンドでのAPI呼び出し例が書かれていました。&lt;/p&gt;
-
-&lt;h2 id=&#34;curlでhttpsのエンドポイントにアクセスしてみたがエラー:7237ac0558fc8bd24e4a1da16716b70c&#34;&gt;curlでhttpsのエンドポイントにアクセスしてみたがエラー&lt;/h2&gt;
-
-&lt;p&gt;まずはhttpsのURLで &lt;a href=&#34;https://github.com/lxc/lxd/blob/master/doc/rest-api.md#10&#34;&gt;/1.0&lt;/a&gt; エンドポイントを試してみたのですが、 &lt;code&gt;ALPN, server did not agree to a protocol&lt;/code&gt; というエラーになってしまいました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ curl -k -v --cert ~/.config/lxc/client.crt --key ~/.config/lxc/client.key https://127.0.0.1:8443/1.0
-*   Trying 127.0.0.1...
-* Connected to 127.0.0.1 (127.0.0.1) port 8443 (#0)
-* found 173 certificates in /etc/ssl/certs/ca-certificates.crt
-* found 692 certificates in /etc/ssl/certs
-* ALPN, offering http/1.1
-* SSL connection using TLS1.2 / ECDHE_RSA_AES_128_GCM_SHA256
-*        server certificate verification SKIPPED
-*        server certificate status verification SKIPPED
-*        common name: root@express (does not match &#39;127.0.0.1&#39;)
-*        server certificate expiration date OK
-*        server certificate activation date OK
-*        certificate public key: RSA
-*        certificate version: #3
-*        subject: O=linuxcontainers.org,CN=root@express
-*        start date: Tue, 03 May 2016 11:26:51 GMT
-*        expire date: Fri, 01 May 2026 11:26:51 GMT
-*        issuer: O=linuxcontainers.org,CN=root@express
-*        compression: NULL
-* ALPN, server did not agree to a protocol
-&amp;gt; GET /1.0 HTTP/1.1
-&amp;gt; Host: 127.0.0.1:8443
-&amp;gt; User-Agent: curl/7.47.0
-&amp;gt; Accept: */*
-&amp;gt;
-&amp;lt; HTTP/1.1 200 OK
-&amp;lt; Content-Type: application/json
-&amp;lt; Date: Sat, 07 May 2016 12:25:53 GMT
-&amp;lt; Content-Length: 162
-&amp;lt;
-{&amp;quot;type&amp;quot;:&amp;quot;sync&amp;quot;,&amp;quot;status&amp;quot;:&amp;quot;Success&amp;quot;,&amp;quot;status_code&amp;quot;:200,&amp;quot;metadata&amp;quot;:{&amp;quot;api_extensions&amp;quot;:[],&amp;quot;api_status&amp;quot;:&amp;quot;stable&amp;quot;,&amp;quot;api_version&amp;quot;:&amp;quot;1.0&amp;quot;,&amp;quot;auth&amp;quot;:&amp;quot;untrusted&amp;quot;,&amp;quot;public&amp;quot;:false}}
-* Connection #0 to host 127.0.0.1 left intact
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;この件は&lt;a href=&#34;https://lists.linuxcontainers.org/pipermail/lxc-users/2016-May/011603.html&#34;&gt;[lxc-users] The error &amp;ldquo;ALPN, server did not agree to a protocol&amp;rdquo; from LXD Rest API&lt;/a&gt;で質問してみました。&lt;/p&gt;
-
-&lt;h2 id=&#34;curlでunix-domain-socket経由でアクセスしてみたら成功:7237ac0558fc8bd24e4a1da16716b70c&#34;&gt;curlでunix domain socket経由でアクセスしてみたら成功&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://qiita.com/toritori0318/items/193df8f749a9c4bda883&#34;&gt;curlでunix domain socket経由アクセスする - Qiita&lt;/a&gt;を参考に以下のようにアクセスしてみると成功しました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ curl -s --unix-socket /var/lib/lxd/unix.socket https:/1.0 | jq .
-{
-  &amp;quot;type&amp;quot;: &amp;quot;sync&amp;quot;,
-  &amp;quot;status&amp;quot;: &amp;quot;Success&amp;quot;,
-  &amp;quot;status_code&amp;quot;: 200,
-  &amp;quot;metadata&amp;quot;: {
-    &amp;quot;api_extensions&amp;quot;: [],
-    &amp;quot;api_status&amp;quot;: &amp;quot;stable&amp;quot;,
-    &amp;quot;api_version&amp;quot;: &amp;quot;1.0&amp;quot;,
-    &amp;quot;auth&amp;quot;: &amp;quot;trusted&amp;quot;,
-    &amp;quot;config&amp;quot;: {
-      &amp;quot;core.https_address&amp;quot;: &amp;quot;127.0.0.1:8443&amp;quot;,
-      &amp;quot;core.trust_password&amp;quot;: true
-    },
-    &amp;quot;environment&amp;quot;: {
-      &amp;quot;addresses&amp;quot;: [
-        &amp;quot;127.0.0.1:8443&amp;quot;
-      ],
-      &amp;quot;architectures&amp;quot;: [
-        &amp;quot;x86_64&amp;quot;,
-        &amp;quot;i686&amp;quot;
-      ],
-      &amp;quot;certificate&amp;quot;: &amp;quot;-----BEGIN CERTIFICATE-----\n …(略)… \n-----END CERTIFICATE-----\n&amp;quot;,
-      &amp;quot;driver&amp;quot;: &amp;quot;lxc&amp;quot;,
-      &amp;quot;driver_version&amp;quot;: &amp;quot;2.0.0&amp;quot;,
-      &amp;quot;kernel&amp;quot;: &amp;quot;Linux&amp;quot;,
-      &amp;quot;kernel_architecture&amp;quot;: &amp;quot;x86_64&amp;quot;,
-      &amp;quot;kernel_version&amp;quot;: &amp;quot;4.4.0-21-generic&amp;quot;,
-      &amp;quot;server&amp;quot;: &amp;quot;lxd&amp;quot;,
-      &amp;quot;server_pid&amp;quot;: 6446,
-      &amp;quot;server_version&amp;quot;: &amp;quot;2.0.0&amp;quot;,
-      &amp;quot;storage&amp;quot;: &amp;quot;dir&amp;quot;,
-      &amp;quot;storage_version&amp;quot;: &amp;quot;&amp;quot;
-    },
-    &amp;quot;public&amp;quot;: false
-  }
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;code&gt;sudo lxd init&lt;/code&gt; でLXDをネットワーク越しに使うかの問いにnoと答えた環境では以下のような出力になりました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ curl -s --unix-socket /var/lib/lxd/unix.socket http:/1.0 | jq .
-{
-  &amp;quot;type&amp;quot;: &amp;quot;sync&amp;quot;,
-  &amp;quot;status&amp;quot;: &amp;quot;Success&amp;quot;,
-  &amp;quot;status_code&amp;quot;: 200,
-  &amp;quot;metadata&amp;quot;: {
-    &amp;quot;api_extensions&amp;quot;: [],
-    &amp;quot;api_status&amp;quot;: &amp;quot;stable&amp;quot;,
-    &amp;quot;api_version&amp;quot;: &amp;quot;1.0&amp;quot;,
-    &amp;quot;auth&amp;quot;: &amp;quot;trusted&amp;quot;,
-    &amp;quot;config&amp;quot;: {},
-    &amp;quot;environment&amp;quot;: {
-      &amp;quot;addresses&amp;quot;: [],
-      &amp;quot;architectures&amp;quot;: [
-        &amp;quot;x86_64&amp;quot;,
-        &amp;quot;i686&amp;quot;
-      ],
-      &amp;quot;certificate&amp;quot;: &amp;quot;-----BEGIN CERTIFICATE-----\n …(略)… \n-----END CERTIFICATE-----\n&amp;quot;,
-      &amp;quot;driver&amp;quot;: &amp;quot;lxc&amp;quot;,
-      &amp;quot;driver_version&amp;quot;: &amp;quot;2.0.0&amp;quot;,
-      &amp;quot;kernel&amp;quot;: &amp;quot;Linux&amp;quot;,
-      &amp;quot;kernel_architecture&amp;quot;: &amp;quot;x86_64&amp;quot;,
-      &amp;quot;kernel_version&amp;quot;: &amp;quot;4.4.0-21-generic&amp;quot;,
-      &amp;quot;server&amp;quot;: &amp;quot;lxd&amp;quot;,
-      &amp;quot;server_pid&amp;quot;: 2150,
-      &amp;quot;server_version&amp;quot;: &amp;quot;2.0.0&amp;quot;,
-      &amp;quot;storage&amp;quot;: &amp;quot;dir&amp;quot;,
-      &amp;quot;storage_version&amp;quot;: &amp;quot;&amp;quot;
-    },
-    &amp;quot;public&amp;quot;: false
-  }
-}
 &lt;/code&gt;&lt;/pre&gt;
 </description>
     </item>

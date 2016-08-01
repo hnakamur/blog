@@ -70,7 +70,7 @@
 
 <p><code>ansible.cfg</code> で <code>ask_vault_pass = True</code> と指定しているので、プレイブック実行時に <code>Vault password:</code> と聞かれます。パスワードは <code>password</code> です。サンプルなので単純なパスワードにしていますが、実案件でのプレイブックはきちんとしたパスワードをつけています。</p>
 
-<h2 id="テスト環境構築:d1a3148f1e3eab3f266598e4a5977fd4">テスト環境構築</h2>
+<h2 id="テスト環境構築">テスト環境構築</h2>
 
 <p>ホストマシンのディストリビューションはUbuntu 16.04でLXD 2.0.3, curl, jqをインストール済みの状態で試しました。</p>
 
@@ -87,7 +87,7 @@ source venv/bin/activate
 pip install git+https://github.com/ansible/ansible
 </code></pre>
 
-<h2 id="masterとstandbyのコンテナを作成:d1a3148f1e3eab3f266598e4a5977fd4">masterとstandbyのコンテナを作成</h2>
+<h2 id="masterとstandbyのコンテナを作成">masterとstandbyのコンテナを作成</h2>
 
 <pre><code>ansible-playbook launch_containers.yml
 </code></pre>
@@ -102,7 +102,7 @@ pgsql2 postgresql_peer_ipaddr=10.155.92.202 postgressql_master_standby_type=stan
 ansible_connection=lxd
 </code></pre>
 
-<h2 id="コンテナ内にpostgresqlの非同期レプリケーションの環境設定:d1a3148f1e3eab3f266598e4a5977fd4">コンテナ内にPostgreSQLの非同期レプリケーションの環境設定</h2>
+<h2 id="コンテナ内にpostgresqlの非同期レプリケーションの環境設定">コンテナ内にPostgreSQLの非同期レプリケーションの環境設定</h2>
 
 <p>以下のコマンドを実行してセットアップを実行します。</p>
 
@@ -132,9 +132,9 @@ sudo -u postgres -i
 
 <p>上記の手順を1歩ずつ試し、 test データベースを作る前は pgsql2 では <code>psql test</code> が失敗しますが作った後は成功するなどで同期が確認できます。</p>
 
-<h2 id="レプリケーションの状態確認:d1a3148f1e3eab3f266598e4a5977fd4">レプリケーションの状態確認</h2>
+<h2 id="レプリケーションの状態確認">レプリケーションの状態確認</h2>
 
-<h3 id="master側での確認:d1a3148f1e3eab3f266598e4a5977fd4">master側での確認</h3>
+<h3 id="master側での確認">master側での確認</h3>
 
 <p>以下のコマンドを実行します。</p>
 
@@ -164,7 +164,7 @@ sync_priority    | 0
 sync_state       | async
 </code></pre>
 
-<h3 id="standby側での確認:d1a3148f1e3eab3f266598e4a5977fd4">standby側での確認</h3>
+<h3 id="standby側での確認">standby側での確認</h3>
 
 <p>以下のコマンドを実行します。</p>
 
@@ -186,14 +186,14 @@ postgres  2078  0.0  0.0 240632  7016 ?        Ss   08:34   0:05 postgres: wal r
 reaming 0/30031E0
 </code></pre>
 
-<h2 id="フェイルオーバー:d1a3148f1e3eab3f266598e4a5977fd4">フェイルオーバー</h2>
+<h2 id="フェイルオーバー">フェイルオーバー</h2>
 
 <p>masterのPostgreSQLを停止し、 standbyをmasterにpromote (昇格)させます。</p>
 
 <pre><code>ansible-playbook failover.yml
 </code></pre>
 
-<h2 id="旧masterを新standbyとして稼働再開:d1a3148f1e3eab3f266598e4a5977fd4">旧masterを新standbyとして稼働再開</h2>
+<h2 id="旧masterを新standbyとして稼働再開">旧masterを新standbyとして稼働再開</h2>
 
 <p>ここでインベントリファイル <code>development</code> 内の <code>postgressql_master_standby_type</code> 変数の <code>master</code> と <code>standby</code> を入れ替えます。</p>
 
@@ -208,19 +208,19 @@ reaming 0/30031E0
 ansible-playbook initial_setup.yml
 </code></pre>
 
-<h2 id="フェイルバック:d1a3148f1e3eab3f266598e4a5977fd4">フェイルバック</h2>
+<h2 id="フェイルバック">フェイルバック</h2>
 
 <p>masterとstandbyを入れ替えているので、フェイルバックの手順はフェイルオーバーと同じです。</p>
 
 <pre><code>ansible-playbook failover.yml
 </code></pre>
 
-<h2 id="コンテナの削除:d1a3148f1e3eab3f266598e4a5977fd4">コンテナの削除</h2>
+<h2 id="コンテナの削除">コンテナの削除</h2>
 
 <pre><code>ansible-playbook delete_containers.yml
 </code></pre>
 
-<h2 id="ansible-vaultを使う際の変数命名規則のtips:d1a3148f1e3eab3f266598e4a5977fd4">Ansible vaultを使う際の変数命名規則のtips</h2>
+<h2 id="ansible-vaultを使う際の変数命名規則のtips">Ansible vaultを使う際の変数命名規則のtips</h2>
 
 <p><code>ansible-vault encrypt</code> で暗号化したファイルの内容を確認するには <code>ansible-vault decrypt</code> で復号化する必要があります。どんな変数があったかを確認する度に行うのは面倒なので、以下のように暗号化するファイル内で定義する変数を一旦別の変数で受け取ってplaybookではそれを参照するようにしました。</p>
 
@@ -246,7 +246,7 @@ group_vars/development/vars.yml
 
 <p>のようにその変数を参照するようにするという具合です。</p>
 
-<h2 id="おわりに:d1a3148f1e3eab3f266598e4a5977fd4">おわりに</h2>
+<h2 id="おわりに">おわりに</h2>
 
 <p>LXDを使えば複数サーバ構成のテスト環境も簡単に作れてとても便利です！</p>
 
@@ -266,7 +266,8 @@ group_vars/development/vars.yml
             <div class="eight columns">
                 <div class="li-pagination-previous">
                     
-                        &nbsp;
+                        Later article<br />
+                        <a href="/blog/2016/08/02/about-go-pitfalls/"> ブログ記事「Go言語(Golang) はまりどころと解決策」についてのコメント</a>
                     
                 </div>
             </div>
