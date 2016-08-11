@@ -6,8 +6,85 @@
     <description>Recent content on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Tue, 02 Aug 2016 05:57:52 +0900</lastBuildDate>
+    <lastBuildDate>Thu, 11 Aug 2016 22:58:21 +0900</lastBuildDate>
     <atom:link href="/blog/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>LXDのDHCPで使っていないIPアドレスを一括で解放するスクリプトを書いた</title>
+      <link>/blog/2016/08/11/release-all-unused-addresses-of-lxd-bridge/</link>
+      <pubDate>Thu, 11 Aug 2016 22:58:21 +0900</pubDate>
+      
+      <guid>/blog/2016/08/11/release-all-unused-addresses-of-lxd-bridge/</guid>
+      <description>
+
+&lt;p&gt;&lt;a href=&#34;/blog/blog/2016/05/07/how-to-use-fixed-ip-address-for-a-lxd-container/&#34;&gt;LXDコンテナで固定IPアドレスを使うための設定 · hnakamur&amp;rsquo;s blog at github&lt;/a&gt; の設定を行ってもIPアドレスが指定通りにならないことがありました。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;journal -xe&lt;/code&gt; で見てみると&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Aug 11 22:46:55 bai1b7faf04 dnsmasq-dhcp[11082]: not using configured address 10.155.92.102 because it is leased to 00:16:3e:1e:08:8a
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;というメッセージが出ていて、他のMACアドレスに貸出中になっています。&lt;/p&gt;
+
+&lt;p&gt;ググってみると &lt;a href=&#34;http://www.linuxquestions.org/questions/linux-newbie-8/dnsmasq-force-release-renew-of-dhcp-clients-how-933535/&#34;&gt;[SOLVED] dnsmasq force release/renew of dhcp clients, how?&lt;/a&gt; に回答がありました。&lt;/p&gt;
+
+&lt;h2 id=&#34;使っていないipアドレスを手動で消す&#34;&gt;使っていないIPアドレスを手動で消す&lt;/h2&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo systemctl stop lxd-bridge
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;で止めて&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo vi /var/lib/lxd-bridge/dnsmasq.lxdbr0.leases
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;で使っていないIPアドレスの行を全て削除します。&lt;/p&gt;
+
+&lt;p&gt;その後&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo systemctl start lxd-bridge
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;で再起動します。&lt;/p&gt;
+
+&lt;h2 id=&#34;自動で消すスクリプトも書きました&#34;&gt;自動で消すスクリプトも書きました&lt;/h2&gt;
+
+&lt;p&gt;これでよいかと思ったら、
+&lt;a href=&#34;http://lists.thekelleys.org.uk/pipermail/dnsmasq-discuss/2013q3/007356.html&#34;&gt;http://lists.thekelleys.org.uk/pipermail/dnsmasq-discuss/2013q3/007356.html&lt;/a&gt;
+を見て &lt;code&gt;dhcp_release&lt;/code&gt; というコマンドを使えば &lt;code&gt;lxd-bridge&lt;/code&gt; の再起動が不要なことを知りました。&lt;/p&gt;
+
+&lt;p&gt;ということでスクリプトを書いてみました。
+&lt;a href=&#34;https://gist.github.com/hnakamur/7ed3f7c6175817b633586a1b468bd5c1&#34;&gt;https://gist.github.com/hnakamur/7ed3f7c6175817b633586a1b468bd5c1&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;#!/bin/sh
+set -eu
+
+# Set value of LXD_BRIDGE
+. /etc/default/lxd-bridge
+
+addr_list_file=/tmp/lxd-addr-list.`date +%Y-%m-%dT%H:%M:%S`
+lxc list | awk &#39;$4==&amp;quot;RUNNING&amp;quot;{print $6}&#39; &amp;gt; $addr_list_file
+cleanup() {
+  rm $addr_list_file
+}
+trap cleanup EXIT
+
+awk -v addr_list_file=$addr_list_file -v interface=$LXD_BRIDGE &#39;{
+  mac_addr = $2
+  addr = $3
+  ret = system(sprintf(&amp;quot;awk -v addr=%s &#39;\&#39;&#39;BEGIN{rc=1} $1==addr{rc=0} END{exit rc}&#39;\&#39;&#39; %s&amp;quot;, addr,  addr_list_file))
+  if (ret == 1) {
+    system(sprintf(&amp;quot;sudo dhcp_release %s %s %s&amp;quot;, interface, addr, mac_addr))
+  }
+}&#39; /var/lib/lxd-bridge/dnsmasq.$LXD_BRIDGE.leases
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Ubuntu 16.04 の場合 &lt;code&gt;dhcp_release&lt;/code&gt; コマンドを使うには以下のように &lt;code&gt;dnsmasq-utils&lt;/code&gt; パッケージをインストールする必要があります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo apt -y install dnsmasq-utils
+&lt;/code&gt;&lt;/pre&gt;
+</description>
+    </item>
     
     <item>
       <title>ブログ記事「Go言語(Golang) はまりどころと解決策」についてのコメント</title>
@@ -1804,59 +1881,6 @@ ok      gopkg.in/vmihailenco/msgpack.v2 58.623s
 &lt;p&gt;&lt;a href=&#34;https://github.com/vmihailenco/msgpack&#34;&gt;github.com/vmihailenco/msgpack&lt;/a&gt;も&lt;a href=&#34;https://github.com/ugorji/go/tree/master/codec&#34;&gt;go/codec at master · ugorji/go&lt;/a&gt;も活発にメンテナンスされているようです。&lt;/p&gt;
 
 &lt;p&gt;APIドキュメント &lt;a href=&#34;https://godoc.org/gopkg.in/vmihailenco/msgpack.v2&#34;&gt;gopkg.in/vmihailenco/msgpack.v2&lt;/a&gt;、&lt;a href=&#34;https://godoc.org/github.com/ugorji/go/codec&#34;&gt;github.com/ugorji/go/codec&lt;/a&gt; を見ると私は前者のほうがしっくりきました。ということで gopkg.in/vmihailenco/msgpack.v2 を使うことにします。&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>LXDのREST APIクライアントライブラリpylxdを試してみた</title>
-      <link>/blog/2016/05/07/tried-pylxd/</link>
-      <pubDate>Sat, 07 May 2016 21:17:35 +0900</pubDate>
-      
-      <guid>/blog/2016/05/07/tried-pylxd/</guid>
-      <description>
-
-&lt;p&gt;Python Package Index (PyPI)の &lt;a href=&#34;https://pypi.python.org/pypi/pylxd/2.0.0&#34;&gt;pylxd 2.0.0&lt;/a&gt;のページにインストール方法と使い方の例が書いてあるので、これに沿って試しました。&lt;/p&gt;
-
-&lt;h2 id=&#34;インストール&#34;&gt;インストール&lt;/h2&gt;
-
-&lt;p&gt;Ubuntu 16.04だとaptでインストール可能なのでそちらでインストールしました。Python3用のpython3-pylxdパッケージとPython2用のpython-pylxdパッケージがありますが、今後Ansibleのモジュールを作ることを想定してPython2用のパッケージをインストールして試してみました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;sudo apt install -y python-pylxd
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;インストールしたpython-pylxdのバージョンは &lt;code&gt;2.0.0-0ubuntu1&lt;/code&gt; です。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ dpkg-query -W -f=&#39;${Version}\n&#39; python-pylxd
-2.0.0-0ubuntu1
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id=&#34;試してみる&#34;&gt;試してみる&lt;/h2&gt;
-
-&lt;pre&gt;&lt;code&gt;$ python
-Python 2.7.11+ (default, Apr 17 2016, 14:00:29)
-[GCC 5.3.1 20160413] on linux2
-Type &amp;quot;help&amp;quot;, &amp;quot;copyright&amp;quot;, &amp;quot;credits&amp;quot; or &amp;quot;license&amp;quot; for more information.
-&amp;gt;&amp;gt;&amp;gt; from pylxd import api
-&amp;gt;&amp;gt;&amp;gt; lxd = api.API()
-&amp;gt;&amp;gt;&amp;gt; lxd.container_defined(&#39;cent01&#39;)
-True
-&amp;gt;&amp;gt;&amp;gt; lxd.container_defined(&#39;hoge&#39;)
-False
-&amp;gt;&amp;gt;&amp;gt; lxd.container_list()
-[u&#39;cent01&#39;, u&#39;cent02&#39;]
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;ここから先は &lt;a href=&#34;https://github.com/lxc/pylxd/blob/master/pylxd/client.py&#34;&gt;pylxd/client.py&lt;/a&gt; と &lt;a href=&#34;https://github.com/lxc/pylxd/blob/master/pylxd/container.py&#34;&gt;pylxd/container.py&lt;/a&gt; の ソースを見ながら試しました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;&amp;gt;&amp;gt;&amp;gt; from pylxd.client import Client
-&amp;gt;&amp;gt;&amp;gt; client = Client()
-&amp;gt;&amp;gt;&amp;gt; client.containers.all()
-[&amp;lt;pylxd.container.Container object at 0x7fd44065db00&amp;gt;, &amp;lt;pylxd.container.Container object at 0x7fd44065db98&amp;gt;]
-&amp;gt;&amp;gt;&amp;gt; client.containers.get(u&#39;cent01&#39;)
-&amp;lt;pylxd.container.Container object at 0x7fd44065dc30&amp;gt;
-&amp;gt;&amp;gt;&amp;gt; client.containers.get(u&#39;cent01&#39;).status
-u&#39;Running&#39;
-&lt;/code&gt;&lt;/pre&gt;
 </description>
     </item>
     
