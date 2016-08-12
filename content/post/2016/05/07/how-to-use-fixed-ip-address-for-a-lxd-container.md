@@ -6,6 +6,10 @@ date = "2016-05-07T18:01:51+09:00"
 title = "LXDコンテナで固定IPアドレスを使うための設定"
 
 +++
+## 2016-08-12 追記
+
+`lxd-bridge` サービスを再起動せずに固定IPアドレス設定を更新できるようにするための設定方法を [LXDのdnsmasqの固定IP設定をSIGHUPで更新する · hnakamur's blog at github](/blog/2016/08/12/update-lxd-dnsmasq-dhcp-hosts-config-with-sighup/) に書きました。こちらのほうがお勧めです。
+
 ## 設定まとめ
 
 自分が後から参照することを想定して先に設定方法をまとめます。
