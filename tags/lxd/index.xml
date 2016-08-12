@@ -6,8 +6,160 @@
     <description>Recent content in Lxd on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Thu, 11 Aug 2016 22:58:21 +0900</lastBuildDate>
+    <lastBuildDate>Fri, 12 Aug 2016 06:38:18 +0900</lastBuildDate>
     <atom:link href="/blog/tags/lxd/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>LXDのdnsmasqの固定IP設定をSIGHUPで更新する</title>
+      <link>/blog/2016/08/12/update-lxd-dnsmasq-dhcp-hosts-config-with-sighup/</link>
+      <pubDate>Fri, 12 Aug 2016 06:38:18 +0900</pubDate>
+      
+      <guid>/blog/2016/08/12/update-lxd-dnsmasq-dhcp-hosts-config-with-sighup/</guid>
+      <description>
+
+&lt;p&gt;&lt;a href=&#34;/blog/blog/2016/05/07/how-to-use-fixed-ip-address-for-a-lxd-container/&#34;&gt;LXDコンテナで固定IPアドレスを使うための設定 · hnakamur&amp;rsquo;s blog at github&lt;/a&gt; では &lt;code&gt;/etc/dnsmasq.conf&lt;/code&gt; に直接 &lt;code&gt;dhcp-host&lt;/code&gt; で設定を書いていましたが、変更するためには &lt;code&gt;lxd-bridge&lt;/code&gt; の再起動が必要でした。&lt;/p&gt;
+
+&lt;p&gt;その後 &lt;a href=&#34;http://manpages.ubuntu.com/manpages/xenial/en/man8/dnsmasq.8.html&#34;&gt;Ubuntu Manpage: dnsmasq - A lightweight DHCP and caching DNS server.&lt;/a&gt; を見て &lt;code&gt;--dhcp-hostsfile=&amp;lt;path&amp;gt;&lt;/code&gt; または &lt;code&gt;--dhcp-hostsdir=&amp;lt;path&amp;gt;&lt;/code&gt; を使っておけば &lt;code&gt;lxd-bridge&lt;/code&gt; を再起動しなくても &lt;code&gt;dnsmasq&lt;/code&gt; に &lt;code&gt;SIGHUP&lt;/code&gt; を送れば更新できることを知りました。 &lt;code&gt;--dhcp-hostsdir=&amp;lt;path&amp;gt;&lt;/code&gt; の場合は、指定したディレクトリ以下のファイルを追加・更新する場合は SIGHUP すら不要で、ファイルを削除した後に反映するときだけ SIGHUP が必要です。&lt;/p&gt;
+
+&lt;p&gt;ですが、実際に試してみると &lt;code&gt;--dhcp-hostsdir&lt;/code&gt; のほうは SIGHUP を送ると &lt;code&gt;duplicate dhcp-host IP address&lt;/code&gt; というエラーになってしまったので (下記のハマりメモ参照)、 &lt;code&gt;--dhcp-hostsfile&lt;/code&gt; のほうを使うことにしました。&lt;/p&gt;
+
+&lt;h2 id=&#34;lxd-bridgeのdnsmasqで-dhcp-hostsfile-を使う設定&#34;&gt;lxd-bridgeのdnsmasqで&amp;ndash;dhcp-hostsfile を使う設定&lt;/h2&gt;
+
+&lt;p&gt;&lt;code&gt;/var/lib/lxd-bridge/dhcp-hosts&lt;/code&gt; というファイルを作って、そこを見るように切り替えてみます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo touch /var/lib/lxd-bridge/dhcp-hosts
+echo &#39;dhcp-hostsfile=/var/lib/lxd-bridge/dhcp-hosts&#39; | sudo tee /etc/dnsmasq.conf &amp;gt; /dev/null
+sudo systemctl restart lxd-bridge
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;ipアドレスを指定して新規コンテナを作成する&#34;&gt;IPアドレスを指定して新規コンテナを作成する&lt;/h2&gt;
+
+&lt;p&gt;例えば &lt;code&gt;web01&lt;/code&gt; というコンテナを &lt;code&gt;10.155.92.201&lt;/code&gt; というアドレスで作成したい場合は以下のようにします。 &lt;a href=&#34;http://manpages.ubuntu.com/manpages/xenial/en/man8/dnsmasq.8.html&#34;&gt;Ubuntu Manpage: dnsmasq - A lightweight DHCP and caching DNS server.&lt;/a&gt; によると &lt;code&gt;--dhcp-range&lt;/code&gt; で指定した範囲の外でも良いが &lt;code&gt;--dhcp-range&lt;/code&gt; と同じサブネットである必要があるとのことです。 &lt;code&gt;ps auxww | grep dnsmasq&lt;/code&gt; で見たところ &lt;code&gt;/etc/default/lxd-bridge&lt;/code&gt; の &lt;code&gt;LXD_IPV4_DHCP_RANGE&lt;/code&gt; の値が &lt;code&gt;--dhcp-range&lt;/code&gt; に使われています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;echo web01,10.155.92.201 | sudo tee /var/lib/lxd-bridge/dhcp-hosts &amp;gt; /dev/null
+sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
+lxc launch images:centos/7/amd64 web01
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;数秒してから &lt;code&gt;lxc list&lt;/code&gt; を実行すると指定したアドレスになっていることが確認できます。&lt;/p&gt;
+
+&lt;p&gt;なお、この例では dhcp-hosts 内のエントリが web01 の1つだけなので echo と tee で作成・更新していますが、実際の利用時には複数エントリがあるので既存のエントリを残しつつエントリを追加・更新する必要がありますのでご注意ください。&lt;/p&gt;
+
+&lt;h2 id=&#34;既存のコンテナのipアドレスを変更する&#34;&gt;既存のコンテナのIPアドレスを変更する&lt;/h2&gt;
+
+&lt;p&gt;上記で作成した &lt;code&gt;web01&lt;/code&gt; というコンテナのアドレスを &lt;code&gt;10.155.92.202&lt;/code&gt; に変更してみます。変更にはコンテナの再起動が必要になります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;echo web01,10.155.92.202 | sudo tee /var/lib/lxd-bridge/dhcp-hosts &amp;gt; /dev/null
+sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
+lxc restart -f web01
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;数秒してから &lt;code&gt;lxc list&lt;/code&gt; を実行すると指定したアドレスになっていることが確認できます。&lt;/p&gt;
+
+&lt;p&gt;この方法でIPアドレスを変更すると &lt;code&gt;/var/lib/lxd-bridge/dnsmasq.lxdbr0.leases&lt;/code&gt; に変更前のアドレスが残らないので、そのアドレスをすぐに他で再利用することが出来ます。&lt;/p&gt;
+
+&lt;h2 id=&#34;コンテナを削除後-同じipアドレスを他のコンテナで使う&#34;&gt;コンテナを削除後、同じIPアドレスを他のコンテナで使う&lt;/h2&gt;
+
+&lt;p&gt;一方、コンテナを削除しても使っていたIPアドレスはまだ貸出中になっています。&lt;/p&gt;
+
+&lt;p&gt;上記の状態の後&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;lxc delete -f web01
+: | sudo tee /var/lib/lxd-bridge/dhcp-hosts
+sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;としても &lt;code&gt;/var/lib/lxd-bridge/dnsmasq.lxdbr0.leases&lt;/code&gt; には&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;1470963716 00:16:3e:45:a6:d1 10.155.92.202 web01 *
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;のようなエントリが残っています。
+このアドレスを他のコンテナで使うためには一旦解放する必要があります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo dhcp_release lxdbr0 10.155.92.202 00:16:3e:45:a6:d1
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;のように実行するか、あるいは &lt;a href=&#34;/blog/blog/2016/08/11/release-all-unused-addresses-of-lxd-bridge/&#34;&gt;LXDのDHCPで使っていないIPアドレスを一括で解放するスクリプトを書いた · hnakamur&amp;rsquo;s blog at github&lt;/a&gt; で書いたスクリプトを実行して解放します。以下では後者のスクリプトを &lt;code&gt;~/bin/lxd-bridge-release-all-unused-addresses.sh&lt;/code&gt; に保存してあるものとして説明します。&lt;/p&gt;
+
+&lt;p&gt;IPアドレスを解放した後で&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;echo web02,10.155.92.202 | sudo tee /var/lib/lxd-bridge/dhcp-hosts &amp;gt; /dev/null
+sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
+lxc launch images:centos/7/amd64 web02
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;のように実行すれば、IPアドレスを &lt;code&gt;10.155.92.202&lt;/code&gt; にして &lt;code&gt;web02&lt;/code&gt; というコンテナを作成・起動できました。&lt;/p&gt;
+
+&lt;h2 id=&#34;dhcp-hostsdirのハマりメモ&#34;&gt;&amp;ndash;dhcp-hostsdirのハマりメモ&lt;/h2&gt;
+
+&lt;h3 id=&#34;lxd-bridgeのdnsmasqで-dhcp-hostsdir-を使う設定&#34;&gt;lxd-bridgeのdnsmasqで&amp;ndash;dhcp-hostsdir を使う設定&lt;/h3&gt;
+
+&lt;p&gt;&lt;code&gt;/var/lib/lxd-bridge/dhcp-hosts&lt;/code&gt; というディレクトリを作って、そこを見るように切り替えてみます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[ -f /var/lib/lxd-bridge/dhcp-hosts ] &amp;amp;&amp;amp; sudo rm /var/lib/lxd-bridge/dhcp-hosts
+sudo mkdir -p /var/lib/lxd-bridge/dhcp-hosts
+echo &#39;dhcp-hostsdir=/var/lib/lxd-bridge/dhcp-hosts&#39; | sudo tee /etc/dnsmasq.conf &amp;gt; /dev/null
+sudo systemctl restart lxd-bridge
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;ipアドレスを指定して新規コンテナを作成する-1&#34;&gt;IPアドレスを指定して新規コンテナを作成する&lt;/h3&gt;
+
+&lt;p&gt;例えば &lt;code&gt;web01&lt;/code&gt; というコンテナを &lt;code&gt;10.155.92.201&lt;/code&gt; というアドレスで作成したい場合は以下のようにします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;echo web01,10.155.92.201 | sudo tee /var/lib/lxd-bridge/dhcp-hosts/web01 &amp;gt; /dev/null
+lxc launch images:centos/7/amd64 web01
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;数秒してから &lt;code&gt;lxc list&lt;/code&gt; を実行すると指定したアドレスになっていることが確認できます。&lt;/p&gt;
+
+&lt;p&gt;と、ここまでは良かったのですが、&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;journalctl -f
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;でログを見ておいて、別端末で&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;と実行すると&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Aug 12 08:39:56 lxdhostname dnsmasq-dhcp[2455]: read /var/lib/lxd-bridge/dhcp-hosts/web01
+Aug 12 08:39:56 lxdhostname dnsmasq[2455]: duplicate dhcp-host IP address 10.155.92.201 at line 1 of /var/lib/lxd-bridge/dhcp-hosts/web01
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;のようなエラーが出てしまいました。 &lt;code&gt;duplicate dhcp-host IP address&lt;/code&gt; から後ろは赤字で表示されました。&lt;/p&gt;
+
+&lt;h3 id=&#34;コンテナを削除後-同じipアドレスを他のコンテナで使いたいが失敗&#34;&gt;コンテナを削除後、同じIPアドレスを他のコンテナで使いたいが失敗&lt;/h3&gt;
+
+&lt;p&gt;以下では &lt;a href=&#34;/blog/blog/2016/08/11/release-all-unused-addresses-of-lxd-bridge/&#34;&gt;LXDのDHCPで使っていないIPアドレスを一括で解放するスクリプトを書いた · hnakamur&amp;rsquo;s blog at github&lt;/a&gt; のスクリプトを &lt;code&gt;~/bin/lxd-bridge-release-all-unused-addresses.sh&lt;/code&gt; に保存してあるものとして説明します。&lt;/p&gt;
+
+&lt;p&gt;上記の状態の後、 &lt;code&gt;journalctl -f&lt;/code&gt; を引き続き別端末で実行しておいて&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;lxc delete -f web01
+sudo rm /var/lib/lxd-bridge/dhcp-hosts/web01
+sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
+~/bin/lxd-bridge-release-all-unused-addresses.sh
+echo web02,10.155.92.201 | sudo tee /var/lib/lxd-bridge/dhcp-hosts/web02 &amp;gt; /dev/null
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;と実行すると&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Aug 12 08:44:13 lxdhostname dnsmasq-dhcp[2455]: read /var/lib/lxd-bridge/dhcp-hosts/web02
+Aug 12 08:44:13 lxdhostname dnsmasq[2455]: duplicate dhcp-host IP address 10.155.92.201 at line 1 of /var/lib/lxd-bridge/dhcp-hosts/web02
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;と先程と同様のエラーが出ました。ここから&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;lxc launch images:centos/7/amd64 web02
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;と実行しても、指定した &lt;code&gt;10.155.92.201&lt;/code&gt; とは異なるアドレスになってしまいました。&lt;/p&gt;
+
+&lt;p&gt;ということで &lt;code&gt;--dhcp-hostsdir=&amp;lt;path&amp;gt;&lt;/code&gt; は正しい使い方がわからなかったので、諦めて &lt;code&gt;--dhcp-hostsfile=&amp;lt;path&amp;gt;&lt;/code&gt; のほうを使うことにしました。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>LXDのDHCPで使っていないIPアドレスを一括で解放するスクリプトを書いた</title>
@@ -556,6 +708,10 @@ cent02                     : ok=2    changed=0    unreachable=0    failed=0
       
       <guid>/blog/2016/05/07/how-to-use-fixed-ip-address-for-a-lxd-container/</guid>
       <description>
+
+&lt;h2 id=&#34;2016-08-12-追記&#34;&gt;2016-08-12 追記&lt;/h2&gt;
+
+&lt;p&gt;&lt;code&gt;lxd-bridge&lt;/code&gt; サービスを再起動せずに固定IPアドレス設定を更新できるようにするための設定方法を &lt;a href=&#34;/blog/blog/2016/08/12/update-lxd-dnsmasq-dhcp-hosts-config-with-sighup/&#34;&gt;LXDのdnsmasqの固定IP設定をSIGHUPで更新する · hnakamur&amp;rsquo;s blog at github&lt;/a&gt; に書きました。こちらのほうがお勧めです。&lt;/p&gt;
 
 &lt;h2 id=&#34;設定まとめ&#34;&gt;設定まとめ&lt;/h2&gt;
 
