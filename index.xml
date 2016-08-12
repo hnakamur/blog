@@ -6,8 +6,744 @@
     <description>Recent content on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Fri, 12 Aug 2016 06:38:18 +0900</lastBuildDate>
+    <lastBuildDate>Fri, 12 Aug 2016 18:54:27 +0900</lastBuildDate>
     <atom:link href="/blog/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>LXDコンテナ上でPacemakerを使って仮想IPとApacheのアクティブ・パッシブ・クラスタを試してみた</title>
+      <link>/blog/2016/08/12/experiment-vip-and-apache-with-pacemaker-on-lxd-containers/</link>
+      <pubDate>Fri, 12 Aug 2016 18:54:27 +0900</pubDate>
+      
+      <guid>/blog/2016/08/12/experiment-vip-and-apache-with-pacemaker-on-lxd-containers/</guid>
+      <description>
+
+&lt;p&gt;&lt;a href=&#34;http://clusterlabs.org/doc/&#34;&gt;Cluster Labs - Pacemaker Documentation&lt;/a&gt; の &amp;ldquo;Pacemaker 1.1 for Corosync 2.x and pcs&amp;rdquo; の &amp;ldquo;Clusters from Scratch (en-US)&amp;rdquo; を参考にしつつ、多少手順を変更して試してみました。&lt;/p&gt;
+
+&lt;h2 id=&#34;実験用コンテナの環境構築&#34;&gt;実験用コンテナの環境構築&lt;/h2&gt;
+
+&lt;h3 id=&#34;コンテナの作成&#34;&gt;コンテナの作成&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;/blog/blog/2016/08/12/update-lxd-dnsmasq-dhcp-hosts-config-with-sighup/&#34;&gt;LXDのdnsmasqの固定IP設定をSIGHUPで更新する · hnakamur&amp;rsquo;s blog at github&lt;/a&gt; の手法を使って、2つのコンテナ用のIPアドレスを設定しておきます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;lxdhost:~$ cat /var/lib/lxd-bridge/dhcp-hosts 
+pcmk-1,10.155.92.101
+pcmk-2,10.155.92.102
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;また、仮想IPとして &lt;code&gt;10.155.92.100&lt;/code&gt; を使用しますので、 &lt;code&gt;/var/lib/lxd-bridge/dnsmasq.lxdbr0.leases&lt;/code&gt; で使われていないことを確認しておきます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;で設定を dnsmasq に反映します。&lt;/p&gt;
+
+&lt;p&gt;なお、  &lt;a href=&#34;http://clusterlabs.org/doc/en-US/Pacemaker/1.1-pcs/html/Clusters_from_Scratch/ch02.html#_configure_network&#34;&gt;2.1.3. Configure Network&lt;/a&gt; の &amp;ldquo;Important&amp;rdquo; の囲み部分によるとDHCPはcorosyncと干渉するので、 &lt;strong&gt;クラスタのマシンはDHCPを決して使うべきではない&lt;/strong&gt; そうです。この記事はあくまでPacemakerの使い方を把握するために試してみるだけなので気にしないことにしますが、実運用の際には DHCP を使わない構成にする必要があります。&lt;/p&gt;
+
+&lt;p&gt;以下のコマンドでコンテナ &lt;code&gt;pcmk-1&lt;/code&gt; と &lt;code&gt;pcmk-2&lt;/code&gt; を作成します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;lxdhost:~$ lxc launch images:centos/7/amd64 pcmk-1
+lxdhost:~$ lxc launch images:centos/7/amd64 pcmk-2
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;コンテナ内の-etc-hosts-設定&#34;&gt;コンテナ内の /etc/hosts 設定&lt;/h3&gt;
+
+&lt;p&gt;端末を2つ開いて &lt;code&gt;lxc exec pcmk-1 bash&lt;/code&gt; と &lt;code&gt;lxc exec pcmk-2 bash&lt;/code&gt; を実行し、それぞれ環境構築していきます。&lt;/p&gt;
+
+&lt;p&gt;まず、コンテナ作成直後の &lt;code&gt;pcmk-1&lt;/code&gt; の &lt;code&gt;/etc/hosts&lt;/code&gt; を確認すると以下のようになっていました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;127.0.0.1   localhost
+127.0.1.1   pcmk-1
+
+# The following lines are desirable for IPv6 capable hosts
+::1     ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+ff00::0 ip6-mcastprefix
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;当初 &lt;code&gt;pcmk-1&lt;/code&gt; ではIPv4の部分を&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;127.0.0.1   localhost
+127.0.1.1   pcmk-1
+10.155.92.102 pcmk-2
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;と変更し、 &lt;code&gt;pcmk-2&lt;/code&gt; では&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;127.0.0.1   localhost
+127.0.1.1   pcmk-2
+10.155.92.101 pcmk-1
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;と変更してみたのですが、Pacemakerがうまく動かなかったようです（要追試）。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;pcmk-1&lt;/code&gt; と &lt;code&gt;pcmk-2&lt;/code&gt; で &lt;code&gt;/etc/hosts&lt;/code&gt; の IPv4 部分を以下のコマンドで変更したら、うまくいったので、とりあえずこれで試しました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# cat &amp;gt; /etc/hosts &amp;lt;&amp;lt;&#39;EOF&#39;
+127.0.0.1   localhost
+
+10.155.92.101   pcmk-1
+10.155.92.102   pcmk-2
+
+# The following lines are desirable for IPv6 capable hosts
+::1     ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+ff00::0 ip6-mcastprefix
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+EOF
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;pacemakerのインストール&#34;&gt;Pacemakerのインストール&lt;/h3&gt;
+
+&lt;p&gt;&lt;code&gt;pcmk-1&lt;/code&gt; と &lt;code&gt;pcmk-2&lt;/code&gt; で以下のコマンドを実行します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# yum -y update
+# yum -y install pacemaker pcs psmisc policycoreutils-python which
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;whichは仮想IPを使うための ocf:heartbeat:IPaddr2 のリソース用の resource agent スクリプト &lt;code&gt;/usr/lib/ocf/resource.d/heartbeat/IPaddr2&lt;/code&gt; で必要となります。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;pcsd&lt;/code&gt; サービスを起動し、OS起動時に自動起動するようにします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# systemctl start pcsd
+# systemctl enable pcsd
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;クラスタを作成して仮想ipの作成-移動実験&#34;&gt;クラスタを作成して仮想IPの作成・移動実験&lt;/h2&gt;
+
+&lt;h3 id=&#34;クラスタの作成と開始&#34;&gt;クラスタの作成と開始&lt;/h3&gt;
+
+&lt;p&gt;&lt;code&gt;hacluster&lt;/code&gt; のパスワードを設定します。ここでは &lt;code&gt;password&lt;/code&gt; という値にしていますが適宜変更してください。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# echo password | passwd --stdin hacluster
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ここから先は &lt;code&gt;pcmk-1&lt;/code&gt; だけでコマンドを実行します。 &lt;code&gt;-p&lt;/code&gt; の値は上で設定したパスワードに合わせてください。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# pcs cluster auth pcmk-1 pcmk-2 -u hacluster -p password
+# pcs cluster setup --name mycluster pcmk-1 pcmk-2
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;この時点で &lt;code&gt;/etc/corosync/corosync.conf&lt;/code&gt; が作られます。&lt;/p&gt;
+
+&lt;p&gt;以下のコマンドでクラスタを開始します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# pcs cluster start --all
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;起動してすぐにステータスを確認すると Node の行が UNCLEAN (offline) になりました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pcmk-1 ~]# pcs status
+Cluster name: mycluster
+WARNING: no stonith devices and stonith-enabled is not false
+Last updated: Thu Aug 11 15:55:17 2016          Last change: Thu Aug 11 15:55:16 2016 by hacluster via crmd on pcmk-1
+Stack: unknown
+Current DC: NONE
+2 nodes and 0 resources configured
+
+Node pcmk-1: UNCLEAN (offline)
+Node pcmk-2: UNCLEAN (offline)
+
+Full list of resources:
+
+
+PCSD Status:
+  pcmk-1: Online
+  pcmk-2: Online
+
+Daemon Status:
+  corosync: active/disabled
+  pacemaker: active/disabled
+  pcsd: active/enabled
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;しばらくしてから再度ステータスを確認すると pcmk-1 も pcmk-2 も Online になっていました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# pcs status
+Cluster name: mycluster
+WARNING: no stonith devices and stonith-enabled is not false
+Last updated: Thu Aug 11 15:56:41 2016          Last change: Thu Aug 11 15:55:37 2016 by hacluster via crmd on pcmk-2
+Stack: corosync
+Current DC: pcmk-2 (version 1.1.13-10.el7_2.4-44eb2dd) - partition with quorum
+2 nodes and 0 resources configured
+
+Online: [ pcmk-1 pcmk-2 ]
+
+Full list of resources:
+
+
+PCSD Status:
+  pcmk-1: Online
+  pcmk-2: Online
+
+Daemon Status:
+  corosync: active/disabled
+  pacemaker: active/disabled
+  pcsd: active/enabled
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;stonithを無効化&#34;&gt;STONITHを無効化&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://clusterlabs.org/doc/en-US/Pacemaker/1.1-pcs/html/Clusters_from_Scratch/ch05.html&#34;&gt;Chapter 5. Create an Active/Passive Cluster&lt;/a&gt;の手順でクラスタの設定エラーを確認します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# crm_verify -L -V
+   error: unpack_resources:     Resource start-up disabled since no STONITH resources have been defined
+   error: unpack_resources:     Either configure some or disable STONITH with the stonith-enabled option
+   error: unpack_resources:     NOTE: Clusters with shared data need STONITH to ensure data integrity
+Errors found during check: config not valid
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ここでは簡単に Pacemaker を試すために STONITH を無効にします。無効にしたあと設定エラーを再度確認すると、今度はエラーが無くなりました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# pcs property set stonith-enabled=false
+# crm_verify -L -V
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;なお、 &lt;a href=&#34;http://clusterlabs.org/doc/en-US/Pacemaker/1.1-pcs/html/Clusters_from_Scratch/ch05.html&#34;&gt;Chapter 5. Create an Active/Passive Cluster&lt;/a&gt; の最後の Warning にもある通り、 &lt;strong&gt;実運用では STONITH を無効にするのは全く不適切&lt;/strong&gt; とのことなので、きちんと設定する必要があります。 STONITH についての説明は上記の Warning の囲み内からもリンクされている &lt;a href=&#34;http://clusterlabs.org/doc/en-US/Pacemaker/1.1-pcs/html/Clusters_from_Scratch/ch08.html#_what_is_stonith&#34;&gt;Chapter 8. Configure STONITH&lt;/a&gt; を参照してください。&lt;/p&gt;
+
+&lt;h3 id=&#34;仮想ipアドレス用のリソース作成&#34;&gt;仮想IPアドレス用のリソース作成&lt;/h3&gt;
+
+&lt;p&gt;&lt;code&gt;pcmk-1&lt;/code&gt; で以下のコマンドを実行して、仮想IPアドレス &lt;code&gt;10.155.92.100&lt;/code&gt; 用のリソースを作成します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# pcs resource create ClusterIP ocf:heartbeat:IPaddr2 \
+    ip=10.155.92.100 cidr_netmask=32 op monitor interval=30s
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;数秒してから状態を確認してみます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# pcs status
+Cluster name: mycluster
+Last updated: Thu Aug 11 16:04:50 2016          Last change: Thu Aug 11 16:04:47 2016 by root via cibadmin on pcmk-1
+Stack: corosync
+Current DC: pcmk-2 (version 1.1.13-10.el7_2.4-44eb2dd) - partition with quorum
+2 nodes and 1 resource configured
+
+Online: [ pcmk-1 pcmk-2 ]
+
+Full list of resources:
+
+ ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-1
+
+PCSD Status:
+  pcmk-1: Online
+  pcmk-2: Online
+
+Daemon Status:
+  corosync: active/disabled
+  pacemaker: active/disabled
+  pcsd: active/enabled
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;# pcs resource --full
+ Resource: ClusterIP (class=ocf provider=heartbeat type=IPaddr2)
+  Attributes: ip=10.155.92.100 cidr_netmask=32 
+  Operations: start interval=0s timeout=20s (ClusterIP-start-interval-0s)
+              stop interval=0s timeout=20s (ClusterIP-stop-interval-0s)
+              monitor interval=30s (ClusterIP-monitor-interval-30s)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;ip&lt;/code&gt; コマンドを実行して、仮想IPアドレスが &lt;code&gt;pcmk-1&lt;/code&gt; 側についており &lt;code&gt;pcmk-2&lt;/code&gt; 側にはついていないことを確認します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pcmk-1 ~]# ip a s eth0
+120: eth0@if121: &amp;lt;BROADCAST,MULTICAST,UP,LOWER_UP&amp;gt; mtu 1500 qdisc noqueue state UP qlen 1000
+    link/ether 00:16:3e:e6:fb:ab brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 10.155.92.101/24 brd 10.155.92.255 scope global dynamic eth0
+       valid_lft 3203sec preferred_lft 3203sec
+    inet 10.155.92.100/32 brd 10.155.92.255 scope global eth0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::216:3eff:fee6:fbab/64 scope link 
+       valid_lft forever preferred_lft forever
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pcmk-2 ~]# ip a s eth0
+122: eth0@if123: &amp;lt;BROADCAST,MULTICAST,UP,LOWER_UP&amp;gt; mtu 1500 qdisc noqueue state UP qlen 1000
+    link/ether 00:16:3e:4b:6d:b1 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 10.155.92.102/24 brd 10.155.92.255 scope global dynamic eth0
+       valid_lft 3560sec preferred_lft 3560sec
+    inet6 fe80::216:3eff:fe4b:6db1/64 scope link 
+       valid_lft forever preferred_lft forever
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;pcmk-1-をクラスタから離脱させて仮想ipアドレスが-pcmk-2-に移動するか確認&#34;&gt;&lt;code&gt;pcmk-1&lt;/code&gt; をクラスタから離脱させて仮想IPアドレスが &lt;code&gt;pcmk-2&lt;/code&gt; に移動するか確認&lt;/h3&gt;
+
+&lt;p&gt;以下のコマンドで &lt;code&gt;pcmk-1&lt;/code&gt; をクラスタから離脱させます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pcmk-1 ~]# pcs cluster stop pcmk-1
+pcmk-1: Stopping Cluster (pacemaker)...
+pcmk-1: Stopping Cluster (corosync)...
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;pcmk-1&lt;/code&gt; で状態を確認すると以下のようになります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pcmk-1 ~]# pcs status
+Error: cluster is not currently running on this node
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;pcmk-2&lt;/code&gt; で状態を確認すると以下のようになります。 &lt;code&gt;pcmk-1&lt;/code&gt; は &lt;code&gt;OFFLINE&lt;/code&gt; となっていますが、 &lt;code&gt;pcsd&lt;/code&gt; は動いているので &lt;code&gt;PCSD Status&lt;/code&gt; のほうは &lt;code&gt;Online&lt;/code&gt; のままです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pcmk-2 ~]# pcs status
+Cluster name: mycluster
+Last updated: Thu Aug 11 16:10:04 2016          Last change: Thu Aug 11 16:04:47 2016 by root via cibadmin on pcmk-1
+Stack: corosync
+Current DC: pcmk-2 (version 1.1.13-10.el7_2.4-44eb2dd) - partition with quorum
+2 nodes and 1 resource configured
+
+Online: [ pcmk-2 ]
+OFFLINE: [ pcmk-1 ]
+
+Full list of resources:
+
+ ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-2
+
+PCSD Status:
+  pcmk-1: Online
+  pcmk-2: Online
+
+Daemon Status:
+  corosync: active/disabled
+  pacemaker: active/disabled
+  pcsd: active/enabled
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;ip&lt;/code&gt; コマンドを実行して、仮想IPアドレスが &lt;code&gt;pcmk-2&lt;/code&gt; 側についており &lt;code&gt;pcmk-1&lt;/code&gt; 側にはついていないことを確認します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pcmk-1 ~]# ip a s eth0
+120: eth0@if121: &amp;lt;BROADCAST,MULTICAST,UP,LOWER_UP&amp;gt; mtu 1500 qdisc noqueue state UP qlen 1000
+    link/ether 00:16:3e:e6:fb:ab brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 10.155.92.101/24 brd 10.155.92.255 scope global dynamic eth0
+       valid_lft 3024sec preferred_lft 3024sec
+    inet6 fe80::216:3eff:fee6:fbab/64 scope link 
+       valid_lft forever preferred_lft forever
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pcmk-2 ~]# ip a s eth0
+122: eth0@if123: &amp;lt;BROADCAST,MULTICAST,UP,LOWER_UP&amp;gt; mtu 1500 qdisc noqueue state UP qlen 1000
+    link/ether 00:16:3e:4b:6d:b1 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 10.155.92.102/24 brd 10.155.92.255 scope global dynamic eth0
+       valid_lft 3385sec preferred_lft 3385sec
+    inet 10.155.92.100/32 brd 10.155.92.255 scope global eth0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::216:3eff:fe4b:6db1/64 scope link 
+       valid_lft forever preferred_lft forever
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;pcmk-1-をクラスタに復帰させる&#34;&gt;&lt;code&gt;pcmk-1&lt;/code&gt; をクラスタに復帰させる&lt;/h3&gt;
+
+&lt;p&gt;以下のコマンドで &lt;code&gt;pcmk-1&lt;/code&gt; をクラスタに復帰させます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pcmk-1 ~]# pcs cluster start pcmk-1
+pcmk-1: Starting Cluster...
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;状態を確認してみると、仮想IP は &lt;code&gt;pcmk-2&lt;/code&gt; のほうについたままです。
+&lt;a href=&#34;http://clusterlabs.org/doc/en-US/Pacemaker/1.1-pcs/html/Clusters_from_Scratch/_perform_a_failover.html&#34;&gt;5.3. Perform a Failover&lt;/a&gt; の最後の Note によると Pacemakerのより古いバージョンでは &lt;code&gt;pcmk-1&lt;/code&gt; のほうに切り替わっていたそうですが、挙動が変更されたとのことです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pcmk-1 ~]# pcs status
+Cluster name: mycluster
+Last updated: Thu Aug 11 16:12:35 2016          Last change: Thu Aug 11 16:04:47 2016 by root via cibadmin on pcmk-1
+Stack: corosync
+Current DC: pcmk-2 (version 1.1.13-10.el7_2.4-44eb2dd) - partition with quorum
+2 nodes and 1 resource configured
+
+Online: [ pcmk-1 pcmk-2 ]
+
+Full list of resources:
+
+ ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-2
+
+PCSD Status:
+  pcmk-1: Online
+  pcmk-2: Online
+
+Daemon Status:
+  corosync: active/disabled
+  pacemaker: active/disabled
+  pcsd: active/enabled
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;以下のコマンドを実行して、仮想IPを &lt;code&gt;pcmk-1&lt;/code&gt; のほうに移動します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;pcs cluster stop pcmk-2 &amp;amp;&amp;amp; pcs cluster start pcmk-2
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;apacheのactive-passiveクラスタを作って仮想ipと連動させる&#34;&gt;ApacheのActive/Passiveクラスタを作って仮想IPと連動させる&lt;/h2&gt;
+
+&lt;h3 id=&#34;リソースのスティッキネスのデフォルト値を設定&#34;&gt;リソースのスティッキネスのデフォルト値を設定&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://clusterlabs.org/doc/en-US/Pacemaker/1.1-pcs/html/Clusters_from_Scratch/_prevent_resources_from_moving_after_recovery.html&#34;&gt;5.4. Prevent Resources from Moving after Recovery&lt;/a&gt; を見て設定します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pcmk-1 ~]# pcs resource defaults resource-stickiness=100
+[root@pcmk-1 ~]# pcs resource defaults 
+resource-stickiness: 100
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;apache-のインストールと設定&#34;&gt;Apache のインストールと設定&lt;/h3&gt;
+
+&lt;p&gt;&lt;code&gt;pcmk-1&lt;/code&gt; と &lt;code&gt;pcmk-2&lt;/code&gt; で以下のコマンドを実行します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# yum -y install httpd wget
+# mkdir -p /var/www/html /var/log/httpd
+# cat &amp;gt; /var/www/html/index.html &amp;lt;&amp;lt;EOF
+&amp;lt;html&amp;gt;
+&amp;lt;body&amp;gt;My Test Site - $(hostname)&amp;lt;/body&amp;gt;
+&amp;lt;/html&amp;gt;
+EOF
+# cat &amp;gt; /etc/httpd/conf.d/status.conf &amp;lt;&amp;lt;&#39;EOF&#39;
+&amp;lt;Location /server-status&amp;gt;
+  SetHandler server-status
+  Require ip 127.0.0.1
+&amp;lt;/Location&amp;gt;
+EOF
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;apache-の-active-passive-クラスタ作成&#34;&gt;Apache の Active/Passive クラスタ作成&lt;/h3&gt;
+
+&lt;p&gt;&lt;code&gt;pcmk-1&lt;/code&gt; か &lt;code&gt;pcmk-2&lt;/code&gt; のどちらか一方で以下のコマンドを実行します。
+公式のドキュメントでは、 &lt;code&gt;pcmk-2&lt;/code&gt; で開始した後、制約を追加しただけでは &lt;code&gt;pcmk-1&lt;/code&gt; に移動しないというデモをしていますが、ここでは &lt;code&gt;--disabled&lt;/code&gt; つきでリソースを作成後、制約を追加してから有効化することで最初から &lt;code&gt;pcmk-1&lt;/code&gt; で開始させています。&lt;/p&gt;
+
+&lt;p&gt;また、制約を追加するごとに &lt;code&gt;crm_simulate -sL&lt;/code&gt; を実行してリソースをどのノードに割り当てるかのスコアを確認しています。&lt;/p&gt;
+
+&lt;p&gt;まず WebSite という名前のリソースを &lt;code&gt;disabled&lt;/code&gt; 状態で作成します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# pcs resource create WebSite ocf:heartbeat:apache \
+    configfile=/etc/httpd/conf/httpd.conf \
+    statusurl=&amp;quot;http://localhost/server-status&amp;quot; \
+    op monitor interval=3s on-fail=restart \
+    --disabled
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;WebSite リソースは ClusterIP リソースと同じノードで動かすという制約を追加します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# pcs constraint colocation add WebSite with ClusterIP INFINITY
+# crm_simulate -sL
+
+Current cluster status:
+Online: [ pcmk-1 pcmk-2 ]
+
+ ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-1
+ WebSite        (ocf::heartbeat:apache):        (target-role:Stopped) Stopped
+
+Allocation scores:
+native_color: ClusterIP allocation score on pcmk-1: 100
+native_color: ClusterIP allocation score on pcmk-2: 0
+native_color: WebSite allocation score on pcmk-1: -INFINITY
+native_color: WebSite allocation score on pcmk-2: -INFINITY
+
+Transition Summary:
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;リソースの開始順序を ClusterIP、 WebSite にする制約を追加します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# pcs constraint order ClusterIP then WebSite
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;WebSite のリソースをなるべく &lt;code&gt;pcmk-1&lt;/code&gt; 側で動かすようにする制約を追加します。 &lt;code&gt;250&lt;/code&gt; という値はこの後の操作を一度試行錯誤してみて適当に選びましたが、希望通りの動作が実現できさえすれば違う値でも構いません。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# pcs constraint location WebSite prefers pcmk-1=250
+# crm_simulate -sL
+
+Current cluster status:
+Online: [ pcmk-1 pcmk-2 ]
+
+ ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-1
+ WebSite        (ocf::heartbeat:apache):        (target-role:Stopped) Stopped
+
+Allocation scores:
+native_color: ClusterIP allocation score on pcmk-1: 350
+native_color: ClusterIP allocation score on pcmk-2: 0
+native_color: WebSite allocation score on pcmk-1: -INFINITY
+native_color: WebSite allocation score on pcmk-2: -INFINITY
+
+Transition Summary:
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;希望する制約を一通り追加したので、 WebSite リソースを稼働開始します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# pcs resource enable WebSite
+# crm_simulate -sL
+
+Current cluster status:
+Online: [ pcmk-1 pcmk-2 ]
+
+ ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-1
+ WebSite        (ocf::heartbeat:apache):        Started pcmk-1
+
+Allocation scores:
+native_color: ClusterIP allocation score on pcmk-1: 450
+native_color: ClusterIP allocation score on pcmk-2: 0
+native_color: WebSite allocation score on pcmk-1: 350
+native_color: WebSite allocation score on pcmk-2: -INFINITY
+
+Transition Summary:
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;pcmk-1&lt;/code&gt; と &lt;code&gt;pcmk-2&lt;/code&gt; で &lt;code&gt;ps auxww | grep httpd&lt;/code&gt; すると &lt;code&gt;pcmk-1&lt;/code&gt; 側で Apache が稼働して &lt;code&gt;pcmk-2&lt;/code&gt; 側では稼働していないことを確認できます。&lt;/p&gt;
+
+&lt;h3 id=&#34;手動で制約を調整して仮想ipとapacheを-pcmk-2-に移動する&#34;&gt;手動で制約を調整して仮想IPとApacheを &lt;code&gt;pcmk-2&lt;/code&gt; に移動する&lt;/h3&gt;
+
+&lt;p&gt;以下のコマンドで制約を調整し、移動が完了するまでのスコアの変遷を確認します。 &lt;code&gt;500&lt;/code&gt; という値は前項の最後の &lt;code&gt;pcmk-1&lt;/code&gt; の ClusterIP のスコアを上回る値として選びました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# pcs constraint location WebSite prefers pcmk-2=500 \
+  &amp;amp;&amp;amp; for i in `seq 1 20`; do crm_simulate -sL; sleep 0.1; done
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;出力結果のうち変化があったものだけを抜粋します。
+まず開始直後の状態。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Current cluster status:
+Online: [ pcmk-1 pcmk-2 ]
+
+ ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-1
+ WebSite        (ocf::heartbeat:apache):        Started pcmk-1
+
+Allocation scores:
+native_color: ClusterIP allocation score on pcmk-1: 450
+native_color: ClusterIP allocation score on pcmk-2: 500
+native_color: WebSite allocation score on pcmk-1: -INFINITY
+native_color: WebSite allocation score on pcmk-2: 500
+
+Transition Summary:
+ * Move    ClusterIP    (Started pcmk-1 -&amp;gt; pcmk-2)
+ * Move    WebSite      (Started pcmk-1 -&amp;gt; pcmk-2)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;WebSiteが停止した状態。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Current cluster status:
+Online: [ pcmk-1 pcmk-2 ]
+
+ ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-1
+ WebSite        (ocf::heartbeat:apache):        Stopped
+
+Allocation scores:
+native_color: ClusterIP allocation score on pcmk-1: 350
+native_color: ClusterIP allocation score on pcmk-2: 500
+native_color: WebSite allocation score on pcmk-1: -INFINITY
+native_color: WebSite allocation score on pcmk-2: 500
+
+Transition Summary:
+ * Move    ClusterIP    (Started pcmk-1 -&amp;gt; pcmk-2)
+ * Start   WebSite      (pcmk-2)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ClusterIPがpcmk-2に移った状態。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Current cluster status:
+Online: [ pcmk-1 pcmk-2 ]
+
+ ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-2
+ WebSite        (ocf::heartbeat:apache):        Stopped
+
+Allocation scores:
+native_color: ClusterIP allocation score on pcmk-1: 250
+native_color: ClusterIP allocation score on pcmk-2: 600
+native_color: WebSite allocation score on pcmk-1: -INFINITY
+native_color: WebSite allocation score on pcmk-2: 500
+
+Transition Summary:
+ * Start   WebSite      (pcmk-2)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;WebSiteが &lt;code&gt;pcmk-2&lt;/code&gt; で稼働開始した状態。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Current cluster status:
+Online: [ pcmk-1 pcmk-2 ]
+
+ ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-2
+ WebSite        (ocf::heartbeat:apache):        Started pcmk-2
+
+Allocation scores:
+native_color: ClusterIP allocation score on pcmk-1: 250
+native_color: ClusterIP allocation score on pcmk-2: 700
+native_color: WebSite allocation score on pcmk-1: -INFINITY
+native_color: WebSite allocation score on pcmk-2: 600
+
+Transition Summary:
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;手動で制約を調整して仮想ipとapacheを-pcmk-1-に戻す&#34;&gt;手動で制約を調整して仮想IPとApacheを &lt;code&gt;pcmk-1&lt;/code&gt; に戻す&lt;/h3&gt;
+
+&lt;p&gt;次に &lt;code&gt;pcmk-2&lt;/code&gt; から &lt;code&gt;pcmk-1&lt;/code&gt; に戻してみます。
+以下のコマンドで制約のIDを確認します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pcmk-1 ~]# pcs constraint --full
+Location Constraints:
+  Resource: WebSite
+    Enabled on: pcmk-1 (score:250) (id:location-WebSite-pcmk-1-250)
+    Enabled on: pcmk-2 (score:500) (id:location-WebSite-pcmk-2-500)
+Ordering Constraints:
+  start ClusterIP then start WebSite (kind:Mandatory) (id:order-ClusterIP-WebSite-mandatory)
+Colocation Constraints:
+  WebSite with ClusterIP (score:INFINITY) (id:colocation-WebSite-ClusterIP-INFINITY)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;以下のコマンドで &lt;code&gt;pcmk-2&lt;/code&gt; 側の制約を削除し、 &lt;code&gt;pcmk-1&lt;/code&gt; 側に戻るまでのスコアの動きを確認します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# pcs constraint remove location-WebSite-pcmk-2-500 \
+  &amp;amp;&amp;amp; for i in `seq 1 20`; do crm_simulate -sL; sleep 0.1; done
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;開始直後の状態。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Current cluster status:
+Online: [ pcmk-1 pcmk-2 ]
+
+ ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-2
+ WebSite        (ocf::heartbeat:apache):        Started pcmk-2
+
+Allocation scores:
+native_color: ClusterIP allocation score on pcmk-1: 250
+native_color: ClusterIP allocation score on pcmk-2: 200
+native_color: WebSite allocation score on pcmk-1: 250
+native_color: WebSite allocation score on pcmk-2: -INFINITY
+
+Transition Summary:
+ * Move    ClusterIP    (Started pcmk-2 -&amp;gt; pcmk-1)
+ * Move    WebSite      (Started pcmk-2 -&amp;gt; pcmk-1)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;WebSiteが停止した状態。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Current cluster status:
+Online: [ pcmk-1 pcmk-2 ]
+
+ ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-2
+ WebSite        (ocf::heartbeat:apache):        Stopped
+
+Allocation scores:
+native_color: ClusterIP allocation score on pcmk-1: 250
+native_color: ClusterIP allocation score on pcmk-2: 100
+native_color: WebSite allocation score on pcmk-1: 250
+native_color: WebSite allocation score on pcmk-2: -INFINITY
+
+Transition Summary:
+ * Move    ClusterIP    (Started pcmk-2 -&amp;gt; pcmk-1)
+ * Start   WebSite      (pcmk-1)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ClusterIPが &lt;code&gt;pcmk-1&lt;/code&gt; に移動した状態。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Current cluster status:
+Online: [ pcmk-1 pcmk-2 ]
+
+ ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-1
+ WebSite        (ocf::heartbeat:apache):        Stopped
+
+Allocation scores:
+native_color: ClusterIP allocation score on pcmk-1: 350
+native_color: ClusterIP allocation score on pcmk-2: 0
+native_color: WebSite allocation score on pcmk-1: 250
+native_color: WebSite allocation score on pcmk-2: -INFINITY
+
+Transition Summary:
+ * Start   WebSite      (pcmk-1)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;WebSiteが &lt;code&gt;pcmk-1&lt;/code&gt; で稼働開始した状態。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Current cluster status:
+Online: [ pcmk-1 pcmk-2 ]
+
+ ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-1
+ WebSite        (ocf::heartbeat:apache):        Started pcmk-1
+
+Allocation scores:
+native_color: ClusterIP allocation score on pcmk-1: 450
+native_color: ClusterIP allocation score on pcmk-2: 0
+native_color: WebSite allocation score on pcmk-1: 350
+native_color: WebSite allocation score on pcmk-2: -INFINITY
+
+Transition Summary:
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;active側のコンテナに障害が発生してコンテナごと落ちるケースの模擬実験&#34;&gt;Active側のコンテナに障害が発生してコンテナごと落ちるケースの模擬実験&lt;/h2&gt;
+
+&lt;h3 id=&#34;active側-pcmk-1-のコンテナを停止させたときの挙動を確認&#34;&gt;Active側 &lt;code&gt;pcmk-1&lt;/code&gt; のコンテナを停止させたときの挙動を確認&lt;/h3&gt;
+
+&lt;p&gt;LXDホストで以下のコマンドを実行して &lt;code&gt;pcmk-1&lt;/code&gt; を停止させます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ lxc stop -f pcmk-1
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;pcmk-2&lt;/code&gt; で &lt;code&gt;pcs status&lt;/code&gt; を実行すると &lt;code&gt;pcmk-1&lt;/code&gt; が OFFLINE になったことがわかりますが、 &lt;code&gt;PCSD Status:&lt;/code&gt; の後を表示するところでブロックしたので Ctrl-C で止めました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pcmk-2 ~]# pcs status
+Cluster name: mycluster
+Last updated: Fri Aug 12 13:13:37 2016          Last change: Fri Aug 12 09:34:39 2016 by root via cibadmin on pcmk-1
+Stack: corosync
+Current DC: pcmk-2 (version 1.1.13-10.el7_2.4-44eb2dd) - partition with quorum
+2 nodes and 2 resources configured
+
+Online: [ pcmk-2 ]
+OFFLINE: [ pcmk-1 ]
+
+Full list of resources:
+
+ ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-2
+ WebSite        (ocf::heartbeat:apache):        Started pcmk-2
+
+PCSD Status:
+^C
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;ip a s eth0&lt;/code&gt; と &lt;code&gt;ps auxww | grep httpd&lt;/code&gt; で仮想IPとApacheが &lt;code&gt;pcmk-2&lt;/code&gt; で動いていることが確認できました。&lt;/p&gt;
+
+&lt;h3 id=&#34;pcmk-1-のコンテナを起動させた時の挙動を確認&#34;&gt;&lt;code&gt;pcmk-1&lt;/code&gt; のコンテナを起動させた時の挙動を確認&lt;/h3&gt;
+
+&lt;p&gt;LXDホストで以下のコマンドを実行して &lt;code&gt;pcmk-1&lt;/code&gt; を起動し、コンテナ内に入ります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ lxc satrt pcmk-1
+$ lxc exec pcmk-1 bash
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;pcmk-1&lt;/code&gt; 側は &lt;code&gt;pcsd&lt;/code&gt; は起動していますが、クラスタには所属していない状態です。&lt;/p&gt;
+
+&lt;p&gt;理由は &lt;a href=&#34;http://clusterlabs.org/doc/en-US/Pacemaker/1.1-pcs/html/Clusters_from_Scratch/ch04.html#_start_the_cluster&#34;&gt;Chapter 4. Start and Verify Cluster&lt;/a&gt; に説明があります。 &lt;code&gt;pcsd&lt;/code&gt; は &lt;code&gt;systemctl enable&lt;/code&gt; でOS起動時の自動起動を有効にしていますが &lt;code&gt;corosync&lt;/code&gt; と &lt;code&gt;pacemaker&lt;/code&gt; はしていないからです。&lt;/p&gt;
+
+&lt;p&gt;実運用時に物理的な障害などで &lt;code&gt;pcmk-1&lt;/code&gt; がクラスタから外れた場合、その後電源をいれて起動できたとしても、障害の原因を調査して、正常にサービスを稼働できるかを確認してからクラスタに復帰させたいので、この設定で良いと思います。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pcmk-1 ~]# pcs status
+Error: cluster is not currently running on this node
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;pcmk-2&lt;/code&gt; で &lt;code&gt;pcs status&lt;/code&gt; は今度はブロックせずに完了します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pcmk-2 ~]# pcs status
+Cluster name: mycluster
+Last updated: Fri Aug 12 13:18:22 2016          Last change: Fri Aug 12 09:34:39 2016 by root via cibadmin on pcmk-1
+Stack: corosync
+Current DC: pcmk-2 (version 1.1.13-10.el7_2.4-44eb2dd) - partition with quorum
+2 nodes and 2 resources configured
+
+Online: [ pcmk-2 ]
+OFFLINE: [ pcmk-1 ]
+
+Full list of resources:
+
+ ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-2
+ WebSite        (ocf::heartbeat:apache):        Started pcmk-2
+
+PCSD Status:
+  pcmk-1: Online
+  pcmk-2: Online
+
+Daemon Status:
+  corosync: active/disabled
+  pacemaker: active/disabled
+  pcsd: active/enabled
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;以下のコマンドを実行して &lt;code&gt;pcmk-1&lt;/code&gt; をクラスタに復帰させます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pcmk-1 ~]# pcs cluster start pcmk-1
+pcmk-1: Starting Cluster...
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;しばらくして &lt;code&gt;pcs status&lt;/code&gt; を確認すると &lt;code&gt;pcmk-1&lt;/code&gt; がオンラインになり、 ClusterIP と WebSite リソースが &lt;code&gt;pcmk-1&lt;/code&gt; に移動することが確認できました。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>LXDのdnsmasqの固定IP設定をSIGHUPで更新する</title>
@@ -1817,123 +2553,6 @@ go version go1.6.2 linux/amd64
 &lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/ltsvlog&#34;&gt;hnakamur/ltsvlog&lt;/a&gt;はコード量も大したことないので、保守で困ることはないと楽観視しています。&lt;/p&gt;
 
 &lt;p&gt;ということで自分で書くライブラリやアプリケーションではどんどん使っていきたいと思います。&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>Goで複数のリモートのワーカーにジョブを実行させるremoteworkersというパッケージを書いた</title>
-      <link>/blog/2016/06/12/wrote_remoteworkers_go_pacakge/</link>
-      <pubDate>Sun, 12 Jun 2016 21:53:35 +0900</pubDate>
-      
-      <guid>/blog/2016/06/12/wrote_remoteworkers_go_pacakge/</guid>
-      <description>
-
-&lt;h2 id=&#34;なぜ書いたか&#34;&gt;なぜ書いたか&lt;/h2&gt;
-
-&lt;p&gt;仕事で複数のサーバで同じ処理を実行して結果を集めたいというニーズがあって、各サーバをgRPCのサーバにするという実装でとりあえず実現していました。でも、出来れば処理を実行するワーカーサーバから制御サーバに接続して繋ぎっぱなしにしておいて、制御サーバからジョブを送り込む方式にしたいなーと思っていて、家で実装を進めていました。&lt;/p&gt;
-
-&lt;h2 id=&#34;これまでに試したこと&#34;&gt;これまでに試したこと&lt;/h2&gt;
-
-&lt;p&gt;gRPCに&lt;a href=&#34;http://www.grpc.io/docs/tutorials/basic/go.html#bidirectional-streaming-rpc&#34;&gt;Bidirectional streaming RPC&lt;/a&gt;というのがあったので、&lt;a href=&#34;https://github.com/hnakamur/grpc_notification_experiment&#34;&gt;hnakamur/grpc_notification_experiment&lt;/a&gt;で試してみたのですが、複数クライアントがサーバに接続した状態で、サーバからクライアントにジョブを投げても、1つのクライアントでしか処理が実行されないということがわかりました。&lt;/p&gt;
-
-&lt;p&gt;次に、ワーカーサーバから制御サーバにTCPのソケットで接続しておいて、制御サーバからワーカーサーバにジョブを投げて結果を集めるサンプルを書いてみました。
-&lt;a href=&#34;https://github.com/hnakamur/tcp_pubsubreply_experiment&#34;&gt;hnakamur/tcp_pubsubreply_experiment&lt;/a&gt;&lt;/p&gt;
-
-&lt;p&gt;複数のワーカーに同じジョブを投げて結果を集めて、全てのワーカーからの結果が揃ったらクライアントに結果を返すというものです。 &lt;a href=&#34;https://github.com/hnakamur/tcp_pubsubreply_experiment/blob/f9201c075661c5d58895f9a30b47f73f5c4cc13d/main.go#L167-L189&#34;&gt;https://github.com/hnakamur/tcp_pubsubreply_experiment/blob/f9201c075661c5d58895f9a30b47f73f5c4cc13d/main.go#L167-L189&lt;/a&gt; でジョブを各ワーカーのコネクションが持つチャンネルに送って、各ワーカーの結果を返すチャンネルから受け取るという素朴な実装になっています。&lt;/p&gt;
-
-&lt;p&gt;しかし、この実装では1つのジョブを実行中は他のジョブを実行できないという制限があります。また試しているとタイミングによっては期待通りの動きにならないことがありました。&lt;/p&gt;
-
-&lt;h2 id=&#34;今回の実装&#34;&gt;今回の実装&lt;/h2&gt;
-
-&lt;p&gt;実装は&lt;a href=&#34;https://github.com/hnakamur/remoteworkers&#34;&gt;hnakamur/remoteworkers&lt;/a&gt;で公開しています。使用例は&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/tree/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example&#34;&gt;remoteworkers/example&lt;/a&gt;、APIドキュメントは&lt;a href=&#34;https://godoc.org/github.com/hnakamur/remoteworkers&#34;&gt;remoteworkers - GoDoc&lt;/a&gt;を参照してください。&lt;/p&gt;
-
-&lt;p&gt;最初はWebSocketのライブラリ&lt;a href=&#34;https://github.com/gorilla/websocket&#34;&gt;github.com/gorilla/websocket&lt;/a&gt;の&lt;a href=&#34;https://github.com/gorilla/websocket/tree/a68708917c6a4f06314ab4e52493cc61359c9d42/examples&#34;&gt;examples&lt;/a&gt;のchatとechoのclientを組み合わせて改変していきました。chatは1つのクライアントからのメッセージを他のクライアントに送って終わりですが、今回はジョブを実行して結果を集めたいので、その処理を追加で実装しました。また、元のサンプルはグローバル変数や設定用の定数を使うようになっていたのでstructを定義してグローバル変数をやめて設定もstructのメンバーに持つようにしました。&lt;/p&gt;
-
-&lt;p&gt;ワーカーはサーバにwebsocketで接続しますが、クライアントは通常のhttpリクエストでジョブを投げてレスポンスで結果を受け取るようにしてみました。ワーカーとサーバの間のメッセージは&lt;a href=&#34;/blog/blog/2016/06/04/benchmark_go_msgpack_libraries/&#34;&gt;GoのMessagePackのライブラリのベンチマークをしてみた · hnakamur&amp;rsquo;s blog at github&lt;/a&gt;で試した&lt;a href=&#34;https://github.com/vmihailenco/msgpack&#34;&gt;vmihailenco/msgpack&lt;/a&gt;を使ってMessagePackでエンコード・デコードしています。&lt;/p&gt;
-
-&lt;p&gt;以下実装メモです。&lt;/p&gt;
-
-&lt;h3 id=&#34;connとhub&#34;&gt;ConnとHub&lt;/h3&gt;
-
-&lt;p&gt;サーバ側のメインの処理は、サーバとワーカーのコネクションを扱う&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/conn.go&#34;&gt;Conn&lt;/a&gt;と複数のConnの間を取り持つ&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go&#34;&gt;Hub&lt;/a&gt;が担当しています。&lt;/p&gt;
-
-&lt;h3 id=&#34;読み取りと書き出しでgoroutineを分ける&#34;&gt;読み取りと書き出しでgoroutineを分ける&lt;/h3&gt;
-
-&lt;p&gt;上記の&lt;a href=&#34;https://github.com/hnakamur/tcp_pubsubreply_experiment&#34;&gt;hnakamur/tcp_pubsubreply_experiment&lt;/a&gt;では、ワーカーとサーバ間のTCPコネクション1つのに対して1つgoroutineを作ってデータの読み書きをしていました。&lt;/p&gt;
-
-&lt;p&gt;一方、&lt;a href=&#34;https://godoc.org/github.com/gorilla/websocket&#34;&gt;github.com/gorilla/websocketのAPIドキュメント&lt;/a&gt;の&lt;a href=&#34;https://godoc.org/github.com/gorilla/websocket#hdr-Concurrency&#34;&gt;Concurrency&lt;/a&gt;にコネクションは1つのコンカレントなリーダーと1つのコンカレントなライターをサポートすると書いてあります。&lt;/p&gt;
-
-&lt;p&gt;chatのexampleを見ると&lt;a href=&#34;https://github.com/gorilla/websocket/blob/a68708917c6a4f06314ab4e52493cc61359c9d42/examples/chat/conn.go#L50-L69&#34;&gt;Conn.readPump()&lt;/a&gt;で読み取り処理のループ、&lt;a href=&#34;https://github.com/gorilla/websocket/blob/a68708917c6a4f06314ab4e52493cc61359c9d42/examples/chat/conn.go#L78-L116&#34;&gt;Conn.writePump()&lt;/a&gt;で書き出し処理のループを実装していて &lt;a href=&#34;https://github.com/gorilla/websocket/blob/a68708917c6a4f06314ab4e52493cc61359c9d42/examples/chat/conn.go#L127-L128&#34;&gt;https://github.com/gorilla/websocket/blob/a68708917c6a4f06314ab4e52493cc61359c9d42/examples/chat/conn.go#L127-L128&lt;/a&gt; でgoroutineを使って並行(concurrent)に実行しています。&lt;/p&gt;
-
-&lt;p&gt;この方式により上記の&lt;a href=&#34;https://godoc.org/github.com/gorilla/websocket#hdr-Concurrency&#34;&gt;Concurrency&lt;/a&gt;の1つのコネクションに1つのコンカレントなリーダーと1つのコンカレントなライターという条件を自動的に満たすことが出来ます。&lt;/p&gt;
-
-&lt;p&gt;さらに、ワーカーでのジョブの実行も &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/worker.go#L200-L214&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/worker.go#L200-L214&lt;/a&gt; のように別のgoroutineで実行するようにしました。読み取りと書き出しのgoroutineを分け、ジョブ実行のgoroutineも別にしたことで、ワーカーでジョブを実行中でも別のジョブを受け取って実行することが出来るようになりました。&lt;/p&gt;
-
-&lt;h3 id=&#34;ジョブのディスパッチと結果の収集&#34;&gt;ジョブのディスパッチと結果の収集&lt;/h3&gt;
-
-&lt;p&gt;各ワーカーからにジョブを投げて結果を集める部分も &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L139-L171&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L139-L171&lt;/a&gt; のように書くことで、複数のジョブを並行で実行できるようになっています。&lt;/p&gt;
-
-&lt;p&gt;例えば、あるジョブを依頼されてそれの結果が集まる前に、次のジョブを受け取ってそちらの結果が先に集まった場合はそちらを先に返すことができます。&lt;/p&gt;
-
-&lt;h3 id=&#34;自動で再接続&#34;&gt;自動で再接続&lt;/h3&gt;
-
-&lt;p&gt;ワーカーとの接続が切れた場合は、残ったワーカーだけで処理を実行する仕様としました。ジョブを受け取った時にワーカーが1つもいない場合はエラーとしています。また、ワーカーからサーバへの接続が切れた場合は1秒待って再起動を無限に繰り替えすようにしています。時間は設定で変更可能です。ただし、だんだん間隔を開けるといったことは出来ないのでその場合はフォークして改変してください。&lt;/p&gt;
-
-&lt;h3 id=&#34;返信用のチャンネルを渡して実行&#34;&gt;返信用のチャンネルを渡して実行&lt;/h3&gt;
-
-&lt;p&gt;サーバとワーカのコネクションをHubに登録する箇所 &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/conn.go#L86-L92&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/conn.go#L86-L92&lt;/a&gt; とクライアントから依頼されたジョブをHubに投げて全ワーカーからの結果を受け取る箇所 &lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L194-L203&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L194-L203&lt;/a&gt; では、結果を受け取るためのチャンネルをHubへのチャンネルに渡して実行するという方法を取りました。&lt;/p&gt;
-
-&lt;p&gt;これによってHubとのやり取りは全てチャンネル経由になりシンプルになりました。さらに関数の中に閉じ込めることで、ライブラリの利用者はチャンネルを意識することなく単なる関数呼び出しで使えるようになっています。&lt;/p&gt;
-
-&lt;h3 id=&#34;ジョブのエンコード-デコード&#34;&gt;ジョブのエンコード・デコード&lt;/h3&gt;
-
-&lt;p&gt;まずクライアントではジョブをJSONでエンコードしています。
-&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/client/client.go#L25-L30&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/client/client.go#L25-L30&lt;/a&gt;&lt;/p&gt;
-
-&lt;p&gt;サーバでは受け取ったジョブをJSONでデコードします。
-&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/server/main.go#L52-L54&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/server/main.go#L52-L54&lt;/a&gt;&lt;/p&gt;
-
-&lt;p&gt;その後&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L193-L205&#34;&gt;Hub.RequestWork()&lt;/a&gt;でHubにジョブが渡されて
-&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L142&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L142&lt;/a&gt;
-でMessagePackでエンコードしてワーカーに送ります。&lt;/p&gt;
-
-&lt;p&gt;ワーカーでは
-&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/worker.go#L187-L188&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/worker.go#L187-L188&lt;/a&gt;
-で受け取ったジョブをMessagePackでデコードします。&lt;/p&gt;
-
-&lt;p&gt;ワーカーでジョブを受け取って処理する部分は
-&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/worker/main.go#L47-L58&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/worker/main.go#L47-L58&lt;/a&gt;
-です。&lt;a href=&#34;https://github.com/vmihailenco/msgpack&#34;&gt;vmihailenco/msgpack&lt;/a&gt;で &lt;code&gt;map[string]string&lt;/code&gt; 型をエンコードしてデコードすると &lt;code&gt;map[interface{}]interface{}&lt;/code&gt; になったので&lt;a href=&#34;https://golang.org/ref/spec#Type_assertions&#34;&gt;type assertion&lt;/a&gt;を使って参照する必要がありました。&lt;/p&gt;
-
-&lt;h3 id=&#34;結果のエンコード-デコード&#34;&gt;結果のエンコード・デコード&lt;/h3&gt;
-
-&lt;p&gt;ワーカーでの結果は
-&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/worker.go#L202-L206&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/worker.go#L202-L206&lt;/a&gt;
-でMessagePackにエンコードしています。&lt;/p&gt;
-
-&lt;p&gt;サーバでは
-&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/conn.go#L148-L163&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/conn.go#L148-L163&lt;/a&gt;
-で結果をMessagePackでデコードしてHubに送っています。&lt;/p&gt;
-
-&lt;p&gt;Hubでは
-&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L165-L171&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/hub.go#L165-L171&lt;/a&gt;
-で1つのワーカーからの結果を受け取り、全てのワーカーからの結果が揃ったらクライアントへ返信するためのチャンネルに集めた結果を送ります。&lt;/p&gt;
-
-&lt;p&gt;サーバでは
-&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/server/main.go#L28-L39&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/server/main.go#L28-L39&lt;/a&gt;
-で集めた結果の構造を変形し、
-&lt;a href=&#34;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/server/main.go#L69-L70&#34;&gt;https://github.com/hnakamur/remoteworkers/blob/0ee6c4fa0ffe12af7ff6e7aefd5e3f0ebe042e31/example/server/main.go#L69-L70&lt;/a&gt;
-でJSONにエンコードしています。&lt;/p&gt;
-
-&lt;h3 id=&#34;tcpソケットからwebsocketにして良かったところ&#34;&gt;TCPソケットからWebSocketにして良かったところ&lt;/h3&gt;
-
-&lt;p&gt;ワーカーからサーバに接続したときにワーカーのIDを登録しているのですが、TCPソケットのときはそのためにワーカーから登録用のメッセージを送って成功失敗の結果を送る必要がありました。一方WebSocketではエンドポイントに接続するときにリクエストヘッダで追加の情報を送れるので &lt;code&gt;X-Worker-ID&lt;/code&gt; と言うヘッダ名でワーカーIDを送るようにしました。&lt;/p&gt;
-
-&lt;p&gt;また、TCPソケットだと1つのポートでクライアントとワーカーからの通信を受ける場合はメッセージの内容で区別がつくようにしておく必要があります。WebSocketの場合は1つのポートでもURLのPathを別にするという手が使えるので楽です。しかも今回のようにワーカーはWebSocketで接続し、クライアントはhttpで接続ということも出来て便利です。&lt;/p&gt;
-
-&lt;h2 id=&#34;おわりに&#34;&gt;おわりに&lt;/h2&gt;
-
-&lt;p&gt;当初やりたいと思っていたことがようやく実現できました。しかも、これだけ並列性が高いプログラムなのにgoroutineとchannelのおかげですっきりシンプルなコードで実装出来ています。これなら保守や改変もしやすくて助かります。やっぱりGoは素晴らしいです！&lt;/p&gt;
 </description>
     </item>
     
