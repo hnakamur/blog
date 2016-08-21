@@ -6,8 +6,403 @@
     <description>Recent content in Lxd on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Fri, 12 Aug 2016 06:38:18 +0900</lastBuildDate>
+    <lastBuildDate>Sun, 21 Aug 2016 11:23:01 +0900</lastBuildDate>
     <atom:link href="/blog/tags/lxd/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>Pacemakerを使ってPostgreSQLのアクティブ・スタンバイ(1&#43;1構成)を試してみた</title>
+      <link>/blog/2016/08/21/experiment-postgresql-active-standby-cluster-using-pacemaker/</link>
+      <pubDate>Sun, 21 Aug 2016 11:23:01 +0900</pubDate>
+      
+      <guid>/blog/2016/08/21/experiment-postgresql-active-standby-cluster-using-pacemaker/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;STONITH無し、quorum無しのアクティブ・スタンバイ(1+1構成)がとりあえず動くところまでは来たので、一旦メモです。&lt;/p&gt;
+
+&lt;h2 id=&#34;参考資料&#34;&gt;参考資料&lt;/h2&gt;
+
+&lt;p&gt;以下の資料と連載記事がわかりやすくて非常に参考になりました。ありがとうございます！&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://linux-ha.osdn.jp/wp/archives/3244&#34;&gt;JPUG 第23回しくみ+アプリケーション勉強会 セミナー資料公開 « Linux-HA Japan&lt;/a&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://linux-ha.osdn.jp/wp/wp-content/uploads/pacemaker_20120526JPUG.pdf&#34;&gt;HAクラスタでPostgreSQLを高可用化(前編) ～Pacemaker入門編～(PDF)&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://linux-ha.osdn.jp/wp/wp-content/uploads/b754c737d835c2546415009387407b7b.pdf&#34;&gt;PostgreSQLを高可用化(後編) 〜レプリケーション編〜(PDF)&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://linux-ha.osdn.jp/wp/archives/3589&#34;&gt;OSC 2013 Tokyo/Spring 講演資料公開 « Linux-HA Japan&lt;/a&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.slideshare.net/takmatsuo/osc-tokyospring2013-16694861&#34;&gt;Pacemaker+PostgreSQLレプリケーションで共有ディスクレス高信頼クラスタの構築＠OSC 2013 Tokyo/Spring&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://gihyo.jp/admin/serial/01/pacemaker&#34;&gt;Pacemakerでかんたんクラスタリング体験してみよう！：連載｜gihyo.jp … 技術評論社&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;さらに以下の記事と電子書籍も参考にしました。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://clusterlabs.org/wiki/PgSQL_Replicated_Cluster&#34;&gt;PgSQL Replicated Cluster - ClusterLabs&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://shop.oreilly.com/product/9781783550609.do&#34;&gt;PostgreSQL Replication, 2nd Edition - O&amp;rsquo;Reilly Media&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;テスト用のansible-playbook&#34;&gt;テスト用のAnsible playbook&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/postgresql-pacemaker-example-playbook&#34;&gt;https://github.com/hnakamur/postgresql-pacemaker-example-playbook&lt;/a&gt;
+に置きました。&lt;/p&gt;
+
+&lt;p&gt;LXD をセットアップ済みの Ubuntu 16.04 上で試しました。&lt;/p&gt;
+
+&lt;h2 id=&#34;セットアップの事前準備&#34;&gt;セットアップの事前準備&lt;/h2&gt;
+
+&lt;p&gt;上記のplaybookを取得します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;git clone https://github.com/hnakamur/postgresql-pacemaker-example-playbook
+cd postgresql-pacemaker-example-playbook
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Ansibleの &lt;code&gt;lxd_container&lt;/code&gt; モジュールを使うので、virtualenvで仮想環境を作ってAnsibleのmaster版をインストールします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;virtualenv venv
+source venv/bin/activate
+pip install git+https://github.com/ansible/ansible
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;今回はコンテナのIPアドレスをDHCPではなく静的アドレスを使うようにしてみました。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;/etc/default/lxd-bridge&lt;/code&gt; の &lt;code&gt;LXD_IPV4_DHCP_RANGE&lt;/code&gt; に DHCP のアドレス範囲が設定されているので、ファイルを編集して範囲を狭めます。私の環境では以下のようにしました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;## IPv4 network (e.g. 10.0.8.0/24)
+LXD_IPV4_NETWORK=&amp;quot;10.155.92.1/24&amp;quot;
+
+## IPv4 DHCP range (e.g. 10.0.8.2,10.0.8.254)
+LXD_IPV4_DHCP_RANGE=&amp;quot;10.155.92.200,10.155.92.254&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;LXDをインストールしたときに &lt;code&gt;LXD_IPV4_NETWORK&lt;/code&gt; はランダムなアドレスになるかあるいは自分で指定しますので、それに応じた値に適宜変更してください。&lt;/p&gt;
+
+&lt;p&gt;変更したら &lt;code&gt;lxd-bridge&lt;/code&gt; を再起動して変更を反映します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo systemctl restart lxd-bridge
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;group_vars/development/vars.yml&lt;/code&gt; ファイル内のIPアドレスも適宜変更します。&lt;/p&gt;
+
+&lt;p&gt;また、 &lt;code&gt;group_vars/development/secrets.yml&lt;/code&gt; 内にパスワードやsshの鍵ペアなどが含まれています。これを違う値に変更したい場合は以下のようにします。&lt;/p&gt;
+
+&lt;p&gt;まず、以下のコマンドを実行して一旦復号化します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;ansible-vault decrypt group_vars/development/secrets.yml
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;vaultのパスワードを聞かれますので入力します。この例では &lt;code&gt;password&lt;/code&gt; としています。これはあくまで例なのでこういう弱いパスワードにしていますが、実際の案件で使うときは、もっと強いパスワードを指定してください。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;group_vars/development/secrets.yml&lt;/code&gt; 内の変数を適宜変更したら、以下のコマンドを実行して暗号化します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;ansible-vault encrypt group_vars/development/secrets.yml
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;vaultの新しいパスワードを聞かれますので入力してください。&lt;/p&gt;
+
+&lt;h2 id=&#34;コンテナの作成&#34;&gt;コンテナの作成&lt;/h2&gt;
+
+&lt;p&gt;以下のコマンドを実行して &lt;code&gt;node1&lt;/code&gt; と &lt;code&gt;node2&lt;/code&gt; という2つのコンテナを作成します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ ansible-playbook launch_containers.yml -D -v
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;vaultのパスワードを聞かれますので入力してください。&lt;/p&gt;
+
+&lt;h2 id=&#34;コンテナ内にpostgresqlとpacemakerをセットアップ&#34;&gt;コンテナ内にPostgreSQLとPacemakerをセットアップ&lt;/h2&gt;
+
+&lt;p&gt;以下のコマンドを実行して、コンテナ内にPostgreSQLとPacemakerをセットアップします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ ansible-playbook setup_containers.yml -D -v
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ここでは、セットアップ完了後、アクティブスタンバイ構成が開始するまでの時間を図りたいので、以下のように &lt;code&gt;date -u&lt;/code&gt; コマンドも実行するようにします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ ansible-playbook setup_containers.yml -D -v; date -u
+…(略)…
+Sun Aug 21 13:51:21 UTC 2016
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;以下のコマンドを実行して &lt;code&gt;node2&lt;/code&gt; コンテナに入ります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ lxc exec node2 bash
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;以下のコマンドを実行して、クラスタの状態をモニターします。
+&lt;code&gt;node1&lt;/code&gt;, &lt;code&gt;node2&lt;/code&gt; が両方 Slaves の状態を経て、 &lt;code&gt;node1&lt;/code&gt; が Master になり master-ip が &lt;code&gt;node1&lt;/code&gt; につくまで待ちます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Last updated: Sun Aug 21 13:52:07 2016          Last change: Sun Aug 21 13:52:03 2016 by root via crm_attribute on node1
+Stack: corosync
+Current DC: node1 (version 1.1.13-10.el7_2.4-44eb2dd) - partition with quorum
+2 nodes and 3 resources configured
+
+Online: [ node1 node2 ]
+
+ Master/Slave Set: pgsql-master [pgsql]
+     Masters: [ node1 ]
+     Slaves: [ node2 ]
+master-ip       (ocf::heartbeat:IPaddr2):       Started node1
+
+Node Attributes:
+* Node node1:
+    + master-pgsql                      : 1000
+    + pgsql-data-status                 : LATEST
+    + pgsql-master-baseline             : 0000000003000098
+    + pgsql-status                      : PRI
+    + pgsql-xlog-loc                    : 0000000003000098
+* Node node2:
+    + master-pgsql                      : -INFINITY
+    + pgsql-data-status                 : STREAMING|ASYNC
+    + pgsql-status                      : HS:async
+    + pgsql-xlog-loc                    : 0000000003000000
+
+Migration Summary:
+* Node node2:
+* Node node1:
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;この端末は開いたままにしておきます。&lt;/p&gt;
+
+&lt;h2 id=&#34;node1-コンテナを強制停止してフェールオーバのテスト&#34;&gt;node1 コンテナを強制停止してフェールオーバのテスト&lt;/h2&gt;
+
+&lt;p&gt;別の端末を開いて以下のコマンドを実行し、 &lt;code&gt;node1&lt;/code&gt; コンテナを強制停止し時刻を記録します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ lxc stop -f node1; date -u
+Sun Aug 21 13:52:57 UTC 2016
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;しばらくすると　&lt;code&gt;crm_mon -fA&lt;/code&gt; の出力が以下のようになります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Last updated: Sun Aug 21 13:53:11 2016          Last change: Sun Aug 21 13:53:05 2016 by root via crm_attribute on node2
+Stack: corosync
+Current DC: node2 (version 1.1.13-10.el7_2.4-44eb2dd) - partition with quorum
+2 nodes and 3 resources configured
+
+Online: [ node2 ]
+OFFLINE: [ node1 ]
+
+ Master/Slave Set: pgsql-master [pgsql]
+     Masters: [ node2 ]
+master-ip       (ocf::heartbeat:IPaddr2):       Started node2
+
+Node Attributes:
+* Node node2:
+    + master-pgsql                      : 1000
+    + pgsql-data-status                 : LATEST
+    + pgsql-master-baseline             : 00000000030001A8
+    + pgsql-status                      : PRI
+    + pgsql-xlog-loc                    : 0000000003000000
+
+Migration Summary:
+* Node node2:
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;LXDホストで以下のコマンドを実行して &lt;code&gt;node1&lt;/code&gt; を起動します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ lxc start node1; date -u
+Sun Aug 21 13:53:58 UTC 2016
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;起動後しばらくしても &lt;code&gt;node1&lt;/code&gt; はオフラインのままですが、これは意図した挙動です。実際のケースではディスク障害などが起きているかもしれないので、マシンの状況を確認してから手動でクラスタに復帰させることになるためです。&lt;/p&gt;
+
+&lt;p&gt;以下のコマンドで &lt;code&gt;node1&lt;/code&gt; コンテナに入ります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ lxc exec node1 bash
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;PacemakerがPostgreSQLのロックファイルを作っているのでそれを削除します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@node1 ~]# ll /var/run/postgresql/
+total 4
+-rw-r----- 1 root     root      0 Aug 21 13:52 PGSQL.lock
+-rw-r----- 1 postgres postgres 36 Aug 21 13:52 rep_mode.conf
+[root@node1 ~]# rm /var/run/postgresql/PGSQL.lock
+rm: remove regular empty file &#39;/var/run/postgresql/PGSQL.lock&#39;? y
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;以下のコマンドで &lt;code&gt;node1&lt;/code&gt; をクラスタに復帰させ、時刻を記録します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@node1 ~]# pcs cluster start node1; date -u
+node1: Starting Cluster...
+Sun Aug 21 13:55:30 UTC 2016
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;15秒後、 &lt;code&gt;crm_mon -fA&lt;/code&gt; の画面で &lt;code&gt;node1&lt;/code&gt; の PostgreSQL が Slaves に追加されました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Last updated: Sun Aug 21 13:55:45 2016          Last change: Sun Aug 21 13:55:42 2016 by root via crm_attribute on node2
+Stack: corosync
+Current DC: node2 (version 1.1.13-10.el7_2.4-44eb2dd) - partition with quorum
+2 nodes and 3 resources configured
+
+Online: [ node1 node2 ]
+
+ Master/Slave Set: pgsql-master [pgsql]
+     Masters: [ node2 ]
+     Slaves: [ node1 ]
+master-ip       (ocf::heartbeat:IPaddr2):       Started node2
+
+Node Attributes:
+* Node node1:
+    + master-pgsql                      : 100
+    + pgsql-data-status                 : STREAMING|SYNC
+    + pgsql-status                      : HS:sync
+* Node node2:
+    + master-pgsql                      : 1000
+    + pgsql-data-status                 : LATEST
+    + pgsql-master-baseline             : 00000000030001A8
+    + pgsql-status                      : PRI
+    + pgsql-xlog-loc                    : 0000000003000000
+
+Migration Summary:
+* Node node2:
+* Node node1:
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ここで、 &lt;code&gt;node2&lt;/code&gt; で &lt;code&gt;crm_mon -fA&lt;/code&gt; を実行していた端末で Control-C を入力してモニターを終了します。&lt;/p&gt;
+
+&lt;h2 id=&#34;postgresqlのプロセスを強制終了してフェールオーバのテスト&#34;&gt;PostgreSQLのプロセスを強制終了してフェールオーバのテスト&lt;/h2&gt;
+
+&lt;p&gt;今度は &lt;code&gt;node2&lt;/code&gt; の PostgreSQL のプロセスを強制終了してフェールオーバしてみます。&lt;/p&gt;
+
+&lt;p&gt;経過を見るために &lt;code&gt;node1&lt;/code&gt; で以下のコマンドを実行して、その端末を開いたままにしておきます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@node1 ~]# crm_mon -fA
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;開始時点では以下のような出力になっていました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Last updated: Sun Aug 21 13:57:17 2016          Last change: Sun Aug 21 13:55:42 2016 by root via crm_attribute on node2
+Stack: corosync
+Current DC: node2 (version 1.1.13-10.el7_2.4-44eb2dd) - partition with quorum
+2 nodes and 3 resources configured
+
+Online: [ node1 node2 ]
+
+ Master/Slave Set: pgsql-master [pgsql]
+     Masters: [ node2 ]
+     Slaves: [ node1 ]
+master-ip       (ocf::heartbeat:IPaddr2):       Started node2
+
+Node Attributes:
+* Node node1:
+    + master-pgsql                      : 100
+    + pgsql-data-status                 : STREAMING|SYNC
+    + pgsql-status                      : HS:sync
+* Node node2:
+    + master-pgsql                      : 1000
+    + pgsql-data-status                 : LATEST
+    + pgsql-master-baseline             : 00000000030001A8
+    + pgsql-status                      : PRI
+    + pgsql-xlog-loc                    : 0000000003000000
+
+Migration Summary:
+* Node node2:
+* Node node1:
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;node2&lt;/code&gt; で以下のコマンドを実行して PostgreSQL のプロセスを強制終了し、時刻を記録します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@node2 ~]# kill -KILL `head -1 /var/lib/pgsql/9.5/data/postmaster.pid`; date -u
+Sun Aug 21 13:58:20 UTC 2016
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;11秒後 &lt;code&gt;node1&lt;/code&gt; の PostgreSQL が Masterに昇格されました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Last updated: Sun Aug 21 13:58:31 2016          Last change: Sun Aug 21 13:58:27 2016 by root via crm_attribute on node1
+Stack: corosync
+Current DC: node2 (version 1.1.13-10.el7_2.4-44eb2dd) - partition with quorum
+2 nodes and 3 resources configured
+
+Online: [ node1 node2 ]
+
+ Master/Slave Set: pgsql-master [pgsql]
+     Masters: [ node1 ]
+master-ip       (ocf::heartbeat:IPaddr2):       Started node1
+
+Node Attributes:
+* Node node1:
+    + master-pgsql                      : 1000
+    + pgsql-data-status                 : LATEST
+    + pgsql-master-baseline             : 0000000003000398
+    + pgsql-status                      : PRI
+* Node node2:
+    + master-pgsql                      : -INFINITY
+    + pgsql-data-status                 : DISCONNECT
+    + pgsql-status                      : STOP
+
+Migration Summary:
+* Node node2:
+   pgsql: migration-threshold=2 fail-count=1000000 last-failure=&#39;Sun Aug 21 13:58:23 2016&#39;
+* Node node1:
+
+Failed Actions:
+* pgsql_start_0 on node2 &#39;unknown error&#39; (1): call=23, status=complete, exitreason=&#39;My data may be inconsistent. You have to remove /va
+r/run/postgresql/PGSQL.lock file to force start.&#39;,
+    last-rc-change=&#39;Sun Aug 21 13:58:23 2016&#39;, queued=0ms, exec=383ms
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;次に、 &lt;code&gt;node2&lt;/code&gt; の PostgreSQL を再び稼働してスタンバイにさせてみます。&lt;/p&gt;
+
+&lt;p&gt;まず Pacemaker が作成した PostgreSQL のロックファイル &lt;code&gt;/var/run/postgresql/PGSQL.lock&lt;/code&gt; を削除します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@node2 ~]# ll /var/run/postgresql/
+total 4
+-rw-r----- 1 root     root      0 Aug 21 13:53 PGSQL.lock
+-rw-r----- 1 postgres postgres 31 Aug 21 13:58 rep_mode.conf
+[root@node2 ~]# \rm /var/run/postgresql/PGSQL.lock
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;次に以下のコマンドを実行して &lt;code&gt;node2&lt;/code&gt; のPostgreSQL の failcount をリセットし、時刻を記録します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@node2 ~]# pcs resource failcount reset pgsql node2; date -u
+Sun Aug 21 14:00:04 UTC 2016
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;9秒後、 &lt;code&gt;node1&lt;/code&gt; での &lt;code&gt;crm_mon -fA&lt;/code&gt; の出力を見ると &lt;code&gt;node2&lt;/code&gt; がスタンバイになりました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Last updated: Sun Aug 21 14:00:13 2016          Last change: Sun Aug 21 14:00:10 2016 by root via crm_attribute on node1
+Stack: corosync
+Current DC: node2 (version 1.1.13-10.el7_2.4-44eb2dd) - partition with quorum
+2 nodes and 3 resources configured
+
+Online: [ node1 node2 ]
+
+ Master/Slave Set: pgsql-master [pgsql]
+     Masters: [ node1 ]
+     Slaves: [ node2 ]
+master-ip       (ocf::heartbeat:IPaddr2):       Started node1
+
+Node Attributes:
+* Node node1:
+    + master-pgsql                      : 1000
+    + pgsql-data-status                 : LATEST
+    + pgsql-master-baseline             : 0000000003000398
+    + pgsql-status                      : PRI
+* Node node2:
+    + master-pgsql                      : 100
+    + pgsql-data-status                 : STREAMING|SYNC
+    + pgsql-status                      : HS:sync
+
+Migration Summary:
+* Node node2:
+* Node node1:
+
+Failed Actions:
+* pgsql_start_0 on node2 &#39;unknown error&#39; (1): call=23, status=complete, exitreason=&#39;My data may be inconsistent. You have to remove /va
+r/run/postgresql/PGSQL.lock file to force start.&#39;,
+    last-rc-change=&#39;Sun Aug 21 13:58:23 2016&#39;, queued=0ms, exec=383ms
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;おわりに&#34;&gt;おわりに&lt;/h2&gt;
+
+&lt;p&gt;STONITH無し、quorum無しという簡易構成ですが、アクティブ・スタンバイ(1+1構成)でフフェールオーバする検証ができました。本番運用するにはSTONITHやquorumも重要そうなので、そちらも調べて行きたいです。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>LXDのdnsmasqの固定IP設定をSIGHUPで更新する</title>
