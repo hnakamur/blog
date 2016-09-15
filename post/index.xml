@@ -6,8 +6,557 @@
     <description>Recent content in Posts on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Sun, 21 Aug 2016 11:23:01 +0900</lastBuildDate>
+    <lastBuildDate>Thu, 15 Sep 2016 06:28:34 +0900</lastBuildDate>
     <atom:link href="/blog/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>pgpool-IIを使ってPostgreSQLのアクティブ・スタンバイ(1&#43;1構成)を試してみた</title>
+      <link>/blog/2016/09/15/experiment-postgresql-active-standby-using-pgpool-ii/</link>
+      <pubDate>Thu, 15 Sep 2016 06:28:34 +0900</pubDate>
+      
+      <guid>/blog/2016/09/15/experiment-postgresql-active-standby-using-pgpool-ii/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;pgool-IIを使ってPostgreSQLのアクティブ・スタンバイ(1+1構成)を試したのでメモです。&lt;/p&gt;
+
+&lt;p&gt;以下のページを参考にしました。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html&#34;&gt;pgpool-II ユーザマニュアル&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.pgpool.net/pgpool-web/contrib_docs/watchdog_master_slave_3.3/ja.html&#34;&gt;pgpool-II watchdog チュートリアル（master-slave mode）&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://lets.postgresql.jp/documents/technical/pgpool-II-3.3-watchdog/1&#34;&gt;pgpool-II 3.3 の watchdog 機能 — Let&amp;rsquo;s Postgres&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;テスト用のansible-playbook&#34;&gt;テスト用のAnsible playbook&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/postgresql-pgpool2-failover-example-playbook&#34;&gt;https://github.com/hnakamur/postgresql-pgpool2-failover-example-playbook&lt;/a&gt; に置きました。&lt;/p&gt;
+
+&lt;p&gt;LXD をセットアップ済みの Ubuntu 16.04 上で試しました。&lt;/p&gt;
+
+&lt;p&gt;LXD で CentOS 7 のコンテナを2つ作って環境構築しています。
+PostgreSQL と pgpool-II は &lt;a href=&#34;http://yum.postgresql.org/repopackages.php&#34;&gt;PostgreSQL RPM Repository (with Yum)&lt;/a&gt; からインストールしました。
+PostgreSQL のバージョンは 9.5.4、 pgpool-II のバージョンは 3.5.4 です。&lt;/p&gt;
+
+&lt;h2 id=&#34;今回の構成&#34;&gt;今回の構成&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://www.pgpool.net/pgpool-web/contrib_docs/watchdog_master_slave_3.3/ja.html&#34;&gt;pgpool-II watchdog チュートリアル（master-slave mode）&lt;/a&gt; の図と同様の構成となっています。&lt;/p&gt;
+
+&lt;p&gt;ただし、今回の構成では pgpool-II と PostgreSQL を別のコンテナにせず1つのコンテナに同居させていて、以下の2つのコンテナで構成しています。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;pgsql1 (IPアドレス &lt;code&gt;10.155.92.101&lt;/code&gt;)&lt;/li&gt;
+&lt;li&gt;pgsql2 (IPアドレス &lt;code&gt;10.155.92.102&lt;/code&gt;)&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;pgpool-II は watchdog で相互監視するマスタ・スタンバイ構成 (
+&lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html#config&#34;&gt;pgpool-II の設定&lt;/a&gt; のマスタスレーブモード ) です。
+pgpool-II のマスタが仮想 IP &lt;code&gt;10.155.92.100&lt;/code&gt; を持ちます。&lt;/p&gt;
+
+&lt;p&gt;pgpool-II から PostgreSQL を監視するのは heartbeat という仕組みを今回は使っています。&lt;/p&gt;
+
+&lt;p&gt;レプリケーションは pgpool-II ではなく PostgreSQL の非同期ストリーミング・レプリケーションを使っています。&lt;/p&gt;
+
+&lt;p&gt;また、 pgpool-II の負荷分散 (ロードバランサ) 機能は今回は使っていません。&lt;/p&gt;
+
+&lt;p&gt;なお、仮想 IP はあくまで pgpool-II のマスタと連動するもので、 PostgreSQL のプライマリとは別のコンテナになることもあります。&lt;/p&gt;
+
+&lt;p&gt;pgpool-II のドキュメントやコマンドの出力を見ると、 pgpool-II のマスタはマスタ、 PostgreSQL のマスタはプライマリと用語を使い分けているようです。この記事もそれに従います。&lt;/p&gt;
+
+&lt;p&gt;pgpool-II と PostgreSQL のポートはそれぞれデフォルトの 9999 と 5432 としています。
+pgpool-II は他に管理用のポートとして 9898、 watchdog 用のポートで 9000 を使います。&lt;/p&gt;
+
+&lt;h2 id=&#34;セットアップの事前準備&#34;&gt;セットアップの事前準備&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;/blog/blog/2016/08/21/experiment-postgresql-active-standby-cluster-using-pacemaker/&#34;&gt;Pacemakerを使ってPostgreSQLのアクティブ・スタンバイ(1+1構成)を試してみた · hnakamur&amp;rsquo;s blog at github&lt;/a&gt; と同様です。&lt;/p&gt;
+
+&lt;h2 id=&#34;pgpool-ii-の管理者ユーザとパスワード&#34;&gt;pgpool-II の管理者ユーザとパスワード&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html#pcp_config&#34;&gt;pcp.conf の設定&lt;/a&gt; に従って pgpool-II の管理者のユーザ名と md5 暗号化したパスワードを &lt;code&gt;/etc/pgpool-II-95/pcp.conf&lt;/code&gt; に設定しています。&lt;/p&gt;
+
+&lt;p&gt;管理者ユーザ名は &lt;code&gt;pgpool2&lt;/code&gt; としました。&lt;/p&gt;
+
+&lt;p&gt;パスワードは以下のコマンドを実行して &lt;code&gt;group_vars/development/secrets.yml&lt;/code&gt; を復号化し、 &lt;code&gt;development.secrets.pgpool2_admin_password&lt;/code&gt; の値を参照してください。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ ansible-vault decrypt group_vars/development/secrets.yml 
+Vault password: 
+Decryption successful
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;コンテナの作成&#34;&gt;コンテナの作成&lt;/h2&gt;
+
+&lt;p&gt;以下のコマンドを実行して &lt;code&gt;pgsql1&lt;/code&gt; と &lt;code&gt;pgsql2&lt;/code&gt; という2つのコンテナを作成します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ ansible-playbook launch_containers.yml -D -v
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;vaultのパスワードを聞かれますので入力してください。&lt;/p&gt;
+
+&lt;h2 id=&#34;コンテナ内に-postgresql-と-pgpool-ii-をセットアップ&#34;&gt;コンテナ内に PostgreSQL と pgpool-II をセットアップ&lt;/h2&gt;
+
+&lt;p&gt;以下のコマンドを実行して、コンテナ内に PostgreSQL と pgpool-II をセットアップします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ ansible-playbook setup_containers.yml -D -v
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;セットアップが完了したときの初期状態では &lt;code&gt;pgsql1&lt;/code&gt; の pgpool-II がマスタで仮想IPを持ち、 PostgreSQL も &lt;code&gt;pgsql1&lt;/code&gt; がプライマリとなっています。&lt;/p&gt;
+
+&lt;h2 id=&#34;状態確認のコマンド説明&#34;&gt;状態確認のコマンド説明&lt;/h2&gt;
+
+&lt;h3 id=&#34;postgresql-のプロセス確認&#34;&gt;PostgreSQL のプロセス確認&lt;/h3&gt;
+
+&lt;p&gt;起動してしばらく経ってから &lt;code&gt;pgsql1&lt;/code&gt; コンテナの PostgreSQL プロセスを ps で見ると以下のようになります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql1 ~]# ps axf | grep [p]ostgres
+ 1464 ?        S      0:00 /usr/pgsql-9.5/bin/postgres -D /var/lib/pgsql/9.5/data
+ 1465 ?        Ss     0:00  \_ postgres: logger process   
+ 1467 ?        Ss     0:00  \_ postgres: checkpointer process   
+ 1468 ?        Ss     0:00  \_ postgres: writer process   
+ 1469 ?        Ss     0:00  \_ postgres: wal writer process   
+ 1470 ?        Ss     0:00  \_ postgres: autovacuum launcher process   
+ 1471 ?        Ss     0:00  \_ postgres: archiver process   last was 000000010000000000000002.00000028.backup
+ 1472 ?        Ss     0:00  \_ postgres: stats collector process   
+ 1720 ?        Ss     0:00  \_ postgres: wal sender process repl_user 10.155.92.102(43074) streaming 0/3000060
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;pgsql2&lt;/code&gt; ではこうなります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql2 ~]# ps axf | grep [p]ostgres
+ 1386 ?        S      0:00 /usr/pgsql-9.5/bin/postgres -D /var/lib/pgsql/9.5/data
+ 1387 ?        Ss     0:00  \_ postgres: logger process   
+ 1388 ?        Ss     0:00  \_ postgres: startup process   recovering 000000010000000000000003
+ 1394 ?        Ss     0:00  \_ postgres: checkpointer process   
+ 1395 ?        Ss     0:00  \_ postgres: writer process   
+ 1396 ?        Ss     0:00  \_ postgres: stats collector process   
+ 1399 ?        Ss     0:00  \_ postgres: wal receiver process   streaming 0/3000060
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;postgres: wal sender&lt;/code&gt; のプロセスがあれば PostgreSQL のプライマリ、 &lt;code&gt;postgres: wal receiver&lt;/code&gt; のプロセスがあれば PostgreSQL のスタンバイと判断することが出来ます。&lt;/p&gt;
+
+&lt;p&gt;ただし、PostgreSQL のプライマリが切り替わってしばらくの間はこのプロセスは存在しないので、 次項の方法を使います。&lt;/p&gt;
+
+&lt;h3 id=&#34;pgpool-ii-から見た-postgresql-ノードの状態確認&#34;&gt;pgpool-II から見た PostgreSQL ノードの状態確認&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://tyawan080.hatenablog.com/entry/2014/05/12/234226&#34;&gt;PostgreSQLのマスタ判断 - Marlock Homes Diary&lt;/a&gt; で知りました。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;select pg_is_in_recovery()&lt;/code&gt; を実行して &lt;code&gt;t&lt;/code&gt; であればスタンバイ、 &lt;code&gt;f&lt;/code&gt; であればプライマリかスタンドアロンです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql1 ~]# sudo -i -u postgres psql -c &amp;quot;select pg_is_in_recovery()&amp;quot;
+ pg_is_in_recovery 
+-------------------
+ f
+(1 row)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql2 ~]# sudo -i -u postgres psql -c &amp;quot;select pg_is_in_recovery()&amp;quot;
+ pg_is_in_recovery 
+-------------------
+ t
+(1 row)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;pgpool-ii-から見た-postgresql-ノードの状態確認-1&#34;&gt;pgpool-II から見た PostgreSQL ノードの状態確認&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html&#34;&gt;pgpool-II ユーザマニュアル&lt;/a&gt; の &lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html#show-commands&#34;&gt;SHOWコマンド&lt;/a&gt; の &lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html#pool_nodes&#34;&gt;pool_nodes&lt;/a&gt; に対応します。&lt;/p&gt;
+
+&lt;p&gt;どちらかのコンテナで以下のコマンドを実行します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql1 ~]# sudo -i -u postgres psql -h localhost -p 9999 -c &amp;quot;show pool_nodes&amp;quot;
+ node_id |   hostname    | port | status | lb_weight |  role   | select_cnt 
+---------+---------------+------+--------+-----------+---------+------------
+ 0       | 10.155.92.101 | 5432 | 2      | 0.500000  | primary | 0
+ 1       | 10.155.92.102 | 5432 | 2      | 0.500000  | standby | 0
+(2 rows)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;なお、 今回の設定では &lt;code&gt;postgres&lt;/code&gt; ユーザのパスワードを &lt;code&gt;/var/lib/pgsql/.pgpass&lt;/code&gt; に書いているのでパスワード入力は不要です。実運用時は書かないほうが良いでしょう。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;role&lt;/code&gt; 列の primary か standby で PostgreSQL のプライマリかスタンバイもわかるようですが、切替時はすぐに更新されなかったことがあったような気がします。&lt;/p&gt;
+
+&lt;p&gt;切り替え直後は &lt;code&gt;select pg_is_in_recovery()&lt;/code&gt; を実行する方式のほうが良さそうです。&lt;/p&gt;
+
+&lt;p&gt;status 列の値については &lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html&#34;&gt;pgpool-II ユーザマニュアル&lt;/a&gt; の &lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html#pcp_node_info&#34;&gt;pcp_node_info&lt;/a&gt; に説明があります。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;0 - 初期化時のみに表われる。PCP コマンドで表示されることはない。&lt;/li&gt;
+&lt;li&gt;1 - ノード稼働中。接続無し&lt;/li&gt;
+&lt;li&gt;2 - ノード稼働中。接続有り&lt;/li&gt;
+&lt;li&gt;3 - ノードダウン&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&#34;watchdog-から見た-pgpool-ii-の状態確認&#34;&gt;watchdog から見た pgpool-II の状態確認&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html&#34;&gt;pgpool-II ユーザマニュアル&lt;/a&gt; の &lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html#pcp_watchdog_info&#34;&gt;pcp_watchdog_info&lt;/a&gt; に対応します。&lt;/p&gt;
+
+&lt;p&gt;以下のコマンドを実行します。 pgpool-II の管理者 &lt;code&gt;pgpool2&lt;/code&gt; のパスワードを聞かれますので入力してください。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql1 ~]# sudo -i -u postgres /usr/pgpool-9.5/bin/pcp_watchdog_info -h localhost -U pgpool2 -v
+Password: 
+Watchdog Cluster Information 
+Total Nodes          : 2
+Remote Nodes         : 1
+Quorum state         : QUORUM EXIST
+Alive Remote Nodes   : 1
+VIP up on local node : YES
+Master Node Name     : Linux_pgsql1_9999
+Master Host Name     : 10.155.92.101
+
+Watchdog Node Information 
+Node Name      : Linux_pgsql1_9999
+Host Name      : 10.155.92.101
+Delegate IP    : 10.155.92.100
+Pgpool port    : 9999
+Watchdog port  : 9000
+Node priority  : 1
+Status         : 4
+Status Name    : MASTER
+
+Node Name      : Linux_pgsql2_9999
+Host Name      : 10.155.92.102
+Delegate IP    : 10.155.92.100
+Pgpool port    : 9999
+Watchdog port  : 9000
+Node priority  : 1
+Status         : 7
+Status Name    : STANDBY
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;Status Name&lt;/code&gt; の種類は src/watchdog/watchdog.c 内にで定義されていました。 &lt;code&gt;Status&lt;/code&gt; はこの配列内のゼロオリジンのインデクスです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;char *wd_state_names[] = {
+        &amp;quot;DEAD&amp;quot;,
+        &amp;quot;LOADING&amp;quot;,
+        &amp;quot;JOINING&amp;quot;,
+        &amp;quot;INITIALIZING&amp;quot;,
+        &amp;quot;MASTER&amp;quot;,
+        &amp;quot;PARTICIPATING IN ELECTION&amp;quot;,
+        &amp;quot;STANDING FOR MASTER&amp;quot;,
+        &amp;quot;STANDBY&amp;quot;,
+        &amp;quot;LOST&amp;quot;,
+        &amp;quot;IN NETWORK TROUBLE&amp;quot;,
+        &amp;quot;SHUTDOWN&amp;quot;,
+        &amp;quot;ADD MESSAGE SENT&amp;quot;};
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;pgsql1-プライマリ-の-postgresql-を強制停止してフェイルオーバーのテスト&#34;&gt;pgsql1 (プライマリ)の PostgreSQL を強制停止してフェイルオーバーのテスト&lt;/h2&gt;
+
+&lt;h3 id=&#34;フェイルオーバー時に呼び出されるスクリプト&#34;&gt;フェイルオーバー時に呼び出されるスクリプト&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html&#34;&gt;pgpool-II ユーザマニュアル&lt;/a&gt; の &lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html#failover_in_stream_mode&#34;&gt;Streaming Replicationでのフェイルオーバ&lt;/a&gt; に対応します。&lt;/p&gt;
+
+&lt;p&gt;フェイルオーバー時には &lt;code&gt;/etc/pgpool-II-95/pgpool.conf&lt;/code&gt; の &lt;code&gt;failover_command&lt;/code&gt; に設定したスクリプトが実行されます。今回の構成では以下のような設定にしました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;failover_command = &#39;/var/lib/pgsql/9.5/data/pgpool_failover %d %P %H %R&#39;
+                   # NOTE: %dなどの値は src/main/pgpool_main.c の trigger_failover_command で設定しています。
+                   # Executes this command at failover
+                   # Special values:
+                   #   %d = node id
+                   #   %h = host name
+                   #   %p = port number
+                   #   %D = database cluster path
+                   #   %m = new master node id
+                   #   %H = hostname of the new master node
+                   #   %M = old master node id
+                   #   %P = old primary node id
+                   #   %r = new master port number
+                   #   %R = new master database cluster path
+                   #   %% = &#39;%&#39; character
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;/var/lib/pgsql/9.5/data/pgpool_failover&lt;/code&gt; は &lt;a href=&#34;https://github.com/hnakamur/postgresql-pgpool2-failover-example-playbook/blob/7f3ef8af54a4f9ec948d65bfc47e33db4792737d/roles/postgresql_db/templates/pgpool_failover.j2&#34;&gt;roles/postgresql_db/templates/pgpool_failover.j2&lt;/a&gt; から Ansible の template モジュールで生成しています。&lt;/p&gt;
+
+&lt;h3 id=&#34;フェイルオーバーの実行&#34;&gt;フェイルオーバーの実行&lt;/h3&gt;
+
+&lt;p&gt;実行後にどう動いたか確認できるように &lt;code&gt;logger&lt;/code&gt; コマンドでログを出力するようにしています。 &lt;code&gt;journalctl -f&lt;/code&gt; でログを &lt;code&gt;tail -f&lt;/code&gt; 的な感じで見られるので、これで見ながら実行します。&lt;/p&gt;
+
+&lt;p&gt;初期状態では pgsql1 が PostgreSQL のプライマリになっています。&lt;/p&gt;
+
+&lt;p&gt;pgsql2 で以下のコマンドを実行します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql2 ~]# journalctl -f | grep pgpool_failover
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;pgsql1 で以下のコマンドを実行しバックグラウンド ( &lt;code&gt;&amp;amp;&lt;/code&gt; は 1つ) で PostgreSQL を強制停止しつつ、 journald のログを表示します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql1 ~]# sudo -i -u postgres /usr/pgsql-9.5/bin/pg_ctl stop -m immediate -D /var/lib/pgsql/9.5/data &amp;amp; journalctl -f | grep pgpool_failover
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;何回か試してみたのですが、 &lt;code&gt;/var/lib/pgsql/9.5/data/pgpool_failover&lt;/code&gt; は pgsql1 で実行される場合と pgsql2 で実行される場合があり、どうやらランダムにどちらか一方で実行されるということのようです。また今回の構成では root ユーザで実行されました。&lt;/p&gt;
+
+&lt;p&gt;以下は pgsql1 での出力結果です。
+Ctrl-C で &lt;code&gt;journalctl -f&lt;/code&gt; を停止します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[1] 2319
+waiting for server to shut down.... done
+server stopped
+
+^C
+[1]+  Done                  sudo -i -u postgres /usr/pgsql-9.5/bin/pg_ctl stop -m immediate -D /var/lib/pgsql/9.5/data
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;以下は pgsql2 での出力結果です。
+Ctrl-C で &lt;code&gt;journalctl -f&lt;/code&gt; を停止します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Sep 15 13:06:47 pgsql2 pgpool[1432]: 2016-09-15 13:06:47: pid 1432: LOG:  execute command: /var/lib/pgsql/9.5/data/pgpool_failover 0 0 10.155.92.102 /var/lib/pgsql/9.5/data
+Sep 15 13:06:47 pgsql2 pgpool_failover[32612]: start args=0 0 10.155.92.102 /var/lib/pgsql/9.5/data UID=0
+Sep 15 13:06:47 pgsql2 pgpool_failover[32620]: created promote_trigger file
+^C
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;少ししてから PostgreSQL のノードの状態を確認すると以下のようになりました。
+pgsql2 (10.155.92.102) の role が primary になり、 pgsql1 (10.155.92.101) は
+role が standby で status が &lt;code&gt;3&lt;/code&gt; (ノードダウン) になっています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql2 ~]# sudo -i -u postgres psql -h localhost -p 9999 -c &amp;quot;show pool_nodes&amp;quot;
+ node_id |   hostname    | port | status | lb_weight |  role   | select_cnt 
+---------+---------------+------+--------+-----------+---------+------------
+ 0       | 10.155.92.101 | 5432 | 3      | 0.500000  | standby | 0
+ 1       | 10.155.92.102 | 5432 | 2      | 0.500000  | primary | 0
+(2 rows)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;pgsql2 で &lt;code&gt;select pg_is_in_recovery()&lt;/code&gt; を実行すると &lt;code&gt;f&lt;/code&gt; になってプライマリになっていることがわかります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql2 pgsql]# sudo -i -u postgres psql -c &amp;quot;select pg_is_in_recovery()&amp;quot;
+ pg_is_in_recovery 
+-------------------
+ f
+(1 row)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;pgsql2 側での変更実験としてデータベースを作成してみます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql2 ~]# sudo -i -u postgres createdb foo
+[root@pgsql2 ~]# sudo -i -u postgres psql -l
+                             List of databases
+   Name    |  Owner   | Encoding | Collate | Ctype |   Access privileges   
+-----------+----------+----------+---------+-------+-----------------------
+ foo       | postgres | UTF8     | C       | C     | 
+ postgres  | postgres | UTF8     | C       | C     | 
+ template0 | postgres | UTF8     | C       | C     | =c/postgres          +
+           |          |          |         |       | postgres=CTc/postgres
+ template1 | postgres | UTF8     | C       | C     | =c/postgres          +
+           |          |          |         |       | postgres=CTc/postgres
+(4 rows)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;なお、 pgpool-II 自体のマスタ・スタンバイの役割は変わらず同じで、 pgsql1 がマスタ、 pgsql2 がスタンバイで、 仮想IP は pgsql1 についた状態です。&lt;/p&gt;
+
+&lt;h2 id=&#34;pgsql1-の-postgresql-をオンラインリカバリしスタンバイとして復帰させる&#34;&gt;pgsql1 の PostgreSQL をオンラインリカバリしスタンバイとして復帰させる&lt;/h2&gt;
+
+&lt;h3 id=&#34;オンラインリカバリで呼び出される2つのスクリプト&#34;&gt;オンラインリカバリで呼び出される2つのスクリプト&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html&#34;&gt;pgpool-II ユーザマニュアル&lt;/a&gt; の &lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html#online_recovery_in_stream_mode&#34;&gt;Streaming Replicationでのオンラインリカバリ&lt;/a&gt; に対応します。&lt;/p&gt;
+
+&lt;p&gt;オンラインリカバリで呼び出されるスクリプトは2つあります。この2つのスクリプトは &lt;code&gt;failover_command&lt;/code&gt; とは違って、必ずプライマリ側で &lt;code&gt;postgres&lt;/code&gt; ユーザで実行されます。&lt;/p&gt;
+
+&lt;p&gt;1つ目は &lt;code&gt;/etc/pgpool-II-95/pgpool.conf&lt;/code&gt; の &lt;code&gt;recovery_1st_stage_command&lt;/code&gt; に指定したスクリプトです。
+ここではファイル名のみが指定可能で、ディレクトリは PostgreSQL のデータディレクトリ (今回の構成では /var/lib/pgsql/9.5/data ) と決められています。
+&lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html&#34;&gt;pgpool-II ユーザマニュアル&lt;/a&gt; の &lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html#RECOVERY_1ST_STAGE_COMMAND&#34;&gt;recovery_1st_stage_command&lt;/a&gt; によるとセキュリティ上の観点からそうしているそうです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;recovery_1st_stage_command = &#39;recovery_1st_stage&#39;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;/var/lib/pgsql/9.5/data/recovery_1st_stage&lt;/code&gt; は &lt;a href=&#34;https://github.com/hnakamur/postgresql-pgpool2-failover-example-playbook/blob/7f3ef8af54a4f9ec948d65bfc47e33db4792737d/roles/postgresql_db/templates/recovery_1st_stage.j2&#34;&gt;roles/postgresql_db/templates/recovery_1st_stage.j2&lt;/a&gt; から Ansible の template モジュールで生成しています。&lt;/p&gt;
+
+&lt;p&gt;今回の構成では古いデータディレクトリを &lt;code&gt;mv&lt;/code&gt; コマンドでリネームして、 &lt;code&gt;pg_basebackup&lt;/code&gt; コマンドでプライマリ・データベースの複製を作り、 &lt;code&gt;recovery.conf&lt;/code&gt; を作ってスタンバイとして稼働させる準備をしています。&lt;/p&gt;
+
+&lt;p&gt;2つ目は PostgreSQL のデータディレクトリ下の &lt;code&gt;pgpool_remote_start&lt;/code&gt; というファイル名のスクリプトです。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html&#34;&gt;pgpool-II ユーザマニュアル&lt;/a&gt; の &lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html#pool_remote_start&#34;&gt;pgpool_remote_start&lt;/a&gt; に説明があります。&lt;/p&gt;
+
+&lt;p&gt;こちらはファイル名が pgpool-II のソースコード &lt;code&gt;src/sql/pgpool-recovery/pgpool-recovery.c&lt;/code&gt; 内に&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;#define REMOTE_START_FILE &amp;quot;pgpool_remote_start&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;のように固定の定義になっています。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;/var/lib/pgsql/9.5/data/pgpool_remote_start&lt;/code&gt; は &lt;a href=&#34;https://github.com/hnakamur/postgresql-pgpool2-failover-example-playbook/blob/7f3ef8af54a4f9ec948d65bfc47e33db4792737d/roles/postgresql_db/templates/pgpool_remote_start.j2&#34;&gt;roles/postgresql_db/templates/pgpool_remote_start.j2&lt;/a&gt; から Ansible の template モジュールで生成しています。&lt;/p&gt;
+
+&lt;p&gt;処理内容はリモートのノードの PostgreSQL を起動するというものになっています。
+ファイル名は &lt;code&gt;pgpool_remote_start&lt;/code&gt; なので最初見たときは &lt;code&gt;pgpool&lt;/code&gt; を起動するのかと勘違いしましたが、 &lt;code&gt;pgpool_&lt;/code&gt; は &lt;code&gt;pgpool&lt;/code&gt; のファイルであることを示す接頭辞的な意味合いのようです。
+&lt;code&gt;pgpool&lt;/code&gt; を起動するなら &lt;code&gt;start_remote_pgoool&lt;/code&gt; のほうがわかりやすいでしょうしね。&lt;/p&gt;
+
+&lt;p&gt;なお、 &lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html&#34;&gt;pgpool-II ユーザマニュアル&lt;/a&gt; の &lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html#pool_remote_start&#34;&gt;pgpool_remote_start&lt;/a&gt; で書かれているサンプルスクリプトでは &lt;code&gt;pg_ctl&lt;/code&gt; コマンドで PostgreSQL を起動していますが、 &lt;code&gt;systemctl status postgresql-9.5&lt;/code&gt; でサービス状態が確認できなくなってしまうため、 &lt;a href=&#34;https://github.com/hnakamur/postgresql-pgpool2-failover-example-playbook/blob/7f3ef8af54a4f9ec948d65bfc47e33db4792737d/roles/postgresql_db/templates/pgpool_remote_start.j2&#34;&gt;roles/postgresql_db/templates/pgpool_remote_start.j2&lt;/a&gt; では &lt;code&gt;sudo systemctl start postgresql-9.5&lt;/code&gt; で起動しています。
+またそのために postgres ユーザ用の sudoers 設定も &lt;a href=&#34;https://github.com/hnakamur/postgresql-pgpool2-failover-example-playbook/blob/7f3ef8af54a4f9ec948d65bfc47e33db4792737d/roles/postgresql/templates/sudoers_postgres.j2&#34;&gt;roles/postgresql/templates/sudoers_postgres.j2&lt;/a&gt; を元に &lt;code&gt;/etc/sudoers.d/01_postgres&lt;/code&gt; を生成し行っています。&lt;/p&gt;
+
+&lt;h3 id=&#34;リカバリの実行&#34;&gt;リカバリの実行&lt;/h3&gt;
+
+&lt;p&gt;今回は &lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html#perform_online_recovery&#34;&gt;リカバリの実行&lt;/a&gt; で説明されている &lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html#pcp_recovery_node&#34;&gt;pcp_recovery_node&lt;/a&gt; コマンドを使います。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;pcp_recovery_node&lt;/code&gt; コマンドは pgpool-II のユーザ &lt;code&gt;pgpool2&lt;/code&gt; のパスワードを入力する必要があるためフォアグラウンドで実行し ( &lt;code&gt;&amp;amp;&lt;/code&gt; は &lt;code&gt;&amp;amp;&amp;amp;&lt;/code&gt; と2つ)、ログを表示します。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;pcp_recovery_node&lt;/code&gt; コマンドは pgsql1 と pgsql2 のどちらで実行しても良いようです。ここでは対象のサーバが pgsql1 なので対応する &lt;code&gt;node_id&lt;/code&gt; の &lt;code&gt;0&lt;/code&gt; を引数の最後に指定しています。 &lt;code&gt;node_id&lt;/code&gt; は上記の &lt;code&gt;show pool_nodes&lt;/code&gt; の出力で確認できます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql2 pgsql]# sudo -i -u postgres /usr/pgpool-9.5/bin/pcp_recovery_node -h localhost -p 9898 -U pgpool2 0
+Password: 
+pcp_recovery_node -- Command Successful
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ログを確認すると以下のようになっていました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql2 pgsql]# journalctl | grep -E &#39;(recovery_1st_stage|pgpool_remote_start)&#39;
+Sep 15 14:03:38 pgsql2 pgpool[1416]: 2016-09-15 14:03:38: pid 1700: DETAIL:  starting recovery command: &amp;quot;SELECT pgpool_recovery(&#39;recovery_1st_stage&#39;, &#39;10.155.92.101&#39;, &#39;/var/lib/pgsql/9.5/data&#39;, &#39;5432&#39;)&amp;quot;
+Sep 15 14:03:38 pgsql2 recovery_1st_stage[1704]: start args=/var/lib/pgsql/9.5/data 10.155.92.101 /var/lib/pgsql/9.5/data 5432 UID=26
+Sep 15 14:03:39 pgsql2 recovery_1st_stage[1713]: pg_basebackup done.
+Sep 15 14:03:39 pgsql2 recovery_1st_stage[1716]: created archive_status.
+Sep 15 14:03:39 pgsql2 recovery_1st_stage[1719]: created recovery.conf.
+Sep 15 14:03:39 pgsql2 pgpool_remote_start[1722]: start args=10.155.92.101 /var/lib/pgsql/9.5/data UID=26
+Sep 15 14:03:42 pgsql2 pgpool_remote_start[1738]: finished to start postgresql service
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;しばらくして PostgreSQL の状態を確認すると以下のように pgsql1 の role が standby で status が 2 (ノード稼働中。接続有り) になりました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql2 pgsql]# sudo -i -u postgres psql -h localhost -p 9999 -c &amp;quot;show pool_nodes&amp;quot;
+ node_id |   hostname    | port | status | lb_weight |  role   | select_cnt 
+---------+---------------+------+--------+-----------+---------+------------
+ 0       | 10.155.92.101 | 5432 | 2      | 0.500000  | standby | 0
+ 1       | 10.155.92.102 | 5432 | 2      | 0.500000  | primary | 0
+(2 rows)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ps を実行してみると pgsql2 で &lt;code&gt;postgres: wal sender process&lt;/code&gt; が稼働しており、 pgsql1 で &lt;code&gt;postgres: wal receiver process&lt;/code&gt; が稼働しており、ストリーミング・レプリケーションが動いていることが確認できました。&lt;/p&gt;
+
+&lt;h2 id=&#34;pgsql1-スタンバイ-の-postgresql-を強制停止してみる&#34;&gt;pgsql1 (スタンバイ) の PostgreSQL を強制停止してみる&lt;/h2&gt;
+
+&lt;h3 id=&#34;スタンバイの-postgresql-を強制停止&#34;&gt;スタンバイの PostgreSQL を強制停止&lt;/h3&gt;
+
+&lt;p&gt;pgsql2 で以下のコマンドを実行します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql2 ~]# journalctl -f | grep pgpool_failover
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;pgsql1 で以下のコマンドを実行します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql1 ~]# sudo -i -u postgres /usr/pgsql-9.5/bin/pg_ctl stop -m immediate -D /var/lib/pgsql/9.5/data &amp;amp; journalctl -f | grep pgpool_failover
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;今回は pgsql2 に以下のログが出ました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Sep 15 14:21:05 pgsql2 pgpool[1416]: 2016-09-15 14:21:05: pid 1416: LOG:  execute command: /var/lib/pgsql/9.5/data/pgpool_failover 0 1 10.155.92.102 /var/lib/pgsql/9.5/data
+Sep 15 14:21:05 pgsql2 pgpool_failover[2466]: start args=0 1 10.155.92.102 /var/lib/pgsql/9.5/data UID=0
+Sep 15 14:21:05 pgsql2 pgpool_failover[2468]: do nothing since failed node was not primary
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;停止された PostgreSQL がプライマリではなかったのでフェイルオーバは行わず、プライマリ (pgsql2) をそのままスタンドアロンで稼働させています。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html&#34;&gt;pgpool-II ユーザマニュアル&lt;/a&gt; の &lt;a href=&#34;http://www.pgpool.net/docs/latest/pgpool-ja.html#failover_in_stream_mode&#34;&gt;Streaming Replicationでのフェイルオーバ&lt;/a&gt; に上げられているフェイルオーバ用スクリプトではノード 0 がプライマリで 1 がスタンバイという想定で書かれているため、今回の状況ではうまく行きませんでした。
+が、 &lt;a href=&#34;https://github.com/hnakamur/postgresql-pgpool2-failover-example-playbook/blob/7f3ef8af54a4f9ec948d65bfc47e33db4792737d/roles/postgresql_db/templates/pgpool_failover.j2&#34;&gt;roles/postgresql_db/templates/pgpool_failover.j2&lt;/a&gt; では &lt;code&gt;pgpool.conf&lt;/code&gt; の &lt;code&gt;failover_command&lt;/code&gt; の4つの引数のうち、最初の2つに停止したノード &lt;code&gt;%d&lt;/code&gt; と旧プライマリノード %P を渡していて、値が違う場合はスタンバイと判定していますので、一度フェイルオーバ→リカバリをした後でも大丈夫です。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;show pool_nodes&lt;/code&gt; の実行結果は以下の通りです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql2 pgsql]# sudo -u postgres psql -h localhost -p 9999 -c &amp;quot;show pool_nodes&amp;quot;
+ node_id |   hostname    | port | status | lb_weight |  role   | select_cnt 
+---------+---------------+------+--------+-----------+---------+------------
+ 0       | 10.155.92.101 | 5432 | 3      | 0.500000  | standby | 0
+ 1       | 10.155.92.102 | 5432 | 2      | 0.500000  | primary | 0
+(2 rows)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;pgsql2 で postgres のプロセスを見ると &lt;code&gt;wal sender&lt;/code&gt; がいないので、スタンドアロン状態であることがわかります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql2 pgsql]# ps axf | grep [p]ostgres
+ 1370 ?        S      0:00 /usr/pgsql-9.5/bin/postgres -D /var/lib/pgsql/9.5/data
+ 1371 ?        Ss     0:00  \_ postgres: logger process   
+ 1378 ?        Ss     0:00  \_ postgres: checkpointer process   
+ 1379 ?        Ss     0:00  \_ postgres: writer process   
+ 1381 ?        Ss     0:00  \_ postgres: stats collector process   
+ 1554 ?        Ss     0:00  \_ postgres: wal writer process   
+ 1555 ?        Ss     0:00  \_ postgres: autovacuum launcher process   
+ 1556 ?        Ss     0:00  \_ postgres: archiver process   last was 000000020000000000000004.00000060.backup
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;スタンドアロン状態であることは &lt;code&gt;select * from pg_stat_replication&lt;/code&gt; の結果が 0であることからもわかります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql2 pgsql]# sudo -i -u postgres psql -x -c &amp;quot;select * from pg_stat_replication&amp;quot;
+(0 rows)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;スタンバイの-postgresql-を復活させる&#34;&gt;スタンバイの PostgreSQL を復活させる&lt;/h3&gt;
+
+&lt;h4 id=&#34;単に-postgresql-を起動すれば動く場合&#34;&gt;単に PostgreSQL を起動すれば動く場合&lt;/h4&gt;
+
+&lt;p&gt;実運用の際はデータディレクトリの状況を調査したりするところですが、ここでは問題ないという前提で、 pgsql1 で PostgreSQL を起動して pgpool-II の管理下に追加します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql1 pgsql]# systemctl start postgresql-9.5
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;で起動し&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql1 pgsql]# systemctl status postgresql-9.5
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;で状態を確認します。
+Active の行が以下のように &lt;code&gt;active (running)&lt;/code&gt; になっていれば OK です。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;   Active: active (running) since Thu 2016-09-15 14:36:12 UTC; 3s ago
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;しばらくすると pgpool-II の heartbeat で pgsql1 の PostgreSQL が稼働していることを検知し、 pgsql2 をプライマリとするリプリケーションが再開されます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql1 pgsql]# ps axf | grep [p]ostgres
+ 2778 ?        S      0:00 /usr/pgsql-9.5/bin/postgres -D /var/lib/pgsql/9.5/data
+ 2779 ?        Ss     0:00  \_ postgres: logger process   
+ 2780 ?        Ss     0:00  \_ postgres: startup process   recovering 000000020000000000000005
+ 2785 ?        Ss     0:00  \_ postgres: checkpointer process   
+ 2786 ?        Ss     0:00  \_ postgres: writer process   
+ 2787 ?        Ss     0:00  \_ postgres: stats collector process   
+ 2788 ?        Ss     0:00  \_ postgres: wal receiver process   streaming 0/5000680
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql2 pgsql]# ps axf | grep [p]ostgres
+ 1370 ?        S      0:00 /usr/pgsql-9.5/bin/postgres -D /var/lib/pgsql/9.5/data
+ 1371 ?        Ss     0:00  \_ postgres: logger process   
+ 1378 ?        Ss     0:00  \_ postgres: checkpointer process   
+ 1379 ?        Ss     0:00  \_ postgres: writer process   
+ 1381 ?        Ss     0:00  \_ postgres: stats collector process   
+ 1554 ?        Ss     0:00  \_ postgres: wal writer process   
+ 1555 ?        Ss     0:00  \_ postgres: autovacuum launcher process   
+ 1556 ?        Ss     0:00  \_ postgres: archiver process   last was 000000020000000000000004.00000060.backup
+ 3111 ?        Ss     0:00  \_ postgres: wal sender process repl_user 10.155.92.101(57142) streaming 0/5000680
+[root@pgsql2 pgsql]# sudo -i -u postgres psql -x -c &amp;quot;select * from pg_stat_replication&amp;quot;
+-[ RECORD 1 ]----+------------------------------
+pid              | 3111
+usesysid         | 16394
+usename          | repl_user
+application_name | walreceiver
+client_addr      | 10.155.92.101
+client_hostname  | 
+client_port      | 57142
+backend_start    | 2016-09-15 14:36:12.312321+00
+backend_xmin     | 1842
+state            | streaming
+sent_location    | 0/5000680
+write_location   | 0/5000680
+flush_location   | 0/5000680
+replay_location  | 0/5000680
+sync_priority    | 0
+sync_state       | async
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h4 id=&#34;スタンバイデータベースを作り直す場合&#34;&gt;スタンバイデータベースを作り直す場合&lt;/h4&gt;
+
+&lt;p&gt;スタンバイデータベースの損傷がひどくて起動できない場合は、プライマリデータベースを &lt;code&gt;pg_basebackup&lt;/code&gt; コマンドで複製して作り直し、スタンバイ用の設定を加えて起動することになります。&lt;/p&gt;
+
+&lt;p&gt;これは上記の「リカバリの実行」でやっていることと同じなので、今のプライマリである pgsql2 で以下のコマンドを実行すれば OK です。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[root@pgsql2 pgsql]# sudo -i -u postgres /usr/pgpool-9.5/bin/pcp_recovery_node -h localhost -p 9898 -U pgpool2 0
+Password: 
+pcp_recovery_node -- Command Successful
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;おわりに&#34;&gt;おわりに&lt;/h2&gt;
+
+&lt;p&gt;さらに pgpool-II が落ちたときやサーバ全体が落ちたときなども検証が必要ですがこのブログ記事を書くのに、今日の早朝と今でなんだかんだで4時間ぐらいはかかっているので (環境構築と動作検証には3日かかってます)、一旦ここまでとします。&lt;/p&gt;
+
+&lt;p&gt;pgpool-II でのフェイルオーバ、リカバリは呼び出されるスクリプトをどうすれば良いのかが最初は全くわからなくて苦労しましたが、ドキュメントとソースを読んで理解できたので良かったです。&lt;/p&gt;
+
+&lt;p&gt;Pacemaker は高機能なんですが複雑すぎるように私には思えたので、 pgpool-II のほうが好感触です。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>Pacemakerを使ってPostgreSQLのアクティブ・スタンバイ(1&#43;1構成)を試してみた</title>
@@ -2773,80 +3322,6 @@ already an incredibly effective way to use wild forage to make human food.&amp;q
 
 &lt;pre&gt;&lt;code&gt;gist -d &#39;説明&#39; ファイル名
 &lt;/code&gt;&lt;/pre&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>Goのシリアライゼーションのベンチマークを自分でも試してみた</title>
-      <link>/blog/2016/06/13/tried_go_serialization_benchmarks/</link>
-      <pubDate>Mon, 13 Jun 2016 23:34:16 +0900</pubDate>
-      
-      <guid>/blog/2016/06/13/tried_go_serialization_benchmarks/</guid>
-      <description>&lt;p&gt;2015年12月の記事ですが&lt;a href=&#34;http://qiita.com/shibukawa/items/878c5fe8ec09935fccd2&#34;&gt;最速という噂のFlatbuffersの速度のヒミツと、導入方法の紹介(Go) - Qiita&lt;/a&gt;を読んで、「gobは遅いのかー、残念」、「一方Flatbuffersは面倒そうだなー」と思っていました。&lt;/p&gt;
-
-&lt;p&gt;で、&lt;a href=&#34;https://github.com/alecthomas/go_serialization_benchmarks/tree/48e2bb8b7b6c38c24c88a0b027b30c80175a7b59#results&#34;&gt;alecthomas/go_serialization_benchmarks at 48e2bb8b7b6c38c24c88a0b027b30c80175a7b59&lt;/a&gt;のベンチマーク結果を見てみると、あれgob遅くないよ、というかVmihailencoMsgpackとUgorjiCodecMsgpackより速くなってました。&lt;/p&gt;
-
-&lt;p&gt;自宅サーバ (NEC Express5800/S70)でもベンチマークを試してみました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ go test -bench . -benchmem | tee bench.txt                                                                                                                                               
-
-A test suite for benchmarking various Go serialization methods.
-
-See README.md for details on running the benchmarks.
-
-PASS
-BenchmarkMsgpMarshal-2                   3000000               423 ns/op             128 B/op          1 allocs/op
-BenchmarkMsgpUnmarshal-2                 2000000               741 ns/op             112 B/op          3 allocs/op
-BenchmarkVmihailencoMsgpackMarshal-2      500000              3107 ns/op             368 B/op          6 allocs/op
-BenchmarkVmihailencoMsgpackUnmarshal-2    300000              4469 ns/op             352 B/op         13 allocs/op
-BenchmarkJsonMarshal-2                    200000              7070 ns/op            1232 B/op         10 allocs/op
-BenchmarkJsonUnmarshal-2                  200000              7331 ns/op             416 B/op          7 allocs/op
-BenchmarkEasyJsonMarshal-2                500000              3116 ns/op             784 B/op          5 allocs/op
-BenchmarkEasyJsonUnmarshal-2              500000              2936 ns/op             160 B/op          4 allocs/op
-BenchmarkBsonMarshal-2                    500000              3031 ns/op             392 B/op         10 allocs/op
-BenchmarkBsonUnmarshal-2                  500000              4047 ns/op             248 B/op         21 allocs/op
-BenchmarkGobMarshal-2                    1000000              2189 ns/op              48 B/op          2 allocs/op
-BenchmarkGobUnmarshal-2                  1000000              2226 ns/op             112 B/op          3 allocs/op
-BenchmarkXdrMarshal-2                     500000              3862 ns/op             456 B/op         21 allocs/op
-BenchmarkXdrUnmarshal-2                   500000              2885 ns/op             239 B/op         11 allocs/op
-BenchmarkUgorjiCodecMsgpackMarshal-2      200000              7052 ns/op            2752 B/op          8 allocs/op
-BenchmarkUgorjiCodecMsgpackUnmarshal-2    200000              7586 ns/op            3008 B/op          6 allocs/op
-BenchmarkUgorjiCodecBincMarshal-2         200000              7347 ns/op            2784 B/op          8 allocs/op
-BenchmarkUgorjiCodecBincUnmarshal-2       200000              8163 ns/op            3168 B/op          9 allocs/op
-BenchmarkSerealMarshal-2                  200000              7518 ns/op             912 B/op         21 allocs/op
-BenchmarkSerealUnmarshal-2                200000              7039 ns/op            1008 B/op         34 allocs/op
-BenchmarkBinaryMarshal-2                  500000              2757 ns/op             256 B/op         16 allocs/op
-BenchmarkBinaryUnmarshal-2                500000              3057 ns/op             336 B/op         22 allocs/op
-BenchmarkFlatBuffersMarshal-2            3000000               573 ns/op               0 B/op          0 allocs/op
-BenchmarkFlatBuffersUnmarshal-2          3000000               538 ns/op             112 B/op          3 allocs/op
-BenchmarkCapNProtoMarshal-2              2000000               874 ns/op              56 B/op          2 allocs/op
-BenchmarkCapNProtoUnmarshal-2            2000000               817 ns/op             200 B/op          6 allocs/op
-BenchmarkCapNProto2Marshal-2             1000000              1991 ns/op             244 B/op          3 allocs/op
-BenchmarkCapNProto2Unmarshal-2           1000000              2064 ns/op             320 B/op          6 allocs/op
-BenchmarkHproseMarshal-2                 1000000              1797 ns/op             479 B/op          8 allocs/op
-BenchmarkHproseUnmarshal-2                500000              2250 ns/op             320 B/op         10 allocs/op
-BenchmarkProtobufMarshal-2               1000000              2052 ns/op             200 B/op          7 allocs/op
-BenchmarkProtobufUnmarshal-2             1000000              1700 ns/op             192 B/op         10 allocs/op
-BenchmarkGoprotobufMarshal-2             1000000              1141 ns/op             312 B/op          4 allocs/op
-BenchmarkGoprotobufUnmarshal-2           1000000              1721 ns/op             432 B/op          9 allocs/op
-BenchmarkGogoprotobufMarshal-2           5000000               291 ns/op              64 B/op          1 allocs/op
-BenchmarkGogoprotobufUnmarshal-2         3000000               445 ns/op              96 B/op          3 allocs/op
-BenchmarkColferMarshal-2                 5000000               260 ns/op              64 B/op          1 allocs/op
-BenchmarkColferUnmarshal-2               5000000               387 ns/op             112 B/op          3 allocs/op
-BenchmarkGencodeMarshal-2                5000000               322 ns/op              80 B/op          2 allocs/op
-BenchmarkGencodeUnmarshal-2              5000000               392 ns/op             112 B/op          3 allocs/op
-BenchmarkGencodeUnsafeMarshal-2         10000000               196 ns/op              48 B/op          1 allocs/op
-BenchmarkGencodeUnsafeUnmarshal-2        5000000               322 ns/op              96 B/op          3 allocs/op
-BenchmarkXDR2Marshal-2                   5000000               333 ns/op              64 B/op          1 allocs/op
-BenchmarkXDR2Unmarshal-2                 5000000               313 ns/op              32 B/op          2 allocs/op
-ok      github.com/alecthomas/go_serialization_benchmarks       81.009s
-$ go version
-go version go1.6.2 linux/amd64
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;こちらも同じくgobはVmihailencoMsgpackとUgorjiCodecMsgpackより速かったです。Goのバージョンの違いなのかライブラリの進化なのかは調べてないですが、いつのまにか逆転していたようです。&lt;/p&gt;
-
-&lt;p&gt;ということで、Go以外の言語との相互運用性を考えなくて良いなら、gobもシリアライゼーションのライブラリ選択の候補に入れて良さそうと思いました。&lt;a href=&#34;https://golang.org/pkg/encoding/gob/&#34;&gt;gob&lt;/a&gt;を見る限りはstructに対して特に何もしなくても使えるようなのでお手軽さでは一番良さそうですし。&lt;/p&gt;
 </description>
     </item>
     
