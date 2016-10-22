@@ -46,3 +46,11 @@ ephemeral: false
 ```
 
 もっと限定した設定でも対応可能かもしれませんが、とりあえずこれで。
+
+## 2016-10-23 追記
+security.privileged を true にするのは良くないと指摘されました。
+
+{{<tweet 789838146083098625 >}}
+
+CentOS にバグ報告というのはよくわからなかったので、LXDにイシューを立ててみました。
+[CentOS 7 container gets errors like systemd-sysctl\[36\]: Failed to write '16' to '/proc/sys/kernel/sysrq': Permission denied · Issue #2544 · lxc/lxd](https://github.com/lxc/lxd/issues/2544)
