@@ -6,8 +6,52 @@
     <description>Recent content on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Sat, 22 Oct 2016 18:32:50 +0900</lastBuildDate>
+    <lastBuildDate>Sat, 22 Oct 2016 18:54:49 +0900</lastBuildDate>
     <atom:link href="https://hnakamur.github.io/blog/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>LXD で privileged な CentOS 7コンテナを作る</title>
+      <link>https://hnakamur.github.io/blog/2016/10/22/lxd-privileged-centos-container/</link>
+      <pubDate>Sat, 22 Oct 2016 18:54:49 +0900</pubDate>
+      
+      <guid>https://hnakamur.github.io/blog/2016/10/22/lxd-privileged-centos-container/</guid>
+      <description>&lt;p&gt;小ネタのメモです。&lt;/p&gt;
+
+&lt;p&gt;先日 LXD 2.0.5 で CentOS 7 コンテナを起動して &lt;code&gt;journalctl -xe&lt;/code&gt; を実行すると以下のようなエラーが出ていました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Oct 22 09:53:58 centos systemd-sysctl[36]: Failed to write &#39;16&#39; to &#39;/proc/sys/kernel/sysrq&#39;: Permission denied
+Oct 22 09:53:58 centos systemd-sysctl[36]: Failed to write &#39;1&#39; to &#39;/proc/sys/fs/protected_hardlinks&#39;: Permission denied
+Oct 22 09:53:58 centos systemd-sysctl[36]: Failed to write &#39;1&#39; to &#39;/proc/sys/kernel/core_uses_pid&#39;: Permission denied
+Oct 22 09:53:58 centos systemd-sysctl[36]: Failed to write &#39;1&#39; to &#39;/proc/sys/fs/protected_symlinks&#39;: Permission denied
+Oct 22 09:53:58 centos systemd-remount-fs[35]: /bin/mount for / exited with exit status 32.
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;コンテナ作成時に以下のように config で &lt;code&gt;security.privileged&lt;/code&gt; を true に設定しておけば出なくなりました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;lxc launch -c security.privileged=true images:centos/7/amd64 コンテナ名
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;設定の確認は以下のコマンドで行います。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ lxc config show コンテナ名
+name: centos
+profiles:
+- default
+config:
+  security.privileged: &amp;quot;true&amp;quot;
+  volatile.base_image: d2a0b3cf928778ad1582ee1feb39a0bbcd57edce01a60868f04e78d959886d71
+  volatile.eth0.hwaddr: 00:16:3e:b2:dc:5e
+  volatile.last_state.idmap: &#39;[]&#39;
+devices:
+  root:
+    path: /
+    type: disk
+ephemeral: false
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;もっと限定した設定でも対応可能かもしれませんが、とりあえずこれで。&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>Go言語のos.Chtimesで設定可能な最大日時は 2262-04-11 23:47:16.854775807 &#43;0000 UTC</title>
@@ -3099,100 +3143,6 @@ fooという文字列の後にタイムスタンプがついているのがわ�
 &lt;h2 id=&#34;サンプルコード&#34;&gt;サンプルコード&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/many_files_experiment&#34;&gt;hnakamur/many_files_experiment&lt;/a&gt; におきました。&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>LSM-TreeとRocksDB、TiDB、CockroachDBが気になる</title>
-      <link>https://hnakamur.github.io/blog/2016/06/20/lsm-tree-and-rocksdb/</link>
-      <pubDate>Mon, 20 Jun 2016 22:23:54 +0900</pubDate>
-      
-      <guid>https://hnakamur.github.io/blog/2016/06/20/lsm-tree-and-rocksdb/</guid>
-      <description>
-
-&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
-
-&lt;p&gt;キーバリューストアについて調べていたらLSM-Treeというデータ構造とRocksDBが気になったということで調査メモです。ただし、それぞれの技術詳細を調査したり自分で検証してみたというメモではないです。&lt;/p&gt;
-
-&lt;p&gt;そうではなく、いろんな記事で言及されていたり、ソフトウェアで採用されているのが気になったというだけの浅いメモです。が、脳内バッファからあふれる量になったので自分用に軽くまとめ。&lt;/p&gt;
-
-&lt;h2 id=&#34;lsm-tree&#34;&gt;LSM Tree&lt;/h2&gt;
-
-&lt;p&gt;Log-structured merge-treeを略してLSM Treeと呼ぶそうです。概要は&lt;a href=&#34;https://en.wikipedia.org/wiki/Log-structured_merge-tree&#34;&gt;Log-structured merge-tree - Wikipedia&lt;/a&gt;を参照してください。&lt;/p&gt;
-
-&lt;p&gt;CockroachDBのデザインドキュメントの&lt;a href=&#34;https://github.com/cockroachdb/cockroach/blob/master/docs/design.md#read-vs-write-optimization-spectrum&#34;&gt;Read vs. Write Optimization Spectrum&lt;/a&gt;によると、B+ Treeというデータ構造は書き込みより読み取りが多いケースに最適化されているが、LSM Treeのほうは書き込みが多いケースに最適化されているそうです。&lt;/p&gt;
-
-&lt;p&gt;一方、LSM Treeのほうはディスク使用量は肥大化しがちで定期的にコンパクションする必要があって、コンパクションには負荷がかかるので、この方式を各実装で工夫しているという話を何処かで読んだんですがリンクを紛失してしまいました。&lt;/p&gt;
-
-&lt;h2 id=&#34;influxdbの事例&#34;&gt;InfluxDBの事例&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://docs.influxdata.com/influxdb/v0.13/concepts/storage_engine/&#34;&gt;InfluxData | Documentation | Storage Engine&lt;/a&gt;によるとInfluxDBのストレージエンジンは以下の変遷を辿ったそうです。&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;LSM Treeの実装の1つである&lt;a href=&#34;https://github.com/google/leveldb&#34;&gt;LevelDB&lt;/a&gt;を採用&lt;/li&gt;
-&lt;li&gt;B+Treeの実装の1つである&lt;a href=&#34;https://github.com/boltdb/bolt&#34;&gt;BoltDB&lt;/a&gt;を採用&lt;/li&gt;
-&lt;li&gt;LSM Treeに似た独自のデータ構造でストレージエンジンを自作&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;h2 id=&#34;tidbの事例&#34;&gt;TiDBの事例&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/pingcap/tidb&#34;&gt;pingcap/tidb: TiDB is a distributed NewSQL database compatible with MySQL protocol&lt;/a&gt;&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;TiDB自体はGoで書かれている。&lt;/li&gt;
-&lt;li&gt;MySQLのプロトコルを解釈できる。&lt;/li&gt;
-&lt;li&gt;MySQLで使用できるSQLのサブセットを実装している。&lt;/li&gt;
-&lt;li&gt;TiDBはRustで書かれRaftアルゴリズムを使った分散トランザクション対応のキーバリューデータベース &lt;a href=&#34;https://github.com/pingcap/tikv&#34;&gt;TiKV&lt;/a&gt;を使っている。
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;https://github.com/pingcap/tidb#what-is-tidb&#34;&gt;What is TiDB?&lt;/a&gt;にはGolevelDB, LevelDB, RocksDB, LMDB, BoltDBに対応しているとあるのですが、TiDBの開発者のLi Shenさんによるとgoleveldbはローカルストレージとしてのみ利用可能で、分散環境ではTiKVを使っているそうです。&lt;/li&gt;
-&lt;li&gt;TiKVのストレージエンジンはLSM Treeの実装である&lt;a href=&#34;http://rocksdb.org/&#34;&gt;RocksDB&lt;/a&gt;を採用。Li ShenさんによるとTiDBの開発チームはRocsDBのチームとも連絡をとっているそうです。&lt;/li&gt;
-&lt;li&gt;TiKV用の&lt;a href=&#34;https://github.com/pingcap/tidb/blob/master/store/tikv/txn.go&#34;&gt;Goのクライアント&lt;/a&gt;もある。&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;li&gt;現在バリバリ開発中。&lt;a href=&#34;https://github.com/pingcap/tidb/blob/master/docs/ROADMAP.md&#34;&gt;ロードマップ&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;TiDBの紹介記事: &lt;a href=&#34;https://www.infiniteloop.co.jp/blog/2016/05/install-tidb/&#34;&gt;MySQL は分散DBの夢を見るか、Google F1 論文を実装した TiDB を使ってみた | 株式会社インフィニットループ技術ブログ&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;TiDBの起源についてのブログ記事。&lt;a href=&#34;http://0xffff.me/thoughts-behind-tidb-part-1/&#34;&gt;Thoughts behind TiDB - Part I&lt;/a&gt;。私は中国語読めないのでGoogle翻訳で英語にして読みました。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id=&#34;cockroachdbの事例&#34;&gt;CockroachDBの事例&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/cockroachdb/cockroach&#34;&gt;cockroachdb/cockroach: A Scalable, Survivable, Strongly-Consistent SQL Database&lt;/a&gt;&lt;/p&gt;
-
-&lt;p&gt;名前の由来: &lt;a href=&#34;https://github.com/cockroachdb/cockroach/wiki#why-the-name-cockroach&#34;&gt;Why the name Cockroach?&lt;/a&gt;&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;CoackroachDBはGoで書かれている。&lt;/li&gt;
-&lt;li&gt;PostgreSQLのプロトコルを解釈できる。&lt;/li&gt;
-&lt;li&gt;PostgreSQLで使用できるSQLのサブセットを実装している。&lt;/li&gt;
-&lt;li&gt;ストレージエンジンは&lt;a href=&#34;http://rocksdb.org/&#34;&gt;RocksDB&lt;/a&gt;を採用。&lt;/li&gt;
-&lt;li&gt;現在バリバリ開発中。
-
-&lt;ul&gt;
-&lt;li&gt;バージョン1.0に向けてベータ版を頻繁に出している。 &lt;a href=&#34;https://github.com/cockroachdb/cockroach/releases&#34;&gt;Releases&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://github.com/cockroachdb/cockroach/wiki&#34;&gt;ロードマップ&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;li&gt;デザインドキュメント &lt;a href=&#34;https://github.com/cockroachdb/cockroach#design&#34;&gt;Design overview&lt;/a&gt;, &lt;a href=&#34;https://github.com/cockroachdb/cockroach/blob/master/docs/design.md&#34;&gt;full design doc&lt;/a&gt;と&lt;a href=&#34;https://www.cockroachlabs.com/docs/frequently-asked-questions.html&#34;&gt;Frequently Asked Questions&lt;/a&gt;がとても充実しています
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;https://github.com/cockroachdb/cockroach/blob/master/docs/design.md#lock-free-distributed-transactions&#34;&gt;Lock-Free Distributed Transactions&lt;/a&gt;にCockroachDBの分散トランザクションの設計について解説があります。&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id=&#34;lsm-treeの実装はいろいろあるがrocksdbが良いらしい&#34;&gt;LSM Treeの実装はいろいろあるがRocksDBが良いらしい&lt;/h2&gt;
-
-&lt;p&gt;InfluxDBの開発元influxdataのブログのベンチマーク記事 &lt;a href=&#34;https://influxdata.com/blog/benchmarking-leveldb-vs-rocksdb-vs-hyperleveldb-vs-lmdb-performance-for-influxdb/&#34;&gt;Benchmarking LevelDB vs. RocksDB vs. HyperLevelDB vs. LMDB Performance for InfluxDB | InfluxData&lt;/a&gt;でも値の書き込みとクエリ実行の性能が良いのはRocksDBとなっています。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://smalldatum.blogspot.jp/2015/04/comparing-leveldb-and-rocksdb-take-2.html&#34;&gt;Small Datum: Comparing LevelDB and RocksDB, take 2&lt;/a&gt;にRocksDBとLevelDBのベンチマークがありますが、RocksDBのほうが良い感じです。&lt;/p&gt;
-
-&lt;p&gt;上記の通りTiDBでもCockroachDBでもRocksDBを採用していますし、現在のところ有望そうです。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://rocksdb.blogspot.jp/2013/11/the-history-of-rocksdb.html&#34;&gt;Rocksdb: The History of RocksDB&lt;/a&gt;にRocksDBを開始した頃の話が書かれていました。&lt;/p&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/facebook/rocksdb/wiki/RocksDB-FAQ&#34;&gt;RocksDB FAQ&lt;/a&gt;の &amp;ldquo;Q: What&amp;rsquo;s the maximum key and value sizes supported?&amp;rdquo; によると、RocksDBは大きなサイズのキー用にはデザインされておらず、推奨されるキーと値の最大サイズはそれぞれ8MBと3GBとのことです。&lt;/p&gt;
-
-&lt;h2 id=&#34;おわりに&#34;&gt;おわりに&lt;/h2&gt;
-
-&lt;p&gt;書き込みが多いケースに向いているキーバリューストアであるRocksDBと、RocksDBをつかて分散トランザクションを実現しているデータベースであるTiDBとCockroachDBの今後に注目したいと思います。&lt;/p&gt;
 </description>
     </item>
     
