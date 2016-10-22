@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>hnakamur&#39;s blog at github</title>
+    <link>https://hnakamur.github.io/blog/tags/goa/index.xml</link>
+    <description>Recent content on hnakamur&#39;s blog at github</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>ja-JP</language>
+    <atom:link href="https://hnakamur.github.io/blog/tags/goa/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>LocaleOverlaySwaggerというgoaプラグインを書いた</title>
+      <link>https://hnakamur.github.io/blog/2016/10/22/localeoverlayswagger-goa-plugin/</link>
+      <pubDate>Sat, 22 Oct 2016 16:52:02 +0900</pubDate>
+      
+      <guid>https://hnakamur.github.io/blog/2016/10/22/localeoverlayswagger-goa-plugin/</guid>
+      <description>
+
+&lt;h2 id=&#34;まず-swagger-仕様を複数ファイル出力する-goa-プラグイン-multiswagger-を試してみました&#34;&gt;まず Swagger 仕様を複数ファイル出力する goa プラグイン Multiswagger を試してみました&lt;/h2&gt;
+
+&lt;p&gt;まずは &lt;a href=&#34;http://tchssk.hatenablog.com/entry/2016/10/18/122215&#34;&gt;Swagger 仕様を複数ファイル出力する goa プラグイン Multiswagger を作った - tchsskのブログ&lt;/a&gt; を読んで試してみました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/goadesign/goa/&#34;&gt;goadesign/goa: Design-based APIs and microservices in Go&lt;/a&gt; の README からリンクされているサンプル &lt;a href=&#34;https://github.com/goadesign/goa-cellar&#34;&gt;goadesign/goa-cellar: goa winecellar example service&lt;/a&gt; の &lt;code&gt;design.go&lt;/code&gt; の各種項目の &lt;code&gt;Title&lt;/code&gt; や &lt;code&gt;Description&lt;/code&gt; の値に JSON を書いて英語と日本語の説明を書いてみた例が &lt;a href=&#34;https://github.com/hnakamur/goa-getting-started/blob/use_multiswagger/design/design.go&#34;&gt;goa-getting-started/design.go&lt;/a&gt; です。　&lt;/p&gt;
+
+&lt;p&gt;私が試したバージョンの &lt;a href=&#34;https://github.com/tchssk/multiswagger/tree/7ad4f69b2209316035dd222819228f90327cd1f3&#34;&gt;Multiswagger at 7ad4f69b2209316035dd222819228f90327cd1f3&lt;/a&gt; では &lt;a href=&#34;https://github.com/hnakamur/goa-getting-started/blob/4bef7925510700d8797831f3bb665eb87c8ca6b9/design/design.go#L8-L19&#34;&gt;API定義&lt;/a&gt; の &lt;code&gt;Title&lt;/code&gt; や &lt;code&gt;Definition&lt;/code&gt; は非対応だったので、 &lt;a href=&#34;https://github.com/tchssk/multiswagger/compare/master...hnakamur:support_more_fields&#34;&gt;Comparing tchssk:master&amp;hellip;hnakamur:support_more_fields · tchssk/multiswagger&lt;/a&gt; のように変更して試してみました。&lt;/p&gt;
+
+&lt;p&gt;変更に際して以下の点にハマりました。&lt;/p&gt;
+
+&lt;p&gt;ハマった点その1。 API定義は &lt;a href=&#34;https://godoc.org/github.com/goadesign/goa/goagen/gen_swagger#Swagger&#34;&gt;github.com/goadesign/goagen/genswagger/Swagger&lt;/a&gt; の &lt;code&gt;Definitions&lt;/code&gt; に保持されるのですが、値の型が &lt;code&gt;map[string]*genschema.JSONSchema&lt;/code&gt; となっていて、 &lt;code&gt;JSONSchema&lt;/code&gt; の値は &lt;a href=&#34;https://github.com/goadesign/goa/blob/4d19425396efa86b61d97c3cda0b00ec21f103f7/goagen/gen_schema/json_schema.go#L100&#34;&gt;goa/json_schema.go のグローバル変数 Definitions&lt;/a&gt; に保持されています。&lt;/p&gt;
+
+&lt;p&gt;このため &lt;a href=&#34;https://github.com/hnakamur/multiswagger/blob/ec57ee4e1b17d0b13091e0b3d17649796967ed64/generator.go#L142-L173&#34;&gt;extract 関数&lt;/a&gt; 内で JSON 文字列から最初のキーの値を取り出して書き変えた後、 &lt;a href=&#34;https://github.com/hnakamur/multiswagger/blob/ec57ee4e1b17d0b13091e0b3d17649796967ed64/generator.go#L72&#34;&gt;generator.go#L72&lt;/a&gt; で次のキー用に &lt;code&gt;Swagger&lt;/code&gt; の値を作り直しても JSONSchema は古い値が再利用されてしまいます。そこで &lt;a href=&#34;https://github.com/hnakamur/multiswagger/blob/ec57ee4e1b17d0b13091e0b3d17649796967ed64/generator.go#L71&#34;&gt;generator.go#L71&lt;/a&gt; で &lt;code&gt;genschema.Definitions&lt;/code&gt; を初期化することで対応できました。&lt;/p&gt;
+
+&lt;p&gt;ハマった点その2。生成された &lt;a href=&#34;https://github.com/hnakamur/goa-getting-started/blob/4bef7925510700d8797831f3bb665eb87c8ca6b9/swagger/swagger.ja.yaml#L8&#34;&gt;swagger.ja.yaml の 8 行目&lt;/a&gt;  を見ると &lt;code&gt;definitions&lt;/code&gt; の &lt;code&gt;description&lt;/code&gt; に &lt;code&gt;(default view)&lt;/code&gt; という値が自動的に追加されています。  &lt;a href=&#34;https://github.com/hnakamur/goa-getting-started/blob/4bef7925510700d8797831f3bb665eb87c8ca6b9/design/design.go#L42-L45&#34;&gt;design.go#L42-L45&lt;/a&gt; に JSON を書いていても &lt;code&gt;(default view)&lt;/code&gt; という値が追加されるので JSON としてパースしようとするとエラーになってしまいます。そこで、値が &lt;code&gt;(default view)&lt;/code&gt; で終わっていたら、それを取り除いてから JSON としてパース可能か調べるようにしました。そしてパースできる場合はパースして特定のキーの値を取り出してから最後に &lt;code&gt;(default view)&lt;/code&gt; とつけるようにしました。&lt;/p&gt;
+
+&lt;p&gt;やれやれこれで大丈夫かと思ったのですが、 &lt;a href=&#34;https://github.com/hnakamur/goa-getting-started/blob/4bef7925510700d8797831f3bb665eb87c8ca6b9/swagger/swagger.ja.yaml#L33-L69&#34;&gt;swagger.ja.yaml#L33-L69&lt;/a&gt; の &lt;code&gt;error&lt;/code&gt; の &lt;code&gt;description&lt;/code&gt; は英語になっています。 &lt;a href=&#34;https://github.com/hnakamur/goa-getting-started/blob/4bef7925510700d8797831f3bb665eb87c8ca6b9/design/design.go&#34;&gt;design.go&lt;/a&gt; に書いていないデフォルト値が出力されているようです。&lt;/p&gt;
+
+&lt;p&gt;また、 &lt;a href=&#34;https://github.com/hnakamur/goa-getting-started/blob/4bef7925510700d8797831f3bb665eb87c8ca6b9/swagger/swagger.ja.yaml#L95&#34;&gt;swagger.ja.yaml#L95&lt;/a&gt; の &lt;code&gt;summary&lt;/code&gt; も show bottle と英語になっています。これは今はコメントにしていますが &lt;a href=&#34;https://github.com/hnakamur/goa-getting-started/blob/4bef7925510700d8797831f3bb665eb87c8ca6b9/design/design.go#L36&#34;&gt;design.go#L36&lt;/a&gt; のように &lt;code&gt;Metadata(&amp;quot;swagger:summary&amp;quot;, value)&lt;/code&gt; で設定可能なことがわかりました。&lt;/p&gt;
+
+&lt;p&gt;しかしこの値を JSON で書くとなると &lt;a href=&#34;https://github.com/hnakamur/multiswagger/blob/ec57ee4e1b17d0b13091e0b3d17649796967ed64/generator.go#L175-L253&#34;&gt;walk 関数&lt;/a&gt; で Metadata で &lt;code&gt;&amp;quot;swagger:summary&amp;quot;&lt;/code&gt; 特定のキーの場合だけ処理するという改修が必要です。&lt;/p&gt;
+
+&lt;p&gt;このあたりで辛くなってきました。 &lt;code&gt;design.go&lt;/code&gt; の DSL はそのままで値に JSON を書くという設計は &lt;code&gt;design.go&lt;/code&gt; で各言語のメッセージが一覧できるという利点がある一方、 generator の実装が面倒だと思います。あと、言語が増えると &lt;code&gt;design.go&lt;/code&gt; の API 定義に対するメッセージ文字列の行が増えて API 定義が見にくくなるという欠点もあると思いました。&lt;/p&gt;
+
+&lt;h2 id=&#34;ということで-localeovrerlayswagger-という別の-swagger-仕様生成プラグインを作りました&#34;&gt;ということで LocaleOvrerlaySwagger という別の Swagger 仕様生成プラグインを作りました&lt;/h2&gt;
+
+&lt;p&gt;ソースは &lt;a href=&#34;https://github.com/hnakamur/localeoverlayswagger&#34;&gt;hnakamur/localeoverlayswagger&lt;/a&gt; で公開しています。&lt;/p&gt;
+
+&lt;p&gt;使い方は &lt;a href=&#34;https://github.com/hnakamur/localeoverlayswagger#usage&#34;&gt;README の Usage&lt;/a&gt; をご参照ください。メッセージの書き方ですが、 &lt;a href=&#34;https://github.com/hnakamur/goa-getting-started/blob/overlay_japanese_yaml/design/design.go&#34;&gt;design.go&lt;/a&gt; の各種 Description は標準通り英語で書きます。&lt;/p&gt;
+
+&lt;p&gt;英語の Swagger 仕様は標準と同じ内容で &lt;a href=&#34;https://github.com/hnakamur/goa-getting-started/blob/overlay_japanese_yaml/swagger/swagger.yaml&#34;&gt;swagger/swagger.yaml&lt;/a&gt; のように生成されます。 この内置き換えた部分だけのキーを含む YAML ファイルを &lt;a href=&#34;https://github.com/hnakamur/goa-getting-started/blob/overlay_japanese_yaml/locales/ja.yaml&#34;&gt;overlay_japanese_yaml&lt;/a&gt; のように書いておくと、 &lt;a href=&#34;https://github.com/hnakamur/goa-getting-started/blob/overlay_japanese_yaml/swagger/swagger.ja.yaml&#34;&gt;swagger/swagger.ja.yaml&lt;/a&gt; のようにその部分だけ上書きされた YAML が生成されるという仕組みです。&lt;/p&gt;
+
+&lt;p&gt;英語のメッセージに対応する日本語のメッセージを離れたところに書く必要があるのでその点は不便なのですが、生成された英語の YAML を見ながら対応するキーに日本語メッセージを書くだけで良いので、トータルではこちらのほうが管理が楽だと個人的には思います。&lt;/p&gt;
+
+&lt;p&gt;ということで、良かったらご利用ください。&lt;/p&gt;
+</description>
+    </item>
+    
+  </channel>
+</rss>
