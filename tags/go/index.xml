@@ -9,6 +9,79 @@
     <atom:link href="https://hnakamur.github.io/blog/tags/go/index.xml" rel="self" type="application/rss+xml" />
     
     <item>
+      <title>Go言語のos.Chtimesで設定可能な最大日時は 2262-04-11 23:47:16.854775807 &#43;0000 UTC</title>
+      <link>https://hnakamur.github.io/blog/2016/10/22/max-time-for-golang-os-chtimes/</link>
+      <pubDate>Sat, 22 Oct 2016 18:32:50 +0900</pubDate>
+      
+      <guid>https://hnakamur.github.io/blog/2016/10/22/max-time-for-golang-os-chtimes/</guid>
+      <description>&lt;p&gt;&lt;a href=&#34;https://golang.org/pkg/os/#Chtimes&#34;&gt;os.Chtimes&lt;/a&gt; のソース&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://golang.org/src/os/file_posix.go?s=3693:3758#L123&#34;&gt;src/os/file_posix.go - The Go Programming Language&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/golang/go/blob/go1.7.3/src/os/file_posix.go#L133-L141&#34;&gt;go/file_posix.go at go1.7.3 · golang/go&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;を見ると、引数は &lt;code&gt;time.Time&lt;/code&gt; なのですが、 &lt;code&gt;syscall.Timespec&lt;/code&gt; に変換するときに &lt;code&gt;time&lt;/code&gt; の &lt;code&gt;UnixNano()&lt;/code&gt; を使っています。 &lt;code&gt;UnixNano()&lt;/code&gt; は 1970-01-01T00:00:00Z からの通算ミリ秒です。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;UnixNano()&lt;/code&gt; で int64 の最大値を設定したときと、 &lt;code&gt;time.Time&lt;/code&gt; で表現可能な最大の日時を調べてみました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://play.golang.org/p/eUj5L-eEkS&#34;&gt;https://play.golang.org/p/eUj5L-eEkS&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;package main
+
+import (
+	&amp;quot;fmt&amp;quot;
+	&amp;quot;math&amp;quot;
+	&amp;quot;time&amp;quot;
+)
+
+func main() {
+	fmt.Println(time.Unix(int64(math.MaxInt64)/1e9, int64(math.MaxInt64)%1e9).UTC())
+	fmt.Println(time.Unix(math.MaxInt64, 1e9-1).UTC())
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;2262-04-11 23:47:16.854775807 +0000 UTC
+219250468-12-04 15:30:07.999999999 +0000 UTC
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;となりました。&lt;/p&gt;
+
+&lt;p&gt;Linux amd64 環境だと &lt;a href=&#34;https://github.com/golang/go/blob/go1.7.3/src/syscall/syscall_linux_amd64.go#L91-L95&#34;&gt;NsecToTimespec&lt;/a&gt; と &lt;a href=&#34;https://github.com/golang/go/blob/go1.7.3/src/syscall/ztypes_linux_amd64.go#L24-L27&#34;&gt;Timespec&lt;/a&gt; は&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;func NsecToTimespec(nsec int64) (ts Timespec) {
+	ts.Sec = nsec / 1e9
+	ts.Nsec = nsec % 1e9
+	return
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;type Timespec struct {
+	Sec  int64
+	Nsec int64
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;となっているので、 &lt;code&gt;NsecToTimespec&lt;/code&gt; を使わずに&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;func Chtimes(name string, atime time.Time, mtime time.Time) error {
+	var utimes [2]syscall.Timespec
+	utimes[0] = syscall.Timespec(atime.Unix(), atime.Nanosecond())
+	utimes[1] = syscall.Timespec(mtime.Unix(), mtime.Nanosecond())
+	if e := syscall.UtimesNano(name, utimes[0:]); e != nil {
+		return &amp;amp;PathError{&amp;quot;chtimes&amp;quot;, name, e}
+	}
+	return nil
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;と書けば &lt;code&gt;time.Time&lt;/code&gt; の限界まで渡すことは出来ます。とは言え &lt;code&gt;syscall.UtimesNano&lt;/code&gt; が対応しているかはまた別問題ですが。&lt;/p&gt;
+
+&lt;p&gt;2262 年まで表現できれば個人的には困らないので、メモだけ残しておくということで。&lt;/p&gt;
+</description>
+    </item>
+    
+    <item>
       <title>direnvでgo1.5.2とgo1.6beta1を切り替える設定</title>
       <link>https://hnakamur.github.io/blog/2015/12/19/switch_go1.5.2_and_go1/</link>
       <pubDate>Sat, 19 Dec 2015 01:45:25 +0900</pubDate>
