@@ -34,12 +34,12 @@ githubレポジトリのREADMEに使用例のコードがあります。
 
 またDebugレベルのログ出力は無効時には引数の評価もしたくないので、 [LTSVLogger.DebugEnabled()](https://godoc.org/github.com/hnakamur/ltsvlog#LTSVLogger.DebugEnabled)というメソッドも用意しました。使用例はこんな感じです。
 
-```go
+{{< highlight go "linenos=inline,hl_lines=2 3" >}}
     if ltsvlog.Logger.DebugEnabled() {
         ltsvlog.Logger.Debug(ltsvlog.LV{"msg", "This is a debug message"},
             ltsvlog.LV{"key", "key1"}, ltsvlog.LV{"intValue", 234})
     }
-```
+{{< / highlight >}}
 
 ### スタックトレースの出力
 [LTSVLogger.ErrorWithStack](https://godoc.org/github.com/hnakamur/ltsvlog#LTSVLogger.ErrorWithStack)でスタックトレース付きでログ出力できます。
