@@ -34,7 +34,7 @@ githubレポジトリのREADMEに使用例のコードがあります。
 
 またDebugレベルのログ出力は無効時には引数の評価もしたくないので、 [LTSVLogger.DebugEnabled()](https://godoc.org/github.com/hnakamur/ltsvlog#LTSVLogger.DebugEnabled)というメソッドも用意しました。使用例はこんな感じです。
 
-```
+```go
     if ltsvlog.Logger.DebugEnabled() {
         ltsvlog.Logger.Debug(ltsvlog.LV{"msg", "This is a debug message"},
             ltsvlog.LV{"key", "key1"}, ltsvlog.LV{"intValue", 234})
@@ -59,7 +59,7 @@ LTSV形式ではログは1レコードで1行にする必要があります。[r
 
 将来 LV にフィールドが追加されるかもしれないと防御的に実装するなら、以下のように書いたほうが良いわけですが、LabelとValueでLVということでフィールド追加するつもりは無いので `L:` や `V:` は省略して、上記の例のように書いています。
 
-```
+```go
     if ltsvlog.Logger.DebugEnabled() {
         ltsvlog.Logger.Debug(ltsvlog.LV{L: "msg", V: "This is a debug message"},
             ltsvlog.LV{L: "key", V: "key1"}, ltsvlog.LV{L: "intValue", V: 234})
@@ -75,7 +75,7 @@ LTSV形式ではログは1レコードで1行にする必要があります。[r
 
 私は関数を増やすのが嫌だったのとグローバルロガーの変数は公開しても良いのではと思ったのでそうしました。[ltsvlog.Logger](https://godoc.org/github.com/hnakamur/ltsvlog#pkg-variables)で参照できます。デフォルトでは標準出力にデバッグログありで出力するようになっています。デバッグログをオフにしたい場合はmain関数の最初のほうで(ログ出力する前に)以下のようにします。
 
-```
+```go
  ltsvlog.Logger = ltsvlog.NewLTSVLogger(os.Stdout, false)
 ```
 
