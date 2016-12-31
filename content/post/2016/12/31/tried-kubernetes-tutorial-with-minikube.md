@@ -1340,3 +1340,11 @@ $ export POD_NAME=kubernetes-bootcamp-2100875782-vnxk1
 $ kubectl exec -ti $POD_NAME curl localhost:8080
 Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-2100875782-vnxk1 | v=2
 ```
+
+## おわりに
+
+ローリングアップデートとアップデート失敗時の切り戻しが簡単に行えるのは良いなと思いました。
+
+このチュートリアルはステートレスなアプリケーションの例でしたが、
+[Tutorials - Kubernetes](http://kubernetes.io/docs/tutorials/)
+には Stateful Applications というチュートリアルもあるので、こちらも後日試してみたいです。　
