@@ -1,13 +1,1294 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes" ?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>Post-rsses on hnakamur&#39;s blog at github</title>
+    <title>Posts on hnakamur&#39;s blog at github</title>
     <link>https://hnakamur.github.io/blog/post/index.xml</link>
-    <description>Recent content in Post-rsses on hnakamur&#39;s blog at github</description>
+    <description>Recent content in Posts on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Sat, 22 Oct 2016 18:54:49 +0900</lastBuildDate>
+    <lastBuildDate>Sat, 31 Dec 2016 16:24:33 +0900</lastBuildDate>
     <atom:link href="https://hnakamur.github.io/blog/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>minikubeでKubernetesのチュートリアルをやってみた</title>
+      <link>https://hnakamur.github.io/blog/2016/12/31/tried-kubernetes-tutorial-with-minikube/</link>
+      <pubDate>Sat, 31 Dec 2016 16:24:33 +0900</pubDate>
+      
+      <guid>https://hnakamur.github.io/blog/2016/12/31/tried-kubernetes-tutorial-with-minikube/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;検索してたら &lt;a href=&#34;https://news.ycombinator.com/item?id=12462261&#34;&gt;Why Kubernetes is winning the container war | Hacker News&lt;/a&gt; というHacker Newsのスレッドを見つけました。&lt;/p&gt;
+
+&lt;p&gt;実際に勝つどうかはともかく、実際に使っている人やMesosphereやRed Hatの人のコメントがあり、非常に参考になりそうです。このブログ記事を書くまで私は Kubernetes はろくに触ったことが無かったので内容はよくわからないですが、後日また見直してみたいところです。&lt;/p&gt;
+
+&lt;p&gt;上記のHacker Newsのコメントで以下の2つのチュートリアルが紹介されていました。このブログ記事はこのうち1つめのほうを試してみたメモです。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://kubernetesbootcamp.github.io/kubernetes-bootcamp/&#34;&gt;Kubernetes Bootcamp&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/kelseyhightower/kubernetes-the-hard-way&#34;&gt;kelseyhightower/kubernetes-the-hard-way: Bootstrap Kubernetes the hard way on Google Cloud Platform or Amazon EC2. No scripts.&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;試してから気づいたのですが、全く同じ内容が Kubernetes の公式ドキュメントの &lt;a href=&#34;http://kubernetes.io/docs/tutorials/kubernetes-basics/&#34;&gt;Kubernetes Basics&lt;/a&gt; にありました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://kubernetes.io/docs/tutorials/kubernetes-basics/&#34;&gt;Kubernetes Basics&lt;/a&gt; はいくつかの章（このチュートリアルでは Module と呼ばれています）に分かれていて、まず図解付きのわかりやすい概念説明があり、その後ブラウザ上のターミナルでコマンドを入力すると結果が表示されるというインタラクティブなチュートリアルになっています。&lt;/p&gt;
+
+&lt;p&gt;各章末にクイズがあり、概念を理解したか確認できるのも良い感じです。&lt;/p&gt;
+
+&lt;p&gt;ターミナルの左に説明文があり、入力する各コマンドをマウスでクリックすると、右側のターミナルに入力してくれるので手軽に試せます。&lt;/p&gt;
+
+&lt;p&gt;とはいえ、手元の環境でも試してみたかったので、macOS上に環境構築してブラウザのインタラクティブチュートリアルとともに試してみました。&lt;/p&gt;
+
+&lt;h2 id=&#34;macos-sierraでの事前準備&#34;&gt;macOS Sierraでの事前準備&lt;/h2&gt;
+
+&lt;p&gt;&lt;code&gt;minikube start --help&lt;/code&gt; の &lt;code&gt;--vm-driver&lt;/code&gt; の説明によると仮想マシンドライバは virtualbox xhyve vmwarefusion のいずれかでデフォルトは virtualbox です。
+ということでVirtualBoxをインストールしておきます。私の環境ではバージョンは 5.1.12 でした。&lt;/p&gt;
+
+&lt;p&gt;minikubeとKubernetesはGitHubのプロジェクトにリリースページがあってそこからバイナリをダウンロードできます。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/kubernetes/minikube/releases/tag/v0.14.0&#34;&gt;Release v0.14.0 · kubernetes/minikube&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/kubernetes/kubernetes/releases/tag/v1.5.1&#34;&gt;Release v1.5.1 · kubernetes/kubernetes&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;が、Homebrewでパッケージが用意されていてバージョンも上記と同じで最新だったのでHomebrewでインストールしました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;brew install Caskroom/cask/minikube
+brew install kubectl
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;module-1-kubernetsクラスタを作成する&#34;&gt;Module 1: Kubernetsクラスタを作成する&lt;/h2&gt;
+
+&lt;p&gt;概念の説明は &lt;a href=&#34;https://kubernetesbootcamp.github.io/kubernetes-bootcamp/1-1.html&#34;&gt;Introduction to Kubernetes cluster&lt;/a&gt; を参照してください。&lt;/p&gt;
+
+&lt;h3 id=&#34;minikubeのバージョン確認&#34;&gt;minikubeのバージョン確認&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;$ minikube version       
+minikube version: v0.14.0
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;minikube起動&#34;&gt;minikube起動&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;$ minikube start
+Starting local Kubernetes cluster...
+Kubectl is now configured to use the cluster.
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;kubectlのバージョン確認&#34;&gt;kubectlのバージョン確認&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl version
+Client Version: version.Info{Major:&amp;quot;1&amp;quot;, Minor:&amp;quot;5&amp;quot;, GitVersion:&amp;quot;v1.5.1&amp;quot;, GitCommit:&amp;quot;82450d03cb057bab0950214ef122b67c83fb11df&amp;quot;, GitTreeState:&amp;quot;clean&amp;quot;, BuildDate:&amp;quot;2016-12-22T13:56:59Z&amp;quot;, GoVersion:&amp;quot;go1.7.4&amp;quot;, Compiler:&amp;quot;gc&amp;quot;, Platform:&amp;quot;darwin/amd64&amp;quot;}
+Server Version: version.Info{Major:&amp;quot;1&amp;quot;, Minor:&amp;quot;5&amp;quot;, GitVersion:&amp;quot;v1.5.1&amp;quot;, GitCommit:&amp;quot;82450d03cb057bab0950214ef122b67c83fb11df&amp;quot;, GitTreeState:&amp;quot;clean&amp;quot;, BuildDate:&amp;quot;1970-01-01T00:00:00Z&amp;quot;, GoVersion:&amp;quot;go1.7.1&amp;quot;, Compiler:&amp;quot;gc&amp;quot;, Platform:&amp;quot;linux/amd64&amp;quot;}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;クラスタの情報表示&#34;&gt;クラスタの情報表示&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl cluster-info
+Kubernetes master is running at https://192.168.99.100:8443
+kubernetes-dashboard is running at https://192.168.99.100:8443/api/v1/proxy/namespaces/kube-system/services/kubernetes-dashboard
+
+To further debug and diagnose cluster problems, use &#39;kubectl cluster-info dump&#39;.
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;ノード一覧&#34;&gt;ノード一覧&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get nodes
+NAME       STATUS    AGE
+minikube   Ready     11h
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;module-2-アプリをデプロイ&#34;&gt;Module 2: アプリをデプロイ&lt;/h2&gt;
+
+&lt;p&gt;概念の説明は &lt;a href=&#34;https://kubernetesbootcamp.github.io/kubernetes-bootcamp/2-1.html&#34;&gt;Your first application deployment&lt;/a&gt; を参照してください。&lt;/p&gt;
+
+&lt;h3 id=&#34;kubernetes-bootcampアプリをデプロイ&#34;&gt;kubernetes-bootcampアプリをデプロイ&lt;/h3&gt;
+
+&lt;p&gt;チュートリアルのために用意されたkubernetes-bootcampアプリをデプロイしてみます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl run kubernetes-bootcamp --image=docker.io/jocatalin/kubernetes-bootcamp:v1 --port=8080
+deployment &amp;quot;kubernetes-bootcamp&amp;quot; created
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;デプロイされたアプリ一覧&#34;&gt;デプロイされたアプリ一覧&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get deployments
+NAME                  DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+kubernetes-bootcamp   1         1         1            1           57s
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;プロキシ起動&#34;&gt;プロキシ起動&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl proxy
+Starting to serve on 127.0.0.1:8001
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;プロキシを起動したらプロンプトには戻ってこないので、以降のコマンドは別のターミナルで実行します。&lt;/p&gt;
+
+&lt;h3 id=&#34;podの名前を取得&#34;&gt;Podの名前を取得&lt;/h3&gt;
+
+&lt;p&gt;この後参照するため、Podの名前を取得して環境変数POD_NAMEに設定しておきます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ export POD_NAME=$(kubectl get pods -o go-template --template &#39;{{range .items}}{{.metadata.name}}{{&amp;quot;\n&amp;quot;}}{{end}}&#39;)
+$ echo Name of the Pod: $POD_NAME
+Name of the Pod: kubernetes-bootcamp-390780338-6j8fn
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;見た感じ &lt;code&gt;--template&lt;/code&gt; の引数の書式はGo言語の &lt;a href=&#34;https://golang.org/pkg/text/template/&#34;&gt;text/template&lt;/a&gt;パッケージのテンプレート言語をそのまま使っているようです。&lt;/p&gt;
+
+&lt;p&gt;Pod名の &lt;code&gt;390780338-6j8fn&lt;/code&gt; の部分はデプロイの度に生成されるランダムな文字列となっています。&lt;/p&gt;
+
+&lt;h3 id=&#34;プロキシ経由でアプリにアクセス&#34;&gt;プロキシ経由でアプリにアクセス&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;$ curl http://localhost:8001/api/v1/proxy/namespaces/default/pods/$POD_NAME/
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-390780338-6j8fn | v=1
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;module-3-デプロイしたアプリを詳しく見てみる&#34;&gt;Module 3: デプロイしたアプリを詳しく見てみる&lt;/h2&gt;
+
+&lt;p&gt;概念の説明は &lt;a href=&#34;https://kubernetesbootcamp.github.io/kubernetes-bootcamp/3-1.html&#34;&gt;Pods and Nodes&lt;/a&gt; を参照してください。&lt;/p&gt;
+
+&lt;h3 id=&#34;pod一覧表示&#34;&gt;Pod一覧表示&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get pods
+NAME                                  READY     STATUS    RESTARTS   AGE
+kubernetes-bootcamp-390780338-6j8fn   1/1       Running   0          13m
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;pod詳細表示&#34;&gt;Pod詳細表示&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl describe pods
+Name:           kubernetes-bootcamp-390780338-6j8fn
+Namespace:      default
+Node:           minikube/192.168.99.100
+Start Time:     Sat, 31 Dec 2016 17:15:41 +0900
+Labels:         pod-template-hash=390780338
+                run=kubernetes-bootcamp
+Status:         Running
+IP:             172.17.0.4
+Controllers:    ReplicaSet/kubernetes-bootcamp-390780338
+Containers:
+  kubernetes-bootcamp:
+    Container ID:       docker://f3d04d91e8f27b2b537c20d82253376993483f9bb9c0d1196ba50ecc3a69ff7c
+    Image:              docker.io/jocatalin/kubernetes-bootcamp:v1
+    Image ID:           docker://sha256:8fafd8af70e9aa7c3ab40222ca4fd58050cf3e49cb14a4e7c0f460cd4f78e9fe
+    Port:               8080/TCP
+    State:              Running
+      Started:          Sat, 31 Dec 2016 17:15:42 +0900
+    Ready:              True
+    Restart Count:      0
+    Volume Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-qqsb7 (ro)
+    Environment Variables:      &amp;lt;none&amp;gt;
+Conditions:
+  Type          Status
+  Initialized   True 
+  Ready         True 
+  PodScheduled  True 
+Volumes:
+  default-token-qqsb7:
+    Type:       Secret (a volume populated by a Secret)
+    SecretName: default-token-qqsb7
+QoS Class:      BestEffort
+Tolerations:    &amp;lt;none&amp;gt;
+Events:
+  FirstSeen     LastSeen        Count   From                    SubObjectPath                           Type            Reason          Message
+  ---------     --------        -----   ----                    -------------                           --------        ------          -------
+  15m           15m             1       {default-scheduler }                                            Normal          Scheduled       Successfully assigned kubernetes-bootcamp-390780338-6j8fn to minikube
+  15m           15m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Pulled          Container image &amp;quot;docker.io/jocatalin/kubernetes-bootcamp:v1&amp;quot; already present on machine
+  15m           15m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Created         Created container with docker id f3d04d91e8f2; Security:[seccomp=unconfined]
+  15m           15m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Started         Started container with docker id f3d04d91e8f2
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;podのログ表示&#34;&gt;Podのログ表示&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl logs $POD_NAME
+Kubernetes Bootcamp App Started At: 2016-12-31T08:15:42.728Z | Running On:  kubernetes-bootcamp-390780338-6j8fn 
+
+Running On: kubernetes-bootcamp-390780338-6j8fn | Total Requests: 1 | App Uptime: 580.532 seconds | Log Time: 2016-12-31T08:25:23.260Z
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;pod内でコマンド実行&#34;&gt;Pod内でコマンド実行&lt;/h3&gt;
+
+&lt;p&gt;envコマンドを実行してみます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl exec $POD_NAME env
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+HOSTNAME=kubernetes-bootcamp-390780338-6j8fn
+KUBERNETES_SERVICE_HOST=10.0.0.1
+KUBERNETES_SERVICE_PORT=443
+KUBERNETES_SERVICE_PORT_HTTPS=443
+KUBERNETES_PORT=tcp://10.0.0.1:443
+KUBERNETES_PORT_443_TCP=tcp://10.0.0.1:443
+KUBERNETES_PORT_443_TCP_PROTO=tcp
+KUBERNETES_PORT_443_TCP_PORT=443
+KUBERNETES_PORT_443_TCP_ADDR=10.0.0.1
+NPM_CONFIG_LOGLEVEL=info
+NODE_VERSION=6.3.1
+HOME=/root
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;hostname&lt;/code&gt; コマンドを実行してみます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl exec $POD_NAME hostname
+kubernetes-bootcamp-390780338-6j8fn
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;ip a&lt;/code&gt; を実行してみます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl exec $POD_NAME ip a
+1: lo: &amp;lt;LOOPBACK,UP,LOWER_UP&amp;gt; mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever
+11: eth0@if12: &amp;lt;BROADCAST,MULTICAST,UP,LOWER_UP&amp;gt; mtu 1500 qdisc noqueue state UP group default 
+    link/ether 02:42:ac:11:00:04 brd ff:ff:ff:ff:ff:ff
+    inet 172.17.0.4/16 scope global eth0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::42:acff:fe11:4/64 scope link tentative dadfailed 
+       valid_lft forever preferred_lft forever
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;pod内でbash実行&#34;&gt;Pod内でbash実行&lt;/h3&gt;
+
+&lt;p&gt;以下のコマンドでbashを実行するとプロンプトが表示されます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl exec -ti $POD_NAME bash
+root@kubernetes-bootcamp-390780338-6j8fn:/# 
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;チュートリアルのために用意されたkubernetes-bootcampアプリに含まれるファイル &lt;code&gt;server.js&lt;/code&gt; の内容を表示してみます。このアプリは Node.js で書かれていることがわかります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;root@kubernetes-bootcamp-390780338-6j8fn:/# cat server.js
+var http = require(&#39;http&#39;);
+var requests=0;
+var podname= process.env.HOSTNAME;
+var startTime;
+var host;
+var handleRequest = function(request, response) {
+  response.setHeader(&#39;Content-Type&#39;, &#39;text/plain&#39;);
+  response.writeHead(200);
+  response.write(&amp;quot;Hello Kubernetes bootcamp! | Running on: &amp;quot;);
+  response.write(host);
+  response.end(&amp;quot; | v=1\n&amp;quot;);
+  console.log(&amp;quot;Running On:&amp;quot; ,host, &amp;quot;| Total Requests:&amp;quot;, ++requests,&amp;quot;| App Uptime:&amp;quot;, (new Date() - startTime)/1000 , &amp;quot;seconds&amp;quot;, &amp;quot;| Log Time:&amp;quot;,new Date());
+}
+var www = http.createServer(handleRequest);
+www.listen(8080,function () {
+    startTime = new Date();;
+    host = process.env.HOSTNAME;
+    console.log (&amp;quot;Kubernetes Bootcamp App Started At:&amp;quot;,startTime, &amp;quot;| Running On: &amp;quot; ,host, &amp;quot;\n&amp;quot; );
+});
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Pod内からcurlで直接アプリにアクセスしてみます。 Node.js コンテナ内でbashを実行しているのでホスト名には localhost を指定しています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;root@kubernetes-bootcamp-390780338-6j8fn:/# curl localhost:8080
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-390780338-6j8fn | v=1
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;exit&lt;/code&gt; を入力してPod内のbashを抜けます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;root@kubernetes-bootcamp-390780338-6j8fn:/# exit
+exit
+$ 
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;module-4-アプリをkubernetes外に公開する&#34;&gt;Module 4: アプリをKubernetes外に公開する&lt;/h2&gt;
+
+&lt;p&gt;概念の説明は &lt;a href=&#34;https://kubernetesbootcamp.github.io/kubernetes-bootcamp/4-1.html&#34;&gt;Services&lt;/a&gt; を参照してください。&lt;/p&gt;
+
+&lt;p&gt;Module 1では &lt;code&gt;minikube proxy&lt;/code&gt; を実行してMacの8001番ポートでリッスンしておいて、Macから localhost:8001 でアクセスしました。&lt;/p&gt;
+
+&lt;p&gt;ここではKubernetesのノード上のポートでリッスンして、Macからminikubeのproxyを経由せずに直接アクセスします。&lt;/p&gt;
+
+&lt;h3 id=&#34;サービス一覧表示&#34;&gt;サービス一覧表示&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get services
+NAME         CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+kubernetes   10.0.0.1     &amp;lt;none&amp;gt;        443/TCP   12h
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;kubernetes-bootcampアプリを公開&#34;&gt;kubernetes-bootcampアプリを公開&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl expose deployment/kubernetes-bootcamp --type=&amp;quot;NodePort&amp;quot; --port 8080
+service &amp;quot;kubernetes-bootcamp&amp;quot; exposed
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;再度サービス一覧表示&#34;&gt;再度サービス一覧表示&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get services
+NAME                  CLUSTER-IP   EXTERNAL-IP   PORT(S)          AGE
+kubernetes            10.0.0.1     &amp;lt;none&amp;gt;        443/TCP          12h
+kubernetes-bootcamp   10.0.0.228   &amp;lt;nodes&amp;gt;       8080:31123/TCP   40s
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;上で &lt;code&gt;kubectl expose&lt;/code&gt; コマンドでサービスを公開したので、一覧にkubernetes-bootcampが含まれるようになりました。&lt;/p&gt;
+
+&lt;h3 id=&#34;サービス詳細表示&#34;&gt;サービス詳細表示&lt;/h3&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl describe services/kubernetes-bootcamp
+Name:                   kubernetes-bootcamp
+Namespace:              default
+Labels:                 run=kubernetes-bootcamp
+Selector:               run=kubernetes-bootcamp
+Type:                   NodePort
+IP:                     10.0.0.228
+Port:                   &amp;lt;unset&amp;gt; 8080/TCP
+NodePort:               &amp;lt;unset&amp;gt; 31123/TCP
+Endpoints:              172.17.0.4:8080
+Session Affinity:       None
+No events.
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;ノードのポート取得&#34;&gt;ノードのポート取得&lt;/h3&gt;
+
+&lt;p&gt;この後参照するため、ノードのポートを取得して環境変数 NODE_PORT に設定しておきます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ export NODE_PORT=$(kubectl get services/kubernetes-bootcamp -o go-template=&#39;{{(index .spec.ports 0).nodePort}}&#39;)
+$ echo NODE_PORT=$NODE_PORT
+NODE_PORT=31123
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://kubernetesbootcamp.github.io/kubernetes-bootcamp/4-2.html&#34;&gt;Module 4のインタラクティブチュートリアル&lt;/a&gt;ではこの後 &lt;code&gt;curl host01:$NODE_PORT&lt;/code&gt; でアクセスしているのですが、手元の環境では &lt;code&gt;host01&lt;/code&gt; というホスト名ではアクセスできません。&lt;/p&gt;
+
+&lt;p&gt;そこで、以下のコマンドを実行してノードのIPアドレスを取得し、環境変数 NODE_IP に設定します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ export NODE_IP=$(minikube ip)
+$ echo NODE_IP=$NODE_IP
+NODE_IP=192.168.99.100
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;以下のコマンドでMacからKubernetesのノードに直接アクセスします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ curl $NODE_IP:$NODE_PORT
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-390780338-6j8fn | v=1
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Module 4のStep 2でラベルを付けて、Step 3でサービス削除するのですが、この記事を書く時は飛ばしてしまったので、Module 6の後に行います。&lt;/p&gt;
+
+&lt;h2 id=&#34;module-5-アプリをスケールアップする&#34;&gt;Module 5: アプリをスケールアップする&lt;/h2&gt;
+
+&lt;p&gt;概念の説明は &lt;a href=&#34;https://kubernetesbootcamp.github.io/kubernetes-bootcamp/5-1.html&#34;&gt;Running multiple instances of an app&lt;/a&gt; を参照してください。&lt;/p&gt;
+
+&lt;h3 id=&#34;デプロイされたアプリのスケールアップ前のレプリカ数を確認&#34;&gt;デプロイされたアプリのスケールアップ前のレプリカ数を確認&lt;/h3&gt;
+
+&lt;p&gt;&lt;code&gt;kubectl get deployments&lt;/code&gt; の結果にはデプロイごとにアプリのレプリカ（複製）の数が表示されます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get deployments
+NAME                  DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+kubernetes-bootcamp   1         1         1            1           46m
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;この結果ではPodの数は1です。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;DESIRED: デプロイ時に指定したレプリカ数。desireの意味は「切望する」なので、デプロイ時に希望した数ということでしょう。&lt;/li&gt;
+&lt;li&gt;CURRENT: 現在実行中のレプリカ数。&lt;/li&gt;
+&lt;li&gt;UP-TO-DATE: 指定した状態に更新されたレプリカ数。&lt;/li&gt;
+&lt;li&gt;AVAILABLE: ユーザが利用可能な（＝ユーザに実際にサービスが提供されている）レプリカ数。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&#34;スケールアップ&#34;&gt;スケールアップ&lt;/h3&gt;
+
+&lt;p&gt;このデプロイのレプリカ数を4に増やしてみます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl scale deployments/kubernetes-bootcamp --replicas=4
+deployment &amp;quot;kubernetes-bootcamp&amp;quot; scaled
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;デプロイ一覧で再度確認するとレプリカ数が4に増えていました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get deployments
+NAME                  DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+kubernetes-bootcamp   4         4         4            4           55m
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Pod一覧を &lt;code&gt;-o wide&lt;/code&gt; を指定して表示するとIPアドレスとノードを確認できます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get pods -o wide
+NAME                                  READY     STATUS    RESTARTS   AGE       IP           NODE
+kubernetes-bootcamp-390780338-6j8fn   1/1       Running   0          55m       172.17.0.4   minikube
+kubernetes-bootcamp-390780338-jw7cn   1/1       Running   0          7s        172.17.0.5   minikube
+kubernetes-bootcamp-390780338-p8jbb   1/1       Running   0          7s        172.17.0.6   minikube
+kubernetes-bootcamp-390780338-vq3kx   1/1       Running   0          7s        172.17.0.7   minikube
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ちなみに &lt;code&gt;-o wide&lt;/code&gt; 無しの出力結果は以下の通りです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get pods
+NAME                                  READY     STATUS    RESTARTS   AGE
+kubernetes-bootcamp-390780338-6j8fn   1/1       Running   0          56m
+kubernetes-bootcamp-390780338-jw7cn   1/1       Running   0          1m
+kubernetes-bootcamp-390780338-p8jbb   1/1       Running   0          1m
+kubernetes-bootcamp-390780338-vq3kx   1/1       Running   0          1m
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;スケールアップ後のデプロイの詳細表示&#34;&gt;スケールアップ後のデプロイの詳細表示&lt;/h3&gt;
+
+&lt;p&gt;Events欄にスケールアップした記録が残っています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl describe deployments/kubernetes-bootcamp
+Name:                   kubernetes-bootcamp
+Namespace:              default
+CreationTimestamp:      Sat, 31 Dec 2016 17:15:41 +0900
+Labels:                 run=kubernetes-bootcamp
+Selector:               run=kubernetes-bootcamp
+Replicas:               4 updated | 4 total | 4 available | 0 unavailable
+StrategyType:           RollingUpdate
+MinReadySeconds:        0
+RollingUpdateStrategy:  1 max unavailable, 1 max surge
+Conditions:
+  Type          Status  Reason
+  ----          ------  ------
+  Available     True    MinimumReplicasAvailable
+OldReplicaSets: &amp;lt;none&amp;gt;
+NewReplicaSet:  kubernetes-bootcamp-390780338 (4/4 replicas created)
+Events:
+  FirstSeen     LastSeen        Count   From                            SubObjectPath   Type            Reason                  Message
+  ---------     --------        -----   ----                            -------------   --------        ------                  -------
+  58m           58m             1       {deployment-controller }                        Normal          ScalingReplicaSet       Scaled up replica set kubernetes-bootcamp-390780338 to 1
+  3m            3m              1       {deployment-controller }                        Normal          ScalingReplicaSet       Scaled up replica set kubernetes-bootcamp-390780338 to 4
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;スケールアップ後のアプリにcurlでアクセス&#34;&gt;スケールアップ後のアプリにcurlでアクセス&lt;/h3&gt;
+
+&lt;p&gt;アクセスしてみるとリクエストごとにランダムなPodに振り分けられ、負荷分散されていることが確認できました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ curl $NODE_IP:$NODE_PORT
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-390780338-6j8fn | v=1
+$ curl $NODE_IP:$NODE_PORT
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-390780338-6j8fn | v=1
+$ curl $NODE_IP:$NODE_PORT
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-390780338-jw7cn | v=1
+$ curl $NODE_IP:$NODE_PORT
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-390780338-p8jbb | v=1
+$ curl $NODE_IP:$NODE_PORT
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-390780338-6j8fn | v=1
+$ curl $NODE_IP:$NODE_PORT
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-390780338-6j8fn | v=1
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;スケールダウン&#34;&gt;スケールダウン&lt;/h3&gt;
+
+&lt;p&gt;レプリカ数を2に減らします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl scale deployments/kubernetes-bootcamp --replicas=2
+deployment &amp;quot;kubernetes-bootcamp&amp;quot; scaled
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;デプロイ一覧で2に減ったことを確認しました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get deployments
+NAME                  DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+kubernetes-bootcamp   2         2         2            2           1h
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;直後のPod一覧では2つのコンテナのSTATUSがTerminating （終了中）となっていました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get pods -o wide
+NAME                                  READY     STATUS        RESTARTS   AGE       IP           NODE
+kubernetes-bootcamp-390780338-6j8fn   1/1       Running       0          1h        172.17.0.4   minikube
+kubernetes-bootcamp-390780338-jw7cn   1/1       Running       0          12m       172.17.0.5   minikube
+kubernetes-bootcamp-390780338-p8jbb   1/1       Terminating   0          12m       172.17.0.6   minikube
+kubernetes-bootcamp-390780338-vq3kx   1/1       Terminating   0          12m       172.17.0.7   minikube
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;数十秒程度してから再度Pod一覧を見るとSTATUSがRunningの2つだけになっていました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get pods -o wide
+NAME                                  READY     STATUS    RESTARTS   AGE       IP           NODE
+kubernetes-bootcamp-390780338-6j8fn   1/1       Running   0          1h        172.17.0.4   minikube
+kubernetes-bootcamp-390780338-jw7cn   1/1       Running   0          13m       172.17.0.5   minikube
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;module-6-アプリをローリングアップデート&#34;&gt;Module 6: アプリをローリングアップデート&lt;/h2&gt;
+
+&lt;p&gt;概念の説明は &lt;a href=&#34;https://kubernetesbootcamp.github.io/kubernetes-bootcamp/6-1.html&#34;&gt;Performing a rolling update for an app&lt;/a&gt; を参照してください。&lt;/p&gt;
+
+&lt;p&gt;ローリングアップデートではアプリのダウンタイムをゼロでアプリを更新できるそうです。&lt;/p&gt;
+
+&lt;h3 id=&#34;アップデート前の状態確認&#34;&gt;アップデート前の状態確認&lt;/h3&gt;
+
+&lt;p&gt;Pod一覧。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get pods -o wide
+NAME                                  READY     STATUS    RESTARTS   AGE       IP           NODE
+kubernetes-bootcamp-390780338-6j8fn   1/1       Running   0          1h        172.17.0.4   minikube
+kubernetes-bootcamp-390780338-jw7cn   1/1       Running   0          21m       172.17.0.5   minikube
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Pod詳細情報。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl describe pods
+Name:           kubernetes-bootcamp-390780338-6j8fn
+Namespace:      default
+Node:           minikube/192.168.99.100
+Start Time:     Sat, 31 Dec 2016 17:15:41 +0900
+Labels:         pod-template-hash=390780338
+                run=kubernetes-bootcamp
+Status:         Running
+IP:             172.17.0.4
+Controllers:    ReplicaSet/kubernetes-bootcamp-390780338
+Containers:
+  kubernetes-bootcamp:
+    Container ID:       docker://f3d04d91e8f27b2b537c20d82253376993483f9bb9c0d1196ba50ecc3a69ff7c
+    Image:              docker.io/jocatalin/kubernetes-bootcamp:v1
+    Image ID:           docker://sha256:8fafd8af70e9aa7c3ab40222ca4fd58050cf3e49cb14a4e7c0f460cd4f78e9fe
+    Port:               8080/TCP
+    State:              Running
+      Started:          Sat, 31 Dec 2016 17:15:42 +0900
+    Ready:              True
+    Restart Count:      0
+    Volume Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-qqsb7 (ro)
+    Environment Variables:      &amp;lt;none&amp;gt;
+Conditions:
+  Type          Status
+  Initialized   True
+  Ready         True
+  PodScheduled  True
+Volumes:
+  default-token-qqsb7:
+    Type:       Secret (a volume populated by a Secret)
+    SecretName: default-token-qqsb7
+QoS Class:      BestEffort
+Tolerations:    &amp;lt;none&amp;gt;
+No events.
+
+
+Name:           kubernetes-bootcamp-390780338-jw7cn
+Namespace:      default
+Node:           minikube/192.168.99.100
+Start Time:     Sat, 31 Dec 2016 18:10:47 +0900
+Labels:         pod-template-hash=390780338
+                run=kubernetes-bootcamp
+Status:         Running
+IP:             172.17.0.5
+Controllers:    ReplicaSet/kubernetes-bootcamp-390780338
+Containers:
+  kubernetes-bootcamp:
+    Container ID:       docker://23e8c9c3c2b64701f88a61033b534a23f7f2e4a540afa019eea20050bfd12a39
+    Image:              docker.io/jocatalin/kubernetes-bootcamp:v1
+    Image ID:           docker://sha256:8fafd8af70e9aa7c3ab40222ca4fd58050cf3e49cb14a4e7c0f460cd4f78e9fe
+    Port:               8080/TCP
+    State:              Running
+      Started:          Sat, 31 Dec 2016 18:10:48 +0900
+    Ready:              True
+    Restart Count:      0
+    Volume Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-qqsb7 (ro)
+    Environment Variables:      &amp;lt;none&amp;gt;
+Conditions:
+  Type          Status
+  Initialized   True
+  Ready         True
+  PodScheduled  True
+Volumes:
+  default-token-qqsb7:
+    Type:       Secret (a volume populated by a Secret)
+    SecretName: default-token-qqsb7
+QoS Class:      BestEffort
+Tolerations:    &amp;lt;none&amp;gt;
+Events:
+  FirstSeen     LastSeen        Count   From                    SubObjectPath                           Type            Reason          Message
+  ---------     --------        -----   ----                    -------------                           --------        ------          -------
+  21m           21m             1       {default-scheduler }                                            Normal          Scheduled       Successfully assigned kubernetes-bootcamp-390780338-jw7cn to minikube
+  21m           21m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Pulled          Container image &amp;quot;docker.io/jocatalin/kubernetes-bootcamp:v1&amp;quot; already present on machine
+  21m           21m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Created         Created container with docker id 23e8c9c3c2b6; Security:[seccomp=unconfined]
+  21m           21m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Started         Started container with docker id 23e8c9c3c2b6
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;アプリのバージョンアップ&#34;&gt;アプリのバージョンアップ&lt;/h3&gt;
+
+&lt;p&gt;以下のコマンドでアプリをv1からv2にバージョンアップします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl set image deployments/kubernetes-bootcamp kubernetes-bootcamp=jocatalin/kubernetes-bootcamp:v2$ kubectl set image deployments/kubernetes-bootcamp kubernetes-bootcamp=jocatalin/kubernetes-bootcamp:v2
+deployment &amp;quot;kubernetes-bootcamp&amp;quot; image updated
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;直後のPods一覧。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get pods -o wide
+NAME                                   READY     STATUS        RESTARTS   AGE       IP           NODE
+kubernetes-bootcamp-2100875782-0jd0d   1/1       Running       0          26s       172.17.0.6   minikube
+kubernetes-bootcamp-2100875782-vnxk1   1/1       Running       0          26s       172.17.0.7   minikube
+kubernetes-bootcamp-390780338-6j8fn    1/1       Terminating   0          1h        172.17.0.4   minikube
+kubernetes-bootcamp-390780338-jw7cn    1/1       Terminating   0          24m       172.17.0.5   minikube
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;十秒程度したあとのPods一覧。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get pods -o wide
+NAME                                   READY     STATUS    RESTARTS   AGE       IP           NODE
+kubernetes-bootcamp-2100875782-0jd0d   1/1       Running   0          55s       172.17.0.6   minikube
+kubernetes-bootcamp-2100875782-vnxk1   1/1       Running   0          55s       172.17.0.7   minikube
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;サービス詳細。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+$ kubectl describe services/kubernetes-bootcamp
+Name:                   kubernetes-bootcamp
+Namespace:              default
+Labels:                 run=kubernetes-bootcamp
+Selector:               run=kubernetes-bootcamp
+Type:                   NodePort
+IP:                     10.0.0.228
+Port:                   &amp;lt;unset&amp;gt; 8080/TCP
+NodePort:               &amp;lt;unset&amp;gt; 31123/TCP
+Endpoints:              172.17.0.6:8080,172.17.0.7:8080
+Session Affinity:       None
+No events.
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;アップデート後のアプリにアクセス&#34;&gt;アップデート後のアプリにアクセス&lt;/h3&gt;
+
+&lt;p&gt;curlでアクセスしてみると出力にv=2と表示され、アップデートされたアプリが利用可能になっていることが確認できました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ curl $NODE_IP:$NODE_PORT
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-2100875782-0jd0d | v=2
+$ curl $NODE_IP:$NODE_PORT
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-2100875782-0jd0d | v=2
+$ curl $NODE_IP:$NODE_PORT
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-2100875782-vnxk1 | v=2
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;ローリングアップデート後の状態確認&#34;&gt;ローリングアップデート後の状態確認&lt;/h3&gt;
+
+&lt;p&gt;ローリングアップデートの状態確認。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl rollout status deployments/kubernetes-bootcamp
+deployment &amp;quot;kubernetes-bootcamp&amp;quot; successfully rolled out
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Pod詳細表示。Imageの値が &lt;code&gt;jocatalin/kubernetes-bootcamp:v2&lt;/code&gt; と v2になっていることが確認できます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl describe pods
+Name:           kubernetes-bootcamp-2100875782-0jd0d
+Namespace:      default
+Node:           minikube/192.168.99.100
+Start Time:     Sat, 31 Dec 2016 18:34:57 +0900
+Labels:         pod-template-hash=2100875782
+                run=kubernetes-bootcamp
+Status:         Running
+IP:             172.17.0.6
+Controllers:    ReplicaSet/kubernetes-bootcamp-2100875782
+Containers:
+  kubernetes-bootcamp:
+    Container ID:       docker://7438b24d95242018dae9b4e82b93055d772f14650c688203b80204073d67d84b
+    Image:              jocatalin/kubernetes-bootcamp:v2
+    Image ID:           docker://sha256:b6556396ebd45c517469c522c3c61ecf5ab708cafe0e59df906278d34c255ef8
+    Port:               8080/TCP
+    State:              Running
+      Started:          Sat, 31 Dec 2016 18:34:58 +0900
+    Ready:              True
+    Restart Count:      0
+    Volume Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-qqsb7 (ro)
+    Environment Variables:      &amp;lt;none&amp;gt;
+Conditions:
+  Type          Status
+  Initialized   True 
+  Ready         True 
+  PodScheduled  True 
+Volumes:
+  default-token-qqsb7:
+    Type:       Secret (a volume populated by a Secret)
+    SecretName: default-token-qqsb7
+QoS Class:      BestEffort
+Tolerations:    &amp;lt;none&amp;gt;
+Events:
+  FirstSeen     LastSeen        Count   From                    SubObjectPath                           Type            Reason          Message
+  ---------     --------        -----   ----                    -------------                           --------        ------          -------
+  5m            5m              1       {default-scheduler }                                            Normal          Scheduled       Successfully assigned kubernetes-bootcamp-2100875782-0jd0d to minikube
+  5m            5m              1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Pulled          Container image &amp;quot;jocatalin/kubernetes-bootcamp:v2&amp;quot; already present on machine
+  5m            5m              1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Created         Created container with docker id 7438b24d9524; Security:[seccomp=unconfined]
+  5m            5m              1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Started         Started container with docker id 7438b24d9524
+
+
+Name:           kubernetes-bootcamp-2100875782-vnxk1
+Namespace:      default
+Node:           minikube/192.168.99.100
+Start Time:     Sat, 31 Dec 2016 18:34:57 +0900
+Labels:         pod-template-hash=2100875782
+                run=kubernetes-bootcamp
+Status:         Running
+IP:             172.17.0.7
+Controllers:    ReplicaSet/kubernetes-bootcamp-2100875782
+Containers:
+  kubernetes-bootcamp:
+    Container ID:       docker://54c58841abb18466fb0f79636111ef5ff193226f43a5741d1730efeb4689ba58
+    Image:              jocatalin/kubernetes-bootcamp:v2
+    Image ID:           docker://sha256:b6556396ebd45c517469c522c3c61ecf5ab708cafe0e59df906278d34c255ef8
+    Port:               8080/TCP
+    State:              Running
+      Started:          Sat, 31 Dec 2016 18:34:58 +0900
+    Ready:              True
+    Restart Count:      0
+    Volume Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-qqsb7 (ro)
+    Environment Variables:      &amp;lt;none&amp;gt;
+Conditions:
+  Type          Status
+  Initialized   True 
+  Ready         True 
+  PodScheduled  True 
+Volumes:
+  default-token-qqsb7:
+    Type:       Secret (a volume populated by a Secret)
+    SecretName: default-token-qqsb7
+QoS Class:      BestEffort
+Tolerations:    &amp;lt;none&amp;gt;
+Events:
+  FirstSeen     LastSeen        Count   From                    SubObjectPath                           Type            Reason          Message
+  ---------     --------        -----   ----                    -------------                           --------        ------          -------
+  5m            5m              1       {default-scheduler }                                            Normal          Scheduled       Successfully assigned kubernetes-bootcamp-2100875782-vnxk1 to minikube
+  5m            5m              1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Pulled          Container image &amp;quot;jocatalin/kubernetes-bootcamp:v2&amp;quot; already present on machine
+  5m            5m              1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Created         Created container with docker id 54c58841abb1; Security:[seccomp=unconfined]
+  5m            5m              1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Started         Started container with docker id 54c58841abb1
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;アプリのバージョンアップ失敗の例&#34;&gt;アプリのバージョンアップ失敗の例&lt;/h3&gt;
+
+&lt;h4 id=&#34;存在しないタグのイメージにアップデート&#34;&gt;存在しないタグのイメージにアップデート&lt;/h4&gt;
+
+&lt;p&gt;次はv10とタグ付けされたイメージにアップデートを試みます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl set image deployments/kubernetes-bootcamp kubernetes-bootcamp=jocatalin/kubernetes-bootcamp:v10
+deployment &amp;quot;kubernetes-bootcamp&amp;quot; image updated
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;問題なくアップデートされたように見えますが、実はv10というタグのイメージは存在しないのでエラーになります。&lt;/p&gt;
+
+&lt;p&gt;デプロイ一覧のレプリカ数を見ると、DESIREDが2に対してAVAILABLEが1であり希望した状態になっていないことがわかります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get deployments
+NAME                  DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+kubernetes-bootcamp   2         3         2            1           1h
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Pods一覧を見ると一部のPodはSTATUSがImagePullBackOffとなっています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get pods -o wide
+NAME                                   READY     STATUS             RESTARTS   AGE       IP           NODE
+kubernetes-bootcamp-1951388213-lpc3k   0/1       ImagePullBackOff   0          26s       172.17.0.4   minikube
+kubernetes-bootcamp-1951388213-mwx9v   0/1       ImagePullBackOff   0          25s       172.17.0.5   minikube
+kubernetes-bootcamp-2100875782-0jd0d   1/1       Terminating        0          10m       172.17.0.6   minikube
+kubernetes-bootcamp-2100875782-vnxk1   1/1       Running            0          10m       172.17.0.7   minikube
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;間を置いて何度か試していると、STATUSがErrImagePullとなっているときもありました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get pods -o wide
+NAME                                   READY     STATUS             RESTARTS   AGE       IP           NODE
+kubernetes-bootcamp-1951388213-lpc3k   0/1       ImagePullBackOff   0          1m        172.17.0.4   minikube
+kubernetes-bootcamp-1951388213-mwx9v   0/1       ErrImagePull       0          1m        172.17.0.5   minikube
+kubernetes-bootcamp-2100875782-vnxk1   1/1       Running            0          11m       172.17.0.7   minikube
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Pod詳細。
+Imageの値が &lt;code&gt;jocatalin/kubernetes-bootcamp:v10&lt;/code&gt; であるコンテナのEventsを見ると
+&lt;code&gt;Failed to pull image &amp;quot;jocatalin/kubernetes-bootcamp:v10&amp;quot;: Tag v10 not found in repository docker.io/jocatalin/kubernetes-bootcamp&lt;/code&gt; というエラーがあり、タグv10はレジストリに無かったことがわかります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl describe pods
+Name:           kubernetes-bootcamp-1951388213-lpc3k
+Namespace:      default
+Node:           minikube/192.168.99.100
+Start Time:     Sat, 31 Dec 2016 18:44:43 +0900
+Labels:         pod-template-hash=1951388213
+                run=kubernetes-bootcamp
+Status:         Pending
+IP:             172.17.0.4
+Controllers:    ReplicaSet/kubernetes-bootcamp-1951388213
+Containers:
+  kubernetes-bootcamp:
+    Container ID:
+    Image:              jocatalin/kubernetes-bootcamp:v10
+    Image ID:
+    Port:               8080/TCP
+    State:              Waiting
+      Reason:           ImagePullBackOff
+    Ready:              False
+    Restart Count:      0
+    Volume Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-qqsb7 (ro)
+    Environment Variables:      &amp;lt;none&amp;gt;
+Conditions:
+  Type          Status
+  Initialized   True 
+  Ready         False 
+  PodScheduled  True 
+Volumes:
+  default-token-qqsb7:
+    Type:       Secret (a volume populated by a Secret)
+    SecretName: default-token-qqsb7
+QoS Class:      BestEffort
+Tolerations:    &amp;lt;none&amp;gt;
+Events:
+  FirstSeen     LastSeen        Count   From                    SubObjectPath                           Type            Reason          Message
+  ---------     --------        -----   ----                    -------------                           --------        ------          -------
+  6m            6m              1       {default-scheduler }                                            Normal          Scheduled       Successfully assigned kubernetes-bootcamp-1951388213-lpc3k to minikube
+  6m            36s             6       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Pulling         pulling image &amp;quot;jocatalin/kubernetes-bootcamp:v10&amp;quot;
+  6m            30s             6       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Warning         Failed          Failed to pull image &amp;quot;jocatalin/kubernetes-bootcamp:v10&amp;quot;: Tag v10 not found in repository docker.io/jocatalin/kubernetes-bootcamp
+  6m            30s             6       {kubelet minikube}                                              Warning         FailedSync      Error syncing pod, skipping: failed to &amp;quot;StartContainer&amp;quot; for &amp;quot;kubernetes-bootcamp&amp;quot; with ErrImagePull: &amp;quot;Tag v10 not found in reposit
+ory docker.io/jocatalin/kubernetes-bootcamp&amp;quot;
+
+  6m    2s      22      {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal  BackOff         Back-off pulling image &amp;quot;jocatalin/kubernetes-bootcamp:v10&amp;quot;
+  6m    2s      22      {kubelet minikube}                                              Warning FailedSync      Error syncing pod, skipping: failed to &amp;quot;StartContainer&amp;quot; for &amp;quot;kubernetes-bootcamp&amp;quot; with ImagePullBackOff: &amp;quot;Back-off pulling image \&amp;quot;jocatalin/kubernetes-bo
+otcamp:v10\&amp;quot;&amp;quot;
+
+
+
+Name:           kubernetes-bootcamp-1951388213-mwx9v
+Namespace:      default
+Node:           minikube/192.168.99.100
+Start Time:     Sat, 31 Dec 2016 18:44:44 +0900
+Labels:         pod-template-hash=1951388213
+                run=kubernetes-bootcamp
+Status:         Pending
+IP:             172.17.0.5
+Controllers:    ReplicaSet/kubernetes-bootcamp-1951388213
+Containers:
+  kubernetes-bootcamp:
+    Container ID:
+    Image:              jocatalin/kubernetes-bootcamp:v10
+    Image ID:
+    Port:               8080/TCP
+    State:              Waiting
+      Reason:           ImagePullBackOff
+    Ready:              False
+    Restart Count:      0
+    Volume Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-qqsb7 (ro)
+    Environment Variables:      &amp;lt;none&amp;gt;
+Conditions:
+  Type          Status
+  Initialized   True 
+  Ready         False 
+  PodScheduled  True 
+Volumes:
+  default-token-qqsb7:
+    Type:       Secret (a volume populated by a Secret)
+    SecretName: default-token-qqsb7
+QoS Class:      BestEffort
+Tolerations:    &amp;lt;none&amp;gt;
+Events:
+  FirstSeen     LastSeen        Count   From                    SubObjectPath                           Type            Reason          Message
+  ---------     --------        -----   ----                    -------------                           --------        ------          -------
+  6m            6m              1       {default-scheduler }                                            Normal          Scheduled       Successfully assigned kubernetes-bootcamp-1951388213-mwx9v to minikube
+  6m            2m              5       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Pulling         pulling image &amp;quot;jocatalin/kubernetes-bootcamp:v10&amp;quot;
+  6m            2m              5       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Warning         Failed          Failed to pull image &amp;quot;jocatalin/kubernetes-bootcamp:v10&amp;quot;: Tag v10 not found in repository docker.io/jocatalin/kubernetes-bootcamp
+  6m            2m              5       {kubelet minikube}                                              Warning         FailedSync      Error syncing pod, skipping: failed to &amp;quot;StartContainer&amp;quot; for &amp;quot;kubernetes-bootcamp&amp;quot; with ErrImagePull: &amp;quot;Tag v10 not found in repository docker.io/jocatalin/kubernetes-bootcamp&amp;quot;
+
+  6m    14s     23      {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal  BackOff         Back-off pulling image &amp;quot;jocatalin/kubernetes-bootcamp:v10&amp;quot;
+  6m    14s     23      {kubelet minikube}                                              Warning FailedSync      Error syncing pod, skipping: failed to &amp;quot;StartContainer&amp;quot; for &amp;quot;kubernetes-bootcamp&amp;quot; with ImagePullBackOff: &amp;quot;Back-off pulling image \&amp;quot;jocatalin/kubernetes-bootcamp:v10\&amp;quot;&amp;quot;
+
+
+
+Name:           kubernetes-bootcamp-2100875782-vnxk1
+Namespace:      default
+Node:           minikube/192.168.99.100
+Start Time:     Sat, 31 Dec 2016 18:34:57 +0900
+Labels:         pod-template-hash=2100875782
+                run=kubernetes-bootcamp
+Status:         Running
+IP:             172.17.0.7
+Controllers:    ReplicaSet/kubernetes-bootcamp-2100875782
+Containers:
+  kubernetes-bootcamp:
+    Container ID:       docker://54c58841abb18466fb0f79636111ef5ff193226f43a5741d1730efeb4689ba58
+    Image:              jocatalin/kubernetes-bootcamp:v2
+    Image ID:           docker://sha256:b6556396ebd45c517469c522c3c61ecf5ab708cafe0e59df906278d34c255ef8
+    Port:               8080/TCP
+    State:              Running
+      Started:          Sat, 31 Dec 2016 18:34:58 +0900
+    Ready:              True
+    Restart Count:      0
+    Volume Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-qqsb7 (ro)
+    Environment Variables:      &amp;lt;none&amp;gt;
+Conditions:
+  Type          Status
+  Initialized   True 
+  Ready         True 
+  PodScheduled  True 
+Volumes:
+  default-token-qqsb7:
+    Type:       Secret (a volume populated by a Secret)
+    SecretName: default-token-qqsb7
+QoS Class:      BestEffort
+Tolerations:    &amp;lt;none&amp;gt;
+Events:
+  FirstSeen     LastSeen        Count   From                    SubObjectPath                           Type            Reason          Message
+  ---------     --------        -----   ----                    -------------                           --------        ------          -------
+  16m           16m             1       {default-scheduler }                                            Normal          Scheduled       Successfully assigned kubernetes-bootcamp-2100875782-vnxk1 to minikube
+  16m           16m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Pulled          Container image &amp;quot;jocatalin/kubernetes-bootcamp:v2&amp;quot; already present on machine
+  16m           16m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Created         Created container with docker id 54c58841abb1; Security:[seccomp=unconfined]
+  16m           16m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Started         Started container with docker id 54c58841abb1
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h4 id=&#34;v10へのローリングアップデートを中止&#34;&gt;v10へのローリングアップデートを中止&lt;/h4&gt;
+
+&lt;p&gt;ローリングアップデートをアンドゥします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl rollout undo deployments/kubernetes-bootcamp$ kubectl rollout undo deployments/kubernetes-bootcamp
+deployment &amp;quot;kubernetes-bootcamp&amp;quot; rolled back
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Pod一覧。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get pods -o wide
+NAME                                   READY     STATUS    RESTARTS   AGE       IP           NODE
+kubernetes-bootcamp-2100875782-vnxk1   1/1       Running   0          20m       172.17.0.7   minikube
+kubernetes-bootcamp-2100875782-x290l   1/1       Running   0          17s       172.17.0.4   minikube
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Pod詳細。&lt;/p&gt;
+
+&lt;p&gt;Podのレプリカ数は以前指定した2で、2つのPodともImageが &lt;code&gt;jocatalin/kubernetes-bootcamp:v2&lt;/code&gt; とアップデート前のバージョンに戻ったことが確認できました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ 
+kubectl describe pods$ kubectl describe pods
+Name:           kubernetes-bootcamp-2100875782-vnxk1
+Namespace:      default
+Node:           minikube/192.168.99.100
+Start Time:     Sat, 31 Dec 2016 18:34:57 +0900
+Labels:         pod-template-hash=2100875782
+                run=kubernetes-bootcamp
+Status:         Running
+IP:             172.17.0.7
+Controllers:    ReplicaSet/kubernetes-bootcamp-2100875782
+Containers:
+  kubernetes-bootcamp:
+    Container ID:       docker://54c58841abb18466fb0f79636111ef5ff193226f43a5741d1730efeb4689ba58
+    Image:              jocatalin/kubernetes-bootcamp:v2
+    Image ID:           docker://sha256:b6556396ebd45c517469c522c3c61ecf5ab708cafe0e59df906278d34c255ef8
+    Port:               8080/TCP
+    State:              Running
+      Started:          Sat, 31 Dec 2016 18:34:58 +0900
+    Ready:              True
+    Restart Count:      0
+    Volume Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-qqsb7 (ro)
+    Environment Variables:      &amp;lt;none&amp;gt;
+Conditions:
+  Type          Status
+  Initialized   True 
+  Ready         True 
+  PodScheduled  True 
+Volumes:
+  default-token-qqsb7:
+    Type:       Secret (a volume populated by a Secret)
+    SecretName: default-token-qqsb7
+QoS Class:      BestEffort
+Tolerations:    &amp;lt;none&amp;gt;
+Events:
+  FirstSeen     LastSeen        Count   From                    SubObjectPath                           Type            Reason          Message
+  ---------     --------        -----   ----                    -------------                           --------        ------          -------
+  21m           21m             1       {default-scheduler }                                            Normal          Scheduled       Successfully assigned kubernetes-bootcamp-2100875782-vnxk1 to minikube
+  21m           21m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Pulled          Container image &amp;quot;jocatalin/kubernetes-bootcamp:v2&amp;quot; already present on machine
+  21m           21m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Created         Created container with docker id 54c58841abb1; Security:[seccomp=unconfined]
+  21m           21m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Started         Started container with docker id 54c58841abb1
+
+
+Name:           kubernetes-bootcamp-2100875782-x290l
+Namespace:      default
+Node:           minikube/192.168.99.100
+Start Time:     Sat, 31 Dec 2016 18:55:31 +0900
+Labels:         pod-template-hash=2100875782
+                run=kubernetes-bootcamp
+Status:         Running
+IP:             172.17.0.4
+Controllers:    ReplicaSet/kubernetes-bootcamp-2100875782
+Containers:
+  kubernetes-bootcamp:
+    Container ID:       docker://523dca2d5839e832942af50d52fe8008c16862c19ebed553e50293765f4cf12c
+    Image:              jocatalin/kubernetes-bootcamp:v2
+    Image ID:           docker://sha256:b6556396ebd45c517469c522c3c61ecf5ab708cafe0e59df906278d34c255ef8
+    Port:               8080/TCP
+    State:              Running
+      Started:          Sat, 31 Dec 2016 18:55:32 +0900
+    Ready:              True
+    Restart Count:      0
+    Volume Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-qqsb7 (ro)
+    Environment Variables:      &amp;lt;none&amp;gt;
+Conditions:
+  Type          Status
+  Initialized   True 
+  Ready         True 
+  PodScheduled  True 
+Volumes:
+  default-token-qqsb7:
+    Type:       Secret (a volume populated by a Secret)
+    SecretName: default-token-qqsb7
+QoS Class:      BestEffort
+Tolerations:    &amp;lt;none&amp;gt;
+Events:
+  FirstSeen     LastSeen        Count   From                    SubObjectPath                           Type            Reason          Message
+  ---------     --------        -----   ----                    -------------                           --------        ------          -------
+  21m           21m             1       {default-scheduler }                                            Normal          Scheduled       Successfully assigned kubernetes-bootcamp-2100875782-vnxk1 to minikube
+  21m           21m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Pulled          Container image &amp;quot;jocatalin/kubernetes-bootcamp:v2&amp;quot; already present on machine
+  21m           21m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Created         Created container with docker id 54c58841abb1; Security:[seccomp=unconfined]
+  21m           21m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Started         Started container with docker id 54c58841abb1
+
+
+Name:           kubernetes-bootcamp-2100875782-x290l
+Namespace:      default
+Node:           minikube/192.168.99.100
+Start Time:     Sat, 31 Dec 2016 18:55:31 +0900
+Labels:         pod-template-hash=2100875782
+                run=kubernetes-bootcamp
+Status:         Running
+IP:             172.17.0.4
+Controllers:    ReplicaSet/kubernetes-bootcamp-2100875782
+Containers:
+  kubernetes-bootcamp:
+    Container ID:       docker://523dca2d5839e832942af50d52fe8008c16862c19ebed553e50293765f4cf12c
+    Image:              jocatalin/kubernetes-bootcamp:v2
+    Image ID:           docker://sha256:b6556396ebd45c517469c522c3c61ecf5ab708cafe0e59df906278d34c255ef8
+    Port:               8080/TCP
+    State:              Running
+      Started:          Sat, 31 Dec 2016 18:55:32 +0900
+    Ready:              True
+    Restart Count:      0
+    Volume Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-qqsb7 (ro)
+    Environment Variables:      &amp;lt;none&amp;gt;
+Conditions:
+  Type          Status
+  Initialized   True 
+  Ready         True 
+  PodScheduled  True 
+Volumes:
+  default-token-qqsb7:
+    Type:       Secret (a volume populated by a Secret)
+    SecretName: default-token-qqsb7
+QoS Class:      BestEffort
+Tolerations:    &amp;lt;none&amp;gt;
+Events:
+  FirstSeen     LastSeen        Count   From                    SubObjectPath                           Type            Reason          Message
+  ---------     --------        -----   ----                    -------------                           --------        ------          -------
+  1m            1m              1       {default-scheduler }                                            Normal          Scheduled       Successfully assigned kubernetes-bootcamp-2100875782-x290l to minikube
+  1m            1m              1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Pulled          Container image &amp;quot;jocatalin/kubernetes-bootcamp:v2&amp;quot; already present on machine
+  1m            1m              1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Created         Created container with docker id 523dca2d5839; Security:[seccomp=unconfined]
+  1m            1m              1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Started         Started container with docker id 523dca2d5839
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;curlでアクセスしてみても v2 と表示されています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ curl $NODE_IP:$NODE_PORT
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-2100875782-vnxk1 | v=2
+$ curl $NODE_IP:$NODE_PORT
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-2100875782-vnxk1 | v=2
+$ curl $NODE_IP:$NODE_PORT
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-2100875782-x290l | v=2
+$ curl $NODE_IP:$NODE_PORT
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-2100875782-x290l | v=2
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;module-4のstep-2-ラベルを付ける&#34;&gt;Module 4のStep 2: ラベルを付ける&lt;/h2&gt;
+
+&lt;p&gt;デプロイの詳細表示。
+Labelsにrun=kubernetes-bootcampというのがデフォルトで付いていることがわかります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl describe deployment
+Name:                   kubernetes-bootcamp
+Namespace:              default
+CreationTimestamp:      Sat, 31 Dec 2016 17:15:41 +0900
+Labels:                 run=kubernetes-bootcamp
+Selector:               run=kubernetes-bootcamp
+Replicas:               2 updated | 2 total | 2 available | 0 unavailable
+StrategyType:           RollingUpdate
+MinReadySeconds:        0
+RollingUpdateStrategy:  1 max unavailable, 1 max surge
+Conditions:
+  Type          Status  Reason
+  ----          ------  ------
+  Available     True    MinimumReplicasAvailable
+OldReplicaSets: &amp;lt;none&amp;gt;
+NewReplicaSet:  kubernetes-bootcamp-2100875782 (2/2 replicas created)
+Events:
+  FirstSeen     LastSeen        Count   From                            SubObjectPath   Type            Reason                  Message
+  ---------     --------        -----   ----                            -------------   --------        ------                  -------
+  55m           55m             1       {deployment-controller }                        Normal          ScalingReplicaSet       Scaled up replica set kubernetes-bootcamp-390780338 to 4
+  43m           43m             1       {deployment-controller }                        Normal          ScalingReplicaSet       Scaled down replica set kubernetes-bootcamp-390780338 to 2
+  31m           31m             1       {deployment-controller }                        Normal          ScalingReplicaSet       Scaled up replica set kubernetes-bootcamp-2100875782 to 1
+  31m           31m             1       {deployment-controller }                        Normal          ScalingReplicaSet       Scaled down replica set kubernetes-bootcamp-390780338 to 1
+  31m           31m             1       {deployment-controller }                        Normal          ScalingReplicaSet       Scaled down replica set kubernetes-bootcamp-390780338 to 0
+  21m           21m             1       {deployment-controller }                        Normal          ScalingReplicaSet       Scaled up replica set kubernetes-bootcamp-1951388213 to 1
+  21m           21m             1       {deployment-controller }                        Normal          ScalingReplicaSet       Scaled down replica set kubernetes-bootcamp-2100875782 to 1
+  21m           21m             1       {deployment-controller }                        Normal          ScalingReplicaSet       Scaled up replica set kubernetes-bootcamp-1951388213 to 2
+  31m           11m             2       {deployment-controller }                        Normal          ScalingReplicaSet       Scaled up replica set kubernetes-bootcamp-2100875782 to 2
+  11m           11m             1       {deployment-controller }                        Normal          DeploymentRollback      Rolled back deployment &amp;quot;kubernetes-bootcamp&amp;quot; to revision 2
+  11m           11m             1       {deployment-controller }                        Normal          ScalingReplicaSet       Scaled down replica set kubernetes-bootcamp-1951388213 to 0
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;指定したラベルを持つPods一覧表示。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get pods -l run=kubernetes-bootcamp
+NAME                                   READY     STATUS    RESTARTS   AGE
+kubernetes-bootcamp-2100875782-vnxk1   1/1       Running   0          32m
+kubernetes-bootcamp-2100875782-x290l   1/1       Running   0          11m
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;指定したラベルを持つサービス一覧表示。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get services -l run=kubernetes-bootcamp
+NAME                  CLUSTER-IP   EXTERNAL-IP   PORT(S)          AGE
+kubernetes-bootcamp   10.0.0.228   &amp;lt;nodes&amp;gt;       8080:31123/TCP   1h
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Pod名を取得して環境変数POD_NAMEに設定。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ export POD_NAME=$(kubectl get pods -o go-template --template &#39;{{range .items}}{{.metadata.name}}{{&amp;quot;\n&amp;quot;}}{{end}}&#39;)
+$ echo Name of the Pod: $POD_NAME
+Name of the Pod: kubernetes-bootcamp-2100875782-vnxk1
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Podにapp=v2というラベルを設定。チュートリアルではapp=v1というラベルを指定していますが、この記事ではバージョンアップ後に実行しているのでapp=v2にします。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl label pod $POD_NAME app=v2
+pod &amp;quot;kubernetes-bootcamp-2100875782-vnxk1&amp;quot; labeled
+pod &amp;quot;kubernetes-bootcamp-2100875782-x290l&amp;quot; labeled
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Pod詳細表示。
+Labelsにapp=v2が付いています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;kubectl describe pods $POD_NAME
+Name:           kubernetes-bootcamp-2100875782-vnxk1
+Namespace:      default
+Node:           minikube/192.168.99.100
+Start Time:     Sat, 31 Dec 2016 18:34:57 +0900
+Labels:         app=v2
+                pod-template-hash=2100875782
+                run=kubernetes-bootcamp
+Status:         Running
+IP:             172.17.0.7
+Controllers:    ReplicaSet/kubernetes-bootcamp-2100875782
+Containers:
+  kubernetes-bootcamp:
+    Container ID:       docker://54c58841abb18466fb0f79636111ef5ff193226f43a5741d1730efeb4689ba58
+    Image:              jocatalin/kubernetes-bootcamp:v2
+    Image ID:           docker://sha256:b6556396ebd45c517469c522c3c61ecf5ab708cafe0e59df906278d34c255ef8
+    Port:               8080/TCP
+    State:              Running
+      Started:          Sat, 31 Dec 2016 18:34:58 +0900
+    Ready:              True
+    Restart Count:      0
+    Volume Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-qqsb7 (ro)
+    Environment Variables:      &amp;lt;none&amp;gt;
+Conditions:
+  Type          Status
+  Initialized   True 
+  Ready         True 
+  PodScheduled  True 
+Volumes:
+  default-token-qqsb7:
+    Type:       Secret (a volume populated by a Secret)
+    SecretName: default-token-qqsb7
+QoS Class:      BestEffort
+Tolerations:    &amp;lt;none&amp;gt;
+Events:
+  FirstSeen     LastSeen        Count   From                    SubObjectPath                           Type            Reason          Message
+  ---------     --------        -----   ----                    -------------                           --------        ------          -------
+  36m           36m             1       {default-scheduler }                                            Normal          Scheduled       Successfully assigned kubernetes-bootcamp-2100875782-vnxk1 to minikube
+  36m           36m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Pulled          Container image &amp;quot;jocatalin/kubernetes-bootcamp:v2&amp;quot; already present on machine
+  36m           36m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Created         Created container with docker id 54c58841abb1; Security:[seccomp=unconfined]
+  36m           36m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Started         Started container with docker id 54c58841abb1
+
+
+Name:           kubernetes-bootcamp-2100875782-x290l
+Namespace:      default
+Node:           minikube/192.168.99.100
+Start Time:     Sat, 31 Dec 2016 18:55:31 +0900
+Labels:         app=v2
+                pod-template-hash=2100875782
+                run=kubernetes-bootcamp
+Status:         Running
+IP:             172.17.0.4
+Controllers:    ReplicaSet/kubernetes-bootcamp-2100875782
+Containers:
+  kubernetes-bootcamp:
+    Container ID:       docker://523dca2d5839e832942af50d52fe8008c16862c19ebed553e50293765f4cf12c
+    Image:              jocatalin/kubernetes-bootcamp:v2
+    Image ID:           docker://sha256:b6556396ebd45c517469c522c3c61ecf5ab708cafe0e59df906278d34c255ef8
+    Port:               8080/TCP
+    State:              Running
+      Started:          Sat, 31 Dec 2016 18:55:32 +0900
+    Ready:              True
+    Restart Count:      0
+    Volume Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-qqsb7 (ro)
+    Environment Variables:      &amp;lt;none&amp;gt;
+Conditions:
+  Type          Status
+  Initialized   True 
+  Ready         True 
+  PodScheduled  True 
+Volumes:
+  default-token-qqsb7:
+    Type:       Secret (a volume populated by a Secret)
+    SecretName: default-token-qqsb7
+QoS Class:      BestEffort
+Tolerations:    &amp;lt;none&amp;gt;
+Events:
+  FirstSeen     LastSeen        Count   From                    SubObjectPath                           Type            Reason          Message
+  ---------     --------        -----   ----                    -------------                           --------        ------          -------
+  15m           15m             1       {default-scheduler }                                            Normal          Scheduled       Successfully assigned kubernetes-bootcamp-2100875782-x290l to minikube
+  15m           15m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Pulled          Container image &amp;quot;jocatalin/kubernetes-bootcamp:v2&amp;quot; already present on machine
+  15m           15m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Created         Created container with docker id 523dca2d5839; Security:[seccomp=unconfined]
+  15m           15m             1       {kubelet minikube}      spec.containers{kubernetes-bootcamp}    Normal          Started         Started container with docker id 523dca2d5839
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;今つけたラベルを持つPod一覧表示。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get pods -l app=v2
+NAME                                   READY     STATUS    RESTARTS   AGE
+kubernetes-bootcamp-2100875782-vnxk1   1/1       Running   0          40m
+kubernetes-bootcamp-2100875782-x290l   1/1       Running   0          19m
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;module-4のstep-3-サービスを削除&#34;&gt;Module 4のStep 3: サービスを削除&lt;/h2&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl delete service -l run=kubernetes-bootcamp
+service &amp;quot;kubernetes-bootcamp&amp;quot; deleted
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;サービス一覧を確認すると kubernetes-bootcamp が消えていることがわかります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get services
+NAME         CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+kubernetes   10.0.0.1     &amp;lt;none&amp;gt;        443/TCP   13h
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;curlでアクセスすると接続拒否という期待される結果になりました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ curl $NODE_IP:$NODE_PORT
+curl: (7) Failed to connect to 192.168.99.100 port 31123: Connection refused
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Pod一覧を見るとPod自体は存在します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get pods
+NAME                                   READY     STATUS    RESTARTS   AGE
+kubernetes-bootcamp-2100875782-vnxk1   1/1       Running   0          40m
+kubernetes-bootcamp-2100875782-x290l   1/1       Running   0          19m
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Podに入ってアクセスするとアプリ自体は引き続き稼働中であることがわかります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ export POD_NAME=kubernetes-bootcamp-2100875782-vnxk1
+$ kubectl exec -ti $POD_NAME curl localhost:8080
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-2100875782-vnxk1 | v=2
+&lt;/code&gt;&lt;/pre&gt;
+</description>
+    </item>
     
     <item>
       <title>LXD で privileged な CentOS 7コンテナを作る</title>
@@ -3082,79 +4363,6 @@ fooという文字列の後にタイムスタンプがついているのがわ�
 &lt;p&gt;CockroachDBのキーバリューストレージのデバッグコマンドを試してみました。対応するソースコードも読んでみたいところですが、
 &lt;a href=&#34;https://www.arangodb.com/2016/06/arangodb-3-0-a-solid-ground-to-scale/&#34;&gt;ArangoDB 3.0 – A Solid Ground to Scale – ArangoDB&lt;/a&gt;
 というニュースを知ったので、今後はArangoDBのほうを先に調べたいと思います。&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>連番ファイル名の命名規則について実験してみた</title>
-      <link>https://hnakamur.github.io/blog/2016/06/22/experimented_with_naming_for_many_sequential_numbered_files/</link>
-      <pubDate>Wed, 22 Jun 2016 23:40:27 +0900</pubDate>
-      
-      <guid>https://hnakamur.github.io/blog/2016/06/22/experimented_with_naming_for_many_sequential_numbered_files/</guid>
-      <description>
-
-&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
-
-&lt;p&gt;0〜1,000,000といった連番のファイルを作るときに、1つのディレクトリに全てのファイルを入れると、遅くなるとか取り扱いが面倒になるという懸念があります。&lt;/p&gt;
-
-&lt;p&gt;そこで、ディレクトリを切って分割するのですが、数が少ない場合でも多い場合でも良さそうな方法を思いついたのでメモです。&lt;/p&gt;
-
-&lt;h2 id=&#34;素朴な案&#34;&gt;素朴な案&lt;/h2&gt;
-
-&lt;p&gt;最初に思いついたのは以下のような命名規則です。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;0/000/000
-0/000/001
-...
-0/000/999
-0/001/000
-0/001/001
-...
-0/001/999
-0/002/000
-...
-0/999/999
-1/000/000
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;この方式には2つの欠点があります。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;ファイルを1つしか作らない場合でも、ディレクトリが必要になる。&lt;/li&gt;
-&lt;li&gt;ゼロパディングする際にファイルの最大数を考えて桁数を決めておく必要がある。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id=&#34;改善案&#34;&gt;改善案&lt;/h2&gt;
-
-&lt;p&gt;上記の2つの欠点を解消する案を思いつきました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;0.b
-1.b
-...
-999.b
-1/000.b
-1/001.b
-...
-1/999.b
-2/000.b
-...
-999/999.b
-1/000/000.b
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;ファイル名とディレクトリ名が衝突しないようにするため、ファイル名に拡張子を付ける必要があります。&lt;/p&gt;
-
-&lt;p&gt;この方式には以下の利点があります。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;ファイル数が1000個以下ならディレクトリを作る必要が無い&lt;/li&gt;
-&lt;li&gt;1つのディレクトリ直下にはファイルが最大1000、ディレクトリが最大1000で最大でも合計2000エントリで済む&lt;/li&gt;
-&lt;li&gt;ファイルの最大数を事前に決めなくても、パスの長さ制限の範囲内であればこの命名規則でどんどん深いディレクトリを作ってファイルを格納できる。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id=&#34;サンプルコード&#34;&gt;サンプルコード&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/many_files_experiment&#34;&gt;hnakamur/many_files_experiment&lt;/a&gt; におきました。&lt;/p&gt;
 </description>
     </item>
     
