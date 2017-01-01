@@ -6,8 +6,418 @@
     <description>Recent content on hnakamur&#39;s blog at github</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>ja-JP</language>
-    <lastBuildDate>Sun, 01 Jan 2017 09:40:35 +0900</lastBuildDate>
+    <lastBuildDate>Sun, 01 Jan 2017 16:31:08 +0900</lastBuildDate>
     <atom:link href="https://hnakamur.github.io/blog/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>KubernetesのSecrets機能を試してみた</title>
+      <link>https://hnakamur.github.io/blog/2017/01/01/tried-kubernetes-secrets/</link>
+      <pubDate>Sun, 01 Jan 2017 16:31:08 +0900</pubDate>
+      
+      <guid>https://hnakamur.github.io/blog/2017/01/01/tried-kubernetes-secrets/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://kubernetes.io/docs/tutorials/stateful-application/run-stateful-application/&#34;&gt;Running a Single-Instance Stateful Application - Kubernetes&lt;/a&gt; ではMySQLのrootユーザのパスワードを設定のyamlファイルに直接書いていましたが、 安全に管理するためには&lt;a href=&#34;http://kubernetes.io/docs/user-guide/secrets/&#34;&gt;Secrets - Kubernetes&lt;/a&gt; を使うべきとのことなので試してみました。&lt;/p&gt;
+
+&lt;h2 id=&#34;パスワードをsecretとして作成&#34;&gt;パスワードをsecretとして作成&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://kubernetes.io/docs/user-guide/secrets/&#34;&gt;Secrets - Kubernetes&lt;/a&gt; ではユーザ名とパスワードを作っていますが、ここではrootユーザのパスワードだけにしてみました。&lt;/p&gt;
+
+&lt;p&gt;以下のような内容でmysql-secrets.ymlというファイルを作成します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-secret
+type: Opaque
+data:
+  rootPassword: MWYyZDFlMmU2N2Rm
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;data.rootPasswordの値は指定したいパスワードをbase64エンコードした値を書いています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ echo -n &amp;quot;1f2d1e2e67df&amp;quot; | base64
+MWYyZDFlMmU2N2Rm
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;以下のコマンドでsecretを作成します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ k create -f mysql-secrets.yml
+secret &amp;quot;mysql-secret&amp;quot; created
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;作成したsecretを確認&#34;&gt;作成したsecretを確認&lt;/h2&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get secrets mysql-secret -o yaml
+apiVersion: v1
+data:
+  rootPassword: MWYyZDFlMmU2N2Rm
+kind: Secret
+metadata:
+  creationTimestamp: 2017-01-01T07:56:48Z
+  name: mysql-secret
+  namespace: default
+  resourceVersion: &amp;quot;70478&amp;quot;
+  selfLink: /api/v1/namespaces/default/secrets/mysql-secret
+  uid: d8fe8b5f-cff7-11e6-8be9-aece81f30d69
+type: Opaque
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;secretをpodから利用する&#34;&gt;secretをPodから利用する&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://hnakamur.github.io/blog/blog/2017/01/01/tried-mysql-and-nfs-on-kubernetes/&#34;&gt;Kuberntesでデータ領域をNFSマウントしてMySQLを動かしてみた · hnakamur&amp;rsquo;s blog at github&lt;/a&gt;のmysql-deploy.ymlを以下のように変更しました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: mysql
+spec:
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: mysql
+        ver: &amp;quot;5.6&amp;quot;
+    spec:
+      containers:
+      - image: mysql:5.6
+        name: mysql
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: rootPassword
+        ports:
+        - containerPort: 3306
+          name: mysql
+        volumeMounts:
+        - name: mysql-persistent-storage
+          mountPath: /var/lib/mysql
+      volumes:
+        - name: mysql-persistent-storage
+          persistentVolumeClaim:
+            claimName: mysql-pvc
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;serviceとdeployを一旦削除し、mac上のデータディレクトリも一旦消してから、イカのコマンドで作り直しました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl create -f mysql-deploy.yml
+deployment &amp;quot;mysql&amp;quot; created
+$ kubectl create -f mysql-svc.yml
+service &amp;quot;mysql&amp;quot; created
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;作成したpodの詳細情報を確認&#34;&gt;作成したPodの詳細情報を確認&lt;/h2&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl describe po -l app=mysql
+Name:           mysql-1289358488-80g5n
+Namespace:      default
+Node:           minikube/192.168.99.100
+Start Time:     Sun, 01 Jan 2017 17:07:51 +0900
+Labels:         app=mysql
+                pod-template-hash=1289358488
+                ver=5.6
+Status:         Running
+IP:             172.17.0.5
+Controllers:    ReplicaSet/mysql-1289358488
+Containers:
+  mysql:
+    Container ID:       docker://928c7f98bdc8241830ec564d3fb31656647bc2c1e020b257bb1364de1d4e9435
+    Image:              mysql:5.6
+    Image ID:           docker://sha256:e1406e1f7c42c7e664e138c2cedfcd4c09eef6d4859df1f93fd54d87ed3ba1a1
+    Port:               3306/TCP
+    State:              Running
+      Started:          Sun, 01 Jan 2017 17:07:52 +0900
+    Ready:              True
+    Restart Count:      0
+    Volume Mounts:
+      /var/lib/mysql from mysql-persistent-storage (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-qqsb7 (ro)
+    Environment Variables:
+      MYSQL_ROOT_PASSWORD:      &amp;lt;set to the key &#39;rootPassword&#39; in secret &#39;mysql-secret&#39;&amp;gt;
+Conditions:
+  Type          Status
+  Initialized   True
+  Ready         True
+  PodScheduled  True
+Volumes:
+  mysql-persistent-storage:
+    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+    ClaimName:  mysql-pvc
+    ReadOnly:   false
+  default-token-qqsb7:
+    Type:       Secret (a volume populated by a Secret)
+    SecretName: default-token-qqsb7
+QoS Class:      BestEffort
+Tolerations:    &amp;lt;none&amp;gt;
+Events:
+  FirstSeen     LastSeen        Count   From                    SubObjectPath           Type            Reason          Message
+  ---------     --------        -----   ----                    -------------           --------        ------          -------
+  1m            1m              1       {default-scheduler }                            Normal          Scheduled       Successfully as
+signed mysql-1289358488-80g5n to minikube
+  1m            1m              1       {kubelet minikube}      spec.containers{mysql}  Normal          Pulled          Container image
+ &amp;quot;mysql:5.6&amp;quot; already present on machine
+  1m            1m              1       {kubelet minikube}      spec.containers{mysql}  Normal          Created         Created contain
+er with docker id 928c7f98bdc8; Security:[seccomp=unconfined]
+  1m            1m              1       {kubelet minikube}      spec.containers{mysql}  Normal          Started         Started contain
+er with docker id 928c7f98bdc8
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;MYSQL_ROOT_PASSWORDの説明が &lt;code&gt;&amp;lt;set to the key &#39;rootPassword&#39; in secret &#39;mysql-secret&#39;&amp;gt;&lt;/code&gt; となっていて問題なく使えているようです。&lt;/p&gt;
+
+&lt;h3 id=&#34;mysqlクライアントで接続&#34;&gt;mysqlクライアントで接続&lt;/h3&gt;
+
+&lt;p&gt;mysqlのクライアントで指定したパスワードで接続できることが確認できました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl run -it --rm --image=mysql:5.6 mysql-client -- mysql -h 172.17.0.5 -p1f2d1e2e67df
+Waiting for pod default/mysql-client-992258208-c9wm3 to be running, status is Pending, pod ready: false
+If you don&#39;t see a command prompt, try pressing enter.
+
+mysql&amp;gt; create database db1;
+Query OK, 1 row affected (0.01 sec)
+
+mysql&amp;gt; exit
+Bye
+Session ended, resume using &#39;kubectl attach mysql-client-992258208-c9wm3 -c mysql-client -i -t&#39; command when the pod is running
+deployment &amp;quot;mysql-client&amp;quot; deleted
+&lt;/code&gt;&lt;/pre&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>Kuberntesでデータ領域をNFSマウントしてMySQLを動かしてみた</title>
+      <link>https://hnakamur.github.io/blog/2017/01/01/tried-mysql-and-nfs-on-kubernetes/</link>
+      <pubDate>Sun, 01 Jan 2017 12:38:24 +0900</pubDate>
+      
+      <guid>https://hnakamur.github.io/blog/2017/01/01/tried-mysql-and-nfs-on-kubernetes/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://hnakamur.github.io/blog/blog/2017/01/01/use-nfs-persistent-volume-on-minikube-virtualbox/&#34;&gt;minikubeとVirtualBoxでNFSのpersistent volumeを試してみた · hnakamur&amp;rsquo;s blog at github&lt;/a&gt;の結果を踏まえて、 &lt;a href=&#34;http://kubernetes.io/docs/tutorials/stateful-application/run-stateful-application/&#34;&gt;Running a Single-Instance Stateful Application - Kubernetes&lt;/a&gt; のチュートリアルを試してみたのでメモです。&lt;/p&gt;
+
+&lt;h2 id=&#34;設定ファイル&#34;&gt;設定ファイル&lt;/h2&gt;
+
+&lt;pre&gt;&lt;code&gt;$ cat persistent-volume-nfs.yml
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: pv-nfs
+  labels:
+    type: nfs
+spec:
+  capacity:
+    storage: 30Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  nfs:
+    # TODO: modify path and server appropriately
+    path: /Users/hnakamur/kube-data/mysql
+    server: 192.168.99.1
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;$ cat mysql-pvc.yml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: mysql-pvc
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 15Gi
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;$ cat mysql-deploy.yml
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: mysql
+spec:
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - image: mysql:5.6
+        name: mysql
+        env:
+          # Use secret in real usage
+        - name: MYSQL_ROOT_PASSWORD
+          value: password
+        ports:
+        - containerPort: 3306
+          name: mysql
+        volumeMounts:
+        - name: mysql-persistent-storage
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: mysql-persistent-storage
+        persistentVolumeClaim:
+          claimName: mysql-pvc
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;$ cat mysql-svc.yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+spec:
+  ports:
+    - port: 3306
+  selector:
+    app: mysql
+  clusterIP: None
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;ハマった点としては、persistent volumeとpersistent volume claimのaccessModesは合わせないとうまく行きませんでした。具体的には &lt;code&gt;kubectl describe pvc mysql-pvc&lt;/code&gt; で確認したときにStatusがPendingになっていました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://kubernetes.io/docs/user-guide/persistent-volumes/#access-modes&#34;&gt;Access Modes&lt;/a&gt;にアクセスモードについての説明があります。&lt;/p&gt;
+
+&lt;h2 id=&#34;サービスの作成と公開&#34;&gt;サービスの作成と公開&lt;/h2&gt;
+
+&lt;pre&gt;&lt;code&gt;kubectl create -f persistent-volume-nfs.yml
+kubectl create -f mysql-pvc.yml
+kubectl create -f mysql-deploy.yml
+kubectl create -f mysql-svc.yml
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;mysqlに接続してみる&#34;&gt;MySQLに接続してみる&lt;/h2&gt;
+
+&lt;p&gt;まずMySQLコンテナのIPアドレスを調べます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get pods -o wide -l app=mysql
+NAME                     READY     STATUS    RESTARTS   AGE       IP           NODE
+mysql-4160924354-c5x2l   1/1       Running   0          3m        172.17.0.5   minikube
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;mysqlクライアントのイメージを使ってmysqlに接続します。
+&lt;code&gt;If you don&#39;t see a command prompt, try pressing enter.&lt;/code&gt; とある通り、そのままではプロンプトが表示されなかったのでエンターキーを押すと表示されました。&lt;/p&gt;
+
+&lt;p&gt;試しにデータベースをテーブルを作成してみます。その後 Control-D を押してmysqlクライアントを抜けます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl run -it --rm --image=mysql:5.6 mysql-client -- mysql -h 172.17.0.5 -ppassword
+Waiting for pod default/mysql-client-1703061864-g1p4s to be running, status is Pending, pod ready: false
+If you don&#39;t see a command prompt, try pressing enter.
+
+mysql&amp;gt; create database test1;
+Query OK, 1 row affected (0.00 sec)
+
+mysql&amp;gt; use test1;
+Database changed
+mysql&amp;gt; create table table1 (id integer);
+Query OK, 0 rows affected (0.02 sec)
+
+mysql&amp;gt; ^DBye
+Session ended, resume using &#39;kubectl attach mysql-client-1703061864-g1p4s -c mysql-client -i -t&#39; command when the pod is running
+deployment &amp;quot;mysql-client&amp;quot; deleted
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;mysqlサーバのpodを更新してみる&#34;&gt;MySQLサーバのPodを更新してみる&lt;/h2&gt;
+
+&lt;p&gt;mysql-deploy.yml を書き変えて &lt;code&gt;kubectl apply&lt;/code&gt; で更新してみます。&lt;/p&gt;
+
+&lt;p&gt;最初MYSQL_ROOT_PASSWORDの値を変えてみようかと思って試したのですが、よく考えるとこれはデータベース作成時に設定されてNFSでマウントしたデータ領域はそのまま残るので、この値を変えても更新できませんでした。&lt;/p&gt;
+
+&lt;p&gt;そこで、ラベルに &lt;code&gt;ver=5.6&lt;/code&gt; というのを追加してみました。
+最初5.6はダブルクォートで囲まずにyamlファイルに書いてみたのですが、エラーになったのでダブルクォートで囲んでいます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ cat mysql-deploy.yml
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: mysql
+spec:
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: mysql
+        ver: &amp;quot;5.6&amp;quot;
+    spec:
+      containers:
+      - image: mysql:5.6
+        name: mysql
+        env:
+          # Use secret in real usage
+        - name: MYSQL_ROOT_PASSWORD
+          value: password
+        ports:
+        - containerPort: 3306
+          name: mysql
+        volumeMounts:
+        - name: mysql-persistent-storage
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: mysql-persistent-storage
+        persistentVolumeClaim:
+          claimName: mysql-pvc
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;以下のコマンドで反映しました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;kubectl apply -f mysql-deploy.yml
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;再度mysqlに接続して、先ほど作成したデータベースとテーブルがあるかを確認します。&lt;/p&gt;
+
+&lt;p&gt;まずMySQLコンテナのIPアドレスを調べます。
+spec.strategyがRecreateなので、コンテナが作り直されてIPアドレスも先程とは変わっています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get pods -o wide -l app=mysql
+NAME                     READY     STATUS    RESTARTS   AGE       IP           NODE
+mysql-1726459224-c5gps   1/1       Running   0          10s       172.17.0.6   minikube
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;kubectl describe po -l app=mysql&lt;/code&gt; を実行してStateのStartedやEventsの時刻を見るとコンテナが作り直されたことがわかります。&lt;/p&gt;
+
+&lt;p&gt;mysqlに接続して、データベースとテーブルを確認します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl run -it --rm --image=mysql:5.6 mysql-client -- mysql -h 172.17.0.6 -pmypassword
+Waiting for pod default/mysql-client-1775806825-vxjgf to be running, status is Pending, pod ready: false
+If you don&#39;t see a command prompt, try pressing enter.
+
+mysql&amp;gt; show databases;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| mysql              |
+| performance_schema |
+| test1              |
++--------------------+
+4 rows in set (0.01 sec)
+
+mysql&amp;gt; use test1;
+Reading table information for completion of table and column names
+You can turn off this feature to get a quicker startup with -A
+
+Database changed
+mysql&amp;gt; show tables;
++-----------------+
+| Tables_in_test1 |
++-----------------+
+| table1          |
++-----------------+
+1 row in set (0.00 sec)
+
+mysql&amp;gt; exit
+Bye
+Session ended, resume using &#39;kubectl attach mysql-client-1775806825-vxjgf -c mysql-client -i -t&#39; command when the pod is running
+deployment &amp;quot;mysql-client&amp;quot; deleted
+&lt;/code&gt;&lt;/pre&gt;
+</description>
+    </item>
     
     <item>
       <title>minikubeとVirtualBoxでNFSのpersistent volumeを試してみた</title>
@@ -4090,267 +4500,6 @@ group_vars/development/vars.yml
 &lt;p&gt;ということで正直ベースで書いてみました。&lt;/p&gt;
 
 &lt;p&gt;Rui Ueyamaさんのような凄い方と比べるとレベルが低いですが、こんな人もいますよということで。この記事が他の方の話の呼び水になれば嬉しいです。&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>1台のサーバに異なる設定でApache Traffic Serverを複数立ち上げるためのビルド設定</title>
-      <link>https://hnakamur.github.io/blog/2016/07/02/config-for-multiple-installations-of-apache-traffic-server/</link>
-      <pubDate>Sat, 02 Jul 2016 01:00:00 +0900</pubDate>
-      
-      <guid>https://hnakamur.github.io/blog/2016/07/02/config-for-multiple-installations-of-apache-traffic-server/</guid>
-      <description>
-
-&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
-
-&lt;p&gt;Apache Traffic Serverには&lt;a href=&#34;https://docs.trafficserver.apache.org/en/latest/admin-guide/configuration/hierachical-caching.en.html&#34;&gt;Hierarchical Caching&lt;/a&gt;という機能があって、キャッシュを親と子の2階層にすることが出来ます。&lt;/p&gt;
-
-&lt;p&gt;CentOSで1つのサーバに親と子の2つのTraffic Server 6.1.1を異なる設定で起動するような構成にしたかったのですが、本家のrpmでは出来ないようでした。
-ソースを見ていたらconfigureオプションをうまく指定すれば可能だとわかり、カスタムrpmを作りました。&lt;/p&gt;
-
-&lt;p&gt;rpmのspecファイルは&lt;a href=&#34;https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec&#34;&gt;apache-traffic-server-rpm/trafficserver.spec&lt;/a&gt;、ビルドしたrpmは &lt;a href=&#34;https://copr.fedorainfracloud.org/coprs/hnakamur/apache-traffic-server-6/&#34;&gt;hnakamur/apache-traffic-server-6 Copr&lt;/a&gt; で公開しています。&lt;/p&gt;
-
-&lt;h2 id=&#34;起動オプションではやりたいことは出来なさそうでした&#34;&gt;起動オプションではやりたいことは出来なさそうでした&lt;/h2&gt;
-
-&lt;p&gt;カスタムrpmを作る前に、本家のrpmを使いつつコマンドラインオプションや環境変数の設定によってやりたいことが実現できないか調べてみたのですが、出来なさそうでした。&lt;/p&gt;
-
-&lt;p&gt;バージョン6.1.1のソースを見た時のメモです。&lt;/p&gt;
-
-&lt;p&gt;まず、 &lt;code&gt;traffic_server&lt;/code&gt; コマンドには &lt;code&gt;-conf_dir&lt;/code&gt; というオプションがあります。ソースは &lt;a href=&#34;https://github.com/apache/trafficserver/blob/6.1.1/proxy/Main.cc#L206&#34;&gt;proxy/Main.cc&lt;/a&gt; です。&lt;a href=&#34;https://docs.trafficserver.apache.org/en/6.1.x/appendices/command-line/traffic_server.en.html&#34;&gt;traffic_serverのドキュメント&lt;/a&gt;には記載がありません。&lt;/p&gt;
-
-&lt;p&gt;一方、 &lt;code&gt;traffic_manager&lt;/code&gt; コマンドには &lt;code&gt;-tsArgs&lt;/code&gt; というオプションがあります。 ソースは &lt;a href=&#34;https://github.com/apache/trafficserver/blob/6.1.1/cmd/traffic_manager/traffic_manager.cc#L453&#34;&gt;cmd/traffic_manager/traffic_manager.cc&lt;/a&gt; で &lt;a href=&#34;https://docs.trafficserver.apache.org/en/6.1.x/appendices/command-line/traffic_manager.en.html#cmdoption-traffic_manager--tsArgs&#34;&gt;traffic_managerのドキュメント&lt;/a&gt; にも説明はありませんが載っています。&lt;/p&gt;
-
-&lt;p&gt;しかし、 &lt;code&gt;traffic_cop&lt;/code&gt; コマンドが &lt;code&gt;traffic_manager&lt;/code&gt; コマンドを起動する際には &lt;code&gt;-tsArgs&lt;/code&gt; オプションは指定していません。ソースは &lt;a href=&#34;https://github.com/apache/trafficserver/blob/6.1.1/cmd/traffic_cop/traffic_cop.cc#L758&#34;&gt;cmd/traffic_cop/traffic_cop.cc&lt;/a&gt; です。 &lt;a href=&#34;https://docs.trafficserver.apache.org/en/6.1.x/appendices/command-line/traffic_cop.en.html&#34;&gt;traffic_cop&lt;/a&gt; のドキュメントを見ても traffic_manager にオプションを渡すためのオプションは無いようです。&lt;/p&gt;
-
-&lt;p&gt;rpmでインストールされるサービス起動スクリプトだと &lt;code&gt;traffic_cop&lt;/code&gt; →　&lt;code&gt;traffic_manger&lt;/code&gt; →　&lt;code&gt;traffic_sever&lt;/code&gt; という呼び出し関係になるので、こ &lt;code&gt;traffic_server&lt;/code&gt;   に &lt;code&gt;-conf_dir&lt;/code&gt; オプションを渡すことは出来なさそうです。&lt;/p&gt;
-
-&lt;h2 id=&#34;ts-rootという環境変数を発見&#34;&gt;TS_ROOTという環境変数を発見&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/apache/trafficserver/blob/6.1.1/lib/ts/Layout.cc#L146-L187&#34;&gt;lib/ts/Layout.cc&lt;/a&gt; で &lt;code&gt;TS_ROOT&lt;/code&gt; という環境変数を参照しているのを見つけました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;Layout::Layout(const char *_prefix)
-{
-  if (_prefix) {
-    prefix = ats_strdup(_prefix);
-  } else {
-    char *env_path;
-    char path[PATH_NAME_MAX];
-    int len;
-
-    if ((env_path = getenv(&amp;quot;TS_ROOT&amp;quot;))) {
-      len = strlen(env_path);
-      if ((len + 1) &amp;gt; PATH_NAME_MAX) {
-        ink_error(&amp;quot;TS_ROOT environment variable is too big: %d, max %d\n&amp;quot;, len, PATH_NAME_MAX - 1);
-        return;
-      }
-      ink_strlcpy(path, env_path, sizeof(path));
-      while (len &amp;gt; 1 &amp;amp;&amp;amp; path[len - 1] == &#39;/&#39;) {
-        path[len - 1] = &#39;\0&#39;;
-        --len;
-      }
-    } else {
-      // Use compile time --prefix
-      ink_strlcpy(path, TS_BUILD_PREFIX, sizeof(path));
-    }
-
-    prefix = ats_strdup(path);
-  }
-  exec_prefix = layout_relative(prefix, TS_BUILD_EXEC_PREFIX);
-  bindir = layout_relative(prefix, TS_BUILD_BINDIR);
-  sbindir = layout_relative(prefix, TS_BUILD_SBINDIR);
-  sysconfdir = layout_relative(prefix, TS_BUILD_SYSCONFDIR);
-  datadir = layout_relative(prefix, TS_BUILD_DATADIR);
-  includedir = layout_relative(prefix, TS_BUILD_INCLUDEDIR);
-  libdir = layout_relative(prefix, TS_BUILD_LIBDIR);
-  libexecdir = layout_relative(prefix, TS_BUILD_LIBEXECDIR);
-  localstatedir = layout_relative(prefix, TS_BUILD_LOCALSTATEDIR);
-  runtimedir = layout_relative(prefix, TS_BUILD_RUNTIMEDIR);
-  logdir = layout_relative(prefix, TS_BUILD_LOGDIR);
-  mandir = layout_relative(prefix, TS_BUILD_MANDIR);
-  infodir = layout_relative(prefix, TS_BUILD_INFODIR);
-  cachedir = layout_relative(prefix, TS_BUILD_CACHEDIR);
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/apache/trafficserver/blob/6.1.1/lib/ts/Layout.cc#L51-L70&#34;&gt;layout_relative関数の定義&lt;/a&gt; と &lt;a href=&#34;https://github.com/apache/trafficserver/blob/d6906e2a59858005d09018994262562b03ca24e9/lib/ts/ink_file.cc#L132-L323&#34;&gt;ink_filepath_merge関数の定義&lt;/a&gt; を見ると、 layout_relative の第2引数が &lt;code&gt;/&lt;/code&gt; で始まっていると第2引数がそのまま使われ、 &lt;code&gt;/&lt;/code&gt; で始まっていないと第1引数と第2引数を必要に応じて &lt;code&gt;/&lt;/code&gt; を挟んで連結した値になることがわかりました。&lt;/p&gt;
-
-&lt;p&gt;&lt;code&gt;TS_BUILD_SYSCONFDIR&lt;/code&gt; などは&lt;a href=&#34;https://github.com/apache/trafficserver/blob/6.1.1/lib/ts/ink_config.h.in#L110-L125&#34;&gt;trafficserver/ink_config.h.in&lt;/a&gt; で定義されていました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;/* Various &amp;quot;build&amp;quot; defines */
-#define TS_BUILD_PREFIX &amp;quot;@prefix@&amp;quot;
-#define TS_BUILD_EXEC_PREFIX &amp;quot;@rel_exec_prefix@&amp;quot;
-#define TS_BUILD_BINDIR &amp;quot;@rel_bindir@&amp;quot;
-#define TS_BUILD_SBINDIR &amp;quot;@rel_sbindir@&amp;quot;
-#define TS_BUILD_SYSCONFDIR &amp;quot;@rel_sysconfdir@&amp;quot;
-#define TS_BUILD_DATADIR &amp;quot;@rel_datadir@&amp;quot;
-#define TS_BUILD_INCLUDEDIR &amp;quot;@rel_includedir@&amp;quot;
-#define TS_BUILD_LIBDIR &amp;quot;@rel_libdir@&amp;quot;
-#define TS_BUILD_LIBEXECDIR &amp;quot;@rel_libexecdir@&amp;quot;
-#define TS_BUILD_LOCALSTATEDIR &amp;quot;@rel_localstatedir@&amp;quot;
-#define TS_BUILD_RUNTIMEDIR &amp;quot;@rel_runtimedir@&amp;quot;
-#define TS_BUILD_LOGDIR &amp;quot;@rel_logdir@&amp;quot;
-#define TS_BUILD_MANDIR &amp;quot;@rel_mandir@&amp;quot;
-#define TS_BUILD_CACHEDIR &amp;quot;@rel_cachedir@&amp;quot;
-#define TS_BUILD_INFODIR &amp;quot;@rel_infodir@&amp;quot;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;code&gt;rel_*&lt;/code&gt; という値は &lt;code&gt;configure&lt;/code&gt; 実行時にbuild/common.m4の &lt;a href=&#34;https://github.com/apache/trafficserver/blob/5a0952b01d01ef927a65fc44bac5f68c345747aa/build/common.m4#L252-L263&#34;&gt;TS_SUBST_LAYOUT_PATH&lt;/a&gt; で設定されるようです。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;dnl
-dnl TS_SUBST_LAYOUT_PATH
-dnl Export (via TS_SUBST) the various path-related variables that
-dnl trafficserver will use while generating scripts and
-dnl the default config file.
-AC_DEFUN([TS_SUBST_LAYOUT_PATH], [
-  TS_EXPAND_VAR(exp_$1, [$]$1)
-  TS_PATH_RELATIVE(rel_$1, [$]exp_$1, ${prefix})
-  TS_SUBST(exp_$1)
-  TS_SUBST(rel_$1)
-  TS_SUBST($1)
-])
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;ここから呼ばれる &lt;a href=&#34;https://github.com/apache/trafficserver/blob/5a0952b01d01ef927a65fc44bac5f68c345747aa/build/common.m4#L223-L241&#34;&gt;TS_PATH_RELATIVE&lt;/a&gt; で実際の値が作られます。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;dnl
-dnl Removes the value of $3 from the string in $2, strips of any leading
-dnl slashes, and returns the value in $1.
-dnl
-dnl Example:
-dnl orig_path=&amp;quot;${prefix}/bar&amp;quot;
-dnl TS_PATH_RELATIVE(final_path, $orig_path, $prefix)
-dnl    $final_path now contains &amp;quot;bar&amp;quot;
-AC_DEFUN([TS_PATH_RELATIVE], [
-ats_stripped=`echo $2 | sed -e &amp;quot;s#^$3##&amp;quot;`
-# check if the stripping was successful
-if test &amp;quot;x$2&amp;quot; != &amp;quot;x${ats_stripped}&amp;quot;; then
-# it was, so strip of any leading slashes
-    $1=&amp;quot;`echo ${ats_stripped} | sed -e &#39;s#^/*##&#39;`&amp;quot;
-else
-# it wasn&#39;t so return the original
-    $1=&amp;quot;$2&amp;quot;
-fi
-])
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;ということで、例えば &lt;code&gt;sysconfdir&lt;/code&gt; の値が &lt;code&gt;prefix&lt;/code&gt; の値で始まっていれば &lt;code&gt;rel_sysconfdir&lt;/code&gt; は &lt;code&gt;prefix&lt;/code&gt; からの相対パスになり、そうでなければ &lt;code&gt;sysconfdir&lt;/code&gt; そのままになるということがわかりました。&lt;/p&gt;
-
-&lt;h2 id=&#34;configureオプションの指定方法&#34;&gt;configureオプションの指定方法&lt;/h2&gt;
-
-&lt;p&gt;上記を踏まえて、私が作成した &lt;a href=&#34;https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec&#34;&gt;/trafficserver.spec&lt;/a&gt; では &lt;a href=&#34;https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec#L1&#34;&gt;1行目&lt;/a&gt;で&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;%define _prefix /opt/trafficserver
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;と設定し、 &lt;a href=&#34;https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec#L85-L94&#34;&gt;85〜94行目&lt;/a&gt; で以下のような configure オプションを指定しています。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;%configure \
-  --enable-layout=opt \
-  --sysconfdir=%{_prefix}%{_sysconfdir} \
-  --localstatedir=%{_prefix}%{_localstatedir} \
-  --libexecdir=%{_prefix}/%{_lib}/plugins \
-  --with-tcl=/usr/%{_lib} \
-  --enable-luajit \
-  --with-user=ats --with-group=ats \
-  --disable-silent-rules \
-  --enable-experimental-plugins
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;これでビルドしたtrafficserverを実行する際に、環境変数TS_ROOTを設定することで以下のようなディレクトリを参照することが出来ました。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;sysconfdir: ${TS_ROOT}/etc&lt;/li&gt;
-&lt;li&gt;localstatedir: ${TS_ROOT}/var/run&lt;/li&gt;
-&lt;li&gt;libexecdir: ${TS_ROOT}/lib64/plugins&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id=&#34;私が使っているディレクトリ構成&#34;&gt;私が使っているディレクトリ構成&lt;/h2&gt;
-
-&lt;p&gt;実際には以下のようなシンボリックリンクを貼って使っています。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;1段目
-
-&lt;ul&gt;
-&lt;li&gt;/opt/trafficserver-first/etc -&amp;gt; /etc/trafficserver-first&lt;/li&gt;
-&lt;li&gt;/opt/trafficserver-first/bin -&amp;gt; /opt/trafficserver/bin&lt;/li&gt;
-&lt;li&gt;/opt/trafficserver-first/lib64 -&amp;gt; /opt/trafficserver/lib64&lt;/li&gt;
-&lt;li&gt;/opt/trafficserver-first/var/cache -&amp;gt; /var/cache/trafficserver-first&lt;/li&gt;
-&lt;li&gt;/opt/trafficserver-first/var/logs -&amp;gt; /var/log/trafficserver-first&lt;/li&gt;
-&lt;li&gt;/opt/trafficserver-first/var/run -&amp;gt; /var/run/trafficserver-first&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;li&gt;2段目
-
-&lt;ul&gt;
-&lt;li&gt;/opt/trafficserver-second/etc -&amp;gt; /etc/trafficserver-second&lt;/li&gt;
-&lt;li&gt;/opt/trafficserver-second/bin -&amp;gt; /opt/trafficserver/bin&lt;/li&gt;
-&lt;li&gt;/opt/trafficserver-second/lib64 -&amp;gt; /opt/trafficserver/lib64&lt;/li&gt;
-&lt;li&gt;/opt/trafficserver-second/var/cache -&amp;gt; /var/cache/trafficserver-second&lt;/li&gt;
-&lt;li&gt;/opt/trafficserver-second/var/logs -&amp;gt; /var/log/trafficserver-second&lt;/li&gt;
-&lt;li&gt;/opt/trafficserver-second/var/run -&amp;gt; /var/run/trafficserver-second&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id=&#34;コマンド実行時の環境変数指定&#34;&gt;コマンド実行時の環境変数指定&lt;/h2&gt;
-
-&lt;p&gt;コマンドを実行するときはPATHを通すかフルパスで指定するだけではなく、 TS_ROOT 環境変数も指定する必要があります。&lt;/p&gt;
-
-&lt;p&gt;例えば、1段目のキャッシュを全クリアするときは &lt;a href=&#34;https://docs.trafficserver.apache.org/en/6.1.x/admin-guide/storage/index.en.html#clearing-the-cache&#34;&gt;Clearing the Cache&lt;/a&gt; の説明では &lt;code&gt;traffic_server -Cclear&lt;/code&gt; ですが、このrpmの場合は&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;TS_ROOT=/opt/trafficserver-first /opt/trafficserver-first/bin/traffic_server -Cclear
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;と実行する必要があります。&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>lxd_containerというAnsibleモジュールを書いたときに学んだtips</title>
-      <link>https://hnakamur.github.io/blog/2016/07/01/tips_for_writing_ansible_module/</link>
-      <pubDate>Fri, 01 Jul 2016 22:44:12 +0900</pubDate>
-      
-      <guid>https://hnakamur.github.io/blog/2016/07/01/tips_for_writing_ansible_module/</guid>
-      <description>
-
-&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
-
-&lt;p&gt;lxd_containerというAnsibleのモジュールを書いたときに学んだtipsのメモです。&lt;/p&gt;
-
-&lt;h2 id=&#34;モジュールでデバッグ出力は出来ないのでデバッグ情報は戻り値のjsonに入れる&#34;&gt;モジュールでデバッグ出力は出来ないのでデバッグ情報は戻り値のJSONに入れる&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://groups.google.com/d/msg/ansible-devel/s0iSb7phnqY/UB9vaLFJAwAJ&#34;&gt;ansible-dev MLでの投稿&lt;/a&gt;によるとモジュールは何も出力できないとのことなので、デバッグ情報は戻り値のJSONに入れる必要があります。&lt;/p&gt;
-
-&lt;p&gt;Ansible 2.1からはAnsibleModuleクラスでは &lt;code&gt;_verbosity&lt;/code&gt;、それ以外では &lt;code&gt;_ansible_verbosity&lt;/code&gt; で &lt;code&gt;-v&lt;/code&gt;, &lt;code&gt;-vv&lt;/code&gt;, &lt;code&gt;-vvv&lt;/code&gt;, &lt;code&gt;-vvvv&lt;/code&gt; を指定した場合の &lt;code&gt;v&lt;/code&gt; の個数が取得できるので、それに応じて戻り値のJSONにデバッグ情報を含めるかどうか制御することが出来ます。値は &lt;code&gt;-v&lt;/code&gt; を指定しない場合は 0 で、 &lt;code&gt;-vvvv&lt;/code&gt; だと4という感じです。&lt;/p&gt;
-
-&lt;h2 id=&#34;コードフォーマットのチェック&#34;&gt;コードフォーマットのチェック&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/ansible/ansible-modules-extras/pull/2208#discussion_r62996064&#34;&gt;Ansibleのコミッタの方からのコメント&lt;/a&gt; で &lt;code&gt;pep8&lt;/code&gt; というツールでコードフォーマットのチェックを行っているということを知りました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;pep8 -r --ignore=E501,E221,W291,W391,E302,E251,E203,W293,E231,E303,E201,E225,E261,E241,E402 *.py
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;という感じで使います。 pep8はUbuntu 16.04 では &lt;code&gt;sudo apt install pep8&lt;/code&gt; でインストールできました。&lt;/p&gt;
-
-&lt;h2 id=&#34;ansibleモジュールのチェック&#34;&gt;Ansibleモジュールのチェック&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;https://github.com/ansible/ansible-modules-extras&#34;&gt;ansible/ansible-modules-extras&lt;/a&gt; にプルリクエストを送ると Travis CI でチェックが走るのですが、そのチェックの1つで &lt;code&gt;ansible-validate-modules&lt;/code&gt; というコマンドが使われていました。&lt;/p&gt;
-
-&lt;p&gt;いろいろチェックしているようなのですが、例えばモジュール内にYAMLで書いたドキュメントの書式が間違っていると &lt;code&gt;ansible-validate-modules&lt;/code&gt; エラーになりました。コミットをプッシュしてからエラーになると面倒なのでローカルで先にチェックしておくのが良いです。&lt;/p&gt;
-
-&lt;p&gt;私はPythonのvirtualenv環境内で &lt;code&gt;pip install ansible-testing&lt;/code&gt; でインストールしました。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;ansible-validate-modules 対象ディレクトリ
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;でチェックできます。&lt;/p&gt;
-
-&lt;h2 id=&#34;サードパーティのrequestsを使うとansible-module-utils-urlsを使うべきというエラーが出る&#34;&gt;サードパーティのrequestsを使うとansible.module_utils.urlsを使うべきというエラーが出る&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href=&#34;http://docs.python-requests.org/en/master/&#34;&gt;Requests: HTTP for Humans&lt;/a&gt;を使っているとansible-validate-modulesが &lt;code&gt;ansible.module_utils.urls&lt;/code&gt; を使うべきという&lt;a href=&#34;https://github.com/ansible/ansible-modules-extras/pull/2208#issuecomment-228027653&#34;&gt;エラーを出してきます&lt;/a&gt;。&lt;/p&gt;
-
-&lt;p&gt;今回書いたlxd_containerモジュールは&lt;a href=&#34;https://github.com/lxc/lxd/blob/master/doc/rest-api.md&#34;&gt;LXD REST API&lt;/a&gt;を使うのですが (1) Unixドメインソケットでの通信、(2) クライアント証明書を使ったhttps通信の2つが必要です。が &lt;code&gt;ansible.module_utils.urls&lt;/code&gt; での実現方法がわからなかったので、今回はPython2標準ライブラリのhttplibを使って実装しました。&lt;/p&gt;
-
-&lt;p&gt;サードパーティのライブラリを使わず標準ライブラリを使うことで、lxd_containerモジュールを使うときに依存するライブラリを入れる手間が発生しないので結果的には良かったと思います。&lt;/p&gt;
 </description>
     </item>
     
