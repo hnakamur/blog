@@ -315,8 +315,6 @@ sacloud-upload-image -f &quot;${config_name}.iso&quot; &quot;${config_name}&quot
 
 <p>作成されるISOイメージの名前は <code>${SERVER}-config</code> となります。上記の例だと <code>server01-config</code> と <code>server02-config</code> です。</p>
 
-<p>作成されたら<a href="https://secure.sakura.ad.jp/cloud/">さくらのクラウドのコントロールパネル</a>にログインし、ISOイメージ一覧から作成されたISOイメージを選んで「詳細」ボタンを押し、「リソースID」の値をメモしてください。</p>
-
 <h2 id="terraform-for-さくらのクラウドでルータに繋がったサーバを作成">Terraform for さくらのクラウドでルータに繋がったサーバを作成</h2>
 
 <p>上記で作成していた <code>server.tf</code> にサーバ、ディスクのリソースを追記します。</p>
@@ -332,7 +330,7 @@ sacloud-upload-image -f &quot;${config_name}.iso&quot; &quot;${config_name}&quot
 resource &quot;sakuracloud_server&quot; &quot;server01&quot; {
     name = &quot;server01&quot;
     disks = [&quot;${sakuracloud_disk.disk01.id}&quot;]
-    cdrom_id = &quot;server01-configのISOイメージのリソースID&quot;
+    cdrom_id = &quot;${data.sakuracloud_cdrom.server01_config.id}&quot;
     tags = [&quot;@virtio-net-pci&quot;, &quot;Terraform&quot;]
     description = &quot;by Terraform&quot;
     core = &quot;1&quot;
@@ -346,11 +344,17 @@ resource &quot;sakuracloud_disk&quot; &quot;disk01&quot; {
     size = &quot;40&quot;
     description = &quot;by Terraform&quot;
 }
+data &quot;sakuracloud_cdrom&quot; &quot;server01_config&quot; {
+    filter = {
+        name   = &quot;Name&quot;
+        values = [&quot;server01-config&quot;]
+    }
+}
 
 resource &quot;sakuracloud_server&quot; &quot;server02&quot; {
     name = &quot;server02&quot;
     disks = [&quot;${sakuracloud_disk.disk02.id}&quot;]
-    cdrom_id = &quot;server02-configのISOイメージのリソースID&quot;
+    cdrom_id = &quot;${data.sakuracloud_cdrom.server02_config.id}&quot;
     tags = [&quot;@virtio-net-pci&quot;, &quot;Terraform&quot;]
     description = &quot;by Terraform&quot;
     core = &quot;1&quot;
@@ -363,6 +367,12 @@ resource &quot;sakuracloud_disk&quot; &quot;disk02&quot; {
     source_archive_id = &quot;${data.sakuracloud_archive.containerlinux.id}&quot;
     size = &quot;40&quot;
     description = &quot;by Terraform&quot;
+}
+data &quot;sakuracloud_cdrom&quot; &quot;server02_config&quot; {
+    filter = {
+        name   = &quot;Name&quot;
+        values = [&quot;server02-config&quot;]
+    }
 }
 
 data &quot;sakuracloud_archive&quot; &quot;containerlinux&quot; {
@@ -393,14 +403,6 @@ output &quot;router01_ipaddresses&quot; {
 }
 </code></pre>
 
-<p>server01の</p>
-
-<pre><code>    cdrom_id = &quot;server01-configのISOイメージのリソースID&quot;
-</code></pre>
-
-<p>の部分は上記でメモしたISOイメージのリソースIDを書いてください。
-server02のcdrom_idも同様です。</p>
-
 <p>serverの <code>core</code>, <code>memory</code> やdiskの <code>size</code> などはお好みで変更してください。
 設定可能な値の一覧は<a href="http://cloud.sakura.ad.jp/specification/server-disk/">サーバー/ディスク機能の仕様・料金| さくらのクラウド</a>を参照してください。</p>
 
@@ -429,42 +431,6 @@ server02のcdrom_idも同様です。</p>
 
 <p>実現可能かどうかまだよくわかっていないのですが<a href="https://github.com/yamamoto-febc/terraform-provider-sakuracloud">Terraform for さくらのクラウド</a>でのサーバ作成時にこのIPアドレスを設定できると理想的だなあと思います。</p>
 
-<h3 id="terraformでサーバのリソースのcdrom-idを手動で指定する必要がある">Terraformでサーバのリソースのcdrom_idを手動で指定する必要がある</h3>
-
-<p>アーカイブについては</p>
-
-<pre><code>data &quot;sakuracloud_archive&quot; &quot;containerlinux&quot; {
-    filter = {
-        name   = &quot;Tags&quot;
-        values = [&quot;current-stable&quot;, &quot;arch-64bit&quot;, &quot;distro-containerlinux&quot;]
-    }
-}
-</code></pre>
-
-<p>のようにタグでフィルタリングして</p>
-
-<pre><code>    disks = [&quot;${sakuracloud_disk.disk01.id}&quot;]
-</code></pre>
-
-<p>のように参照できます。</p>
-
-<p>ISOイメージも</p>
-
-<pre><code>data &quot;sakuracloud_iso&quot; &quot;server01_config&quot; {
-    filter = {
-        name   = &quot;Name&quot;
-        values = [&quot;server01-config&quot;]
-    }
-}
-</code></pre>
-
-<p>みたいにフィルタリングして</p>
-
-<pre><code>    cdrom_id = &quot;${sakuracloud_iso.server01_config.id}&quot;
-</code></pre>
-
-<p>のように参照できると理想的だなあと思います。</p>
-
 <h3 id="container-linuxのconfig-driveをterraformで作成できたらさらに理想的">Container LinuxのConfig DriveをTerraformで作成できたらさらに理想的</h3>
 
 <p>現状だとこの記事で書いたように一旦ルーターだけ作って、IPアドレスを調べてから、サーバを作るという手順を踏む必要があります。このため、Terraformの設定ファイルを書き変えて2回適用する必要があります。</p>
@@ -474,6 +440,16 @@ server02のcdrom_idも同様です。</p>
 <h2 id="おわりに">おわりに</h2>
 
 <p>ということで少々不便な点はありますが、さくらのクラウドでContainer Linuxの最新版を使うことが出来ました！</p>
+
+<h2 id="編集履歴">編集履歴</h2>
+
+<h3 id="2017-01-02-21-16頃">2017-01-02 21:16頃</h3>
+
+<p>ISOイメージは<a href="https://github.com/yamamoto-febc/terraform-provider-sakuracloud/blob/master/docs/configuration/resources/data_resource.md">データソース</a>の機能ですでに参照可能とのご指摘を山本さんから頂きました。
+すみません、私のドキュメントの読み込み不足でした。
+検証してみたら無事使えました！元記事に打ち消し線いれて追記しようかと思ったのですが、わかりにくくなるので直接書き換えました。</p>
+
+<p>変更内容が気になる方は<a href="https://github.com/hnakamur/blog/commit/20170102_2116">gitの差分</a>を参照してください。</p>
 
                     </section>
                 </article>
