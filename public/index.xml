@@ -215,6 +215,57 @@ router01_min_ipaddress = xxx.yyy.zzz.148
 
 &lt;p&gt;APIキーの取得とAPIキー及びゾーンの環境変数設定は上記のTerraform for さくらのクラウドのときと同じなので既に行っていれば不要です。&lt;/p&gt;
 
+&lt;h3 id=&#34;サーバを作成するリージョンの推奨ネームサーバのipアドレスを調べる&#34;&gt;サーバを作成するリージョンの推奨ネームサーバのIPアドレスを調べる&lt;/h3&gt;
+
+&lt;p&gt;この記事を書いた当初はネームサーバの調べ方がわからなくて、GoogleのDNS 8.8.8.8 を指定していましたが、サーバを作成した後さくらのクラウドのコントロールパネルでサーバの詳細情報のNICタブを選択すると「このリージョンの推奨ネームサーバ: 133.242.0.3, 133.242.0.4」のように表示されていることに気づきました。&lt;/p&gt;
+
+&lt;p&gt;リージョン毎のネームサーバ一覧はさくらのクラウドのドキュメントでは見つけられなかったのですが、&lt;a href=&#34;http://developer.sakura.ad.jp/cloud/api/1.1/facility/&#34;&gt;設備関連API - さくらのクラウド API v1.1 ドキュメント&lt;/a&gt;のリージョン一覧を取得のレスポンスにリージョン毎のネームサーバのIPアドレスが含まれていました。&lt;/p&gt;
+
+&lt;p&gt;実際に試した結果は以下の通りです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ curl -su $SAKURACLOUD_ACCESS_TOKEN:$SAKURACLOUD_ACCESS_TOKEN_SECRET \
+  https://secure.sakura.ad.jp/cloud/zone/$SAKURACLOUD_ZONE/api/cloud/1.1/region \
+  | jq .
+{
+  &amp;quot;From&amp;quot;: 0,
+  &amp;quot;Count&amp;quot;: 3,
+  &amp;quot;Total&amp;quot;: 3,
+  &amp;quot;Regions&amp;quot;: [
+    {
+      &amp;quot;Index&amp;quot;: 0,
+      &amp;quot;ID&amp;quot;: 210,
+      &amp;quot;Name&amp;quot;: &amp;quot;東京&amp;quot;,
+      &amp;quot;Description&amp;quot;: &amp;quot;東京&amp;quot;,
+      &amp;quot;NameServers&amp;quot;: [
+        &amp;quot;210.188.224.10&amp;quot;,
+        &amp;quot;210.188.224.11&amp;quot;
+      ]
+    },
+    {
+      &amp;quot;Index&amp;quot;: 1,
+      &amp;quot;ID&amp;quot;: 290,
+      &amp;quot;Name&amp;quot;: &amp;quot;Sandbox&amp;quot;,
+      &amp;quot;Description&amp;quot;: &amp;quot;Sandbox&amp;quot;,
+      &amp;quot;NameServers&amp;quot;: [
+        &amp;quot;133.242.0.3&amp;quot;,
+        &amp;quot;133.242.0.4&amp;quot;
+      ]
+    },
+    {
+      &amp;quot;Index&amp;quot;: 2,
+      &amp;quot;ID&amp;quot;: 310,
+      &amp;quot;Name&amp;quot;: &amp;quot;石狩&amp;quot;,
+      &amp;quot;Description&amp;quot;: &amp;quot;石狩&amp;quot;,
+      &amp;quot;NameServers&amp;quot;: [
+        &amp;quot;133.242.0.3&amp;quot;,
+        &amp;quot;133.242.0.4&amp;quot;
+      ]
+    }
+  ],
+  &amp;quot;is_ok&amp;quot;: true
+}
+&lt;/code&gt;&lt;/pre&gt;
+
 &lt;h3 id=&#34;config-driveのisoイメージを作成-アップロード&#34;&gt;Config DriveのISOイメージを作成・アップロード&lt;/h3&gt;
 
 &lt;p&gt;以下のシェルスクリプトを &lt;code&gt;mkupload.sh&lt;/code&gt; という名前で保存し、 &lt;code&gt;chmod +x mkupload.sh&lt;/code&gt; で実行パーミションを付けます。&lt;/p&gt;
@@ -224,7 +275,8 @@ set -eu
 basedir=/tmp/configdrive.$$
 server=&amp;quot;$SERVER&amp;quot;
 ssh_pub_key=&amp;quot;$SSH_PUB_KEY&amp;quot;
-dns=&amp;quot;$DNS&amp;quot;
+dns1=&amp;quot;$DNS1&amp;quot;
+dns2=&amp;quot;$DNS2&amp;quot;
 address=&amp;quot;$ADDRESS&amp;quot;
 gateway=&amp;quot;$GATEWAY&amp;quot;
 
@@ -246,7 +298,8 @@ coreos:
         Name=eth0
 
         [Network]
-        DNS=${dns}
+        DNS=${dns1}
+        DNS=${dns2}
         Address=${address}
         Gateway=${gateway}
 EOF
@@ -256,12 +309,26 @@ mkisofs -R -V config-2 -o &amp;quot;${config_name}.iso&amp;quot; &amp;quot;${bas
 sacloud-upload-image -f &amp;quot;${config_name}.iso&amp;quot; &amp;quot;${config_name}&amp;quot;
 &lt;/code&gt;&lt;/pre&gt;
 
+&lt;p&gt;&lt;a href=&#34;https://coreos.com/os/docs/latest/config-drive.html&#34;&gt;Customize with Config-Drive&lt;/a&gt;では &lt;code&gt;DNS=&lt;/code&gt; の行は1つだけですが、&lt;a href=&#34;https://www.freedesktop.org/software/systemd/man/systemd.network.html#DNS=&#34;&gt;systemd.network&lt;/a&gt;のドキュメントによると複数指定可能なので2つ指定するようにしました。&lt;/p&gt;
+
 &lt;p&gt;以下のように実行します。公開鍵のパスはとIPアドレスは適宜変更してください。&lt;/p&gt;
 
-&lt;pre&gt;&lt;code&gt;SERVER=server01 SSH_PUB_KEY=&amp;quot;`cat ~/.ssh/id_rsa.pub`&amp;quot; DNS=8.8.8.8 ADDRESS=xxx.yyy.zzz.148/28 GATEWAY=xxx.yyy.zzz.145 ./mkuploadconfig.sh
+&lt;pre&gt;&lt;code&gt;SERVER=server01 \
+SSH_PUB_KEY=&amp;quot;`cat ~/.ssh/id_rsa.pub`&amp;quot; \
+DNS1=133.242.0.3 \
+DNS2=133.242.0.4 \
+ADDRESS=xxx.yyy.zzz.148/28 \
+GATEWAY=xxx.yyy.zzz.145 \
+./mkuploadconfig.sh
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;pre&gt;&lt;code&gt;SERVER=server02 SSH_PUB_KEY=&amp;quot;`cat ~/.ssh/id_rsa.pub`&amp;quot; DNS=8.8.8.8 ADDRESS=xxx.yyy.zzz.149/28 GATEWAY=xxx.yyy.zzz.145 ./mkuploadconfig.sh
+&lt;pre&gt;&lt;code&gt;SERVER=server02 \
+SSH_PUB_KEY=&amp;quot;`cat ~/.ssh/id_rsa.pub`&amp;quot; \
+DNS1=133.242.0.3 \
+DNS2=133.242.0.4 \
+ADDRESS=xxx.yyy.zzz.149/28 \
+GATEWAY=xxx.yyy.zzz.145 \
+./mkuploadconfig.sh
 &lt;/code&gt;&lt;/pre&gt;
 
 &lt;p&gt;&lt;code&gt;ADDRESS&lt;/code&gt; の値は上記で出力された &lt;code&gt;router01_ipaddresses&lt;/code&gt; の値を上から順番に使い、ネットワークマスク付きで指定しています。&lt;/p&gt;
@@ -446,6 +513,11 @@ Build &#39;sakuracloud&#39; finished.
 &lt;h3 id=&#34;2017-01-02-21-40頃&#34;&gt;2017-01-02 21:40頃&lt;/h3&gt;
 
 &lt;p&gt;「気になった点」に「Packerで作ったマイアーカイブでcoreユーザのパスワードを消せていない」を追記しました。&lt;/p&gt;
+
+&lt;h3 id=&#34;2017-01-02-22-30頃&#34;&gt;2017-01-02 22:30頃&lt;/h3&gt;
+
+&lt;p&gt;さくらのクラウドのリージョンごとの推奨ネームサーバを使うように改良しました。
+変更内容は&lt;a href=&#34;https://github.com/hnakamur/blog/commit/20170102_2230&#34;&gt;gitの差分&lt;/a&gt;を参照してください。&lt;/p&gt;
 </description>
     </item>
     

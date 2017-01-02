@@ -210,6 +210,58 @@ macOSをお使いの場合は `mkisofs` は不要ですが、次項の `mkupload
 
 APIキーの取得とAPIキー及びゾーンの環境変数設定は上記のTerraform for さくらのクラウドのときと同じなので既に行っていれば不要です。
 
+### サーバを作成するリージョンの推奨ネームサーバのIPアドレスを調べる
+
+この記事を書いた当初はネームサーバの調べ方がわからなくて、GoogleのDNS 8.8.8.8 を指定していましたが、サーバを作成した後さくらのクラウドのコントロールパネルでサーバの詳細情報のNICタブを選択すると「このリージョンの推奨ネームサーバ: 133.242.0.3, 133.242.0.4」のように表示されていることに気づきました。
+
+リージョン毎のネームサーバ一覧はさくらのクラウドのドキュメントでは見つけられなかったのですが、[設備関連API - さくらのクラウド API v1.1 ドキュメント](http://developer.sakura.ad.jp/cloud/api/1.1/facility/)のリージョン一覧を取得のレスポンスにリージョン毎のネームサーバのIPアドレスが含まれていました。
+
+実際に試した結果は以下の通りです。
+
+```
+$ curl -su $SAKURACLOUD_ACCESS_TOKEN:$SAKURACLOUD_ACCESS_TOKEN_SECRET \
+  https://secure.sakura.ad.jp/cloud/zone/$SAKURACLOUD_ZONE/api/cloud/1.1/region \
+  | jq .
+{
+  "From": 0,
+  "Count": 3,
+  "Total": 3,
+  "Regions": [
+    {
+      "Index": 0,
+      "ID": 210,
+      "Name": "東京",
+      "Description": "東京",
+      "NameServers": [
+        "210.188.224.10",
+        "210.188.224.11"
+      ]
+    },
+    {
+      "Index": 1,
+      "ID": 290,
+      "Name": "Sandbox",
+      "Description": "Sandbox",
+      "NameServers": [
+        "133.242.0.3",
+        "133.242.0.4"
+      ]
+    },
+    {
+      "Index": 2,
+      "ID": 310,
+      "Name": "石狩",
+      "Description": "石狩",
+      "NameServers": [
+        "133.242.0.3",
+        "133.242.0.4"
+      ]
+    }
+  ],
+  "is_ok": true
+}
+```
+
 ### Config DriveのISOイメージを作成・アップロード
 
 以下のシェルスクリプトを `mkupload.sh` という名前で保存し、 `chmod +x mkupload.sh` で実行パーミションを付けます。
@@ -220,7 +272,8 @@ set -eu
 basedir=/tmp/configdrive.$$
 server="$SERVER"
 ssh_pub_key="$SSH_PUB_KEY"
-dns="$DNS"
+dns1="$DNS1"
+dns2="$DNS2"
 address="$ADDRESS"
 gateway="$GATEWAY"
 
@@ -242,7 +295,8 @@ coreos:
         Name=eth0
 
         [Network]
-        DNS=${dns}
+        DNS=${dns1}
+        DNS=${dns2}
         Address=${address}
         Gateway=${gateway}
 EOF
@@ -252,14 +306,28 @@ mkisofs -R -V config-2 -o "${config_name}.iso" "${basedir}"
 sacloud-upload-image -f "${config_name}.iso" "${config_name}"
 ```
 
+[Customize with Config-Drive](https://coreos.com/os/docs/latest/config-drive.html)では `DNS=` の行は1つだけですが、[systemd.network](https://www.freedesktop.org/software/systemd/man/systemd.network.html#DNS=)のドキュメントによると複数指定可能なので2つ指定するようにしました。
+
 以下のように実行します。公開鍵のパスはとIPアドレスは適宜変更してください。
 
 ```
-SERVER=server01 SSH_PUB_KEY="`cat ~/.ssh/id_rsa.pub`" DNS=8.8.8.8 ADDRESS=xxx.yyy.zzz.148/28 GATEWAY=xxx.yyy.zzz.145 ./mkuploadconfig.sh
+SERVER=server01 \
+SSH_PUB_KEY="`cat ~/.ssh/id_rsa.pub`" \
+DNS1=133.242.0.3 \
+DNS2=133.242.0.4 \
+ADDRESS=xxx.yyy.zzz.148/28 \
+GATEWAY=xxx.yyy.zzz.145 \
+./mkuploadconfig.sh
 ```
 
 ```
-SERVER=server02 SSH_PUB_KEY="`cat ~/.ssh/id_rsa.pub`" DNS=8.8.8.8 ADDRESS=xxx.yyy.zzz.149/28 GATEWAY=xxx.yyy.zzz.145 ./mkuploadconfig.sh
+SERVER=server02 \
+SSH_PUB_KEY="`cat ~/.ssh/id_rsa.pub`" \
+DNS1=133.242.0.3 \
+DNS2=133.242.0.4 \
+ADDRESS=xxx.yyy.zzz.149/28 \
+GATEWAY=xxx.yyy.zzz.145 \
+./mkuploadconfig.sh
 ```
 
 `ADDRESS` の値は上記で出力された `router01_ipaddresses` の値を上から順番に使い、ネットワークマスク付きで指定しています。
@@ -447,3 +515,7 @@ ISOイメージは[データソース](https://github.com/yamamoto-febc/terrafor
 
 ### 2017-01-02 21:40頃
 「気になった点」に「Packerで作ったマイアーカイブでcoreユーザのパスワードを消せていない」を追記しました。
+
+### 2017-01-02 22:30頃
+さくらのクラウドのリージョンごとの推奨ネームサーバを使うように改良しました。
+変更内容は[gitの差分](https://github.com/hnakamur/blog/commit/20170102_2230)を参照してください。

@@ -262,6 +262,57 @@ router01_min_ipaddress = xxx.yyy.zzz.148
 
 <p>APIキーの取得とAPIキー及びゾーンの環境変数設定は上記のTerraform for さくらのクラウドのときと同じなので既に行っていれば不要です。</p>
 
+<h3 id="サーバを作成するリージョンの推奨ネームサーバのipアドレスを調べる">サーバを作成するリージョンの推奨ネームサーバのIPアドレスを調べる</h3>
+
+<p>この記事を書いた当初はネームサーバの調べ方がわからなくて、GoogleのDNS 8.8.8.8 を指定していましたが、サーバを作成した後さくらのクラウドのコントロールパネルでサーバの詳細情報のNICタブを選択すると「このリージョンの推奨ネームサーバ: 133.242.0.3, 133.242.0.4」のように表示されていることに気づきました。</p>
+
+<p>リージョン毎のネームサーバ一覧はさくらのクラウドのドキュメントでは見つけられなかったのですが、<a href="http://developer.sakura.ad.jp/cloud/api/1.1/facility/">設備関連API - さくらのクラウド API v1.1 ドキュメント</a>のリージョン一覧を取得のレスポンスにリージョン毎のネームサーバのIPアドレスが含まれていました。</p>
+
+<p>実際に試した結果は以下の通りです。</p>
+
+<pre><code>$ curl -su $SAKURACLOUD_ACCESS_TOKEN:$SAKURACLOUD_ACCESS_TOKEN_SECRET \
+  https://secure.sakura.ad.jp/cloud/zone/$SAKURACLOUD_ZONE/api/cloud/1.1/region \
+  | jq .
+{
+  &quot;From&quot;: 0,
+  &quot;Count&quot;: 3,
+  &quot;Total&quot;: 3,
+  &quot;Regions&quot;: [
+    {
+      &quot;Index&quot;: 0,
+      &quot;ID&quot;: 210,
+      &quot;Name&quot;: &quot;東京&quot;,
+      &quot;Description&quot;: &quot;東京&quot;,
+      &quot;NameServers&quot;: [
+        &quot;210.188.224.10&quot;,
+        &quot;210.188.224.11&quot;
+      ]
+    },
+    {
+      &quot;Index&quot;: 1,
+      &quot;ID&quot;: 290,
+      &quot;Name&quot;: &quot;Sandbox&quot;,
+      &quot;Description&quot;: &quot;Sandbox&quot;,
+      &quot;NameServers&quot;: [
+        &quot;133.242.0.3&quot;,
+        &quot;133.242.0.4&quot;
+      ]
+    },
+    {
+      &quot;Index&quot;: 2,
+      &quot;ID&quot;: 310,
+      &quot;Name&quot;: &quot;石狩&quot;,
+      &quot;Description&quot;: &quot;石狩&quot;,
+      &quot;NameServers&quot;: [
+        &quot;133.242.0.3&quot;,
+        &quot;133.242.0.4&quot;
+      ]
+    }
+  ],
+  &quot;is_ok&quot;: true
+}
+</code></pre>
+
 <h3 id="config-driveのisoイメージを作成-アップロード">Config DriveのISOイメージを作成・アップロード</h3>
 
 <p>以下のシェルスクリプトを <code>mkupload.sh</code> という名前で保存し、 <code>chmod +x mkupload.sh</code> で実行パーミションを付けます。</p>
@@ -271,7 +322,8 @@ set -eu
 basedir=/tmp/configdrive.$$
 server=&quot;$SERVER&quot;
 ssh_pub_key=&quot;$SSH_PUB_KEY&quot;
-dns=&quot;$DNS&quot;
+dns1=&quot;$DNS1&quot;
+dns2=&quot;$DNS2&quot;
 address=&quot;$ADDRESS&quot;
 gateway=&quot;$GATEWAY&quot;
 
@@ -293,7 +345,8 @@ coreos:
         Name=eth0
 
         [Network]
-        DNS=${dns}
+        DNS=${dns1}
+        DNS=${dns2}
         Address=${address}
         Gateway=${gateway}
 EOF
@@ -303,12 +356,26 @@ mkisofs -R -V config-2 -o &quot;${config_name}.iso&quot; &quot;${basedir}&quot;
 sacloud-upload-image -f &quot;${config_name}.iso&quot; &quot;${config_name}&quot;
 </code></pre>
 
+<p><a href="https://coreos.com/os/docs/latest/config-drive.html">Customize with Config-Drive</a>では <code>DNS=</code> の行は1つだけですが、<a href="https://www.freedesktop.org/software/systemd/man/systemd.network.html#DNS=">systemd.network</a>のドキュメントによると複数指定可能なので2つ指定するようにしました。</p>
+
 <p>以下のように実行します。公開鍵のパスはとIPアドレスは適宜変更してください。</p>
 
-<pre><code>SERVER=server01 SSH_PUB_KEY=&quot;`cat ~/.ssh/id_rsa.pub`&quot; DNS=8.8.8.8 ADDRESS=xxx.yyy.zzz.148/28 GATEWAY=xxx.yyy.zzz.145 ./mkuploadconfig.sh
+<pre><code>SERVER=server01 \
+SSH_PUB_KEY=&quot;`cat ~/.ssh/id_rsa.pub`&quot; \
+DNS1=133.242.0.3 \
+DNS2=133.242.0.4 \
+ADDRESS=xxx.yyy.zzz.148/28 \
+GATEWAY=xxx.yyy.zzz.145 \
+./mkuploadconfig.sh
 </code></pre>
 
-<pre><code>SERVER=server02 SSH_PUB_KEY=&quot;`cat ~/.ssh/id_rsa.pub`&quot; DNS=8.8.8.8 ADDRESS=xxx.yyy.zzz.149/28 GATEWAY=xxx.yyy.zzz.145 ./mkuploadconfig.sh
+<pre><code>SERVER=server02 \
+SSH_PUB_KEY=&quot;`cat ~/.ssh/id_rsa.pub`&quot; \
+DNS1=133.242.0.3 \
+DNS2=133.242.0.4 \
+ADDRESS=xxx.yyy.zzz.149/28 \
+GATEWAY=xxx.yyy.zzz.145 \
+./mkuploadconfig.sh
 </code></pre>
 
 <p><code>ADDRESS</code> の値は上記で出力された <code>router01_ipaddresses</code> の値を上から順番に使い、ネットワークマスク付きで指定しています。</p>
@@ -493,6 +560,11 @@ Build 'sakuracloud' finished.
 <h3 id="2017-01-02-21-40頃">2017-01-02 21:40頃</h3>
 
 <p>「気になった点」に「Packerで作ったマイアーカイブでcoreユーザのパスワードを消せていない」を追記しました。</p>
+
+<h3 id="2017-01-02-22-30頃">2017-01-02 22:30頃</h3>
+
+<p>さくらのクラウドのリージョンごとの推奨ネームサーバを使うように改良しました。
+変更内容は<a href="https://github.com/hnakamur/blog/commit/20170102_2230">gitの差分</a>を参照してください。</p>
 
                     </section>
                 </article>
