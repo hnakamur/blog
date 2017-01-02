@@ -1,0 +1,433 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Terraform on hnakamur&#39;s blog at github</title>
+    <link>https://hnakamur.github.io/blog/tags/terraform/index.xml</link>
+    <description>Recent content in Terraform on hnakamur&#39;s blog at github</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>ja-JP</language>
+    <atom:link href="https://hnakamur.github.io/blog/tags/terraform/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>さくらのクラウドでPackerとTerraformを使ってContainer Linuxの環境構築をしてみた</title>
+      <link>https://hnakamur.github.io/blog/2017/01/02/use-container-linux-on-sakura-cloud-using-packer-and-terraform/</link>
+      <pubDate>Mon, 02 Jan 2017 15:34:23 +0900</pubDate>
+      
+      <guid>https://hnakamur.github.io/blog/2017/01/02/use-container-linux-on-sakura-cloud-using-packer-and-terraform/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;さくらのクラウドでPackerとTerraformを使って&lt;a href=&#34;https://coreos.com/os/docs/latest/&#34;&gt;CoreOS Container Linux&lt;/a&gt;の環境構築をしてみたのでメモです。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://cloud-news.sakura.ad.jp/public_archive_iso/&#34;&gt;パブリックアーカイブ・ISOイメージ&lt;/a&gt;にCoreOSはあるのですが、現状では残念ながらバージョンが 367.1.0 (stable) とかなり古い状態です。&lt;/p&gt;
+
+&lt;p&gt;そこで &lt;a href=&#34;https://stable.release.core-os.net/amd64-usr/&#34;&gt;https://stable.release.core-os.net/amd64-usr/&lt;/a&gt; 以下にある安定版公式ISOイメージの現時点の最新版である 1185.5.0 を使ってPackerでさくらのクラウド上にマイアーカイブを作成し、それを元にサーバで使用するディスクとサーバを作成します。&lt;/p&gt;
+
+&lt;p&gt;さくらのクラウドには&lt;a href=&#34;http://cloud-news.sakura.ad.jp/startup-script/&#34;&gt;スタートアップスクリプト&lt;/a&gt;という機能がありサーバの起動時に設定を行うことができるのですが、これが使えるのはCentOS、Debian、Ubuntuに限定されるようでCoreOSでは使えませんでした。&lt;/p&gt;
+
+&lt;p&gt;これだと構成はほぼ同じで静的IPアドレスだけが異なる複数のサーバを作りたい場合も、サーバ1台毎にPackerでマイアーカイブを作ってそこからサーバを作る必要があり、実用には厳しいなと思って一度は断念していました。&lt;/p&gt;
+
+&lt;p&gt;ルータを使わない構成であれば、まずはDHCPで起動してアドレスをもらってからプロビジョニング時に静的IPアドレスに切り替えるという手はあります。ですがルータを使う場合はDHCPサーバがいないのでこの手は使えません。&lt;/p&gt;
+
+&lt;p&gt;そんな時、&lt;a href=&#34;https://github.com/sacloud/packer-builder-sakuracloud&#34;&gt;さくらのクラウド用Packerプラグイン&lt;/a&gt;、&lt;a href=&#34;https://github.com/yamamoto-febc/terraform-provider-sakuracloud&#34;&gt;Terraform for さくらのクラウド&lt;/a&gt;、&lt;a href=&#34;https://github.com/yamamoto-febc/sacloud-upload-image&#34;&gt;Upload ISO image to SAKURA CLOUD&lt;/a&gt;などの便利なツールを作ってくださっている山本さんのツイートでContainer Linuxの&lt;a href=&#34;https://coreos.com/os/docs/latest/config-drive.html&#34;&gt;Customize with Config-Drive&lt;/a&gt;という機能を知りました。便利なツールに加えて有用な情報、いつもありがとうございます！&lt;/p&gt;
+
+&lt;p&gt;この記事はこの機能と上記の3つのツールを使ってContainer Linuxの環境構築をしてみたメモです。&lt;/p&gt;
+
+&lt;h2 id=&#34;container-linuxのisoイメージ作成&#34;&gt;Container LinuxのISOイメージ作成&lt;/h2&gt;
+
+&lt;h3 id=&#34;packerとさくらのクラウド用packerプラグインの事前準備&#34;&gt;Packerとさくらのクラウド用Packerプラグインの事前準備&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://www.packer.io/&#34;&gt;Packer by HashiCorp&lt;/a&gt;と&lt;a href=&#34;https://github.com/sacloud/packer-builder-sakuracloud&#34;&gt;さくらのクラウド用Packerプラグイン&lt;/a&gt;をインストールしていない場合はそれぞれのドキュメントに従ってインストールしてください。&lt;/p&gt;
+
+&lt;p&gt;また&lt;a href=&#34;https://github.com/yamamoto-febc/terraform-provider-sakuracloud/blob/master/docs/installation.md#%E3%81%95%E3%81%8F%E3%82%89%E3%81%AE%E3%82%AF%E3%83%A9%E3%82%A6%E3%83%89api%E3%82%AD%E3%83%BC%E3%81%AE%E5%8F%96%E5%BE%97&#34;&gt;APIキーの取得&lt;/a&gt;と&lt;a href=&#34;https://github.com/sacloud/packer-builder-sakuracloud#apiキーの設定&#34;&gt;APIキーの設定&lt;/a&gt;も行っておいてください。&lt;/p&gt;
+
+&lt;h3 id=&#34;packerでさくらのクラウドにcontainer-linuxのマイアーカイブを作成&#34;&gt;PackerでさくらのクラウドにContainer Linuxのマイアーカイブを作成&lt;/h3&gt;
+
+&lt;p&gt;以下の内容を containerlinux.json というファイルに保存します。
+「ここにパスワードを設定」にはContainer Linuxで予め用意されている &lt;code&gt;core&lt;/code&gt; ユーザに設定するパスワードを設定します。
+「ここにパスワードのハッシュを設定」には &lt;a href=&#34;https://github.com/coreos/coreos-cloudinit/blob/master/Documentation/cloud-config.md#generating-a-password-hash&#34;&gt;Generating a password hash&lt;/a&gt; の手順で生成したパスワードのハッシュを設定します。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;sakuracloud_zone&lt;/code&gt; は&lt;a href=&#34;http://developer.sakura.ad.jp/cloud/api/1.1/&#34;&gt;さくらのクラウド API v1.1 ドキュメント&lt;/a&gt;の一般注記事項のAPI URLに書いてあるゾーンのうち、自分が利用したいゾーンを指定します。以下の例では &lt;code&gt;is1b&lt;/code&gt; (石狩第2ゾーン)としています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;{
+  &amp;quot;variables&amp;quot;: {
+    &amp;quot;sakuracloud_zone&amp;quot;: &amp;quot;is1b&amp;quot;,
+    &amp;quot;archive_name&amp;quot;: &amp;quot;CoreOS 1185.5.0&amp;quot;,
+    &amp;quot;iso_url&amp;quot;: &amp;quot;https://stable.release.core-os.net/amd64-usr/1185.5.0/coreos_production_iso_image.iso&amp;quot;,
+    &amp;quot;iso_checksum&amp;quot;: &amp;quot;1c8e7948bdc54980df87a9a2b08fa744104f977950002f1605b60bf44d2021b9&amp;quot;,
+    &amp;quot;iso_checksum_type&amp;quot;: &amp;quot;sha256&amp;quot;,
+    &amp;quot;install_disk_device&amp;quot;: &amp;quot;/dev/vda&amp;quot;,
+    &amp;quot;tmp_password&amp;quot;: &amp;quot;ここにパスワードを設定&amp;quot;,
+    &amp;quot;tmp_password_hash&amp;quot;: &amp;quot;ここにパスワードのハッシュを設定&amp;quot;
+  },
+  &amp;quot;builders&amp;quot;: [{
+    &amp;quot;type&amp;quot;: &amp;quot;sakuracloud&amp;quot;,
+    &amp;quot;zone&amp;quot;: &amp;quot;{{user `sakuracloud_zone`}}&amp;quot;,
+    &amp;quot;os_type&amp;quot;: &amp;quot;iso&amp;quot;,
+    &amp;quot;iso_url&amp;quot;: &amp;quot;{{user `iso_url`}}&amp;quot;,
+    &amp;quot;iso_checksum&amp;quot;: &amp;quot;{{user `iso_checksum`}}&amp;quot;,
+    &amp;quot;iso_checksum_type&amp;quot;: &amp;quot;{{user `iso_checksum_type`}}&amp;quot;,
+    &amp;quot;us_keyboard&amp;quot;: true,
+    &amp;quot;boot_wait&amp;quot;: &amp;quot;20s&amp;quot;,
+    &amp;quot;boot_command&amp;quot;: [
+      &amp;quot;cat &amp;lt;&amp;lt;&#39;EOF&#39; &amp;gt; /tmp/cloud-config.yml&amp;lt;enter&amp;gt;&amp;quot;,
+      &amp;quot;#cloud-config&amp;lt;enter&amp;gt;&amp;quot;,
+      &amp;quot;users:&amp;lt;enter&amp;gt;&amp;quot;,
+      &amp;quot;  - name: core&amp;lt;enter&amp;gt;&amp;quot;,
+      &amp;quot;    passwd: {{user `tmp_password_hash`}}&amp;lt;enter&amp;gt;&amp;quot;,
+      &amp;quot;EOF&amp;lt;enter&amp;gt;&amp;lt;wait&amp;gt;&amp;quot;,
+      &amp;quot;sudo coreos-install -c /tmp/cloud-config.yml -d {{user `install_disk_device`}}&amp;lt;enter&amp;gt;&amp;lt;wait&amp;gt;&amp;quot;,
+      &amp;quot;&amp;lt;wait10&amp;gt;&amp;lt;wait10&amp;gt;&amp;lt;wait10&amp;gt;&amp;lt;wait10&amp;gt;&amp;lt;wait10&amp;gt;&amp;lt;wait10&amp;gt;&amp;quot;,
+      &amp;quot;&amp;lt;wait10&amp;gt;&amp;lt;wait10&amp;gt;&amp;lt;wait10&amp;gt;&amp;quot;,
+      &amp;quot;reboot&amp;lt;enter&amp;gt;&amp;lt;wait&amp;gt;&amp;quot;
+    ],
+    &amp;quot;user_name&amp;quot;: &amp;quot;core&amp;quot;,
+    &amp;quot;password&amp;quot;: &amp;quot;{{user `tmp_password`}}&amp;quot;,
+    &amp;quot;archive_name&amp;quot;: &amp;quot;{{user `archive_name`}}&amp;quot;,
+    &amp;quot;archive_tags&amp;quot;: [&amp;quot;@size-extendable&amp;quot;, &amp;quot;current-stable&amp;quot;, &amp;quot;arch-64bit&amp;quot;, &amp;quot;distro-containerlinux&amp;quot;]
+  }],
+  &amp;quot;provisioners&amp;quot;: [{
+    &amp;quot;type&amp;quot;: &amp;quot;shell&amp;quot;,
+    &amp;quot;inline&amp;quot;: [
+      &amp;quot;sudo passwd -d core&amp;quot;
+    ],
+    &amp;quot;pause_before&amp;quot;: &amp;quot;20s&amp;quot;
+  }]
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;以下のコマンドを実行すると、一時的にサーバを作ってISOイメージからインストールし、その後シャットダウンしてマイアーカイブを作るという一連の処理を行ってくれます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;packer build containerlinux.json
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;terraform-for-さくらのクラウドでまずルータだけ作成&#34;&gt;Terraform for さくらのクラウドでまずルータだけ作成&lt;/h2&gt;
+
+&lt;h3 id=&#34;terraform-for-さくらのクラウドの事前準備&#34;&gt;Terraform for さくらのクラウドの事前準備&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://www.terraform.io/&#34;&gt;Terraform&lt;/a&gt;と&lt;a href=&#34;https://github.com/yamamoto-febc/terraform-provider-sakuracloud&#34;&gt;Terraform for さくらのクラウド&lt;/a&gt;をインストールしていない場合は、それぞれのドキュメントに従ってインストールしてください。&lt;/p&gt;
+
+&lt;p&gt;またAPIキーと利用したいゾーンの設定も必要です。&lt;/p&gt;
+
+&lt;p&gt;APIキーの設定は&lt;a href=&#34;https://github.com/sacloud/packer-builder-sakuracloud&#34;&gt;さくらのクラウド用Packerプラグイン&lt;/a&gt;で行ったものと同じなので、ゾーンの設定を追加で行う必要があります。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ export SAKURACLOUD_ACCESS_TOKEN=[APIトークン]
+$ export SAKURACLOUD_ACCESS_TOKEN_SECRET=[APIシークレット]
+$ export SAKURACLOUD_ZONE=is1b
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;terraform-for-さくらのクラウドでルータを作成&#34;&gt;Terraform for さくらのクラウドでルータを作成&lt;/h3&gt;
+
+&lt;p&gt;Terraformを使うなら本来は1つのtfファイルでルータとサーバを一気に作成したいところなのですが、サーバ1台毎の設定ファイルを含むISOイメージを作る部分をTerraform外のスクリプトで作成する都合上、2ステップに分ける必要があります。&lt;/p&gt;
+
+&lt;p&gt;まずは以下の内容を &lt;code&gt;server.tf&lt;/code&gt; というファイルに保存します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;resource &amp;quot;sakuracloud_internet&amp;quot; &amp;quot;router01&amp;quot; {
+    name = &amp;quot;router01&amp;quot;
+    description = &amp;quot;by Terraform&amp;quot;
+    tags = [&amp;quot;Terraform&amp;quot;]
+    nw_mask_len = 28
+    band_width = 100
+}
+
+output &amp;quot;router01_ipaddress&amp;quot; {
+    value = &amp;quot;${sakuracloud_internet.router01.nw_address}&amp;quot;
+}
+
+output &amp;quot;router01_gateway&amp;quot; {
+    value = &amp;quot;${sakuracloud_internet.router01.nw_gateway}&amp;quot;
+}
+
+output &amp;quot;router01_min_ipaddress&amp;quot; {
+    value = &amp;quot;${sakuracloud_internet.router01.nw_min_ipaddress}&amp;quot;
+}
+
+output &amp;quot;router01_max_ipaddress&amp;quot; {
+    value = &amp;quot;${sakuracloud_internet.router01.nw_max_ipaddress}&amp;quot;
+}
+
+output &amp;quot;router01_ipaddresses&amp;quot; {
+    value = [&amp;quot;${sakuracloud_internet.router01.nw_ipaddresses}&amp;quot;]
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;nw_mask_len&lt;/code&gt; は&lt;a href=&#34;https://github.com/yamamoto-febc/terraform-provider-sakuracloud/blob/master/docs/configuration/resources/internet.md&#34;&gt;Terraform for さくらのクラウドのルーター&lt;/a&gt;のドキュメントのパラメーターの項を参考に、必要なIPアドレスの数に応じて &lt;code&gt;/28&lt;/code&gt;, &lt;code&gt;/27&lt;/code&gt;, &lt;code&gt;/26&lt;/code&gt; から選択してください。設定する値は &lt;code&gt;/&lt;/code&gt; 無しの数値です。&lt;/p&gt;
+
+&lt;p&gt;なお、&lt;a href=&#34;http://cloud-news.sakura.ad.jp/2015/03/31/ipaddr24-25/&#34;&gt;「ルータ＋スイッチ」 一部の追加IPアドレス個数でのお申込み方法変更のお知らせ | さくらのクラウドニュース&lt;/a&gt; を見ると &lt;code&gt;/25&lt;/code&gt;, &lt;code&gt;/24&lt;/code&gt; も利用可能ですが営業に問い合わせが必要なため、APIからは利用不可となっています。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;name&lt;/code&gt; や &lt;code&gt;description&lt;/code&gt; はお好みで変更してください。&lt;/p&gt;
+
+&lt;p&gt;ルーターに付与されるIPアドレスの範囲はルーター作成後に確定し&lt;a href=&#34;https://github.com/yamamoto-febc/terraform-provider-sakuracloud/blob/master/docs/configuration/resources/internet.md&#34;&gt;Terraform for さくらのクラウドのルーター&lt;/a&gt;のドキュメントの属性 &lt;code&gt;nw_address&lt;/code&gt; などに設定されます。&lt;/p&gt;
+
+&lt;p&gt;上記の &lt;code&gt;server.tf&lt;/code&gt; ではTerraformの&lt;a href=&#34;https://www.terraform.io/docs/configuration/outputs.html&#34;&gt;Configuring Outputs&lt;/a&gt;の機能を使ってこれらの属性を出力するようにしています。&lt;/p&gt;
+
+&lt;p&gt;Terraformの使い方自体は通常通りです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;terraform plan
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;でプランを確認し、&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;terraform apply
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;で適用します。&lt;/p&gt;
+
+&lt;p&gt;すると以下のように出力が出ます。以下ではIPアドレスを伏せています。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Outputs:
+
+router01_gateway = xxx.yyy.zzz.145
+router01_ipaddress = xxx.yyy.zzz.144
+router01_ipaddresses = [
+    xxx.yyy.zzz.148,
+    xxx.yyy.zzz.149,
+    xxx.yyy.zzz.150,
+    xxx.yyy.zzz.151,
+    xxx.yyy.zzz.152,
+    xxx.yyy.zzz.153,
+    xxx.yyy.zzz.154,
+    xxx.yyy.zzz.155,
+    xxx.yyy.zzz.156,
+    xxx.yyy.zzz.157,
+    xxx.yyy.zzz.158
+]
+router01_max_ipaddress = xxx.yyy.zzz.158
+router01_min_ipaddress = xxx.yyy.zzz.148
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;作成したいサーバ1台毎にcontainer-linuxのconfig-driveのisoイメージを作成&#34;&gt;作成したいサーバ1台毎にContainer LinuxのConfig DriveのISOイメージを作成&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://coreos.com/os/docs/latest/config-drive.html&#34;&gt;Customize with Config-Drive&lt;/a&gt;の手順に従ってConfig DriveのISOイメージを作成し、&lt;a href=&#34;https://github.com/yamamoto-febc/sacloud-upload-image&#34;&gt;Upload ISO image to SAKURA CLOUD&lt;/a&gt;を使ってさくらのクラウドにアップロードします。&lt;/p&gt;
+
+&lt;h3 id=&#34;事前準備&#34;&gt;事前準備&lt;/h3&gt;
+
+&lt;p&gt;私はCentOSで作業したので、ISOイメージの作成に使う &lt;code&gt;mkisofs&lt;/code&gt; を以下のコマンドでインストールしました。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo yum install -y mkisofs
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;macOSをお使いの場合は &lt;code&gt;mkisofs&lt;/code&gt; は不要ですが、次項の &lt;code&gt;mkupload.sh&lt;/code&gt; で &lt;code&gt;mkisofs&lt;/code&gt; を呼び出しているところを&lt;a href=&#34;https://coreos.com/os/docs/latest/config-drive.html&#34;&gt;Customize with Config-Drive&lt;/a&gt;を参考に書き変えてください。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/yamamoto-febc/sacloud-upload-image&#34;&gt;Upload ISO image to SAKURA CLOUD&lt;/a&gt;をインストールしていない場合はインストールしてください。&lt;/p&gt;
+
+&lt;p&gt;APIキーの取得とAPIキー及びゾーンの環境変数設定は上記のTerraform for さくらのクラウドのときと同じなので既に行っていれば不要です。&lt;/p&gt;
+
+&lt;h3 id=&#34;config-driveのisoイメージを作成-アップロード&#34;&gt;Config DriveのISOイメージを作成・アップロード&lt;/h3&gt;
+
+&lt;p&gt;以下のシェルスクリプトを &lt;code&gt;mkupload.sh&lt;/code&gt; という名前で保存し、 &lt;code&gt;chmod +x mkupload.sh&lt;/code&gt; で実行パーミションを付けます。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;#!/bin/sh
+set -eu
+basedir=/tmp/configdrive.$$
+server=&amp;quot;$SERVER&amp;quot;
+ssh_pub_key=&amp;quot;$SSH_PUB_KEY&amp;quot;
+dns=&amp;quot;$DNS&amp;quot;
+address=&amp;quot;$ADDRESS&amp;quot;
+gateway=&amp;quot;$GATEWAY&amp;quot;
+
+mkdir -p &amp;quot;$basedir/openstack/latest&amp;quot;
+
+cat &amp;lt;&amp;lt;EOF &amp;gt; &amp;quot;$basedir/openstack/latest/user_data&amp;quot;
+#cloud-config
+
+users:
+  - name: &amp;quot;core&amp;quot;
+    ssh-authorized-keys:
+      - &amp;quot;${ssh_pub_key}&amp;quot;
+coreos:
+  units:
+    - name: 00-eth0.network
+      runtime: true
+      content: |
+        [Match]
+        Name=eth0
+
+        [Network]
+        DNS=${dns}
+        Address=${address}
+        Gateway=${gateway}
+EOF
+
+config_name=&amp;quot;${server}-config&amp;quot;
+mkisofs -R -V config-2 -o &amp;quot;${config_name}.iso&amp;quot; &amp;quot;${basedir}&amp;quot;
+sacloud-upload-image -f &amp;quot;${config_name}.iso&amp;quot; &amp;quot;${config_name}&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;以下のように実行します。公開鍵のパスはとIPアドレスは適宜変更してください。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;SERVER=server01 SSH_PUB_KEY=&amp;quot;`cat ~/.ssh/id_rsa.pub`&amp;quot; DNS=8.8.8.8 ADDRESS=xxx.yyy.zzz.148/28 GATEWAY=xxx.yyy.zzz.145 ./mkuploadconfig.sh
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;SERVER=server02 SSH_PUB_KEY=&amp;quot;`cat ~/.ssh/id_rsa.pub`&amp;quot; DNS=8.8.8.8 ADDRESS=xxx.yyy.zzz.149/28 GATEWAY=xxx.yyy.zzz.145 ./mkuploadconfig.sh
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;ADDRESS&lt;/code&gt; の値は上記で出力された &lt;code&gt;router01_ipaddresses&lt;/code&gt; の値を上から順番に使い、ネットワークマスク付きで指定しています。&lt;/p&gt;
+
+&lt;p&gt;作成されるISOイメージの名前は &lt;code&gt;${SERVER}-config&lt;/code&gt; となります。上記の例だと &lt;code&gt;server01-config&lt;/code&gt; と &lt;code&gt;server02-config&lt;/code&gt; です。&lt;/p&gt;
+
+&lt;p&gt;作成されたら&lt;a href=&#34;https://secure.sakura.ad.jp/cloud/&#34;&gt;さくらのクラウドのコントロールパネル&lt;/a&gt;にログインし、ISOイメージ一覧から作成されたISOイメージを選んで「詳細」ボタンを押し、「リソースID」の値をメモしてください。&lt;/p&gt;
+
+&lt;h2 id=&#34;terraform-for-さくらのクラウドでルータに繋がったサーバを作成&#34;&gt;Terraform for さくらのクラウドでルータに繋がったサーバを作成&lt;/h2&gt;
+
+&lt;p&gt;上記で作成していた &lt;code&gt;server.tf&lt;/code&gt; にサーバ、ディスクのリソースを追記します。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;resource &amp;quot;sakuracloud_internet&amp;quot; &amp;quot;router01&amp;quot; {
+    name = &amp;quot;router01&amp;quot;
+    description = &amp;quot;by Terraform&amp;quot;
+    tags = [&amp;quot;Terraform&amp;quot;]
+    nw_mask_len = 28
+    band_width = 100
+}
+
+resource &amp;quot;sakuracloud_server&amp;quot; &amp;quot;server01&amp;quot; {
+    name = &amp;quot;server01&amp;quot;
+    disks = [&amp;quot;${sakuracloud_disk.disk01.id}&amp;quot;]
+    cdrom_id = &amp;quot;server01-configのISOイメージのリソースID&amp;quot;
+    tags = [&amp;quot;@virtio-net-pci&amp;quot;, &amp;quot;Terraform&amp;quot;]
+    description = &amp;quot;by Terraform&amp;quot;
+    core = &amp;quot;1&amp;quot;
+    memory = &amp;quot;1&amp;quot;
+    base_interface = &amp;quot;${sakuracloud_internet.router01.switch_id}&amp;quot;
+    additional_interfaces = [&amp;quot;&amp;quot;]
+}
+resource &amp;quot;sakuracloud_disk&amp;quot; &amp;quot;disk01&amp;quot; {
+    name = &amp;quot;disk01&amp;quot;
+    source_archive_id = &amp;quot;${data.sakuracloud_archive.containerlinux.id}&amp;quot;
+    size = &amp;quot;40&amp;quot;
+    description = &amp;quot;by Terraform&amp;quot;
+}
+
+resource &amp;quot;sakuracloud_server&amp;quot; &amp;quot;server02&amp;quot; {
+    name = &amp;quot;server02&amp;quot;
+    disks = [&amp;quot;${sakuracloud_disk.disk02.id}&amp;quot;]
+    cdrom_id = &amp;quot;server02-configのISOイメージのリソースID&amp;quot;
+    tags = [&amp;quot;@virtio-net-pci&amp;quot;, &amp;quot;Terraform&amp;quot;]
+    description = &amp;quot;by Terraform&amp;quot;
+    core = &amp;quot;1&amp;quot;
+    memory = &amp;quot;1&amp;quot;
+    base_interface = &amp;quot;${sakuracloud_internet.router01.switch_id}&amp;quot;
+    additional_interfaces = [&amp;quot;&amp;quot;]
+}
+resource &amp;quot;sakuracloud_disk&amp;quot; &amp;quot;disk02&amp;quot; {
+    name = &amp;quot;disk02&amp;quot;
+    source_archive_id = &amp;quot;${data.sakuracloud_archive.containerlinux.id}&amp;quot;
+    size = &amp;quot;40&amp;quot;
+    description = &amp;quot;by Terraform&amp;quot;
+}
+
+data &amp;quot;sakuracloud_archive&amp;quot; &amp;quot;containerlinux&amp;quot; {
+    filter = {
+        name   = &amp;quot;Tags&amp;quot;
+        values = [&amp;quot;current-stable&amp;quot;, &amp;quot;arch-64bit&amp;quot;, &amp;quot;distro-containerlinux&amp;quot;]
+    }
+}
+
+output &amp;quot;router01_ipaddress&amp;quot; {
+    value = &amp;quot;${sakuracloud_internet.router01.nw_address}&amp;quot;
+}
+
+output &amp;quot;router01_gateway&amp;quot; {
+    value = &amp;quot;${sakuracloud_internet.router01.nw_gateway}&amp;quot;
+}
+
+output &amp;quot;router01_min_ipaddress&amp;quot; {
+    value = &amp;quot;${sakuracloud_internet.router01.nw_min_ipaddress}&amp;quot;
+}
+
+output &amp;quot;router01_max_ipaddress&amp;quot; {
+    value = &amp;quot;${sakuracloud_internet.router01.nw_max_ipaddress}&amp;quot;
+}
+
+output &amp;quot;router01_ipaddresses&amp;quot; {
+    value = [&amp;quot;${sakuracloud_internet.router01.nw_ipaddresses}&amp;quot;]
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;server01の&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    cdrom_id = &amp;quot;server01-configのISOイメージのリソースID&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;の部分は上記でメモしたISOイメージのリソースIDを書いてください。
+server02のcdrom_idも同様です。&lt;/p&gt;
+
+&lt;p&gt;serverの &lt;code&gt;core&lt;/code&gt;, &lt;code&gt;memory&lt;/code&gt; やdiskの &lt;code&gt;size&lt;/code&gt; などはお好みで変更してください。
+設定可能な値の一覧は&lt;a href=&#34;http://cloud.sakura.ad.jp/specification/server-disk/&#34;&gt;サーバー/ディスク機能の仕様・料金| さくらのクラウド&lt;/a&gt;を参照してください。&lt;/p&gt;
+
+&lt;p&gt;あとは通常通りTerraformを実行するだけです。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;terraform plan
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;でプランを確認し、&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;terraform apply
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;で適用します。&lt;/p&gt;
+
+&lt;p&gt;これでルーターに繋がったContainer Linuxのサーバを静的IPアドレス設定で作成できました！&lt;/p&gt;
+
+&lt;h2 id=&#34;気になった点&#34;&gt;気になった点&lt;/h2&gt;
+
+&lt;h3 id=&#34;作成したサーバをコンパネでみるとipアドレスが表示されていない&#34;&gt;作成したサーバをコンパネでみるとIPアドレスが表示されていない&lt;/h3&gt;
+
+&lt;p&gt;コンパネのサーバ詳細の「NIC」タブのルータ＋スイッチの行の「IPv4アドレス」がハイフンになっていました。またコンパネの「マップ」で見てもIPアドレスが表示されていませんでした。&lt;/p&gt;
+
+&lt;p&gt;まあこれはディスクの修正機能を使っていないので仕方ない気もします。
+が、&lt;a href=&#34;http://cloud-news.sakura.ad.jp/2014/09/19/map-ipaddr-modifying/&#34;&gt;マップ画面に表示されるIPアドレス編集機能を追加しました | さくらのクラウドニュース&lt;/a&gt;の手順で設定すれば大丈夫でした。&lt;/p&gt;
+
+&lt;p&gt;実現可能かどうかまだよくわかっていないのですが&lt;a href=&#34;https://github.com/yamamoto-febc/terraform-provider-sakuracloud&#34;&gt;Terraform for さくらのクラウド&lt;/a&gt;でのサーバ作成時にこのIPアドレスを設定できると理想的だなあと思います。&lt;/p&gt;
+
+&lt;h3 id=&#34;terraformでサーバのリソースのcdrom-idを手動で指定する必要がある&#34;&gt;Terraformでサーバのリソースのcdrom_idを手動で指定する必要がある&lt;/h3&gt;
+
+&lt;p&gt;アーカイブについては&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;data &amp;quot;sakuracloud_archive&amp;quot; &amp;quot;containerlinux&amp;quot; {
+    filter = {
+        name   = &amp;quot;Tags&amp;quot;
+        values = [&amp;quot;current-stable&amp;quot;, &amp;quot;arch-64bit&amp;quot;, &amp;quot;distro-containerlinux&amp;quot;]
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;のようにタグでフィルタリングして&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    disks = [&amp;quot;${sakuracloud_disk.disk01.id}&amp;quot;]
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;のように参照できます。&lt;/p&gt;
+
+&lt;p&gt;ISOイメージも&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;data &amp;quot;sakuracloud_iso&amp;quot; &amp;quot;server01_config&amp;quot; {
+    filter = {
+        name   = &amp;quot;Name&amp;quot;
+        values = [&amp;quot;server01-config&amp;quot;]
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;みたいにフィルタリングして&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    cdrom_id = &amp;quot;${sakuracloud_iso.server01_config.id}&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;のように参照できると理想的だなあと思います。&lt;/p&gt;
+
+&lt;h3 id=&#34;container-linuxのconfig-driveをterraformで作成できたらさらに理想的&#34;&gt;Container LinuxのConfig DriveをTerraformで作成できたらさらに理想的&lt;/h3&gt;
+
+&lt;p&gt;現状だとこの記事で書いたように一旦ルーターだけ作って、IPアドレスを調べてから、サーバを作るという手順を踏む必要があります。このため、Terraformの設定ファイルを書き変えて2回適用する必要があります。&lt;/p&gt;
+
+&lt;p&gt;もしContainer LinuxのConfig DriveをTerraformで作成できたら、Terraformの設定ファイルを最初からサーバ込みで記述して1回の適用でルータとサーバを一気に作成できることになるので、こうなれば最高だなーと思います。が、どういう仕様にするかと実装を推測してみるとこれはかなり難しそうな気がします。&lt;/p&gt;
+
+&lt;h2 id=&#34;おわりに&#34;&gt;おわりに&lt;/h2&gt;
+
+&lt;p&gt;ということで少々不便な点はありますが、さくらのクラウドでContainer Linuxの最新版を使うことが出来ました！&lt;/p&gt;
+</description>
+    </item>
+    
+  </channel>
+</rss>
