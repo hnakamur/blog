@@ -92,7 +92,7 @@
 
 <h3 id="packerでさくらのクラウドにcontainer-linuxのマイアーカイブを作成">PackerでさくらのクラウドにContainer Linuxのマイアーカイブを作成</h3>
 
-<p>以下の内容を containerlinux.json というファイルに保存します。
+<p>以下の内容を <code>containerlinux.json</code> というファイルに保存します。
 「ここにパスワードを設定」にはContainer Linuxで予め用意されている <code>core</code> ユーザに設定するパスワードを設定します。
 「ここにパスワードのハッシュを設定」には <a href="https://github.com/coreos/coreos-cloudinit/blob/master/Documentation/cloud-config.md#generating-a-password-hash">Generating a password hash</a> の手順で生成したパスワードのハッシュを設定します。</p>
 
@@ -437,6 +437,45 @@ output &quot;router01_ipaddresses&quot; {
 
 <p>もしContainer LinuxのConfig DriveをTerraformで作成できたら、Terraformの設定ファイルを最初からサーバ込みで記述して1回の適用でルータとサーバを一気に作成できることになるので、こうなれば最高だなーと思います。が、どういう仕様にするかと実装を推測してみるとこれはかなり難しそうな気がします。</p>
 
+<h3 id="packerで作ったマイアーカイブでcoreユーザのパスワードを消せていない">Packerで作ったマイアーカイブでcoreユーザのパスワードを消せていない</h3>
+
+<p>Container Linuxはcoreユーザでssh鍵認証でログインすることが前提となっていて、パスワードは元々設定されていません。が、Packerでは <code>boot_command</code> でセットアップした後パスワード認証でssh (Windowsの場合はwinrm)で接続してprovisionerを動かすようになっています。</p>
+
+<p>そこで上記の <code>containerlinux.json</code> では <code>boot_command</code> 内でcoreユーザにパスワードを設定し、ssh接続した後にshell provisionerで <code>sudo passwd -d core</code> というコマンドを実行してパスワードを消そうとしています。</p>
+
+<p>Packerの実行結果は以下のようになり、 <code>passwd: password expiry information changed.</code> の出力でパスワード削除がうまく行っているように見えます。</p>
+
+<pre><code>$ packer build containerlinux.json
+sakuracloud output will be in this color.
+
+==&gt; sakuracloud: Downloading or copying ISO
+    sakuracloud: Downloading or copying: https://stable.release.core-os.net/amd64-usr/1185.5.0/coreos_production_iso_image.iso
+==&gt; sakuracloud: Creating temporary SSH key for instance...
+==&gt; sakuracloud: Creating server...
+==&gt; sakuracloud: Waiting 20s for boot...
+==&gt; sakuracloud: Waiting for server to become active...
+==&gt; sakuracloud: Connecting to VM via VNC
+==&gt; sakuracloud: Typing the boot command over VNC...
+==&gt; sakuracloud: Waiting for SSH to become available...
+==&gt; sakuracloud: Connected to SSH!
+==&gt; sakuracloud: Pausing 20s before the next provisioner...
+==&gt; sakuracloud: Provisioning with shell script: /tmp/packer-shell837255893
+    sakuracloud: passwd: password expiry information changed.
+==&gt; sakuracloud: Gracefully shutting down server...
+==&gt; sakuracloud: Creating archive: CoreOS 1185.5.0
+==&gt; sakuracloud: Destroying server...
+Build 'sakuracloud' finished.
+
+==&gt; Builds finished. The artifacts of successful builds are:
+--&gt; sakuracloud: A archive was created: 'CoreOS 1185.5.0' (ID: 112900007545) in zone 'is1b'
+</code></pre>
+
+<p>が、実際に作成したアーカイブをコピーしてディスクとサーバを作成して、sshを試してみるとパスワードでログインできてしまいます。sshでログインした後 <code>sudo passwd -d core</code> でパスワードを消すとその後はパスワード認証は失敗し鍵認証だけ成功するようになります。</p>
+
+<p><code>sudo passwd -d core</code> と実行したときにはPackerで実行したときと同じ <code>sakuracloud: passwd: password expiry information changed.</code> というメッセージが表示されていました。何が原因かわかりませんが、現状は今書いたとおりです。</p>
+
+<p>ということでパスワード認証をしたく無い場合は、サーバ起動後に <code>sudo passwd -d core</code> してください。</p>
+
 <h2 id="おわりに">おわりに</h2>
 
 <p>ということで少々不便な点はありますが、さくらのクラウドでContainer Linuxの最新版を使うことが出来ました！</p>
@@ -450,6 +489,10 @@ output &quot;router01_ipaddresses&quot; {
 検証してみたら無事使えました！元記事に打ち消し線いれて追記しようかと思ったのですが、わかりにくくなるので直接書き換えました。</p>
 
 <p>変更内容が気になる方は<a href="https://github.com/hnakamur/blog/commit/20170102_2116">gitの差分</a>を参照してください。</p>
+
+<h3 id="2017-01-02-21-40頃">2017-01-02 21:40頃</h3>
+
+<p>「気になった点」に「Packerで作ったマイアーカイブでcoreユーザのパスワードを消せていない」を追記しました。</p>
 
                     </section>
                 </article>
