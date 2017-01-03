@@ -326,6 +326,7 @@ dns1=&quot;$DNS1&quot;
 dns2=&quot;$DNS2&quot;
 address=&quot;$ADDRESS&quot;
 gateway=&quot;$GATEWAY&quot;
+priv_address=&quot;$PRIV_ADDRESS&quot;
 
 mkdir -p &quot;$basedir/openstack/latest&quot;
 
@@ -349,6 +350,14 @@ coreos:
         DNS=${dns2}
         Address=${address}
         Gateway=${gateway}
+    - name: 01-eth1.network
+      runtime: true
+      content: |
+        [Match]
+        Name=eth1
+
+        [Network]
+        Address=${priv_address}
 EOF
 
 config_name=&quot;${server}-config&quot;
@@ -366,6 +375,7 @@ DNS1=133.242.0.3 \
 DNS2=133.242.0.4 \
 ADDRESS=xxx.yyy.zzz.148/28 \
 GATEWAY=xxx.yyy.zzz.145 \
+PRIV_ADDRESS=192.168.0.101/24 \
 ./mkuploadconfig.sh
 </code></pre>
 
@@ -375,6 +385,7 @@ DNS1=133.242.0.3 \
 DNS2=133.242.0.4 \
 ADDRESS=xxx.yyy.zzz.149/28 \
 GATEWAY=xxx.yyy.zzz.145 \
+PRIV_ADDRESS=192.168.0.102/24 \
 ./mkuploadconfig.sh
 </code></pre>
 
@@ -384,7 +395,7 @@ GATEWAY=xxx.yyy.zzz.145 \
 
 <h2 id="terraform-for-さくらのクラウドでルータに繋がったサーバを作成">Terraform for さくらのクラウドでルータに繋がったサーバを作成</h2>
 
-<p>上記で作成していた <code>server.tf</code> にサーバ、ディスクのリソースを追記します。</p>
+<p>上記で作成していた <code>server.tf</code> にローカルネットワーク用のスイッチ、サーバ、ディスクのリソースを追記します。</p>
 
 <pre><code>resource &quot;sakuracloud_internet&quot; &quot;router01&quot; {
     name = &quot;router01&quot;
@@ -392,6 +403,12 @@ GATEWAY=xxx.yyy.zzz.145 \
     tags = [&quot;Terraform&quot;]
     nw_mask_len = 28
     band_width = 100
+}
+
+resource &quot;sakuracloud_switch&quot; &quot;switch01&quot; {
+    name = &quot;switch01&quot;
+    description = &quot;by Terraform&quot;
+    tags = [&quot;Terraform&quot;]
 }
 
 resource &quot;sakuracloud_server&quot; &quot;server01&quot; {
@@ -403,7 +420,7 @@ resource &quot;sakuracloud_server&quot; &quot;server01&quot; {
     core = &quot;1&quot;
     memory = &quot;1&quot;
     base_interface = &quot;${sakuracloud_internet.router01.switch_id}&quot;
-    additional_interfaces = [&quot;&quot;]
+    additional_interfaces = [&quot;${sakuracloud_switch.switch01.id}&quot;]
 }
 resource &quot;sakuracloud_disk&quot; &quot;disk01&quot; {
     name = &quot;disk01&quot;
@@ -427,7 +444,7 @@ resource &quot;sakuracloud_server&quot; &quot;server02&quot; {
     core = &quot;1&quot;
     memory = &quot;1&quot;
     base_interface = &quot;${sakuracloud_internet.router01.switch_id}&quot;
-    additional_interfaces = [&quot;&quot;]
+    additional_interfaces = [&quot;${sakuracloud_switch.switch01.id}&quot;]
 }
 resource &quot;sakuracloud_disk&quot; &quot;disk02&quot; {
     name = &quot;disk02&quot;
@@ -589,6 +606,12 @@ Build 'sakuracloud' finished.
 <h3 id="2017-01-02-22-50頃">2017-01-02 22:50頃</h3>
 
 <p>「おわりに」に「サーバ1台毎にConfig DriveのISOイメージを作成することの利点」を追記しました。</p>
+
+<h3 id="2017-01-03-11-10頃">2017-01-03 11:10頃</h3>
+
+<p>ルーターとは別にスイッチを追加してローカルネットワークも作成するようにしました。
+また、
+変更内容は<a href="https://github.com/hnakamur/blog/commit/20170103_1110">gitの差分</a>を参照してください。</p>
 
                     </section>
                 </article>

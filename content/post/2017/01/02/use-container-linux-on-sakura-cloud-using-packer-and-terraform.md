@@ -276,6 +276,7 @@ dns1="$DNS1"
 dns2="$DNS2"
 address="$ADDRESS"
 gateway="$GATEWAY"
+priv_address="$PRIV_ADDRESS"
 
 mkdir -p "$basedir/openstack/latest"
 
@@ -299,6 +300,14 @@ coreos:
         DNS=${dns2}
         Address=${address}
         Gateway=${gateway}
+    - name: 01-eth1.network
+      runtime: true
+      content: |
+        [Match]
+        Name=eth1
+
+        [Network]
+        Address=${priv_address}
 EOF
 
 config_name="${server}-config"
@@ -317,6 +326,7 @@ DNS1=133.242.0.3 \
 DNS2=133.242.0.4 \
 ADDRESS=xxx.yyy.zzz.148/28 \
 GATEWAY=xxx.yyy.zzz.145 \
+PRIV_ADDRESS=192.168.0.101/24 \
 ./mkuploadconfig.sh
 ```
 
@@ -327,6 +337,7 @@ DNS1=133.242.0.3 \
 DNS2=133.242.0.4 \
 ADDRESS=xxx.yyy.zzz.149/28 \
 GATEWAY=xxx.yyy.zzz.145 \
+PRIV_ADDRESS=192.168.0.102/24 \
 ./mkuploadconfig.sh
 ```
 
@@ -337,7 +348,7 @@ GATEWAY=xxx.yyy.zzz.145 \
 
 ## Terraform for さくらのクラウドでルータに繋がったサーバを作成
 
-上記で作成していた `server.tf` にサーバ、ディスクのリソースを追記します。
+上記で作成していた `server.tf` にローカルネットワーク用のスイッチ、サーバ、ディスクのリソースを追記します。
 
 ```
 resource "sakuracloud_internet" "router01" {
@@ -346,6 +357,12 @@ resource "sakuracloud_internet" "router01" {
     tags = ["Terraform"]
     nw_mask_len = 28
     band_width = 100
+}
+
+resource "sakuracloud_switch" "switch01" {
+    name = "switch01"
+    description = "by Terraform"
+    tags = ["Terraform"]
 }
 
 resource "sakuracloud_server" "server01" {
@@ -357,7 +374,7 @@ resource "sakuracloud_server" "server01" {
     core = "1"
     memory = "1"
     base_interface = "${sakuracloud_internet.router01.switch_id}"
-    additional_interfaces = [""]
+    additional_interfaces = ["${sakuracloud_switch.switch01.id}"]
 }
 resource "sakuracloud_disk" "disk01" {
     name = "disk01"
@@ -381,7 +398,7 @@ resource "sakuracloud_server" "server02" {
     core = "1"
     memory = "1"
     base_interface = "${sakuracloud_internet.router01.switch_id}"
-    additional_interfaces = [""]
+    additional_interfaces = ["${sakuracloud_switch.switch01.id}"]
 }
 resource "sakuracloud_disk" "disk02" {
     name = "disk02"
@@ -534,3 +551,8 @@ ISOイメージは[データソース](https://github.com/yamamoto-febc/terrafor
 
 ### 2017-01-02 22:50頃
 「おわりに」に「サーバ1台毎にConfig DriveのISOイメージを作成することの利点」を追記しました。
+
+### 2017-01-03 11:10頃
+ルーターとは別にスイッチを追加してローカルネットワークも作成するようにしました。
+また、
+変更内容は[gitの差分](https://github.com/hnakamur/blog/commit/20170103_1110)を参照してください。
