@@ -23,6 +23,24 @@ Description = ""
 
 この記事はこの機能と上記の3つのツールを使ってContainer Linuxの環境構築をしてみたメモです。
 
+## 参考資料
+
+### Packer for さくらのクラウド
+
+[さくらのクラウド用Packerプラグイン](https://github.com/sacloud/packer-builder-sakuracloud)の作者の山本さんによる詳しくてわかりやすい記事が
+[さくらのクラウド上でマシンイメージを自動構築 〜「Packer for さくらのクラウド」 - さくらのナレッジ](http://knowledge.sakura.ad.jp/knowledge/6790/) にありますので、ぜひご参照ください。
+
+### Terraform for さくらのクラウド
+
+[Terraform for さくらのクラウド](https://github.com/yamamoto-febc/terraform-provider-sakuracloud)については作者の山本さんによる詳しくてわかりやすい連載記事がありますので、是非そちらをご参照ください。
+
+* [Terraform for さくらのクラウド スタートガイド(第1回) - Qiita](http://qiita.com/yamamoto-febc/items/ae92cd258cf040957487)
+* [Terraform for さくらのクラウド スタートガイド(第2回) - Qiita](http://qiita.com/yamamoto-febc/items/2480b11c9e6a8b64f78d)
+* [Terraform for さくらのクラウド スタートガイド(第3回) - Qiita](http://qiita.com/yamamoto-febc/items/fe954e2d4a92b864cfef)
+* [Terraform for さくらのクラウド スタートガイド(第4回) - Qiita](http://qiita.com/yamamoto-febc/items/a9795cb909bd9b69f729)
+* [Terraform for さくらのクラウド スタートガイド(第5回) - Qiita](http://qiita.com/yamamoto-febc/items/4b774404e041fa05688a)
+
+
 ## Container LinuxのISOイメージ作成
 
 ### Packerとさくらのクラウド用Packerプラグインの事前準備
@@ -556,3 +574,6 @@ ISOイメージは[データソース](https://github.com/yamamoto-febc/terrafor
 ルーターとは別にスイッチを追加してローカルネットワークも作成するようにしました。
 また、
 変更内容は[gitの差分](https://github.com/hnakamur/blog/commit/20170103_1110)を参照してください。
+
+### 2017-01-03 11:15頃
+「参考資料」を追加しました。
