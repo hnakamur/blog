@@ -9,6 +9,80 @@
     <atom:link href="https://hnakamur.github.io/blog/tags/go/index.xml" rel="self" type="application/rss+xml" />
     
     <item>
+      <title>Facebookの時系列データベースGorillaのデータ圧縮方式を試してみた</title>
+      <link>https://hnakamur.github.io/blog/2017/02/12/tried-facebook-gorilla-time-series-database-compression/</link>
+      <pubDate>Sun, 12 Feb 2017 23:00:03 +0900</pubDate>
+      
+      <guid>https://hnakamur.github.io/blog/2017/02/12/tried-facebook-gorilla-time-series-database-compression/</guid>
+      <description>
+
+&lt;h2 id=&#34;はじめに&#34;&gt;はじめに&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://code.facebook.com/posts/952820474848503/beringei-a-high-performance-time-series-storage-engine/&#34;&gt;Beringei: A high-performance time series storage engine | Engineering Blog | Facebook Code&lt;/a&gt; という記事を読んで、Facebookが2015年に &lt;a href=&#34;http://www.vldb.org/pvldb/vol8/p1816-teller.pdf&#34;&gt;&amp;ldquo;Gorilla: A Fast, Scalable, In-Memory Time Series Database&amp;rdquo;&lt;/a&gt; という論文でGorillaという時系列データベースについて発表したものを&lt;a href=&#34;https://github.com/facebookincubator/beringei&#34;&gt;Beringei&lt;/a&gt;としてオープンソースで公開したのを知りました。&lt;/p&gt;
+
+&lt;p&gt;この論文は読んだことがなかったので読んでみたのですが、時系列データベースのデータの特徴をうまく活かした独自の圧縮方法が興味深かったので、自分でも試してみたのでメモです。&lt;/p&gt;
+
+&lt;p&gt;Gorillaでは高い圧縮率によってデータをオンメモリで扱うことができるようになり、書き込みと問い合わせの速度がそれまで使っていたディスクベースの時系列と比べて飛躍的に改善したそうです。&lt;/p&gt;
+
+&lt;p&gt;Gorillaもディスクに書き出して永続化は行うのですが、RDBのようなACIDのトランザクションは持たず障害発生時には数秒程度のデータは消失するおそれがあるという割り切った設計にしているそうです。その代わり書き込みが高速に行えるというのが利点です。&lt;/p&gt;
+
+&lt;h2 id=&#34;サードパーティの実装&#34;&gt;サードパーティの実装&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/facebookincubator/beringei&#34;&gt;Beringei&lt;/a&gt;は C++ で書かれていて、ライセンスは3項BSDですが、最近のFacebookのOSSでは定番の&lt;a href=&#34;https://github.com/facebookincubator/beringei/blob/master/PATENTS&#34;&gt;PATENTS&lt;/a&gt;ファイルがあります。&lt;/p&gt;
+
+&lt;p&gt;Goの実装はないかと調べてみると、&lt;a href=&#34;https://github.com/dgryski/go-tsz&#34;&gt;dgryski/go-tsz: Time series compression algorithm from Facebook&amp;rsquo;s Gorilla paper&lt;/a&gt; というサードパーティの実装がありました。が、ライセンスが明記されていないので、私のポリシーとしてはソースコードを参照するわけにはいきません。 &lt;a href=&#34;https://github.com/dgryski/go-tsz/issues/18&#34;&gt;Add a license · Issue #18 · dgryski/go-tsz&lt;/a&gt; というイシューはあるのですが昨年9月から放置状態になっています。私もコメントしてみたのですがまだ反応はないです。また、 &lt;a href=&#34;https://godoc.org/github.com/dgryski/go-tsz&#34;&gt;dgryski/go-tszのGoDoc&lt;/a&gt;は見てみたのですが、私が期待するAPIとはちょっと違う感じでした。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;[]byte&lt;/code&gt; とデータを相互変換するMarshal, Unmarshalとか、ストリームと相互変換するEncoder, Decoderが欲しいところです。&lt;/p&gt;
+
+&lt;p&gt;さらに調べてみると &lt;a href=&#34;https://github.com/burmanm/gorilla-tsc/&#34;&gt;burmanm/gorilla-tsc: Implementation of time series compression method from the Facebook&amp;rsquo;s Gorilla paper&lt;/a&gt; というJavaのサードパーティの実装がありました。こちらはありがたいことにApache 2ライセンスです。ということで、このコードを参考にして、自分で実装してみました。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/hnakamur/timeseries&#34;&gt;hnakamur/timeseries: a Go package for encoding and decoding time-series data point in similar way to Facebook Gorilla time-series database&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;例によって雰囲気で実装しているので、uint32とuint64などに入れたビット列をとint64などに相互変換しているあたりなどは特にバグがある可能性があります。むやみに信用せず疑いの目で見てください。&lt;/p&gt;
+
+&lt;p&gt;ビットストリームは、&lt;a href=&#34;https://github.com/dgryski/go-tsz&#34;&gt;dgryski/go-tsz&lt;/a&gt;と同じ作者の方の &lt;a href=&#34;https://github.com/dgryski/go-bitstream&#34;&gt;dgryski/go-bitstream: go-bitstream: read and write bits from io.Reader and io.Writer&lt;/a&gt; を使わせていただいています。こちらはMITライセンスです。&lt;/p&gt;
+
+&lt;h2 id=&#34;試してみて気づいたこと&#34;&gt;試してみて気づいたこと&lt;/h2&gt;
+
+&lt;h3 id=&#34;高い圧縮率を保つためには時刻の精度はミリ秒ではなく秒が良い&#34;&gt;高い圧縮率を保つためには時刻の精度はミリ秒ではなく秒が良い&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://www.vldb.org/pvldb/vol8/p1816-teller.pdf&#34;&gt;&amp;ldquo;Gorilla: A Fast, Scalable, In-Memory Time Series Database&amp;rdquo;&lt;/a&gt; の &amp;ldquo;4.1.1 Compressing time stamps&amp;rdquo; でデータポイントの時刻の圧縮について説明されています。&lt;/p&gt;
+
+&lt;p&gt;時刻の差分の差分 (delta of delta) をなるべくビット数が少なくなるような独自の方式でエンコードするようになっています。&lt;/p&gt;
+
+&lt;p&gt;モニタリングは60秒毎のように一定の間隔で行うことが多いので、差分の差分であれば、ほぼ常に0になります。Gorillaのエンコード方式では0は1ビットの0で表すので、0が多いとデータサイズが小さくて済みます。&lt;/p&gt;
+
+&lt;p&gt;多少ずれて間隔が 59秒, 61秒のようになったとしても、差分の差分は-1, 1と絶対値が小さい数値になり、0のように1ビットとは行きませんが、絶対値が大きい数値よりは少ないビット数で済みます。&lt;/p&gt;
+
+&lt;p&gt;一方 &lt;a href=&#34;https://github.com/burmanm/gorilla-tsc/blob/fb984aefffb63c7b4d48c526f69db53813df2f28/src/main/java/fi/iki/yak/ts/compression/gorilla/Compressor.java#L90&#34;&gt;https://github.com/burmanm/gorilla-tsc/blob/fb984aefffb63c7b4d48c526f69db53813df2f28/src/main/java/fi/iki/yak/ts/compression/gorilla/Compressor.java#L90&lt;/a&gt; のコメントにあるように時刻をミリ秒の精度にすると圧縮には良くないです。ミリ秒にすると各データ点の時刻のミリ秒部分はばらつきがあり等間隔にならないので、差分の差分の数値の桁数が増え、エンコードしてもビット数が多くなってしまうからです。&lt;/p&gt;
+
+&lt;h3 id=&#34;小数の値が増えると圧縮率は下がる&#34;&gt;小数の値が増えると圧縮率は下がる&lt;/h3&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://www.vldb.org/pvldb/vol8/p1816-teller.pdf&#34;&gt;&amp;ldquo;Gorilla: A Fast, Scalable, In-Memory Time Series Database&amp;rdquo;&lt;/a&gt; の &amp;ldquo;4.1.2 Compressing values&amp;rdquo; でデータポイントの値の圧縮について説明されています。&lt;/p&gt;
+
+&lt;p&gt;各値を浮動小数点数の64ビット列に変換して1つ前のデータ点とのXORをとるようにしています。全く同じ値の場合は0になるので、エンコードすると1ビットの0で済みます。&lt;/p&gt;
+
+&lt;p&gt;またXORの結果を毎回64ビットで記録するのではなく、先頭からのビットで0が続く部分 (LeadingZeros) と終端からのビットで0が続く部分 (TrailingZeros) は、それらのビット数をエンコードし、残りのビット列を記録するようにしています。&lt;/p&gt;
+
+&lt;p&gt;さらに、1つ前の値の LeadingZeros と TrailingZeros の桁数よりも多い場合は、そのままにして残りのビット列のみ記録するようになっています。&lt;/p&gt;
+
+&lt;p&gt;そうでない場合は新しい LeadingZeros と TrailingZeros の値と残りのビット列を記録します。&lt;/p&gt;
+
+&lt;p&gt;このエンコーディング方式は、値が12.0や12.5など浮動小数点数の仮数部の途中から最後まで0のビットが多く続く場合は、少ないビット数で済みます。が、0.1 のような数だと仮数部の多くのビットが0でないため、LeadingZerosとTrailingZerosの値が小さくなり、残りのビット列を記録するのに、多くのビット数を消費してしまいます。&lt;/p&gt;
+
+&lt;h3 id=&#34;時刻が等間隔で-同じ値が続く場合は高圧縮率になる&#34;&gt;時刻が等間隔で、同じ値が続く場合は高圧縮率になる&lt;/h3&gt;
+
+&lt;p&gt;上に書いたように、圧縮率が悪くなるケースもあります。ですが、時刻が等間隔で、同じ値が続く場合は1つのデータポイントで時刻で1ビット、値で1ビットの2ビットで済むというのは凄いと思いました。&lt;/p&gt;
+
+&lt;h2 id=&#34;おわりに&#34;&gt;おわりに&lt;/h2&gt;
+
+&lt;p&gt;時系列データベースの特性を考慮して、典型的なデータで高圧縮率を実現していることがわかりました。一方で、圧縮率が悪くなるケースについても理解できました。&lt;/p&gt;
+
+&lt;p&gt;また、エンコード方式以外にも&lt;a href=&#34;http://www.vldb.org/pvldb/vol8/p1816-teller.pdf&#34;&gt;&amp;ldquo;Gorilla: A Fast, Scalable, In-Memory Time Series Database&amp;rdquo;&lt;/a&gt; の &amp;ldquo;4.3 On disk structures&amp;rdquo; にはディスク上のレイアウトについて、 &amp;ldquo;4.4 Handling failures&amp;rdquo; には障害発生時に対応についてそれぞれ書かれていて、こちらも興味深いです。時系列データベースに興味のある方は、一読をお勧めします。&lt;/p&gt;
+</description>
+    </item>
+    
+    <item>
       <title>Go言語のos.Chtimesで設定可能な最大日時は 2262-04-11 23:47:16.854775807 &#43;0000 UTC</title>
       <link>https://hnakamur.github.io/blog/2016/10/22/max-time-for-golang-os-chtimes/</link>
       <pubDate>Sat, 22 Oct 2016 18:32:50 +0900</pubDate>
