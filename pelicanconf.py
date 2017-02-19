@@ -40,6 +40,7 @@ DATE_FORMATS = {
           'ja': '%Y-%m-%d',
 }
 
+RELATIVE_URLS = True
 ARTICLE_URL = '{slug}/'
 ARTICLE_SAVE_AS = '{slug}/index.html'
 PAGE_URL = 'pages/{slug}/'
