@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["CentOS", "rpm"]
-date = "2015-11-26T22:33:57+09:00"
-title = "Travis CIとcopr.fedoraproject.orgを使ってrpmをビルド・配布するのを試してみた"
+Title: Travis CIとcopr.fedoraproject.orgを使ってrpmをビルド・配布するのを試してみた
+Date: 2015-11-26 22:33
+Category: blog
+Tags: centos, rpm
+Slug: blog/2015/11/26/use_travis_and_copr_to_build_and_host_rpm
 
-+++
 ## 2015-12-15 追記
 
 [nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました · hnakamur's blog at github](/blog/2015/12/15/using_mock_and_copr_to_build_nginx_rpm_on_docker/)という記事を書きましたのでそちらもご参照ください。

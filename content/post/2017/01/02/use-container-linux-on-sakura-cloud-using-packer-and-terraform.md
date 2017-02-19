@@ -1,11 +1,9 @@
-+++
-date = "2017-01-02T15:34:23+09:00"
-title = "さくらのクラウドでPackerとTerraformを使ってContainer Linuxの環境構築をしてみた"
-Categories = []
-Tags = ["kubernetes", "container-linux", "sakura-cloud", "terraform", "packer"]
-Description = ""
+Title: さくらのクラウドでPackerとTerraformを使ってContainer Linuxの環境構築をしてみた
+Date: 2017-01-02 15:34
+Category: blog
+Tags: kubernetes, container-linux, sakura-cloud, terraform, packer
+Slug: blog/2017/01/02/use-container-linux-on-sakura-cloud-using-packer-and-terraform
 
-+++
 ## はじめに
 さくらのクラウドでPackerとTerraformを使って[CoreOS Container Linux](https://coreos.com/os/docs/latest/)の環境構築をしてみたのでメモです。
 

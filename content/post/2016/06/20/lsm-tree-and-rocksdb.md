@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["lsmtree","rocksdb","tidb"]
-date = "2016-06-20T22:23:54+09:00"
-title = "LSM-TreeとRocksDB、TiDB、CockroachDBが気になる"
+Title: LSM-TreeとRocksDB、TiDB、CockroachDBが気になる
+Date: 2016-06-20 22:23
+Category: blog
+Tags: lsmtree,rocksdb,tidb
+Slug: blog/2016/06/20/lsm-tree-and-rocksdb
 
-+++
 ## はじめに
 キーバリューストアについて調べていたらLSM-Treeというデータ構造とRocksDBが気になったということで調査メモです。ただし、それぞれの技術詳細を調査したり自分で検証してみたというメモではないです。
 

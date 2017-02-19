@@ -1,10 +1,9 @@
----
-layout: post
-title: OSX上でPythonのPILの代わりにPillowをインストールする
-date: 2014-06-10
-comments: true
-categories: Python
----
+Title: OSX上でPythonのPILの代わりにPillowをインストールする
+Date: 2014-06-10 00:00
+Category: blog
+Tags: python
+Slug: blog/2014/06/10/install-python-pillow-on-osx
+
 
 試したバージョン
 

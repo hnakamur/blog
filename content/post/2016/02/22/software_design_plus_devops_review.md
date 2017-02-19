@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["devops", "book"]
-date = "2016-02-22T21:30:52+09:00"
-title = "「サーバ/インフラエンジニア養成読本 DevOps編」の献本を頂きました"
+Title: 「サーバ/インフラエンジニア養成読本 DevOps編」の献本を頂きました
+Date: 2016-02-22 21:30
+Category: blog
+Tags: devops, book
+Slug: blog/2016/02/22/software_design_plus_devops_review
 
-+++
 「最速攻略！ Ansible 2によるサーバ構築」という特集を書かれた新原 雅司さんから「サーバ/インフラエンジニア養成読本 DevOps編」の献本を頂きました。ありがとうございます！
 
 ## 特集1 「最速攻略！ Ansible 2によるサーバ構築」

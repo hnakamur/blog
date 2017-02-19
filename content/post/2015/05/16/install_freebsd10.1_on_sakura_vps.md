@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["sakura-vps", "freebsd"]
-date = "2015-05-16T11:39:29+09:00"
-title = "さくらのVPSにFreeBSD 10.1をクリーンインストールした時のメモ"
+Title: さくらのVPSにFreeBSD 10.1をクリーンインストールした時のメモ
+Date: 2015-05-16 11:39
+Category: blog
+Tags: sakura-vps, freebsd
+Slug: blog/2015/05/16/install_freebsd10.1_on_sakura_vps
 
-+++
 ## はじめに
 
 さくらのVPSにFreeBSD 10.1をクリーンインストールしてみましたので、手順をメモしておきます。作業した環境は MacBook Pro (USキーボード) です。

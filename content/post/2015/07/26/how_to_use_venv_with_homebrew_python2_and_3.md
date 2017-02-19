@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["python"]
-date = "2015-07-26T02:28:59+09:00"
-title = "HomebrewのPython2とPython3でvirtualenv環境を作成する手順メモ"
+Title: HomebrewのPython2とPython3でvirtualenv環境を作成する手順メモ
+Date: 2015-07-26 02:28
+Category: blog
+Tags: python
+Slug: blog/2015/07/26/how_to_use_venv_with_homebrew_python2_and_3
 
-+++
 ## はじめに
 ここしばらく[riywo/anyenv](https://github.com/riywo/anyenv)と[yyuu/pyenv](https://github.com/yyuu/pyenv)でPython 2.7.10をPython 3.4.3を使い分けてきたのですが、私の用途だと2系と3系の最新だけ使えればいいことがわかりました。
 

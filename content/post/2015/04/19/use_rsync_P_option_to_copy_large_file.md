@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["rsync"]
-date = "2015-04-19T00:56:31+09:00"
-title = "サイズが大きなファイルのコピーにはrsyncの-Pオプションが便利"
+Title: サイズが大きなファイルのコピーにはrsyncの-Pオプションが便利
+Date: 2015-04-19 00:56
+Category: blog
+Tags: rsync
+Slug: blog/2015/04/19/use_rsync_P_option_to_copy_large_file
 
-+++
 
 Vagrantの自作boxファイルをインターネット上のサーバにアップロードするときなどに、 `rsync` の `-P` オプションが便利だったのでメモ。
 

@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["go", "direnv"]
-date = "2015-12-19T01:45:25+09:00"
-title = "direnvでgo1.5.2とgo1.6beta1を切り替える設定"
+Title: direnvでgo1.5.2とgo1.6beta1を切り替える設定
+Date: 2015-12-19 01:45
+Category: blog
+Tags: go, direnv
+Slug: blog/2015/12/19/switch_go1.5.2_and_go1.6beta1_with_direnv
 
-+++
 ## はじめに
 go1.6beta1がリリースされました。go1.5.2と切り替えて使いたいので、[direnv/direnv](https://github.com/direnv/direnv)用の設定を書きました。
 

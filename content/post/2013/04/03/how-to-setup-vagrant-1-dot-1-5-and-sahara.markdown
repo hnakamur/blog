@@ -1,10 +1,9 @@
----
-layout: post
-title: "Vagrant 1.1.5とSaharaを試した"
-date: 2013-04-03
-comments: true
-categories: [chef, Vagrant, Sahara]
----
+Title: Vagrant 1.1.5とSaharaを試した
+Date: 2013-04-03 00:00
+Category: blog
+Tags: chef, vagrant, sahara
+Slug: blog/2013/04/03/how-to-setup-vagrant-1-dot-1-5-and-sahara
+
 ## Vagrantと1.0.xと1.1.xについて
 
 バージョン1.1.xの位置づけについては以下の記事を参照。

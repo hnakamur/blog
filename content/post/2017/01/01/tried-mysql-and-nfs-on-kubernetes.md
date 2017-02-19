@@ -1,11 +1,9 @@
-+++
-date = "2017-01-01T12:38:24+09:00"
-title = "Kuberntesでデータ領域をNFSマウントしてMySQLを動かしてみた"
-Categories = []
-Tags = ["kubernetes"]
-Description = ""
+Title: Kuberntesでデータ領域をNFSマウントしてMySQLを動かしてみた
+Date: 2017-01-01 12:38
+Category: blog
+Tags: kubernetes
+Slug: blog/2017/01/01/tried-mysql-and-nfs-on-kubernetes
 
-+++
 ## はじめに
 
 [minikubeとVirtualBoxでNFSのpersistent volumeを試してみた · hnakamur's blog at github](/blog/2017/01/01/use-nfs-persistent-volume-on-minikube-virtualbox/)の結果を踏まえて、 [Running a Single-Instance Stateful Application - Kubernetes](http://kubernetes.io/docs/tutorials/stateful-application/run-stateful-application/) のチュートリアルを試してみたのでメモです。

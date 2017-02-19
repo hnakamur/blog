@@ -1,10 +1,9 @@
----
-layout: post
-title: "node-http-proxyでバーチャルホストで振り分けつつhttp/https->websocketリバースプロキシの実験"
-date: 2012-06-27
-comments: true
-categories: node.js websocket proxy
----
+Title: node-http-proxyでバーチャルホストで振り分けつつhttp/https->websocketリバースプロキシの実験
+Date: 2012-06-27 00:00
+Category: blog
+Tags: node.js websocket proxy
+Slug: blog/2012/06/27/node-http-proxydebatiyaruhosutodezhen-rifen-ketutuhttp-slash-https->websocketribasupurokisifalseshi-yan
+
 以下の2つのページを参考に、node-http-proxyでバーチャルホストで振り分けつつ
 http/httpsからwebsocketにリバースプロキシする実験をしてみました。
 環境はCentOS 6.2です。ソースは[hnakamur/node-http-proxy-websocket-sample](https://github.com/hnakamur/node-http-proxy-websocket-sample)にあります。

@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["go", "logging"]
-date = "2015-05-31T02:30:02+09:00"
-title = "goでglogを使うときのメモ"
+Title: goでglogを使うときのメモ
+Date: 2015-05-31 02:30
+Category: blog
+Tags: go, logging
+Slug: blog/2015/05/31/how_to_use_glog
 
-+++
 [go言語におけるロギングについて](http://blog.satotaichi.info/logging-frameworks-for-go/)の記事と[glog - GoDoc](http://godoc.org/github.com/golang/glog)を読んで試してみました。
 
 `flag.Parse()` を呼ぶ必要があり、最後に `glog.Flush()` を呼ぶ必要があるので `main` で `defer` で書いておきます。

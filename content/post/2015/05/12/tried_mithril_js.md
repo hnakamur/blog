@@ -1,11 +1,8 @@
-+++
-Categories = []
-Description = ""
-Tags = []
-date = "2015-05-12T22:02:03+09:00"
-title = "mithril.jsを試してみた"
+Title: mithril.jsを試してみた
+Date: 2015-05-12 22:02
+Category: blog
+Slug: blog/2015/05/12/tried_mithril_js
 
-+++
 ## はじめに
 
 [groongaのgoバインディングでWikipedia全文検索のサンプルウェブアプリを作ってみた · hnakamur's blog at github](/blog/2015/05/12/cgoroonga_wikipedia_search_webapp/)のフロントエンドを[Mithril](https://lhorie.github.io/mithril/)で書いてみました。

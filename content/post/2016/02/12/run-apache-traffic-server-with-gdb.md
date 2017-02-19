@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["apache-traffic-server", "gdb"]
-date = "2016-02-12T00:02:11+09:00"
-title = "Apache Traffic Server を GDB で動かす"
+Title: Apache Traffic Server を GDB で動かす
+Date: 2016-02-12 00:02
+Category: blog
+Tags: apache-traffic-server, gdb
+Slug: blog/2016/02/12/run-apache-traffic-server-with-gdb
 
-+++
 ## はじめに
 
 [WEB+DB PRESS Vol.69｜技術評論社](http://gihyo.jp/magazine/wdpress/archive/2012/vol69) にあった [アリエル・ネットワーク㈱の井上さん](http://dev.ariel-networks.com/wp/archives/author/inoue)による「大規模コードリーディング」の特集を読んで、静的解析 (コードを読んで理解する手法) と動的解析 (実行時の動作を予測しながら構造を理解する方法) を行ったり来たり繰り返すのが良いと理解しました。

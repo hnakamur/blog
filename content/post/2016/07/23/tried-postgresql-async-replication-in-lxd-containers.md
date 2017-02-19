@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["lxd", "postgresql"]
-date = "2016-07-23T21:13:52+09:00"
-title = "LXDコンテナでPostgreSQLの非同期リプリケーションを試してみた"
+Title: LXDコンテナでPostgreSQLの非同期リプリケーションを試してみた
+Date: 2016-07-23 21:13
+Category: blog
+Tags: lxd, postgresql
+Slug: blog/2016/07/23/tried-postgresql-async-replication-in-lxd-containers
 
-+++
 [ストリーミング・レプリケーションの構築 — Let's Postgres](http://lets.postgresql.jp/documents/technical/replication/1/) と [PostgreSQL9.1ためしてみた【非同期レプリケーション編】 - ごろねこ日記](http://d.hatena.ne.jp/hiroe_orz17/20111113/1321180635) を読んで、2台のLXDコンテナを使ってPostgreSQLの非同期リプリケーションを試してみたのでメモです。
 
 また[PostgreSQL Replication - Second Edition | PACKT Books](https://www.packtpub.com/big-data-and-business-intelligence/postgresql-replication-second-edition)が $10 と安かったので、買って非同期レプリケーションの章まで読みました。

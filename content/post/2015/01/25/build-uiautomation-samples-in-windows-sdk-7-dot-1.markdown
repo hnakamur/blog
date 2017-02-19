@@ -1,10 +1,9 @@
----
-layout: post
-title: "Build UIAutomation samples in Windows SDK 7.1"
-date: 2015-01-25
-comments: true
-categories: windows-sdk
----
+Title: Build UIAutomation samples in Windows SDK 7.1
+Date: 2015-01-25 00:00
+Category: blog
+Tags: windows-sdk
+Slug: blog/2015/01/25/build-uiautomation-samples-in-windows-sdk-7-dot-1
+
 ## Windows SDK 7.1 をインストール
 
 [Download Microsoft Windows SDK for Windows 7 and .NET Framework 4 from Official Microsoft Download Center](http://www.microsoft.com/en-us/download/details.aspx?id=8279)からダウンロード、インストールします。後でMSBuild.exeを使うため、Installation Optionsのツリーでは.NET Developmentを外さずに入れるようにしてください。

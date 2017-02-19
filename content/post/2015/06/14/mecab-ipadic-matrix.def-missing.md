@@ -1,11 +1,8 @@
-+++
-Categories = []
-Description = ""
-Tags = []
-date = "2015-06-14T16:40:05+09:00"
-title = "mecab-ipadicでconfigure実行したらmatrix.defが無いというエラー"
+Title: mecab-ipadicでconfigure実行したらmatrix.defが無いというエラー
+Date: 2015-06-14 16:40
+Category: blog
+Slug: blog/2015/06/14/mecab-ipadic-matrix.def-missing
 
-+++
 ## TL;DR
 
 https://github.com/taku910/mecab/tree/master/mecab-ipadic を取得して

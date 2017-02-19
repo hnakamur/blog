@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["go", "vendoring", "gom"]
-date = "2015-10-22T01:22:10+09:00"
-title = "mattn/gomにGoのvendoringサポートが追加されました"
+Title: mattn/gomにGoのvendoringサポートが追加されました
+Date: 2015-10-22 01:22
+Category: blog
+Tags: go, vendoring, gom
+Slug: blog/2015/10/22/gom_got_go_vendoring_support
 
-+++
 以前[Go言語のDependency/Vendoringの問題と今後．gbあるいはGo1.5 | SOTA](http://deeeet.com/writing/2015/06/26/golang-dependency-vendoring/)を読んだのですが、その時は様子見にしていました。
 
 しかし、仕事でGoを書くとなるとやはりVendoringは必要だろうと思い、遅ればせながら今回[gb](https://getgb.io/examples/getting-started/), [tools/godep](https://github.com/tools/godep), [mattn/gom](https://github.com/mattn/gom)を試してみました。

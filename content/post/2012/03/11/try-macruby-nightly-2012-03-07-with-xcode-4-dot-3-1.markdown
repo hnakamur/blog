@@ -1,10 +1,9 @@
----
-layout: post
-title: "macruby-nightly-2012-03-07をXcode 4.3.1で試す"
-date: 2012-03-11
-comments: true
-categories: [MacRuby, Xcode]
----
+Title: macruby-nightly-2012-03-07をXcode 4.3.1で試す
+Date: 2012-03-11 00:00
+Category: blog
+Tags: macruby, xcode
+Slug: blog/2012/03/11/try-macruby-nightly-2012-03-07-with-xcode-4-dot-3-1
+
 [おまいらもMacRubyでMacアプリ作ろう - @sugamasao.blog.title # => ”コードで世界を変えたい”](http://d.hatena.ne.jp/seiunsky/20111225/1324740191)を見て、ファイルやプロジェクトのテンプレートを追加すればXcode 4.3.1も使えそうだと思い、[Snow LeopardのXcodeにRubyCocoaのテンプレートをインストール - 高尾宏治日記 on はてな](http://d.hatena.ne.jp/kouji0625/20090919/p1)を参考にコピーしてみようかと思ったのですが、[#1466 (does not install MacRuby's Templetes and rb_nibtool into Xcode 4.3) – MacRuby](http://www.macruby.org/trac/ticket/1466)というページを見つけました。
 
 ```

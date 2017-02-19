@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["go", "lua"]
-date = "2015-06-03T05:29:03+09:00"
-title = "LuaのGo実装GopherLuaを試してみた"
+Title: LuaのGo実装GopherLuaを試してみた
+Date: 2015-06-03 05:29
+Category: blog
+Tags: go, lua
+Slug: blog/2015/06/03/tried_gopher_lua
 
-+++
 ## はじめに
 [inforno :: LuaのGo言語実装を公開しました](http://inforno.net/articles/2015/02/15/gopher-lua-released)を以前読んでましたが、試してなかったので試しました。
 

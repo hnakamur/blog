@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["machine-learning", "caffe"]
-date = "2015-07-26T00:53:52+09:00"
-title = "GeForce搭載の旧モデルMacBook ProでCaffeをビルドする手順メモ"
+Title: GeForce搭載の旧モデルMacBook ProでCaffeをビルドする手順メモ
+Date: 2015-07-26 00:53
+Category: blog
+Tags: machine-learning, caffe
+Slug: blog/2015/07/26/build_caffe_on_macbook_with_geforce
 
-+++
 ## はじめに
 [GeForce搭載の旧モデルMacBook ProでCUDAをセットアップする手順のメモ](/blog/2015/07/25/setup_cuda_on_macbook_pro_with_geforce/)でCUDA 7.0.29をインストールしたMacBook Proで[Caffe | Deep Learning Framework](http://caffe.berkeleyvision.org/)をビルドしてみた手順メモです。
 

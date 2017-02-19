@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["xhyve", "virtualization"]
-date = "2015-06-11T00:45:38+09:00"
-title = "xhyveを試してみました"
+Title: xhyveを試してみました
+Date: 2015-06-11 00:45
+Category: blog
+Tags: xhyve, virtualization
+Slug: blog/2015/06/11/tried_xhyve
 
-+++
 [xhyve – Lightweight Virtualization on OS X Based on bhyve | pagetable.com](http://www.pagetable.com/?p=831)に沿って試してみました。
 
 

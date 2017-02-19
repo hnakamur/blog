@@ -1,10 +1,9 @@
----
-layout: post
-title: "Xcode 4.3.1のファイルテンプレートをカスタマイズ"
-date: 2012-03-11
-comments: true
-categories: Xcode
----
+Title: Xcode 4.3.1のファイルテンプレートをカスタマイズ
+Date: 2012-03-11 00:00
+Category: blog
+Tags: xcode
+Slug: blog/2012/03/11/custom-file-template-for-xcode-4-dot-3-1
+
 [Creating Custom Xcode 4 File Templates](http://meandmark.com/blog/2011/11/creating-custom-xcode-4-file-templates/)を参考に作成してみました。
 
 Apple提供のファイルテンプレートは

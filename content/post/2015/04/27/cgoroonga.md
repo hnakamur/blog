@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["groonga"]
-date = "2015-04-27T00:44:23+09:00"
-title = "データ登録用にgroongaのC APIのgoバインディングを書いてみた"
+Title: データ登録用にgroongaのC APIのgoバインディングを書いてみた
+Date: 2015-04-27 00:44
+Category: blog
+Tags: groonga
+Slug: blog/2015/04/27/cgoroonga
 
-+++
 ## groongaで大量のデータを登録する方法を調べてみた
 
 ### 方法1: loadコマンドの文字列を組み立ててgroongaコマンドの標準入力に流し込む

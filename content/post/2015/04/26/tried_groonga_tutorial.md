@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["groonga"]
-date = "2015-04-26T23:53:06+09:00"
-title = "Groongaのチュートリアルを試してみた"
+Title: Groongaのチュートリアルを試してみた
+Date: 2015-04-26 23:53
+Category: blog
+Tags: groonga
+Slug: blog/2015/04/26/tried_groonga_tutorial
 
-+++
 
 Groongaのチュートリアルを試してみたメモです。
 試した環境は Groonga 5.0.2, Ubuntu 14.04.2 です。

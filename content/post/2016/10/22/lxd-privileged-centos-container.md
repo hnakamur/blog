@@ -1,13 +1,9 @@
-+++
-Categories = [
-]
-date = "2016-10-22T18:54:49+09:00"
-title = "LXD で privileged な CentOS 7コンテナを作る"
-Description = ""
-Tags = ["lxd", "centos"
-]
+Title: LXD で privileged な CentOS 7コンテナを作る
+Date: 2016-10-22 18:54
+Category: blog
+Tags: lxd, centos
+Slug: blog/2016/10/22/lxd-privileged-centos-container
 
-+++
 小ネタのメモです。
 
 先日 LXD 2.0.5 で CentOS 7 コンテナを起動して `journalctl -xe` を実行すると以下のようなエラーが出ていました。

@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["filesystem","golang"]
-date = "2016-06-22T23:40:27+09:00"
-title = "連番ファイル名の命名規則について実験してみた"
+Title: 連番ファイル名の命名規則について実験してみた
+Date: 2016-06-22 23:40
+Category: blog
+Tags: filesystem,golang
+Slug: blog/2016/06/22/experimented_with_naming_for_many_sequential_numbered_files
 
-+++
 ## はじめに
 0〜1,000,000といった連番のファイルを作るときに、1つのディレクトリに全てのファイルを入れると、遅くなるとか取り扱いが面倒になるという懸念があります。
 

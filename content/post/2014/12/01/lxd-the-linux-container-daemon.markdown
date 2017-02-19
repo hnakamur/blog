@@ -1,10 +1,9 @@
----
-layout: post
-title: LXDを試してみた
-date: 2014-12-01
-comments: true
-categories: [lxc, lxd]
----
+Title: LXDを試してみた
+Date: 2014-12-01 00:00
+Category: blog
+Tags: lxc, lxd
+Slug: blog/2014/12/01/lxd-the-linux-container-daemon
+
 ## はじめに
 
 LXDに関するページをいくつか紹介します。

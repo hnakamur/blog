@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["ubuntu", "macos", "pxe-boot"]
-date = "2016-05-01T22:36:19+09:00"
-title = "MacをPXEサーバにしてExpress5800/S70タイプRBにUbuntu16.04をインストールしてみた"
+Title: MacをPXEサーバにしてExpress5800/S70タイプRBにUbuntu16.04をインストールしてみた
+Date: 2016-05-01 22:36
+Category: blog
+Tags: ubuntu, macos, pxe-boot
+Slug: blog/2016/05/01/install_ubuntu_xenial_with_pxe_boot
 
-+++
 ## 背景
 Goで書いたプログラムをMacBook Pro上で負荷試験をしていたら、ビーチボールカーソルが回りっぱなしになって大変でした。そういえば、負荷試験するときは極力余計なプロセスを止めて外界の影響を受けない状態でやるべきという話を思い出しました。
 

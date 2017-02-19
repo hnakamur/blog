@@ -1,10 +1,9 @@
----
-layout: post
-title: "久々にoctopressをアップデート"
-date: 2014-06-10
-comments: true
-categories: octopress
----
+Title: 久々にoctopressをアップデート
+Date: 2014-06-10 00:00
+Category: blog
+Tags: octopress
+Slug: blog/2014/06/10/upgrade-octopress
+
 
 octopressをアップデートした時にハマったのでメモ。
 アップデート手順は[octopressをアップデートしてisolateを使い始めた - @znz blog](http://blog.n-z.jp/blog/2013-12-21-update-octopress.html)の「octopress のアップデート」の部分を参考にしました。ありがとうございます。

@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["ubuntu", "lxd"]
-date = "2016-05-07T14:12:49+09:00"
-title = "Ubuntu 16.04 LTSでLXD 2.0をセットアップして使ってみる"
+Title: Ubuntu 16.04 LTSでLXD 2.0をセットアップして使ってみる
+Date: 2016-05-07 14:12
+Category: blog
+Tags: ubuntu, lxd
+Slug: blog/2016/05/07/start-using-lxd-2.0-on-ubuntu-16.04
 
-+++
 ## 参考記事
 
 公式ドキュメントの[Linux Containers - LXD - はじめに - コマンドライン](https://linuxcontainers.org/ja/lxd/getting-started-cli/)によくまとまっているのですが、より詳細には [The LXD 2.0 Story (Prologue) | Ubuntu Insights](http://insights.ubuntu.com/2016/03/14/the-lxd-2-0-story-prologue/) にリストアップされている記事がわかりやすかったです。

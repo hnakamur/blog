@@ -1,10 +1,9 @@
----
-layout: post
-title: "Unboundで在宅時に自宅サーバの名前解決"
-date: 2013-02-02
-comments: true
-categories: [CentOS, Unbound]
----
+Title: Unboundで在宅時に自宅サーバの名前解決
+Date: 2013-02-02 00:00
+Category: blog
+Tags: centos, unbound
+Slug: blog/2013/02/02/use-unbound-dns-server
+
 
 ## 背景
 私の自宅ではブロードバンドルータがグローバルIPを持っていて、DNSで自分のドメイン(以下ではexample.comとして説明します)のIPアドレスをそこにしています。ルータからLAN内のLinuxサーバ(CentOS 6.x)へはNATで繋いでいます。

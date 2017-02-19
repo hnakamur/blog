@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["lxd"]
-date = "2016-05-07T14:12:49+09:00"
-title = "LXCの特定の1つのコンテナの起動状態をシェルスクリプトで確認したいときのお勧めの方法"
+Title: LXCの特定の1つのコンテナの起動状態をシェルスクリプトで確認したいときのお勧めの方法
+Date: 2016-05-07 14:12
+Category: blog
+Tags: lxd
+Slug: blog/2016/05/07/script-to-check-running-status-of-lxd-container
 
-+++
 ## イマイチな方法1: lxc listの出力をawkで加工
 
 `lxc list -h` を見ると `lxc list [resource] [filters] [--format table|json] [-c columns] [--fast]` というコマンドラインになっていて、 `-c` オプションで表示するカラムを指定可能です。

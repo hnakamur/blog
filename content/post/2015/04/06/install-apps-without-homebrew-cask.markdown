@@ -1,11 +1,8 @@
-+++
-Categories = ["automation"]
-Description = ""
-Tags = []
-date = "2015-04-06T00:45:50+09:00"
-title = "Homebrew Caskを使わずにdmgファイルのアプリをコマンドでインストールする"
+Title: Homebrew Caskを使わずにdmgファイルのアプリをコマンドでインストールする
+Date: 2015-04-06 00:45
+Category: blog
+Slug: blog/2015/04/06/install-apps-without-homebrew-cask
 
-+++
 ## なぜHomebrew Caskをやめたか
 
 [Mac の開発環境構築を自動化する (2015 年初旬編) - t-wadaのブログ](http://t-wada.hatenablog.jp/entry/mac-provisioning-by-ansible)でもHomebrew Caskの不安な点について書かれていますが、私もHomebrew Caskは便利と思いつつも止めたいなと思っていました。

@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["golang","service-discovery","sleuth"]
-date = "2016-06-15T06:56:10+09:00"
-title = "sleuthというGoのライブラリでサービスディスカバリを試してみた"
+Title: sleuthというGoのライブラリでサービスディスカバリを試してみた
+Date: 2016-06-15 06:56
+Category: blog
+Tags: golang,service-discovery,sleuth
+Slug: blog/2016/06/15/tried-service-discovery-with-sleuth
 
-+++
 ## はじめに
 [Service autodiscovery in Go with sleuth - darian.af](http://darian.af/post/master-less-peer-to-peer-micro-service-autodiscovery-in-golang-with-sleuth/)という記事を見かけて試してみたのでメモです。
 

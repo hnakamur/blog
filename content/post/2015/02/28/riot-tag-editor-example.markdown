@@ -1,11 +1,9 @@
-+++
-Categories = ["Riot"]
-Description = "Riot.jsでタグエディターのサンプルを作ってみました。あとmattnさんのgoemonでライブリロードして開発を高速化しました。"
-Tags = ["JavaScript", "Riot.js"]
-date = "2015-02-28T21:12:37+09:00"
-title = "Riot.jsでタグエディターのサンプルを作ってみた"
+Title: Riot.jsでタグエディターのサンプルを作ってみた
+Date: 2015-02-28 21:12
+Category: blog
+Tags: javascript, riot.js
+Slug: blog/2015/02/28/riot-tag-editor-example
 
-+++
 
 ## Riot.js
 

@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["mock", "rpmbuild"]
-date = "2015-12-16T01:10:33+09:00"
-title = "mockを使ったrpmビルドが失敗した時の調査方法"
+Title: mockを使ったrpmビルドが失敗した時の調査方法
+Date: 2015-12-16 01:10
+Category: blog
+Tags: mock, rpmbuild
+Slug: blog/2015/12/16/how_to_debug_errors_in_rpm_build_using_mock
 
-+++
 
 ## はじめに
 [nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました · hnakamur's blog at github](/blog/2015/12/15/using_mock_and_copr_to_build_nginx_rpm_on_docker/)でspecファイルを書いている最中はmockでのrpmのビルドに失敗することがよくあります。
