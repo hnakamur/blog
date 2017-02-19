@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+        <meta charset="utf-8" />
+        <title>Ubuntuでホームディレクトリを暗号化するのを止めた</title>
+        <link rel="stylesheet" href="../../../../theme/css/main.css" />
+
+        <!--[if IE]>
+            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+        <![endif]-->
+</head>
+
+<body id="index" class="home">
+        <header id="banner" class="body">
+                <h1><a href="../../../../">hnakamur's blog at github </a></h1>
+                <nav><ul>
+                    <li class="active"><a href="../../../../category/blog.html">blog</a></li>
+                </ul></nav>
+        </header><!-- /#banner -->
+<section id="content" class="body">
+  <article>
+    <header>
+      <h1 class="entry-title">
+        <a href="../../../../2016/05/02/uninstall-encrypted-home-on-ubuntu/" rel="bookmark"
+           title="Permalink to Ubuntuでホームディレクトリを暗号化するのを止めた">Ubuntuでホームディレクトリを暗号化するのを止めた</a></h1>
+    </header>
+
+    <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2016-05-02T12:28:00+09:00">
+                Published: 2016-05-02
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
+        </address>
+<p>In <a href="../../../../category/blog.html">blog</a>.</p>
+<p>tags: <a href="../../../../tag/crypt.html">crypt</a> <a href="../../../../tag/ubuntu.html">ubuntu</a> </p>
+</footer><!-- /.post-info -->      <h2>背景</h2>
+<p><a href="/blog/2016/05/01/install_ubuntu_xenial_with_pxe_boot/">MacをPXEサーバにしてExpress5800/S70タイプRBにUbuntu16.04をインストールしてみた · hnakamur's blog at github</a>でホームディレクトリを暗号化してみたのですが、OS起動後に鍵認証でsshしようとすると鍵は正しく指定しているのに <code>Permission denied (publickey).</code> と拒否されてしまうケースがありました。コンソールで一度ログインするとsshでもログイン出来るようになります。</p>
+<p>これはホームディレクトリを暗号化した影響で <code>~/.ssh/authorized_keys</code> が読めない状態になっているようです。</p>
+<h2>authorized_keys をホームディレクトリの外に置く手もある</h2>
+<p><a href="http://askubuntu.com/questions/254776/ubuntu-server-ssh-after-reboot-permission-denied-publickey/254787#254787">Ubuntu server ssh after reboot: Permission denied (publickey) - Ask Ubuntu</a>によると <code>/etc/ssh/sshd_config</code> で <code>AuthorizedKeysFile</code> の設定を変える手もあるようです。</p>
+<p>変更前の状態は</p>
+<div class="highlight"><pre><span></span>#AuthorizedKeysFile     %h/.ssh/authorized_keys
+</pre></div>
+
+
+<p>とデフォルト値がコメントアウトされて書かれていました。</p>
+<p><a href="http://manpages.ubuntu.com/manpages/precise/en/man5/sshd_config.5.html">Ubuntu Manpage: sshd_config — OpenSSH SSH daemon configuration file</a>によると <code>%h</code> はホームディレクトリに展開されます。ユーザ名に展開される <code>%u</code> というのもあるそうです。</p>
+<p>ここでは <code>/etc/%u/.ssh/authorized_keys</code> に変更するのを試してみました。
+先に自分のユーザID <code>hnakamur</code> 用のディレクトリを作って所有者を変更します。</p>
+<div class="highlight"><pre><span></span>sudo mkdir -p /etc/hnakamur/.ssh
+sudo chmod -R 700 /etc/hnakamur
+sudo chown -R hnakamur: /etc/hnakamur
+</pre></div>
+
+
+<div class="highlight"><pre><span></span>cp ~/.ssh/authorized_keys /etc/hnakamur/.ssh/authorized_keys
+</pre></div>
+
+
+<p>その後 <code>sudo vi /etc/ssh/sshd_config</code> を実行し以下の行を追加します。</p>
+<div class="highlight"><pre><span></span>AuthorizedKeysFile /etc/%u/.ssh/authorized_keys
+</pre></div>
+
+
+<p>これでOSを再起動後、コンソールでログインしない状態でもsshで鍵認証でログンできることを確認しました。</p>
+<p>ただし、ログインは出来ましたが、暗号化の解除は手動で行う必要がありました。作ったはずの <code>~/.bash_profile</code> が無いので気付きました。ホームディレクトリの中身は以下のようになっていました。</p>
+<div class="highlight"><pre><span></span>hnakamur@express:~$ ls -la
+合計 8
+dr-x------ 2 hnakamur hnakamur 4096  5月  2 01:31 .
+drwxr-xr-x 4 root     root     4096  5月  2 01:31 ..
+lrwxrwxrwx 1 hnakamur hnakamur   33  5月  2 01:31 .Private -&gt; /home/.ecryptfs/hnakamur/.Private
+lrwxrwxrwx 1 hnakamur hnakamur   34  5月  2 01:31 .ecryptfs -&gt; /home/.ecryptfs/hnakamur/.ecryptfs
+lrwxrwxrwx 1 hnakamur hnakamur   56  5月  2 01:31 Access-Your-Private-Data.desktop -&gt; /usr/share/ecryptfs-utils/ecryptfs-mount-private.desktop
+lrwxrwxrwx 1 hnakamur hnakamur   52  5月  2 01:31 README.txt -&gt; /usr/share/ecryptfs-utils/ecryptfs-mount-private.txt
+</pre></div>
+
+
+<p><code>README.txt</code> を見てみました。</p>
+<div class="highlight"><pre><span></span>hnakamur@express:~$ cat README.txt
+THIS DIRECTORY HAS BEEN UNMOUNTED TO PROTECT YOUR DATA.
+
+From the graphical desktop, click on:
+ &quot;Access Your Private Data&quot;
+
+or
+
+From the command line, run:
+ ecryptfs-mount-private
+</pre></div>
+
+
+<p><code>ecryptfs-mount-private</code> を実行してログインパスワードを入力し <code>cd /home/hnakamur</code> でホームディレクトリに入り直すと、復号化された内容が見えるようになりました。</p>
+<div class="highlight"><pre><span></span>hnakamur@express:~$ ecryptfs-mount-private
+Enter your login passphrase:
+Inserted auth tok with sig [d094f2376006dce9] into the user session keyring
+
+INFO: Your private directory has been mounted.
+INFO: To see this change in your current shell:
+  cd /home/hnakamur
+
+hnakamur@express:~$ ls -la
+合計 8
+dr-x------ 2 hnakamur hnakamur 4096  5月  2 01:31 .
+drwxr-xr-x 4 root     root     4096  5月  2 01:31 ..
+lrwxrwxrwx 1 hnakamur hnakamur   33  5月  2 01:31 .Private -&gt; /home/.ecryptfs/hnakamur/.Private
+lrwxrwxrwx 1 hnakamur hnakamur   34  5月  2 01:31 .ecryptfs -&gt; /home/.ecryptfs/hnakamur/.ecryptfs
+lrwxrwxrwx 1 hnakamur hnakamur   56  5月  2 01:31 Access-Your-Private-Data.desktop -&gt; /usr/share/ecryptfs-utils/ecryptfs-mount-private.desktop
+lrwxrwxrwx 1 hnakamur hnakamur   52  5月  2 01:31 README.txt -&gt; /usr/share/ecryptfs-utils/ecryptfs-mount-private.txt
+hnakamur@express:~$ cd /home/hnakamur
+hnakamur@express:~$ ls -la
+合計 128
+drwx------ 6 hnakamur hnakamur 4096  5月  2 12:43 .
+drwxr-xr-x 4 root     root     4096  5月  2 01:31 ..
+lrwxrwxrwx 1 hnakamur hnakamur   33  5月  2 01:31 .Private -&gt; /home/.ecryptfs/hnakamur/.Private
+-rw------- 1 hnakamur hnakamur 1908  5月  2 12:43 .bash_history
+-rw-r--r-- 1 hnakamur hnakamur  220  5月  2 01:31 .bash_logout
+-rw-r--r-- 1 hnakamur hnakamur  100  5月  2 08:50 .bash_profile
+-rw-r--r-- 1 hnakamur hnakamur 3771  5月  2 01:31 .bashrc
+drwx------ 2 hnakamur hnakamur 4096  5月  2 01:36 .cache
+lrwxrwxrwx 1 hnakamur hnakamur   34  5月  2 01:31 .ecryptfs -&gt; /home/.ecryptfs/hnakamur/.ecryptfs
+-rw------- 1 hnakamur hnakamur   41  5月  2 09:00 .lesshst
+-rw-r--r-- 1 hnakamur hnakamur  675  5月  2 01:31 .profile
+drwx------ 2 hnakamur hnakamur 4096  5月  2 01:38 .ssh
+-rw-r--r-- 1 hnakamur hnakamur    0  5月  2 01:38 .sudo_as_admin_successful
+-rw------- 1 hnakamur hnakamur 6841  5月  2 12:43 .viminfo
+drwxr-xr-x 2 hnakamur hnakamur 4096  5月  2 03:13 docs
+drwxr-xr-x 5 hnakamur hnakamur 4096  5月  2 08:47 gocode
+</pre></div>
+
+
+<h2>LVM暗号化を使っているのでホームディレクトリの暗号化は止めることにした</h2>
+<p><a href="http://ubuntuforums.org/showthread.php?t=1335046">[all variants] Encrypted LVM vs Encrypted Home</a>を見ると、ホームディレクトリを暗号化してもスワップや <code>/tmp</code> などが暗号化されていないので情報漏えいのリスクがあるので、ホームディレクトリの暗号化よりもLVMの暗号化のほうが良いとのことです。</p>
+<p>そもそも自宅サーバでユーザは私だけということもあり、ホームディレクトリの暗号化は止めることにしました。</p>
+<p>以下のページを参考にしつつやってみました。</p>
+<ul>
+<li><a href="http://www.howtogeek.com/116179/how-to-disable-home-folder-encryption-after-installing-ubuntu/">How to Disable Home Folder Encryption After Installing Ubuntu</a></li>
+<li><a href="https://help.ubuntu.com/community/EncryptedHome">EncryptedHome - Community Help Wiki</a></li>
+</ul>
+<p>バックアップ用のディレクトリを作って、所有者を変えます。</p>
+<div class="highlight"><pre><span></span>sudo mkdir /home/hnakamur.backup
+sudo chown hnakamur:hnakamur /home/hnakamur.backup
+</pre></div>
+
+
+<p><code>tar</code> でバックアップして <code>.encryptfs</code> ディレクトリは消します。シンボリックリンクもそのままコピーしたいので <code>tar</code> を使っています。</p>
+<div class="highlight"><pre><span></span>(cd /home/hnakamur; tar cf - .) | (cd /home/hnakamur.backup; tar xf -)
+rm -rf /home/hnakamur.backup/.ecryptfs
+</pre></div>
+
+
+<p>ホームディレクトリを暗号化するためのパッケージをアンインストールしました。</p>
+<div class="highlight"><pre><span></span>sudo apt-get remove ecryptfs-utils libecryptfs0
+</pre></div>
+
+
+<p>上記は手順ミスです。先に別の管理者ユーザを作って元のユーザ <code>hnakamur</code> はログアウトし、別の管理ユーザで作業すべきでした。</p>
+<p><code>df -h</code> で確認すると <code>hnakamur</code> ユーザのホームディレクトリがマウントされたままになっていました。</p>
+<div class="highlight"><pre><span></span>root@express:~# df -h
+Filesystem                    Size  Used Avail Use% Mounted on
+udev                          7.8G     0  7.8G   0% /dev
+tmpfs                         1.6G  8.8M  1.6G   1% /run
+/dev/mapper/express--vg-root  131G  2.1G  122G   2% /
+tmpfs                         7.8G  4.0K  7.8G   1% /dev/shm
+tmpfs                         5.0M     0  5.0M   0% /run/lock
+tmpfs                         7.8G     0  7.8G   0% /sys/fs/cgroup
+/dev/sdc1                     472M   55M  393M  13% /boot
+tmpfs                         100K     0  100K   0% /run/lxcfs/controllers
+/home/hnakamur/.Private       131G  2.1G  122G   2% /home/hnakamur
+</pre></div>
+
+
+<p>この後、別のユーザを作りました。セカンダリグループに <code>sudo</code> を指定して <code>sudo</code> で <code>root</code> になれるようにします。</p>
+<div class="highlight"><pre><span></span>sudo useradd -m -G sudo -s /bin/bash hnakamur2
+sudo mkdir -p /etc/hnakamur2/.ssh
+sudo chmod -R 700 /etc/hnakamur2
+sudo cp /etc/hnakamur/.ssh/authorized_keys /etc/hnakamur2/.ssh/
+sudo chown -R hnakamur2: /etc/hnakamur2
+</pre></div>
+
+
+<p>パスワードが空だとsshログイン出来ないので、パスワードを設定します。</p>
+<div class="highlight"><pre><span></span>root@express:~# passwd hnakamur2
+新しい UNIX パスワードを入力してください:
+新しい UNIX パスワードを再入力してください:
+passwd: パスワードは正しく更新されました
+</pre></div>
+
+
+<p>これで <code>hnakamur2</code> ユーザの作成が終わったので、Macからsshで hnakamur2 ユーザにログインします。</p>
+<div class="highlight"><pre><span></span>ssh hnakamur2@express
+</pre></div>
+
+
+<p><code>root</code> ユーザになって作業します。</p>
+<div class="highlight"><pre><span></span>sudo -i
+umount /home/hnakamur
+</pre></div>
+
+
+<p><code>df -h</code> を実行してマウントが解除されたことを確認しました。
+<code>/home/hnakamur</code> の中身を確認すると以下のようになっていました。</p>
+<div class="highlight"><pre><span></span>root@express:~# ll -a /home/hnakamur
+合計 8
+dr-x------ 2 hnakamur hnakamur 4096  5月  2 01:31 ./
+drwxr-xr-x 7 root     root     4096  5月  2 14:42 ../
+lrwxrwxrwx 1 hnakamur hnakamur   33  5月  2 01:31 .Private -&gt; /home/.ecryptfs/hnakamur/.Private/
+lrwxrwxrwx 1 hnakamur hnakamur   34  5月  2 01:31 .ecryptfs -&gt; /home/.ecryptfs/hnakamur/.ecryptfs/
+lrwxrwxrwx 1 hnakamur hnakamur   56  5月  2 01:31 Access-Your-Private-Data.desktop -&gt; /usr/share/ecryptfs-utils/ecryptfs-mount-private.desktop
+lrwxrwxrwx 1 hnakamur hnakamur   52  5月  2 01:31 README.txt -&gt; /usr/share/ecryptfs-utils/ecryptfs-mount-private.txt
+</pre></div>
+
+
+<p><code>hnakamur</code> のホームディレクトリを消して、バックアップした内容に戻します。</p>
+<div class="highlight"><pre><span></span>rm -rf /home/hnakamur
+mv /home/hnakamur.backup/ /home/hnakamur
+</pre></div>
+
+
+<p>戻した中身を確認します。</p>
+<div class="highlight"><pre><span></span>root@express:~# ll -a /home/hnakamur/
+合計 56
+drwx------ 6 hnakamur hnakamur 4096  5月  2 13:04 ./
+drwxr-xr-x 6 root     root     4096  5月  2 14:53 ../
+lrwxrwxrwx 1 hnakamur hnakamur   33  5月  2 01:31 .Private -&gt; /home/.ecryptfs/hnakamur/.Private/
+-rw------- 1 hnakamur hnakamur 1908  5月  2 12:43 .bash_history
+-rw-r--r-- 1 hnakamur hnakamur  220  5月  2 01:31 .bash_logout
+-rw-r--r-- 1 hnakamur hnakamur  100  5月  2 08:50 .bash_profile
+-rw-r--r-- 1 hnakamur hnakamur 3771  5月  2 01:31 .bashrc
+drwx------ 2 hnakamur hnakamur 4096  5月  2 01:36 .cache/
+-rw------- 1 hnakamur hnakamur   41  5月  2 09:00 .lesshst
+-rw-r--r-- 1 hnakamur hnakamur  675  5月  2 01:31 .profile
+drwx------ 2 hnakamur hnakamur 4096  5月  2 01:38 .ssh/
+-rw-r--r-- 1 hnakamur hnakamur    0  5月  2 01:38 .sudo_as_admin_successful
+-rw------- 1 hnakamur hnakamur 6841  5月  2 12:43 .viminfo
+drwxr-xr-x 2 hnakamur hnakamur 4096  5月  2 03:13 docs/
+drwxr-xr-x 5 hnakamur hnakamur 4096  5月  2 08:47 gocode/
+</pre></div>
+
+
+<p><code>.Private</code> も不要なので消します。</p>
+<div class="highlight"><pre><span></span>rm /home/hnakamur/.Private
+</pre></div>
+
+
+<p>これで Mac から元のユーザ <code>hnakamur</code> でsshログイン可能になります。
+念のため <code>hnakamur2</code> はログインしたままにしておいて、ターミナルの別端末でログインしました。</p>
+<div class="highlight"><pre><span></span>ssh hnakamur@express
+</pre></div>
+
+
+<p><code>/etc/ssh/sshd_config</code> の <code>AuthorizedKeysFile</code> の設定も元に戻すことにします。
+<code>sudo vi /etc/ssh/sshd_config</code> を実行し以下の行を削除します。</p>
+<div class="highlight"><pre><span></span>AuthorizedKeysFile /etc/%u/.ssh/authorized_keys
+</pre></div>
+
+
+<p>以下のコマンドで <code>sshd</code> を再起動します。</p>
+<div class="highlight"><pre><span></span>sudo systemctl restart sshd
+</pre></div>
+
+
+<p><code>/etc/hnakamur</code> 以下に置いた <code>hnakamur</code> ユーザの鍵もディレクトリごと消します。</p>
+<div class="highlight"><pre><span></span>sudo rm -r /etc/hnakamur
+</pre></div>
+
+
+<p>Mac のターミナルの別端末から <code>hnakamur</code> ユーザでsshログインできることと、sudoでrootになれることを確認しました。</p>
+<p><code>hnakamur2</code> ユーザのほうはログアウトして、 <code>hnakamur</code> ユーザでログインした端末で <code>hnakamur2</code> ユーザを削除します。メールスプールのディレクトリが無いというメッセージが出ますが問題ありません。</p>
+<div class="highlight"><pre><span></span>root@express:~# sudo userdel -r hnakamur2
+userdel: hnakamur2 のメールスプール (/var/mail/hnakamur2) がありません
+root@express:~# echo $?
+0
+</pre></div>
+
+
+<p><code>/etc/hnakamur2</code> 以下に置いた <code>hnakamur2</code> ユーザの鍵もディレクトリごと消します。</p>
+<div class="highlight"><pre><span></span>sudo rm -r /etc/hnakamur2
+</pre></div>
+
+
+<p>その後</p>
+<div class="highlight"><pre><span></span>sudo shutdown -r now
+</pre></div>
+
+
+<p>で再起動して、コンソールでLVM暗号化のパスフレーズを入力して起動し、コンソールでログインすることなしに、ssh鍵認証でログインできることを確認しました。</p>
+<p>余談ですが、ちょっと不思議なのは、今まで構築したLinux環境ではsshで繋いで <code>sudo shutdown -h now</code> や <code>sudo shutdown -r now</code> を実行すると接続が切れていたのが、今回の環境ではプロンプトに戻らないまま残ってしまうということです。Ctrl-Cを入力すると <code>Host is down</code> と表示されていました。</p>
+<div class="highlight"><pre><span></span>root@express:~# shutdown -r now
+packet_write_poll: Connection to 192.168.0.201: Host is down
+</pre></div>
+
+
+<h2>まとめ</h2>
+<p>今回のサーバのユーザは自分1人なのでホームディレクトリの暗号化は不要と判断し、解除しました。</p>
+    </div><!-- /.entry-content -->
+
+  </article>
+</section>
+        <section id="extras" class="body">
+        </section><!-- /#extras -->
+
+        <footer id="contentinfo" class="body">
+                <address id="about" class="vcard body">
+                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
+                </address><!-- /#about -->
+
+                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
+        </footer><!-- /#contentinfo -->
+
+    <script type="text/javascript">
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-53263855-1', 'auto');
+    ga('send', 'pageview');
+    </script>
+</body>
+</html>

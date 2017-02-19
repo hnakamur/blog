@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+        <meta charset="utf-8" />
+        <title>mockを使ったrpmビルドが失敗した時の調査方法</title>
+        <link rel="stylesheet" href="../../../../theme/css/main.css" />
+
+        <!--[if IE]>
+            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+        <![endif]-->
+</head>
+
+<body id="index" class="home">
+        <header id="banner" class="body">
+                <h1><a href="../../../../">hnakamur's blog at github </a></h1>
+                <nav><ul>
+                    <li class="active"><a href="../../../../category/blog.html">blog</a></li>
+                </ul></nav>
+        </header><!-- /#banner -->
+<section id="content" class="body">
+  <article>
+    <header>
+      <h1 class="entry-title">
+        <a href="../../../../2015/12/16/how_to_debug_errors_in_rpm_build_using_mock/" rel="bookmark"
+           title="Permalink to mockを使ったrpmビルドが失敗した時の調査方法">mockを使ったrpmビルドが失敗した時の調査方法</a></h1>
+    </header>
+
+    <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2015-12-16T01:10:00+09:00">
+                Published: 2015-12-16
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
+        </address>
+<p>In <a href="../../../../category/blog.html">blog</a>.</p>
+<p>tags: <a href="../../../../tag/mock.html">mock</a> <a href="../../../../tag/rpmbuild.html">rpmbuild</a> </p>
+</footer><!-- /.post-info -->      <h2>はじめに</h2>
+<p><a href="/blog/2015/12/15/using_mock_and_copr_to_build_nginx_rpm_on_docker/">nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました · hnakamur's blog at github</a>でspecファイルを書いている最中はmockでのrpmのビルドに失敗することがよくあります。</p>
+<p>私は「なんとなくこんな感じか？」と書いて動かしてみてエラーを見て修正していくスタイルなので、失敗時の調査は重要です。</p>
+<h2>ビルドログ</h2>
+<p><code>sudo mock -r epel-7-x86_64 --rebuild ${srpmファイル名}</code> のように実行してビルドした場合、 <code>/var/lib/mock/epel-7-x86_64/result/</code> に <code>build.log</code> というファイルができるのでそれを見ます。</p>
+<h2>mockコマンドでchroot環境内に入る</h2>
+<p><a href="http://linux.die.net/man/1/mock">mock(1)のmanページ</a>によると <code>sudo mock -r epel-7-x86_64 --shell</code> でchroot環境内に入ることが出来ます。 <code>exit</code> で抜けます。</p>
+<p>mockで作られるchroot環境はビルドに必要な最低限のパッケージしかインストールされておらず、 <code>vim</code> や <code>less</code> も使えません。 <code>yum</code> で入れようにも <code>yum</code> も無いと言われてしまいます。</p>
+<p>chroot環境に入る前に <code>sudo mock -r epel-7-x86_64 --install vim less</code> のようにしてインストールしておけばchroot内でvimやlessが使えます。</p>
+<p>あるいはchroot外で <code>/var/lib/mock/epel-7-x86_64/root/</code> 配下のファイルをvimやlessで見るという手もあります。</p>
+<h2>chroot環境内のrpmビルドディレクトリ</h2>
+<p>chroot環境内では <code>/builddir/build/</code> 以下に <code>BUILD</code>, <code>BUILDDIR</code>, <code>SOURCES</code>, <code>SPECS</code> などのディレクトリが作られているので、これらの中を見ればビルド失敗時の状況を調べられます。</p>
+<h2>chroot環境内でファイルを修正してビルドを再実行</h2>
+<p>mockを使ったrpmビルドはchroot環境を作成してその中で行われるのですが、毎回chroot環境を作るところからやっていると時間がかかって効率が悪いです。</p>
+<p>ですので、chroot環境内のspecファイルや <code>SOURCES</code> ディレクトリ下のファイルを直接修正して、その後 <code>rpmbuild -bb ${specファイル名}</code> でrpmのビルドを再度試します。</p>
+<h2>修正したファイルをdockerコンテナ外に取り出す</h2>
+<p>修正のきりが良い所で、chroot環境内の修正したファイルを <code>docker cp</code> コマンドでdockerコンテナ内からコンテナ外に取り出します。</p>
+<p>まずdockerホストで <code>docker ps</code> コマンドでコンテナIDかコンテナ名を調べます。</p>
+<div class="highlight"><pre><span></span>$ docker ps
+CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
+363ad4f85fda        nginxrpm            <span class="s2">&quot;/bin/bash&quot;</span>         <span class="m">18</span> hours ago        Up <span class="m">18</span> hours                             romantic_fermi
+</pre></div>
+
+
+<p>次に <code>docker cp</code> コマンドでファイルをコピーします。例えばこんな感じです。</p>
+<div class="highlight"><pre><span></span>$ docker cp romantic_fermi:/var/lib/mock/epel-7-x86_64/root/builddir/build/SPECS/nginx.spec SPECS/nginx.spec
+</pre></div>
+
+
+<p>取り出した修正ファイルはgitにコミットして、さらに修正作業を続けていきます。</p>
+<p>修正が一通り終わったら、クリーンな状態からビルドが成功することを確認するため、dockerコンテナを一度破棄して<a href="http://localhost:1313/blog/2015/12/15/using_mock_and_copr_to_build_nginx_rpm_on_docker/">nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました · hnakamur's blog at github</a> の手順で再度ビルドしてみます。これでエラーが出なければOKです。</p>
+<h2>まとめ</h2>
+<p>mockを使ったrpmのビルドが失敗した場合の調査方法を紹介しました。もっと良い方法などありましたら、ぜひ教えてください。</p>
+    </div><!-- /.entry-content -->
+
+  </article>
+</section>
+        <section id="extras" class="body">
+        </section><!-- /#extras -->
+
+        <footer id="contentinfo" class="body">
+                <address id="about" class="vcard body">
+                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
+                </address><!-- /#about -->
+
+                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
+        </footer><!-- /#contentinfo -->
+
+    <script type="text/javascript">
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-53263855-1', 'auto');
+    ga('send', 'pageview');
+    </script>
+</body>
+</html>

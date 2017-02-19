@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+        <meta charset="utf-8" />
+        <title>manyrustという複数バージョンのrustインストールスクリプトを書いた</title>
+        <link rel="stylesheet" href="../../../../theme/css/main.css" />
+
+        <!--[if IE]>
+            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+        <![endif]-->
+</head>
+
+<body id="index" class="home">
+        <header id="banner" class="body">
+                <h1><a href="../../../../">hnakamur's blog at github </a></h1>
+                <nav><ul>
+                    <li class="active"><a href="../../../../category/blog.html">blog</a></li>
+                </ul></nav>
+        </header><!-- /#banner -->
+<section id="content" class="body">
+  <article>
+    <header>
+      <h1 class="entry-title">
+        <a href="../../../../2015/07/18/manyrust/" rel="bookmark"
+           title="Permalink to manyrustという複数バージョンのrustインストールスクリプトを書いた">manyrustという複数バージョンのrustインストールスクリプトを書いた</a></h1>
+    </header>
+
+    <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2015-07-18T23:13:00+09:00">
+                Published: 2015-07-18
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
+        </address>
+<p>In <a href="../../../../category/blog.html">blog</a>.</p>
+<p>tags: <a href="../../../../tag/rust.html">rust</a> <a href="../../../../tag/shell-script.html">shell-script</a> </p>
+</footer><!-- /.post-info -->      <h2>multirustがあるのに、なぜ新たに書いたのか</h2>
+<p>rustのインストールは<a href="http://www.rust-lang.org/install.html">Install · The Rust Programming Language</a>にあるように複数のチャネルから選んでインストールします。</p>
+<ul>
+<li>stable (安定版)チャネル</li>
+<li>beta (ベータ版)チャネル</li>
+<li>nightly (毎晩ビルドされる)チャネル</li>
+</ul>
+<p>rustでunstableなAPIを使うにはnightlyを使う必要があるので、たいていはstableとnightlyの両方をインストールして使い分けたくなるはずです。
+その用途には定番のスクリプトとして<a href="https://github.com/brson/multirust">brson/multirust</a>があります。</p>
+<p>私も使っていましたが、rustのソースコードの整形ツール<a href="https://github.com/nrc/rustfmt">nrc/rustfmt</a>をビルドして起動しようとするとエラーになってしまいました。</p>
+<p>既に<a href="https://github.com/brson/multirust/issues/43">building cargo atop multirust fails, dyn link problems (Mac OS X) · Issue #43 · brson/multirust</a>にイシューが上がっていて、<a href="https://github.com/brson/multirust/issues/43#issuecomment-106758695">コメント106758695</a>にあるように環境変数 <code>DYLD_LIBRARY_PATH</code> を設定すれば問題は解消するとのことです。</p>
+<p>ディレクトリによって環境変数を切り替えるのは<a href="https://github.com/direnv/direnv">direnv/direnv</a>が便利です。ただ、<code>direnv</code> を使うのであれば、そもそも <code>multirust</code> のように <code>rustc</code> などの実行ファイルをラップしたシェルスクリプトを作る必要は無いわけです。</p>
+<p>rustの複数のバージョンを異なるディレクトリにインストールしておいて、利用するディレクトリごとに環境変数 <code>PATH</code> と <code>DYLD_LIBRARY_PATH</code> を切り替えればいいだけです。</p>
+<p>であれば、 <code>multirust</code> 使わなくてももっとシンプルなスクリプトでいいよね、ということで書いたのが <code>manyrust</code> です。現状はOSXのみサポートしています。</p>
+<h2>インストール手順</h2>
+<p>以下のようにして <code>~/bin</code> に <code>manyrust</code> スクリプトを配置します。</p>
+<div class="highlight"><pre><span></span>mkdir ~/bin
+curl -s -o ~/bin/manyrust https://raw.githubusercontent.com/hnakamur/manyrust/master/manyrust
+chmod +x ~/bin/manyrust
+</pre></div>
+
+
+<p>環境変数 <code>PATH</code> に <code>$HOME/bin</code> を追加して有効にします。
+bashの場合はこんな感じです。</p>
+<div class="highlight"><pre><span></span>echo &#39;export PATH=&quot;$HOME/bin:$PATH&quot;&#39; &gt;&gt; ~/.bash_profilie
+exec $SHELL -l
+</pre></div>
+
+
+<h2>rustのインストール</h2>
+<p>stableチャネルの最新版をインストール</p>
+<div class="highlight"><pre><span></span>manyrust install
+</pre></div>
+
+
+<p>betaチャネルの最新版をインストール</p>
+<div class="highlight"><pre><span></span>manyrust install beta
+</pre></div>
+
+
+<p>nightlyチャネルの最新版をインストール</p>
+<div class="highlight"><pre><span></span>manyrust install nightly
+</pre></div>
+
+
+<h2>rustを利用する側の作業ディレクトリでの設定</h2>
+<p>stableチャネルの最新版を使うディレクトリでの設定</p>
+<div class="highlight"><pre><span></span>manyrust showcfg &gt;&gt; .envrc
+direnv allow .
+</pre></div>
+
+
+<p>nightlyチャネルの最新版を使うディレクトリでの設定</p>
+<div class="highlight"><pre><span></span>manyrust showcfg nightly &gt;&gt; .envrc
+direnv allow .
+</pre></div>
+
+
+<p>nightlyチャネルの特定のバージョン2015-07-14を使うディレクトリでの設定</p>
+<div class="highlight"><pre><span></span>manyrust showcfg nightly 2015-07-14 &gt;&gt; .envrc
+direnv allow .
+</pre></div>
+
+
+<h3>応用例</h3>
+<p>基本的にはstableチャネルのrustを使いたいが、特定のディレクトリ下ではnightlyを使いたい場合は <code>$HOME/.envrc</code> にstableを使う設定を書いておいて、特定のディレクトリの <code>.envrc</code> ではnightlyを使う設定を書いておけばOKです。</p>
+<div class="highlight"><pre><span></span>$ manyrust showcfg &gt;&gt; ~/.envrc
+direnv: error .envrc is blocked. Run <span class="sb">`</span>direnv allow<span class="sb">`</span> to approve its content.
+$ direnv allow ~
+direnv: loading ../../../../.envrc
+direnv: <span class="nb">export</span> +DYLD_LIBRARY_PATH ~PATH
+$ mkdir ~/nightly_work
+$ <span class="nb">cd</span> !$
+<span class="nb">cd</span> ~/nightly_work
+$ manyrust showcfg nightly &gt;&gt; .envrc
+direnv: error .envrc is blocked. Run <span class="sb">`</span>direnv allow<span class="sb">`</span> to approve its content.
+$ direnv allow .
+direnv: loading .envrc
+direnv: <span class="nb">export</span> +DYLD_LIBRARY_PATH ~PATH
+$ rustc --version
+rustc <span class="m">1</span>.3.0-nightly <span class="o">(</span>e4e93196e <span class="m">2015</span>-07-14<span class="o">)</span>
+$ <span class="nb">echo</span> <span class="nv">$DYLD_LIBRARY_PATH</span>
+/Users/hnakamur/rust/nightly/2015-07-14/rust/lib:
+$ <span class="nb">cd</span>
+direnv: loading .envrc
+direnv: <span class="nb">export</span> +DYLD_LIBRARY_PATH ~PATH
+$ rustc --version
+rustc <span class="m">1</span>.1.0 <span class="o">(</span>35ceea399 <span class="m">2015</span>-06-19<span class="o">)</span>
+$ <span class="nb">echo</span> <span class="nv">$DYLD_LIBRARY_PATH</span>
+/Users/hnakamur/rust/stable/1.1.0/rust/lib:
+</pre></div>
+
+
+<h3>direnvを使って設定を切り替えることの利点</h3>
+<p>上の例で生成した設定ファイルは以下のようになっています。</p>
+<div class="highlight"><pre><span></span><span class="err">$</span> <span class="s s-Atom">cat</span> <span class="s s-Atom">~/.envrc</span>
+<span class="s s-Atom">source</span> <span class="s2">&quot;${MANYRUST_ROOT:-$HOME/rust}/stable/current/etc/bashrc&quot;</span>
+<span class="err">$</span> <span class="s s-Atom">cat</span> <span class="s s-Atom">~/nightly_work/.envrc</span>
+<span class="s s-Atom">source</span> <span class="s2">&quot;${MANYRUST_ROOT:-$HOME/rust}/nightly/current/etc/bashrc&quot;</span>
+</pre></div>
+
+
+<p><code>souce</code> で読み込むファイルは <code>manyrust install</code> で以下のように生成されています。</p>
+<div class="highlight"><pre><span></span><span class="err">$</span> <span class="s s-Atom">cat</span> <span class="s s-Atom">~/rust</span><span class="o">/</span><span class="s s-Atom">stable</span><span class="o">/</span><span class="s s-Atom">current</span><span class="o">/</span><span class="s s-Atom">etc</span><span class="o">/</span><span class="s s-Atom">bashrc</span>
+<span class="s s-Atom">rust_root=</span><span class="s2">&quot;${RUSTS_HOME:-$HOME/rust}/stable/1.1.0/rust&quot;</span>
+<span class="s s-Atom">export</span> <span class="nv">PATH</span><span class="s s-Atom">=</span><span class="s2">&quot;$rust_root/bin:$PATH&quot;</span>
+<span class="s s-Atom">export</span> <span class="nv">DYLD_LIBRARY_PATH</span><span class="s s-Atom">=</span><span class="s2">&quot;$rust_root/lib:$DYLD_LIBRARY_PATH&quot;</span>
+<span class="err">$</span> <span class="s s-Atom">cat</span> <span class="s s-Atom">~/rust</span><span class="o">/</span><span class="s s-Atom">nightly</span><span class="o">/</span><span class="s s-Atom">current</span><span class="o">/</span><span class="s s-Atom">etc</span><span class="o">/</span><span class="s s-Atom">bashrc</span>
+<span class="s s-Atom">rust_root=</span><span class="s2">&quot;${RUSTS_HOME:-$HOME/rust}/nightly/2015-07-14/rust&quot;</span>
+<span class="s s-Atom">export</span> <span class="nv">PATH</span><span class="s s-Atom">=</span><span class="s2">&quot;$rust_root/bin:$PATH&quot;</span>
+<span class="s s-Atom">export</span> <span class="nv">DYLD_LIBRARY_PATH</span><span class="s s-Atom">=</span><span class="s2">&quot;$rust_root/lib:$DYLD_LIBRARY_PATH&quot;</span>
+</pre></div>
+
+
+<p><code>direnv</code> を使わずに何回もこういうファイルを <code>source</code> すると、 <code>PATH</code> や <code>DYLD_LIBRARY_PATH</code> の中身がどんどん増えてしまいます。</p>
+<div class="highlight"><pre><span></span>$ <span class="nb">eval</span> <span class="sb">`</span>manyrust showcfg beta<span class="sb">`</span>
+$ <span class="nb">echo</span> <span class="nv">$DYLD_LIBRARY_PATH</span>
+/Users/hnakamur/rust/beta/1.2.0-beta.2/rust/lib:
+$ <span class="nb">eval</span> <span class="sb">`</span>manyrust showcfg stable<span class="sb">`</span>
+$ <span class="nb">echo</span> <span class="nv">$DYLD_LIBRARY_PATH</span>
+/Users/hnakamur/rust/stable/1.1.0/rust/lib:/Users/hnakamur/rust/beta/1.2.0-beta.2/rust/lib:
+</pre></div>
+
+
+<p>長いだけではなく、この例だとstableには無いがnightlyにあるライブラリが存在するとstableのライブラリを使いたいのにnightly側が使われてしまうという問題が起きてしまいます。</p>
+<p><code>direnv</code> を使っていれば、上の応用例のように <code>DYLD_LIBRARY_PATH</code> の値が追加されるのではなく設定が切り替えられるので、この問題は起きません。</p>
+<h2>rustfmtのビルドとインストール</h2>
+<p>で、ここまで書いてから <code>rustfmt</code> をビルド、インストールしようとして問題に気付きました。 <code>rustfmt</code> は <code>~/rust/nightly/current/rust/bin/</code> に置いて上記のように <code>.envrc</code> で切り替えればいいかと思っていたのですが、そうすると <code>stable</code> を使うように <code>.envrc</code> を設定したディレクトリでは <code>rustfmt</code> が使えなくなってしまいます。</p>
+<p>またnightlyのバージョンが上がると <code>rustfmt</code> をビルドし直す必要もあります。</p>
+<p>これを回避するためにはビルドした <code>rustfmt</code> は <code>~/bin/rustfmt.bin</code> と名前を変えて <code>~/bin</code> に置いて、ラップしたスクリプトを <code>~/bin/rustfmt</code> という名前で作成します。</p>
+<p>具体的な手順は以下の通りです。</p>
+<div class="highlight"><pre><span></span><span class="s s-Atom">git</span> <span class="s s-Atom">clone</span> <span class="nn">https</span><span class="p">:</span><span class="o">//</span><span class="s s-Atom">github</span><span class="p">.</span><span class="s s-Atom">com</span><span class="o">/</span><span class="s s-Atom">nrc</span><span class="o">/</span><span class="s s-Atom">rustfmt</span>
+<span class="s s-Atom">cd</span> <span class="s s-Atom">rustfmt</span>
+<span class="s s-Atom">manyrust</span> <span class="s s-Atom">showcfg</span> <span class="s s-Atom">nightly</span> <span class="s s-Atom">&gt;&gt;</span> <span class="p">.</span><span class="s s-Atom">envrc</span>
+<span class="s s-Atom">direnv</span> <span class="s s-Atom">allow</span> <span class="p">.</span>
+<span class="s s-Atom">cargo</span> <span class="s s-Atom">build</span> <span class="s s-Atom">--release</span>
+<span class="s s-Atom">cp</span> <span class="s s-Atom">target</span><span class="o">/</span><span class="s s-Atom">release</span><span class="o">/</span><span class="s s-Atom">rustfmt</span> <span class="s s-Atom">~/bin</span><span class="o">/</span><span class="s s-Atom">rustfmt</span><span class="p">.</span><span class="s s-Atom">bin</span>
+<span class="s s-Atom">cat</span> <span class="s s-Atom">&lt;&lt;&#39;EOF&#39;</span> <span class="o">&gt;</span> <span class="s s-Atom">~/bin</span><span class="o">/</span><span class="s s-Atom">rustfmt</span>
+<span class="c1">#!/bin/sh</span>
+<span class="nv">DYLD_LIBRARY_PATH</span><span class="s s-Atom">=</span><span class="s2">&quot;${MANYRUST_ROOT:-$HOME/rust}/nightly/2015-07-14/rust/lib&quot;</span> <span class="err">$</span><span class="nv">HOME</span><span class="o">/</span><span class="s s-Atom">bin</span><span class="o">/</span><span class="s s-Atom">rustfmt</span><span class="p">.</span><span class="s s-Atom">bin</span> <span class="s2">&quot;$@&quot;</span>
+<span class="nv">EOF</span>
+</pre></div>
+
+
+<p>今後nightlyを追加インストールした時に <code>rustfmt</code> が依存しているディレクトリが新しいバージョンの <code>lib</code> ディレクトリに存在しない場合に備えて、 <code>DYLD_LIBRARY_PATH</code> は <code>~/rust/nightly/current/rust/lib</code> ではなく特定のバージョンの <code>lib</code> ディレクトリを指定しています。</p>
+<p>ということで、 <code>rustfmt</code> に関しては <code>multirust</code> でも <code>manyrust</code> でも同じことで、<code>DYLD_LIBRARY_PATH</code> を設定して実行するようなスクリプトを書いてラップする必要があるというオチでした。</p>
+    </div><!-- /.entry-content -->
+
+  </article>
+</section>
+        <section id="extras" class="body">
+        </section><!-- /#extras -->
+
+        <footer id="contentinfo" class="body">
+                <address id="about" class="vcard body">
+                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
+                </address><!-- /#about -->
+
+                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
+        </footer><!-- /#contentinfo -->
+
+    <script type="text/javascript">
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-53263855-1', 'auto');
+    ga('send', 'pageview');
+    </script>
+</body>
+</html>

@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+        <meta charset="utf-8" />
+        <title>1台のサーバに異なる設定でApache Traffic Serverを複数立ち上げるためのビルド設定</title>
+        <link rel="stylesheet" href="../../../../theme/css/main.css" />
+
+        <!--[if IE]>
+            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+        <![endif]-->
+</head>
+
+<body id="index" class="home">
+        <header id="banner" class="body">
+                <h1><a href="../../../../">hnakamur's blog at github </a></h1>
+                <nav><ul>
+                    <li class="active"><a href="../../../../category/blog.html">blog</a></li>
+                </ul></nav>
+        </header><!-- /#banner -->
+<section id="content" class="body">
+  <article>
+    <header>
+      <h1 class="entry-title">
+        <a href="../../../../2016/07/02/config-for-multiple-installations-of-apache-traffic-server/" rel="bookmark"
+           title="Permalink to 1台のサーバに異なる設定でApache Traffic Serverを複数立ち上げるためのビルド設定">1台のサーバに異なる設定でApache Traffic Serverを複数立ち上げるためのビルド設定</a></h1>
+    </header>
+
+    <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2016-07-02T01:00:00+09:00">
+                Published: 2016-07-02
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
+        </address>
+<p>In <a href="../../../../category/blog.html">blog</a>.</p>
+<p>tags: <a href="../../../../tag/apachetrafficserver.html">apachetrafficserver</a> </p>
+</footer><!-- /.post-info -->      <h2>はじめに</h2>
+<p>Apache Traffic Serverには<a href="https://docs.trafficserver.apache.org/en/latest/admin-guide/configuration/hierachical-caching.en.html">Hierarchical Caching</a>という機能があって、キャッシュを親と子の2階層にすることが出来ます。</p>
+<p>CentOSで1つのサーバに親と子の2つのTraffic Server 6.1.1を異なる設定で起動するような構成にしたかったのですが、本家のrpmでは出来ないようでした。
+ソースを見ていたらconfigureオプションをうまく指定すれば可能だとわかり、カスタムrpmを作りました。</p>
+<p>rpmのspecファイルは<a href="https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec">apache-traffic-server-rpm/trafficserver.spec</a>、ビルドしたrpmは <a href="https://copr.fedorainfracloud.org/coprs/hnakamur/apache-traffic-server-6/">hnakamur/apache-traffic-server-6 Copr</a> で公開しています。</p>
+<h2>起動オプションではやりたいことは出来なさそうでした</h2>
+<p>カスタムrpmを作る前に、本家のrpmを使いつつコマンドラインオプションや環境変数の設定によってやりたいことが実現できないか調べてみたのですが、出来なさそうでした。</p>
+<p>バージョン6.1.1のソースを見た時のメモです。</p>
+<p>まず、 <code>traffic_server</code> コマンドには <code>-conf_dir</code> というオプションがあります。ソースは <a href="https://github.com/apache/trafficserver/blob/6.1.1/proxy/Main.cc#L206">proxy/Main.cc</a> です。<a href="https://docs.trafficserver.apache.org/en/6.1.x/appendices/command-line/traffic_server.en.html">traffic_serverのドキュメント</a>には記載がありません。</p>
+<p>一方、 <code>traffic_manager</code> コマンドには <code>-tsArgs</code> というオプションがあります。 ソースは <a href="https://github.com/apache/trafficserver/blob/6.1.1/cmd/traffic_manager/traffic_manager.cc#L453">cmd/traffic_manager/traffic_manager.cc</a> で <a href="https://docs.trafficserver.apache.org/en/6.1.x/appendices/command-line/traffic_manager.en.html#cmdoption-traffic_manager--tsArgs">traffic_managerのドキュメント</a> にも説明はありませんが載っています。</p>
+<p>しかし、 <code>traffic_cop</code> コマンドが <code>traffic_manager</code> コマンドを起動する際には <code>-tsArgs</code> オプションは指定していません。ソースは <a href="https://github.com/apache/trafficserver/blob/6.1.1/cmd/traffic_cop/traffic_cop.cc#L758">cmd/traffic_cop/traffic_cop.cc</a> です。 <a href="https://docs.trafficserver.apache.org/en/6.1.x/appendices/command-line/traffic_cop.en.html">traffic_cop</a> のドキュメントを見ても traffic_manager にオプションを渡すためのオプションは無いようです。</p>
+<p>rpmでインストールされるサービス起動スクリプトだと <code>traffic_cop</code> →　<code>traffic_manger</code> →　<code>traffic_sever</code> という呼び出し関係になるので、こ <code>traffic_server</code>   に <code>-conf_dir</code> オプションを渡すことは出来なさそうです。</p>
+<h2>TS_ROOTという環境変数を発見</h2>
+<p><a href="https://github.com/apache/trafficserver/blob/6.1.1/lib/ts/Layout.cc#L146-L187">lib/ts/Layout.cc</a> で <code>TS_ROOT</code> という環境変数を参照しているのを見つけました。</p>
+<div class="highlight"><pre><span></span><span class="nt">Layout</span><span class="p">::</span><span class="nd">Layout</span><span class="o">(</span><span class="nt">const</span> <span class="nt">char</span> <span class="o">*</span><span class="nt">_prefix</span><span class="o">)</span>
+<span class="p">{</span>
+  <span class="err">if</span> <span class="err">(_prefix)</span> <span class="err">{</span>
+    <span class="err">prefix</span> <span class="err">=</span> <span class="err">ats_strdup(_prefix)</span><span class="p">;</span>
+  <span class="p">}</span> <span class="nt">else</span> <span class="p">{</span>
+    <span class="err">char</span> <span class="err">*env_path</span><span class="p">;</span>
+    <span class="err">char</span> <span class="err">path</span><span class="cp">[</span><span class="nx">PATH_NAME_MAX</span><span class="cp">]</span><span class="p">;</span>
+    <span class="err">int</span> <span class="err">len</span><span class="p">;</span>
+
+    <span class="err">if</span> <span class="err">((env_path</span> <span class="err">=</span> <span class="err">getenv(&quot;TS_ROOT&quot;)))</span> <span class="err">{</span>
+      <span class="err">len</span> <span class="err">=</span> <span class="err">strlen(env_path)</span><span class="p">;</span>
+      <span class="err">if</span> <span class="err">((len</span> <span class="err">+</span> <span class="err">1)</span> <span class="err">&gt;</span> <span class="err">PATH_NAME_MAX)</span> <span class="err">{</span>
+        <span class="err">ink_error(&quot;TS_ROOT</span> <span class="err">environment</span> <span class="err">variable</span> <span class="err">is</span> <span class="err">too</span> <span class="n">big</span><span class="p">:</span> <span class="o">%</span><span class="n">d</span><span class="p">,</span> <span class="n">max</span> <span class="o">%</span><span class="n">d</span><span class="err">\</span><span class="n">n</span><span class="err">&quot;</span><span class="p">,</span> <span class="n">len</span><span class="p">,</span> <span class="n">PATH_NAME_MAX</span> <span class="o">-</span> <span class="mi">1</span><span class="p">);</span>
+        <span class="err">return</span><span class="p">;</span>
+      <span class="p">}</span>
+      <span class="nt">ink_strlcpy</span><span class="o">(</span><span class="nt">path</span><span class="o">,</span> <span class="nt">env_path</span><span class="o">,</span> <span class="nt">sizeof</span><span class="o">(</span><span class="nt">path</span><span class="o">));</span>
+      <span class="nt">while</span> <span class="o">(</span><span class="nt">len</span> <span class="o">&gt;</span> <span class="nt">1</span> <span class="o">&amp;&amp;</span> <span class="nt">path</span><span class="cp">[</span><span class="nx">len</span> <span class="o">-</span> <span class="mi">1</span><span class="cp">]</span> <span class="o">==</span> <span class="s1">&#39;/&#39;</span><span class="o">)</span> <span class="p">{</span>
+        <span class="err">path</span><span class="cp">[</span><span class="nx">len</span> <span class="o">-</span> <span class="mi">1</span><span class="cp">]</span> <span class="err">=</span> <span class="err">&#39;\0&#39;</span><span class="p">;</span>
+        <span class="err">--len</span><span class="p">;</span>
+      <span class="p">}</span>
+    <span class="err">}</span> <span class="nt">else</span> <span class="p">{</span>
+      <span class="err">//</span> <span class="err">Use</span> <span class="err">compile</span> <span class="err">time</span> <span class="err">--prefix</span>
+      <span class="err">ink_strlcpy(path,</span> <span class="err">TS_BUILD_PREFIX,</span> <span class="err">sizeof(path))</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="nt">prefix</span> <span class="o">=</span> <span class="nt">ats_strdup</span><span class="o">(</span><span class="nt">path</span><span class="o">);</span>
+  <span class="err">}</span>
+  <span class="nt">exec_prefix</span> <span class="o">=</span> <span class="nt">layout_relative</span><span class="o">(</span><span class="nt">prefix</span><span class="o">,</span> <span class="nt">TS_BUILD_EXEC_PREFIX</span><span class="o">);</span>
+  <span class="nt">bindir</span> <span class="o">=</span> <span class="nt">layout_relative</span><span class="o">(</span><span class="nt">prefix</span><span class="o">,</span> <span class="nt">TS_BUILD_BINDIR</span><span class="o">);</span>
+  <span class="nt">sbindir</span> <span class="o">=</span> <span class="nt">layout_relative</span><span class="o">(</span><span class="nt">prefix</span><span class="o">,</span> <span class="nt">TS_BUILD_SBINDIR</span><span class="o">);</span>
+  <span class="nt">sysconfdir</span> <span class="o">=</span> <span class="nt">layout_relative</span><span class="o">(</span><span class="nt">prefix</span><span class="o">,</span> <span class="nt">TS_BUILD_SYSCONFDIR</span><span class="o">);</span>
+  <span class="nt">datadir</span> <span class="o">=</span> <span class="nt">layout_relative</span><span class="o">(</span><span class="nt">prefix</span><span class="o">,</span> <span class="nt">TS_BUILD_DATADIR</span><span class="o">);</span>
+  <span class="nt">includedir</span> <span class="o">=</span> <span class="nt">layout_relative</span><span class="o">(</span><span class="nt">prefix</span><span class="o">,</span> <span class="nt">TS_BUILD_INCLUDEDIR</span><span class="o">);</span>
+  <span class="nt">libdir</span> <span class="o">=</span> <span class="nt">layout_relative</span><span class="o">(</span><span class="nt">prefix</span><span class="o">,</span> <span class="nt">TS_BUILD_LIBDIR</span><span class="o">);</span>
+  <span class="nt">libexecdir</span> <span class="o">=</span> <span class="nt">layout_relative</span><span class="o">(</span><span class="nt">prefix</span><span class="o">,</span> <span class="nt">TS_BUILD_LIBEXECDIR</span><span class="o">);</span>
+  <span class="nt">localstatedir</span> <span class="o">=</span> <span class="nt">layout_relative</span><span class="o">(</span><span class="nt">prefix</span><span class="o">,</span> <span class="nt">TS_BUILD_LOCALSTATEDIR</span><span class="o">);</span>
+  <span class="nt">runtimedir</span> <span class="o">=</span> <span class="nt">layout_relative</span><span class="o">(</span><span class="nt">prefix</span><span class="o">,</span> <span class="nt">TS_BUILD_RUNTIMEDIR</span><span class="o">);</span>
+  <span class="nt">logdir</span> <span class="o">=</span> <span class="nt">layout_relative</span><span class="o">(</span><span class="nt">prefix</span><span class="o">,</span> <span class="nt">TS_BUILD_LOGDIR</span><span class="o">);</span>
+  <span class="nt">mandir</span> <span class="o">=</span> <span class="nt">layout_relative</span><span class="o">(</span><span class="nt">prefix</span><span class="o">,</span> <span class="nt">TS_BUILD_MANDIR</span><span class="o">);</span>
+  <span class="nt">infodir</span> <span class="o">=</span> <span class="nt">layout_relative</span><span class="o">(</span><span class="nt">prefix</span><span class="o">,</span> <span class="nt">TS_BUILD_INFODIR</span><span class="o">);</span>
+  <span class="nt">cachedir</span> <span class="o">=</span> <span class="nt">layout_relative</span><span class="o">(</span><span class="nt">prefix</span><span class="o">,</span> <span class="nt">TS_BUILD_CACHEDIR</span><span class="o">);</span>
+<span class="err">}</span>
+</pre></div>
+
+
+<p><a href="https://github.com/apache/trafficserver/blob/6.1.1/lib/ts/Layout.cc#L51-L70">layout_relative関数の定義</a> と <a href="https://github.com/apache/trafficserver/blob/d6906e2a59858005d09018994262562b03ca24e9/lib/ts/ink_file.cc#L132-L323">ink_filepath_merge関数の定義</a> を見ると、 layout_relative の第2引数が <code>/</code> で始まっていると第2引数がそのまま使われ、 <code>/</code> で始まっていないと第1引数と第2引数を必要に応じて <code>/</code> を挟んで連結した値になることがわかりました。</p>
+<p><code>TS_BUILD_SYSCONFDIR</code> などは<a href="https://github.com/apache/trafficserver/blob/6.1.1/lib/ts/ink_config.h.in#L110-L125">trafficserver/ink_config.h.in</a> で定義されていました。</p>
+<div class="highlight"><pre><span></span><span class="cm">/* Various &quot;build&quot; defines */</span>
+<span class="cp">#define TS_BUILD_PREFIX &quot;@prefix@&quot;</span>
+<span class="cp">#define TS_BUILD_EXEC_PREFIX &quot;@rel_exec_prefix@&quot;</span>
+<span class="cp">#define TS_BUILD_BINDIR &quot;@rel_bindir@&quot;</span>
+<span class="cp">#define TS_BUILD_SBINDIR &quot;@rel_sbindir@&quot;</span>
+<span class="cp">#define TS_BUILD_SYSCONFDIR &quot;@rel_sysconfdir@&quot;</span>
+<span class="cp">#define TS_BUILD_DATADIR &quot;@rel_datadir@&quot;</span>
+<span class="cp">#define TS_BUILD_INCLUDEDIR &quot;@rel_includedir@&quot;</span>
+<span class="cp">#define TS_BUILD_LIBDIR &quot;@rel_libdir@&quot;</span>
+<span class="cp">#define TS_BUILD_LIBEXECDIR &quot;@rel_libexecdir@&quot;</span>
+<span class="cp">#define TS_BUILD_LOCALSTATEDIR &quot;@rel_localstatedir@&quot;</span>
+<span class="cp">#define TS_BUILD_RUNTIMEDIR &quot;@rel_runtimedir@&quot;</span>
+<span class="cp">#define TS_BUILD_LOGDIR &quot;@rel_logdir@&quot;</span>
+<span class="cp">#define TS_BUILD_MANDIR &quot;@rel_mandir@&quot;</span>
+<span class="cp">#define TS_BUILD_CACHEDIR &quot;@rel_cachedir@&quot;</span>
+<span class="cp">#define TS_BUILD_INFODIR &quot;@rel_infodir@&quot;</span>
+</pre></div>
+
+
+<p><code>rel_*</code> という値は <code>configure</code> 実行時にbuild/common.m4の <a href="https://github.com/apache/trafficserver/blob/5a0952b01d01ef927a65fc44bac5f68c345747aa/build/common.m4#L252-L263">TS_SUBST_LAYOUT_PATH</a> で設定されるようです。</p>
+<div class="highlight"><pre><span></span>dnl
+dnl TS_SUBST_LAYOUT_PATH
+dnl Export (via TS_SUBST) the various path-related variables that
+dnl trafficserver will use while generating scripts and
+dnl the default config file.
+AC_DEFUN([TS_SUBST_LAYOUT_PATH], [
+  TS_EXPAND_VAR(exp_$1, [$]$1)
+  TS_PATH_RELATIVE(rel_$1, [$]exp_$1, <span class="cp">${</span><span class="n">prefix</span><span class="cp">}</span>)
+  TS_SUBST(exp_$1)
+  TS_SUBST(rel_$1)
+  TS_SUBST($1)
+])
+</pre></div>
+
+
+<p>ここから呼ばれる <a href="https://github.com/apache/trafficserver/blob/5a0952b01d01ef927a65fc44bac5f68c345747aa/build/common.m4#L223-L241">TS_PATH_RELATIVE</a> で実際の値が作られます。</p>
+<div class="highlight"><pre><span></span>dnl
+dnl Removes the value of $3 from the string in $2, strips of any leading
+dnl slashes, and returns the value in $1.
+dnl
+dnl Example:
+dnl orig_path=&quot;<span class="cp">${</span><span class="n">prefix</span><span class="cp">}</span>/bar&quot;
+dnl TS_PATH_RELATIVE(final_path, <span class="nv">$orig_path</span>, <span class="nv">$prefix</span>)
+dnl    <span class="nv">$final_path</span> now contains &quot;bar&quot;
+AC_DEFUN([TS_PATH_RELATIVE], [
+ats_stripped=`echo $2 | sed -e &quot;s#^$3##&quot;`
+# check if the stripping was successful
+if test &quot;x$2&quot; != &quot;x<span class="cp">${</span><span class="n">ats_stripped</span><span class="cp">}</span>&quot;; then
+# it was, so strip of any leading slashes
+    $1=&quot;`echo <span class="cp">${</span><span class="n">ats_stripped</span><span class="cp">}</span> | sed -e &#39;s#^/*##&#39;`&quot;
+else
+# it wasn&#39;t so return the original
+    $1=&quot;$2&quot;
+fi
+])
+</pre></div>
+
+
+<p>ということで、例えば <code>sysconfdir</code> の値が <code>prefix</code> の値で始まっていれば <code>rel_sysconfdir</code> は <code>prefix</code> からの相対パスになり、そうでなければ <code>sysconfdir</code> そのままになるということがわかりました。</p>
+<h2>configureオプションの指定方法</h2>
+<p>上記を踏まえて、私が作成した <a href="https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec">/trafficserver.spec</a> では <a href="https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec#L1">1行目</a>で</p>
+<div class="highlight"><pre><span></span><span class="nf">%define</span> <span class="n">_prefix</span> <span class="o">/</span><span class="n">opt</span><span class="o">/</span><span class="n">trafficserver</span>
+</pre></div>
+
+
+<p>と設定し、 <a href="https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec#L85-L94">85〜94行目</a> で以下のような configure オプションを指定しています。</p>
+<div class="highlight"><pre><span></span><span class="nf">%configure</span> \
+  <span class="o">--</span><span class="n">enable</span><span class="o">-</span><span class="n">layout</span><span class="o">=</span><span class="n">opt</span> \
+  <span class="o">--</span><span class="n">sysconfdir</span><span class="o">=%</span><span class="p">{</span><span class="n">_prefix</span><span class="p">}</span><span class="o">%</span><span class="p">{</span><span class="n">_sysconfdir</span><span class="p">}</span> \
+  <span class="o">--</span><span class="n">localstatedir</span><span class="o">=%</span><span class="p">{</span><span class="n">_prefix</span><span class="p">}</span><span class="o">%</span><span class="p">{</span><span class="n">_localstatedir</span><span class="p">}</span> \
+  <span class="o">--</span><span class="n">libexecdir</span><span class="o">=%</span><span class="p">{</span><span class="n">_prefix</span><span class="p">}</span><span class="o">/%</span><span class="p">{</span><span class="n">_lib</span><span class="p">}</span><span class="o">/</span><span class="n">plugins</span> \
+  <span class="o">--</span><span class="n">with</span><span class="o">-</span><span class="n">tcl</span><span class="o">=/</span><span class="n">usr</span><span class="o">/%</span><span class="p">{</span><span class="n">_lib</span><span class="p">}</span> \
+  <span class="o">--</span><span class="n">enable</span><span class="o">-</span><span class="n">luajit</span> \
+  <span class="o">--</span><span class="n">with</span><span class="o">-</span><span class="n">user</span><span class="o">=</span><span class="n">ats</span> <span class="o">--</span><span class="n">with</span><span class="o">-</span><span class="n">group</span><span class="o">=</span><span class="n">ats</span> \
+  <span class="o">--</span><span class="n">disable</span><span class="o">-</span><span class="n">silent</span><span class="o">-</span><span class="n">rules</span> \
+  <span class="o">--</span><span class="n">enable</span><span class="o">-</span><span class="n">experimental</span><span class="o">-</span><span class="n">plugins</span>
+</pre></div>
+
+
+<p>これでビルドしたtrafficserverを実行する際に、環境変数TS_ROOTを設定することで以下のようなディレクトリを参照することが出来ました。</p>
+<ul>
+<li>sysconfdir: ${TS_ROOT}/etc</li>
+<li>localstatedir: ${TS_ROOT}/var/run</li>
+<li>libexecdir: ${TS_ROOT}/lib64/plugins</li>
+</ul>
+<h2>私が使っているディレクトリ構成</h2>
+<p>実際には以下のようなシンボリックリンクを貼って使っています。</p>
+<ul>
+<li>1段目<ul>
+<li>/opt/trafficserver-first/etc -&gt; /etc/trafficserver-first </li>
+<li>/opt/trafficserver-first/bin -&gt; /opt/trafficserver/bin</li>
+<li>/opt/trafficserver-first/lib64 -&gt; /opt/trafficserver/lib64</li>
+<li>/opt/trafficserver-first/var/cache -&gt; /var/cache/trafficserver-first</li>
+<li>/opt/trafficserver-first/var/logs -&gt; /var/log/trafficserver-first</li>
+<li>/opt/trafficserver-first/var/run -&gt; /var/run/trafficserver-first</li>
+</ul>
+</li>
+<li>2段目<ul>
+<li>/opt/trafficserver-second/etc -&gt; /etc/trafficserver-second </li>
+<li>/opt/trafficserver-second/bin -&gt; /opt/trafficserver/bin</li>
+<li>/opt/trafficserver-second/lib64 -&gt; /opt/trafficserver/lib64</li>
+<li>/opt/trafficserver-second/var/cache -&gt; /var/cache/trafficserver-second</li>
+<li>/opt/trafficserver-second/var/logs -&gt; /var/log/trafficserver-second</li>
+<li>/opt/trafficserver-second/var/run -&gt; /var/run/trafficserver-second</li>
+</ul>
+</li>
+</ul>
+<h2>コマンド実行時の環境変数指定</h2>
+<p>コマンドを実行するときはPATHを通すかフルパスで指定するだけではなく、 TS_ROOT 環境変数も指定する必要があります。</p>
+<p>例えば、1段目のキャッシュを全クリアするときは <a href="https://docs.trafficserver.apache.org/en/6.1.x/admin-guide/storage/index.en.html#clearing-the-cache">Clearing the Cache</a> の説明では <code>traffic_server -Cclear</code> ですが、このrpmの場合は</p>
+<div class="highlight"><pre><span></span>TS_ROOT=/opt/trafficserver-first /opt/trafficserver-first/bin/traffic_server -Cclear
+</pre></div>
+
+
+<p>と実行する必要があります。</p>
+    </div><!-- /.entry-content -->
+
+  </article>
+</section>
+        <section id="extras" class="body">
+        </section><!-- /#extras -->
+
+        <footer id="contentinfo" class="body">
+                <address id="about" class="vcard body">
+                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
+                </address><!-- /#about -->
+
+                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
+        </footer><!-- /#contentinfo -->
+
+    <script type="text/javascript">
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-53263855-1', 'auto');
+    ga('send', 'pageview');
+    </script>
+</body>
+</html>
