@@ -2,7 +2,7 @@ Title: vagrant box updateでboxファイルをアップグレードする
 Date: 2015-04-25 21:55
 Category: blog
 Tags: vagrant
-Slug: blog/2015/04/25/vagrant-box-update
+Slug: 2015/04/25/vagrant-box-update
 
 
 Vagrant Cloudに上がっているUbuntu trustyのオフィシャルイメージ[ubuntu/trusty64 | Atlas by HashiCorp](https://atlas.hashicorp.com/ubuntu/boxes/trusty64)をVagrantfileで参照していたら、 `vagrant up` の際に以下の様なメッセージが表示される時がありました。

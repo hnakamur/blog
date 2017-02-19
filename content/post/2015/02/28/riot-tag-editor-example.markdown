@@ -2,7 +2,7 @@ Title: Riot.jsでタグエディターのサンプルを作ってみた
 Date: 2015-02-28 21:12
 Category: blog
 Tags: javascript, riot.js
-Slug: blog/2015/02/28/riot-tag-editor-example
+Slug: 2015/02/28/riot-tag-editor-example
 
 
 ## Riot.js

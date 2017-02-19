@@ -2,7 +2,7 @@ Title: S3 error: Either the Signature query string parameter or the Authorizatio
 Date: 2013-02-09 00:00
 Category: blog
 Tags: s3, apache
-Slug: blog/2013/02/09/s3-error-either-the-signature-query-string-parameter-or-the-authorization-header-should-be-specified
+Slug: 2013/02/09/s3-error-either-the-signature-query-string-parameter-or-the-authorization-header-should-be-specified
 
 ## 現象
 ApacheからAmazon S3にmod_proxyでリクエストを送ったら、ステータスが400になり、

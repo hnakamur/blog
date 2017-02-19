@@ -2,7 +2,7 @@ Title: minikubeでKubernetesのチュートリアルをやってみた
 Date: 2016-12-31 16:24
 Category: blog
 Tags: kubernetes
-Slug: blog/2016/12/31/tried-kubernetes-tutorial-with-minikube
+Slug: 2016/12/31/tried-kubernetes-tutorial-with-minikube
 
 ## はじめに
 

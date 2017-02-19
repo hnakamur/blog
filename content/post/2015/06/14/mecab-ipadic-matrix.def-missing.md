@@ -1,7 +1,7 @@
 Title: mecab-ipadicでconfigure実行したらmatrix.defが無いというエラー
 Date: 2015-06-14 16:40
 Category: blog
-Slug: blog/2015/06/14/mecab-ipadic-matrix.def-missing
+Slug: 2015/06/14/mecab-ipadic-matrix.def-missing
 
 ## TL;DR
 

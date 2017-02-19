@@ -2,7 +2,7 @@ Title: daemontoolsのインストール手順
 Date: 2012-06-21 00:00
 Category: blog
 Tags: daemontools, centos
-Slug: blog/2012/06/21/how-to-install-daemontools
+Slug: 2012/06/21/how-to-install-daemontools
 
 CentOS6.2で確認。
 

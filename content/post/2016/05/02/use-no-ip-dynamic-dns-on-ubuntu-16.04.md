@@ -2,7 +2,7 @@ Title: Ubuntu 16.04でNo-IPのダイナミックDNSサービスを使ってみ�
 Date: 2016-05-02 09:39
 Category: blog
 Tags: ddns, ubuntu
-Slug: blog/2016/05/02/use-no-ip-dynamic-dns-on-ubuntu-16.04
+Slug: 2016/05/02/use-no-ip-dynamic-dns-on-ubuntu-16.04
 
 ## 背景
 [MacをPXEサーバにしてExpress5800/S70タイプRBにUbuntu16.04をインストールしてみた · hnakamur's blog at github](/blog/2016/05/01/install_ubuntu_xenial_with_pxe_boot/)で自宅サーバを起動したのですが、固定グローバルIPアドレスは持っていないので、ダイナミックDNS (DDNS) サービスを使うことにしました。

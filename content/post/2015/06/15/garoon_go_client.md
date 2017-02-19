@@ -2,7 +2,7 @@ Title: Cybozu Garoon APIのファイル管理の部分だけのgoライブラリ
 Date: 2015-06-15 20:24
 Category: blog
 Tags: go, xml
-Slug: blog/2015/06/15/garoon_go_client
+Slug: 2015/06/15/garoon_go_client
 
 # はじめに
 Cybozu [Garoon API](https://cybozudev.zendesk.com/hc/ja/categories/200157760-Garoon-API)のファイル管理のうち、フォルダ一覧取得、フォルダ内のファイル一覧取得、ファイルダウンロードのAPIを呼び出すライブラリをGoで書いてみました。

@@ -2,7 +2,7 @@ Title: Hugoに移行した私のブログの記事追加手順
 Date: 2015-04-19 00:17
 Category: blog
 Tags: hugo
-Slug: blog/2015/04/19/my_hugo_blog_workflow
+Slug: 2015/04/19/my_hugo_blog_workflow
 
 
 ## はじめに

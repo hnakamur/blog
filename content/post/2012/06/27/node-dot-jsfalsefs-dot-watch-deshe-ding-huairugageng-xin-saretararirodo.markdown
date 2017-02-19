@@ -2,7 +2,7 @@ Title: node.jsのfs.watch()で設定ファイルが更新されたらリロー�
 Date: 2012-06-27 00:00
 Category: blog
 Tags: node.js
-Slug: blog/2012/06/27/node-dot-jsfalsefs-dot-watch-deshe-ding-huairugageng-xin-saretararirodo
+Slug: 2012/06/27/node-dot-jsfalsefs-dot-watch-deshe-ding-huairugageng-xin-saretararirodo
 
 [javascript - Auto-reload of files in Node.js - Stack Overflow](http://stackoverflow.com/questions/1972242/auto-reload-of-files-in-node-js)によると、モジュールをリロードするには[isaacs/node-supervisor](https://github.com/isaacs/node-supervisor)がよさそうです。
 

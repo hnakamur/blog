@@ -2,7 +2,7 @@ Title: LXDコンテナでPostgreSQLの非同期リプリケーションを試し
 Date: 2016-07-23 21:13
 Category: blog
 Tags: lxd, postgresql
-Slug: blog/2016/07/23/tried-postgresql-async-replication-in-lxd-containers
+Slug: 2016/07/23/tried-postgresql-async-replication-in-lxd-containers
 
 [ストリーミング・レプリケーションの構築 — Let's Postgres](http://lets.postgresql.jp/documents/technical/replication/1/) と [PostgreSQL9.1ためしてみた【非同期レプリケーション編】 - ごろねこ日記](http://d.hatena.ne.jp/hiroe_orz17/20111113/1321180635) を読んで、2台のLXDコンテナを使ってPostgreSQLの非同期リプリケーションを試してみたのでメモです。
 

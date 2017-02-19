@@ -2,7 +2,7 @@ Title: goでglogを使うときのメモ
 Date: 2015-05-31 02:30
 Category: blog
 Tags: go, logging
-Slug: blog/2015/05/31/how_to_use_glog
+Slug: 2015/05/31/how_to_use_glog
 
 [go言語におけるロギングについて](http://blog.satotaichi.info/logging-frameworks-for-go/)の記事と[glog - GoDoc](http://godoc.org/github.com/golang/glog)を読んで試してみました。
 

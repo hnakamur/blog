@@ -2,7 +2,7 @@ Title: GeForce搭載の旧モデルMacBook ProでCUDAをセットアップする
 Date: 2015-07-25 17:37
 Category: blog
 Tags: cuda
-Slug: blog/2015/07/25/setup_cuda_on_macbook_pro_with_geforce
+Slug: 2015/07/25/setup_cuda_on_macbook_pro_with_geforce
 
 ## はじめに
 [MacBook Pro現行モデルの技術仕様](http://www.apple.com/jp/macbook-pro/specs-retina/)を見ると最上位機種のグラフィックスチップはIntel Iris Pro GraphicsとAMD Radeon R9 M370Xとなっており、NVIDIA GeForceは搭載されていません。

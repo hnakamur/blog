@@ -2,7 +2,7 @@ Title: LXCの特定の1つのコンテナの起動状態をシェルスクリプ
 Date: 2016-05-07 14:12
 Category: blog
 Tags: lxd
-Slug: blog/2016/05/07/script-to-check-running-status-of-lxd-container
+Slug: 2016/05/07/script-to-check-running-status-of-lxd-container
 
 ## イマイチな方法1: lxc listの出力をawkで加工
 

@@ -2,7 +2,7 @@ Title: daemontoolsの使い方
 Date: 2012-06-21 00:00
 Category: blog
 Tags: daemontools, centos
-Slug: blog/2012/06/21/how-to-use-daemontools
+Slug: 2012/06/21/how-to-use-daemontools
 
 [daemontoolsを使う | Netsphere Laboratories](http://www.nslabs.jp/daemontools.rhtml)を参考にしました。ありがとうございます。
 

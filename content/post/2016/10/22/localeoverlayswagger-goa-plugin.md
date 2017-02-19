@@ -2,7 +2,7 @@ Title: LocaleOverlaySwaggerというgoaプラグインを書いた
 Date: 2016-10-22 16:52
 Category: blog
 Tags: goa, swagger
-Slug: blog/2016/10/22/localeoverlayswagger-goa-plugin
+Slug: 2016/10/22/localeoverlayswagger-goa-plugin
 
 ## まず Swagger 仕様を複数ファイル出力する goa プラグイン Multiswagger を試してみました
 

@@ -2,7 +2,7 @@ Title: minikubeとVirtualBoxでNFSのpersistent volumeを試してみた
 Date: 2017-01-01 09:40
 Category: blog
 Tags: kubernetes
-Slug: blog/2017/01/01/use-nfs-persistent-volume-on-minikube-virtualbox
+Slug: 2017/01/01/use-nfs-persistent-volume-on-minikube-virtualbox
 
 ## はじめに
 [Tutorials - Kubernetes](http://kubernetes.io/docs/tutorials/)のStateful Applicationsを試そうと思って少し読んだ所、 persistent volume というものを用意する必要があることがわかりました。

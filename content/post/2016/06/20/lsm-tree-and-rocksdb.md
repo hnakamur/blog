@@ -2,7 +2,7 @@ Title: LSM-TreeとRocksDB、TiDB、CockroachDBが気になる
 Date: 2016-06-20 22:23
 Category: blog
 Tags: lsmtree,rocksdb,tidb
-Slug: blog/2016/06/20/lsm-tree-and-rocksdb
+Slug: 2016/06/20/lsm-tree-and-rocksdb
 
 ## はじめに
 キーバリューストアについて調べていたらLSM-Treeというデータ構造とRocksDBが気になったということで調査メモです。ただし、それぞれの技術詳細を調査したり自分で検証してみたというメモではないです。

@@ -2,7 +2,7 @@ Title: manyrustという複数バージョンのrustインストールスクリ�
 Date: 2015-07-18 23:13
 Category: blog
 Tags: rust, shell-script
-Slug: blog/2015/07/18/manyrust
+Slug: 2015/07/18/manyrust
 
 ## multirustがあるのに、なぜ新たに書いたのか
 

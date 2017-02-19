@@ -2,7 +2,7 @@ Title: Vagrant + Virtualboxでのディスク追加
 Date: 2015-06-01 06:04
 Category: blog
 Tags: vagrant, virtualbox
-Slug: blog/2015/06/01/add_secondary_disk_to_vagrant_virtualbox
+Slug: 2015/06/01/add_secondary_disk_to_vagrant_virtualbox
 
 Vagrant + Virtualboxでのディスク追加についてのメモです。
 

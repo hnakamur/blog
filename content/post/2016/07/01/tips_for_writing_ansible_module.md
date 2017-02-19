@@ -2,7 +2,7 @@ Title: lxd_containerというAnsibleモジュールを書いたときに学ん�
 Date: 2016-07-01 22:44
 Category: blog
 Tags: ansible,python
-Slug: blog/2016/07/01/tips_for_writing_ansible_module
+Slug: 2016/07/01/tips_for_writing_ansible_module
 
 ## はじめに
 lxd_containerというAnsibleのモジュールを書いたときに学んだtipsのメモです。

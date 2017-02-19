@@ -2,7 +2,7 @@ Title: Goでdeferの処理中のエラーを返す書き方を工夫してみた
 Date: 2015-04-27 02:06
 Category: blog
 Tags: go
-Slug: blog/2015/04/27/write_function_for_go_defer
+Slug: 2015/04/27/write_function_for_go_defer
 
 go-nutsのメーリングリストの記事
 https://groups.google.com/d/msg/golang-nuts/qTTBENO_Em0/Y4MCVZZ3c5sJ

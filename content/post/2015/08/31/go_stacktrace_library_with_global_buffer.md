@@ -2,7 +2,7 @@ Title: Goでグローバルなバッファを使いまわしてスタックト�
 Date: 2015-08-31 00:43
 Category: blog
 Tags: go
-Slug: blog/2015/08/31/go_stacktrace_library_with_global_buffer
+Slug: 2015/08/31/go_stacktrace_library_with_global_buffer
 
 ## 背景と経緯
 

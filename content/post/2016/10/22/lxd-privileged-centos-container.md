@@ -2,7 +2,7 @@ Title: LXD で privileged な CentOS 7コンテナを作る
 Date: 2016-10-22 18:54
 Category: blog
 Tags: lxd, centos
-Slug: blog/2016/10/22/lxd-privileged-centos-container
+Slug: 2016/10/22/lxd-privileged-centos-container
 
 小ネタのメモです。
 

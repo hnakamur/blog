@@ -2,7 +2,7 @@ Title: Travis CIとcopr.fedoraproject.orgを使ってrpmをビルド・配布す
 Date: 2015-11-26 22:33
 Category: blog
 Tags: centos, rpm
-Slug: blog/2015/11/26/use_travis_and_copr_to_build_and_host_rpm
+Slug: 2015/11/26/use_travis_and_copr_to_build_and_host_rpm
 
 ## 2015-12-15 追記
 

@@ -2,7 +2,7 @@ Title: JXA (JavaScript for Automation)を使ってOSXの初期設定を半自動
 Date: 2015-04-06 04:40
 Category: blog
 Tags: jxa
-Slug: blog/2015/04/06/jxa-osx-automation-with-javascript
+Slug: 2015/04/06/jxa-osx-automation-with-javascript
 
 ## 概要
 

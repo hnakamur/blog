@@ -1,7 +1,7 @@
 Title: ブログ記事「Go言語(Golang) はまりどころと解決策」についてのコメント
 Date: 2016-08-02 05:57
 Category: blog
-Slug: blog/2016/08/02/about-go-pitfalls
+Slug: 2016/08/02/about-go-pitfalls
 
 [Go言語(Golang) はまりどころと解決策](http://www.yunabe.jp/docs/golang_pitfall.html)の記事についてのコメント記事を誰かが書くだろうと思ってスルーしてましたが、見かけないので書いてみます。
 

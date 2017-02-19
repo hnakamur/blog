@@ -2,7 +2,7 @@ Title: 分散SQLデータベースCockroachDBのキーバリューストレー�
 Date: 2016-06-30 06:40
 Category: blog
 Tags: golang,cockroachdb
-Slug: blog/2016/06/30/experiment-cockroachdb-key-value-store
+Slug: 2016/06/30/experiment-cockroachdb-key-value-store
 
 ## はじめに
 [LSM-TreeとRocksDB、TiDB、CockroachDBが気になる](h/blog/2016/06/20/lsm-tree-and-rocksdb/) で紹介した [CockroachDB](https://github.com/cockroachdb/cockroach#client-drivers) は [What is CockroachDB?](https://github.com/cockroachdb/cockroach#what-is-cockroachdb) によるとスケールアウトできる分散SQLデータベースです。 [PostgreSQLのワイヤープロトコルをサポート](https://github.com/cockroachdb/cockroach#client-drivers) していて、 [Quickstart](https://github.com/cockroachdb/cockroach#quickstart) の例のようにPostgreSQLで扱えるSQLのサブセットが使えます。

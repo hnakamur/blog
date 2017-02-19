@@ -1,7 +1,7 @@
 Title: mithril.jsを試してみた
 Date: 2015-05-12 22:02
 Category: blog
-Slug: blog/2015/05/12/tried_mithril_js
+Slug: 2015/05/12/tried_mithril_js
 
 ## はじめに
 

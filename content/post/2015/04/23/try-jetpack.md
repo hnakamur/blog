@@ -2,7 +2,7 @@ Title: jetpackを試してみた
 Date: 2015-04-23 01:27
 Category: blog
 Tags: jetpack
-Slug: blog/2015/04/23/try-jetpack
+Slug: 2015/04/23/try-jetpack
 
 ## はじめに
 

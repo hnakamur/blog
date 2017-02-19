@@ -2,7 +2,7 @@ Title: curlでダウンロードを中断後再開するときは-Cオプショ�
 Date: 2015-04-19 01:07
 Category: blog
 Tags: curl
-Slug: blog/2015/04/19/use_curl_C_option_to_resume_download
+Slug: 2015/04/19/use_curl_C_option_to_resume_download
 
 
 ISOイメージのようなサイズが大きなファイルを `curl` でダウンロードしようとして途中で中断してしまって再開するときに、 `-C` オプションが便利だったのでメモ。

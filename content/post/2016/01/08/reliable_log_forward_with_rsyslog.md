@@ -1,7 +1,7 @@
 Title: rsyslogで信頼性のあるログ転送について調べたメモ
 Date: 2016-01-08 01:12
 Category: blog
-Slug: blog/2016/01/08/reliable_log_forward_with_rsyslog
+Slug: 2016/01/08/reliable_log_forward_with_rsyslog
 
 事の発端は fluentd を使ってみようかと思って [fluentd(td-agent)のインストールと設定](http://changineer.info/server/logging/fluentd-td-agent.html) を読んだことで す。fluentd のデメリットのところを読んで、ちょっと気になりました。
 

@@ -1,7 +1,7 @@
 Title: MySQL APT repositoryからMySQL 5.7.xをインストールするスクリプト
 Date: 2015-09-22 22:35
 Category: blog
-Slug: blog/2015/09/22/noninteractive_install_from_mysql_apt_repository_on_ubuntu_trusty
+Slug: 2015/09/22/noninteractive_install_from_mysql_apt_repository_on_ubuntu_trusty
 
 Ubuntu 14.04 (Trusty)に[MySQL APT Repository](http://dev.mysql.com/downloads/repo/apt/)からMySQL 5.7 (Development Release)を
 インストールするスクリプトを書きました。

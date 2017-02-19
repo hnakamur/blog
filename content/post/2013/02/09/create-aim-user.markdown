@@ -2,7 +2,7 @@ Title: IAM管理コンソールでAWSの管理画面用のユーザを作成
 Date: 2013-02-09 00:00
 Category: blog
 Tags: aws, aim
-Slug: blog/2013/02/09/create-aim-user
+Slug: 2013/02/09/create-aim-user
 
 AWS (Amazon Web Services)の管理コンソールを複数人で使う場合に大元のIDとパスワードを共有するのは避けたい場合、IAMでユーザを作成するのがよいと[@fujiwara](https://twitter.com/fujiwara)さんに教わりました。これは実際に試した時のメモです。
 

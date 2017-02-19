@@ -2,7 +2,7 @@ Title: LXC 2.0でCentOS 7のコンテナを動かしてみた
 Date: 2016-04-19 06:37
 Category: blog
 Tags: lxc
-Slug: blog/2016/04/19/run_centos7_containers_on_lxc2
+Slug: 2016/04/19/run_centos7_containers_on_lxc2
 
 
 ## はじめに

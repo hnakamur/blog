@@ -2,7 +2,7 @@ Title: VirtualBox4でCentOS6.2をインストール
 Date: 2012-07-03 00:00
 Category: blog
 Tags: virtualbox, centos
-Slug: blog/2012/07/03/virtualbox4decentos6-dot-2woinsutoru
+Slug: 2012/07/03/virtualbox4decentos6-dot-2woinsutoru
 
 ## VirtualBoxのインストール
 [Downloads – Oracle VM VirtualBox](https://www.virtualbox.org/wiki/Downloads)

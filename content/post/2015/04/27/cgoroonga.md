@@ -2,7 +2,7 @@ Title: データ登録用にgroongaのC APIのgoバインディングを書い�
 Date: 2015-04-27 00:44
 Category: blog
 Tags: groonga
-Slug: blog/2015/04/27/cgoroonga
+Slug: 2015/04/27/cgoroonga
 
 ## groongaで大量のデータを登録する方法を調べてみた
 

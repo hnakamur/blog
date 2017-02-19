@@ -2,7 +2,7 @@ Title: Pacemakerを使ってPostgreSQLのアクティブ・スタンバイ(1+1�
 Date: 2016-08-21 11:23
 Category: blog
 Tags: postgresql,pacemaker,lxd,ansible
-Slug: blog/2016/08/21/experiment-postgresql-active-standby-cluster-using-pacemaker
+Slug: 2016/08/21/experiment-postgresql-active-standby-cluster-using-pacemaker
 
 ## はじめに
 

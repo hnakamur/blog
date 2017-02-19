@@ -2,7 +2,7 @@ Title: octopressでgithubにブログ開設
 Date: 2012-03-03 00:00
 Category: blog
 Tags: octopress
-Slug: blog/2012/03/03/how-to-setup-octopress
+Slug: 2012/03/03/how-to-setup-octopress
 
 rbenvとoctopressをインストールしてgithubにブログを作る手順のメモです。
 

@@ -2,7 +2,7 @@ Title: Unboundで在宅時に自宅サーバの名前解決
 Date: 2013-02-02 00:00
 Category: blog
 Tags: centos, unbound
-Slug: blog/2013/02/02/use-unbound-dns-server
+Slug: 2013/02/02/use-unbound-dns-server
 
 
 ## 背景

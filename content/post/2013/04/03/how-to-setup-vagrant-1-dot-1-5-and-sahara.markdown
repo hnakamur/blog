@@ -2,7 +2,7 @@ Title: Vagrant 1.1.5とSaharaを試した
 Date: 2013-04-03 00:00
 Category: blog
 Tags: chef, vagrant, sahara
-Slug: blog/2013/04/03/how-to-setup-vagrant-1-dot-1-5-and-sahara
+Slug: 2013/04/03/how-to-setup-vagrant-1-dot-1-5-and-sahara
 
 ## Vagrantと1.0.xと1.1.xについて
 

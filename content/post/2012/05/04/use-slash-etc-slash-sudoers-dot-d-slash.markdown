@@ -2,7 +2,7 @@ Title: /etc/sudoers.d/を使う→やっぱり止め
 Date: 2012-05-04 00:00
 Category: blog
 Tags: centos, sudo
-Slug: blog/2012/05/04/use-slash-etc-slash-sudoers-dot-d-slash
+Slug: 2012/05/04/use-slash-etc-slash-sudoers-dot-d-slash
 
 これまでいつも/etc/sudoersを編集していたのですが、よくみるとファイル末尾に
 

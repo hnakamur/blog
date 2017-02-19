@@ -1,7 +1,7 @@
 Title: Homebrew Caskを使わずにdmgファイルのアプリをコマンドでインストールする
 Date: 2015-04-06 00:45
 Category: blog
-Slug: blog/2015/04/06/install-apps-without-homebrew-cask
+Slug: 2015/04/06/install-apps-without-homebrew-cask
 
 ## なぜHomebrew Caskをやめたか
 

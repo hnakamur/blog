@@ -2,7 +2,7 @@ Title: Build UIAutomation samples in Windows SDK 7.1
 Date: 2015-01-25 00:00
 Category: blog
 Tags: windows-sdk
-Slug: blog/2015/01/25/build-uiautomation-samples-in-windows-sdk-7-dot-1
+Slug: 2015/01/25/build-uiautomation-samples-in-windows-sdk-7-dot-1
 
 ## Windows SDK 7.1 をインストール
 

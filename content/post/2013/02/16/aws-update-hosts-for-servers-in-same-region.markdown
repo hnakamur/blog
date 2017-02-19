@@ -2,7 +2,7 @@ Title: EC2で同じリージョンの全ホストのプライベートIPを起�
 Date: 2013-02-16 00:00
 Category: blog
 Tags: aws
-Slug: blog/2013/02/16/aws-update-hosts-for-servers-in-same-region
+Slug: 2013/02/16/aws-update-hosts-for-servers-in-same-region
 
 Elastic IPの上限数にひっかかって使えない自体に遭遇したので作りました。
 

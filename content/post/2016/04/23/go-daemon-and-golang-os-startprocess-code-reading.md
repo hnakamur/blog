@@ -2,7 +2,7 @@ Title: go-daemonとgoのos.StartProcess()のコードを読んでみた
 Date: 2016-04-23 16:45
 Category: blog
 Tags: golang
-Slug: blog/2016/04/23/go-daemon-and-golang-os-startprocess-code-reading
+Slug: 2016/04/23/go-daemon-and-golang-os-startprocess-code-reading
 
 ## 発端: Goでデーモンを書くのは無理と思っていたら実は出来るらしい
 

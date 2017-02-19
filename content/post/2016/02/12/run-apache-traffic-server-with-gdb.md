@@ -2,7 +2,7 @@ Title: Apache Traffic Server を GDB で動かす
 Date: 2016-02-12 00:02
 Category: blog
 Tags: apache-traffic-server, gdb
-Slug: blog/2016/02/12/run-apache-traffic-server-with-gdb
+Slug: 2016/02/12/run-apache-traffic-server-with-gdb
 
 ## はじめに
 

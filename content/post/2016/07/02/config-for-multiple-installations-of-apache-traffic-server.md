@@ -2,7 +2,7 @@ Title: 1台のサーバに異なる設定でApache Traffic Serverを複数立ち
 Date: 2016-07-02 01:00
 Category: blog
 Tags: apachetrafficserver
-Slug: blog/2016/07/02/config-for-multiple-installations-of-apache-traffic-server
+Slug: 2016/07/02/config-for-multiple-installations-of-apache-traffic-server
 
 ## はじめに
 Apache Traffic Serverには[Hierarchical Caching](https://docs.trafficserver.apache.org/en/latest/admin-guide/configuration/hierachical-caching.en.html)という機能があって、キャッシュを親と子の2階層にすることが出来ます。

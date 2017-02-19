@@ -2,7 +2,7 @@ Title: rpmのspecファイルのSourceにGitHubの任意のコミットのtarbal
 Date: 2015-12-06 00:07
 Category: blog
 Tags: github, rpmbuild
-Slug: blog/2015/12/06/good_rpm_spec_source_url_syntax_for_tarball_on_github
+Slug: 2015/12/06/good_rpm_spec_source_url_syntax_for_tarball_on_github
 
 [Packaging:SourceURL - FedoraProject](https://fedoraproject.org/wiki/Packaging:SourceURL?rd=Packaging/SourceURL#Commit_Revision)で知ったtipsの紹介です。
 

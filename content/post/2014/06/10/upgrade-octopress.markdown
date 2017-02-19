@@ -2,7 +2,7 @@ Title: 久々にoctopressをアップデート
 Date: 2014-06-10 00:00
 Category: blog
 Tags: octopress
-Slug: blog/2014/06/10/upgrade-octopress
+Slug: 2014/06/10/upgrade-octopress
 
 
 octopressをアップデートした時にハマったのでメモ。

@@ -2,7 +2,7 @@ Title: groongaのgoバインディングでWikipedia全文検索のサンプル�
 Date: 2015-05-12 21:24
 Category: blog
 Tags: groonga, go
-Slug: blog/2015/05/12/cgoroonga_wikipedia_search_webapp
+Slug: 2015/05/12/cgoroonga_wikipedia_search_webapp
 
 [データ登録用にgroongaのC APIのgoバインディングを書いてみた · hnakamur's blog at github](http://hnakamur.github.io/blog/2015/04/27/cgoroonga/)の続きで、APIを追加実装し、Wikipedia全文検索のサンプルウェブアプリを作ってみました。
 

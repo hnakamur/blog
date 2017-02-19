@@ -2,7 +2,7 @@ Title: Goで複数のリモートのワーカーにジョブを実行させるre
 Date: 2016-06-12 21:53
 Category: blog
 Tags: golang,websocket
-Slug: blog/2016/06/12/wrote_remoteworkers_go_pacakge
+Slug: 2016/06/12/wrote_remoteworkers_go_pacakge
 
 ## なぜ書いたか
 仕事で複数のサーバで同じ処理を実行して結果を集めたいというニーズがあって、各サーバをgRPCのサーバにするという実装でとりあえず実現していました。でも、出来れば処理を実行するワーカーサーバから制御サーバに接続して繋ぎっぱなしにしておいて、制御サーバからジョブを送り込む方式にしたいなーと思っていて、家で実装を進めていました。

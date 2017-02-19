@@ -1,7 +1,7 @@
 Title: pgpool-IIを使ってPostgreSQLのアクティブ・スタンバイ(1+1構成)を試してみた
 Date: 2016-09-15 06:28
 Category: blog
-Slug: blog/2016/09/15/experiment-postgresql-active-standby-using-pgpool-ii
+Slug: 2016/09/15/experiment-postgresql-active-standby-using-pgpool-ii
 
 ## はじめに
 pgool-IIを使ってPostgreSQLのアクティブ・スタンバイ(1+1構成)を試したのでメモです。

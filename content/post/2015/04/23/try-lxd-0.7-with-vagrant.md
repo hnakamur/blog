@@ -2,7 +2,7 @@ Title: LXD 0.7ではlxc execでシェルの対話操作もできるようにな�
 Date: 2015-04-23 00:08
 Category: blog
 Tags: lxd
-Slug: blog/2015/04/23/try-lxd-0.7-with-vagrant
+Slug: 2015/04/23/try-lxd-0.7-with-vagrant
 
 ## はじめに
 

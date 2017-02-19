@@ -2,7 +2,7 @@ Title: LXDのdnsmasqの固定IP設定をSIGHUPで更新する
 Date: 2016-08-12 06:38
 Category: blog
 Tags: lxd,dnsmasq
-Slug: blog/2016/08/12/update-lxd-dnsmasq-dhcp-hosts-config-with-sighup
+Slug: 2016/08/12/update-lxd-dnsmasq-dhcp-hosts-config-with-sighup
 
 [LXDコンテナで固定IPアドレスを使うための設定 · hnakamur's blog at github](/blog/2016/05/07/how-to-use-fixed-ip-address-for-a-lxd-container/) では `/etc/dnsmasq.conf` に直接 `dhcp-host` で設定を書いていましたが、変更するためには `lxd-bridge` の再起動が必要でした。
 

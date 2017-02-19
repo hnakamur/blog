@@ -2,7 +2,7 @@ Title: Apache Traffic Server のコードリーディング
 Date: 2016-02-11 23:11
 Category: blog
 Tags: apache-traffic-server, code-reading
-Slug: blog/2016/02/11/apache-traffic-server-code-reading
+Slug: 2016/02/11/apache-traffic-server-code-reading
 
 Apache Traffic Server のコードリーディングを少しやってみたので、将来の自分に向けてメモ。
 

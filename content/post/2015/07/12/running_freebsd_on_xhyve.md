@@ -2,7 +2,7 @@ Title: xhyveでFreeBSDを動かしてみた
 Date: 2015-07-12 06:34
 Category: blog
 Tags: xhyve, freebsd
-Slug: blog/2015/07/12/running_freebsd_on_xhyve
+Slug: 2015/07/12/running_freebsd_on_xhyve
 
 下記の記事を参考に動かしただけですが、後々使うときに手順を忘れているはずなのでメモ。
 

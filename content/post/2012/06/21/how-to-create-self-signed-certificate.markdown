@@ -2,7 +2,7 @@ Title: パスフレーズ無しの秘密鍵と自己証明書をコマンド一�
 Date: 2012-06-21 00:00
 Category: blog
 Tags: openssl
-Slug: blog/2012/06/21/how-to-create-self-signed-certificate
+Slug: 2012/06/21/how-to-create-self-signed-certificate
 
 
 以下はワイルドカード証明書の例です。適宜変更して使います。

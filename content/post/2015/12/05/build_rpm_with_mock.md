@@ -2,7 +2,7 @@ Title: mockコマンドでrpmをビルドする
 Date: 2015-12-05 22:10
 Category: blog
 Tags: centos
-Slug: blog/2015/12/05/build_rpm_with_mock
+Slug: 2015/12/05/build_rpm_with_mock
 
 ## 2015-12-15 追記
 

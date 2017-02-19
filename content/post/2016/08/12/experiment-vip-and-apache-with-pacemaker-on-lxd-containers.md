@@ -2,7 +2,7 @@ Title: LXDコンテナ上でPacemakerを使って仮想IPとApacheのアクテ�
 Date: 2016-08-12 18:54
 Category: blog
 Tags: pacemaker,virtual-ip
-Slug: blog/2016/08/12/experiment-vip-and-apache-with-pacemaker-on-lxd-containers
+Slug: 2016/08/12/experiment-vip-and-apache-with-pacemaker-on-lxd-containers
 
 [Cluster Labs - Pacemaker Documentation](http://clusterlabs.org/doc/) の "Pacemaker 1.1 for Corosync 2.x and pcs" の "Clusters from Scratch (en-US)" を参考にしつつ、多少手順を変更して試してみました。
 

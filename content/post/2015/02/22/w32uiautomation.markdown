@@ -1,7 +1,7 @@
 Title: Windows UI Automation APIを使うためのGoライブラリw32uiautomationを書いた
 Date: 2015-02-22 00:09
 Category: blog
-Slug: blog/2015/02/22/w32uiautomation
+Slug: 2015/02/22/w32uiautomation
 
 
 # なぜ

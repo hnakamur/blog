@@ -2,7 +2,7 @@ Title: 「サーバ/インフラエンジニア養成読本 DevOps編」の献�
 Date: 2016-02-22 21:30
 Category: blog
 Tags: devops, book
-Slug: blog/2016/02/22/software_design_plus_devops_review
+Slug: 2016/02/22/software_design_plus_devops_review
 
 「最速攻略！ Ansible 2によるサーバ構築」という特集を書かれた新原 雅司さんから「サーバ/インフラエンジニア養成読本 DevOps編」の献本を頂きました。ありがとうございます！
 

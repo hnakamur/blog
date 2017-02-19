@@ -2,7 +2,7 @@ Title: CentOS 7用にPython2最新版のrpmを作ってみた
 Date: 2015-12-19 11:51
 Category: blog
 Tags: centos, python, rpmbuild, software-collections
-Slug: blog/2015/12/19/build_latest_python2_rpm_for_centos7
+Slug: 2015/12/19/build_latest_python2_rpm_for_centos7
 
 ## はじめに
 [coprのAPIをcurlで呼び出す · hnakamur's blog at github](/blog/2015/12/16/calling_copr_api_with_curl/)にも書きましたが、CentOS 7のPythonは古くてhttps通信時にInsecurePlatformWarningが出てしまいます。

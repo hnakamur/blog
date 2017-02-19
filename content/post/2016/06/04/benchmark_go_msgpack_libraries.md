@@ -2,7 +2,7 @@ Title: GoのMessagePackのライブラリのベンチマークをしてみた
 Date: 2016-06-04 22:17
 Category: blog
 Tags: golang, messagepack
-Slug: blog/2016/06/04/benchmark_go_msgpack_libraries
+Slug: 2016/06/04/benchmark_go_msgpack_libraries
 
 [Go の msgpack ライブラリ比較 - Qiita](http://qiita.com/yosisa/items/f21d3476bc8d368d7494)の記事が最終更新日から1年以上経過しているとのことなので、現在の最新のコミットで試してみました。
 

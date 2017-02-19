@@ -2,7 +2,7 @@ Title: GeForce搭載の旧モデルMacBook ProでPyCUDAを試してみた
 Date: 2015-07-25 18:31
 Category: blog
 Tags: cuda, python
-Slug: blog/2015/07/25/setup_pycuda_on_macbook_pro_with_geforce
+Slug: 2015/07/25/setup_pycuda_on_macbook_pro_with_geforce
 
 ## はじめに
 

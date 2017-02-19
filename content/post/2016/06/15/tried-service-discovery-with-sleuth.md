@@ -2,7 +2,7 @@ Title: sleuthというGoのライブラリでサービスディスカバリを�
 Date: 2016-06-15 06:56
 Category: blog
 Tags: golang,service-discovery,sleuth
-Slug: blog/2016/06/15/tried-service-discovery-with-sleuth
+Slug: 2016/06/15/tried-service-discovery-with-sleuth
 
 ## はじめに
 [Service autodiscovery in Go with sleuth - darian.af](http://darian.af/post/master-less-peer-to-peer-micro-service-autodiscovery-in-golang-with-sleuth/)という記事を見かけて試してみたのでメモです。

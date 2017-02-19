@@ -2,7 +2,7 @@ Title: LXDのDHCPで使っていないIPアドレスを一括で解放するス�
 Date: 2016-08-11 22:58
 Category: blog
 Tags: lxd,dnsmasq
-Slug: blog/2016/08/11/release-all-unused-addresses-of-lxd-bridge
+Slug: 2016/08/11/release-all-unused-addresses-of-lxd-bridge
 
 [LXDコンテナで固定IPアドレスを使うための設定 · hnakamur's blog at github](/blog/2016/05/07/how-to-use-fixed-ip-address-for-a-lxd-container/) の設定を行ってもIPアドレスが指定通りにならないことがありました。
 

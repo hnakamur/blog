@@ -2,7 +2,7 @@ Title: さくらのクラウドでPackerとTerraformを使ってContainer Linux�
 Date: 2017-01-02 15:34
 Category: blog
 Tags: kubernetes, container-linux, sakura-cloud, terraform, packer
-Slug: blog/2017/01/02/use-container-linux-on-sakura-cloud-using-packer-and-terraform
+Slug: 2017/01/02/use-container-linux-on-sakura-cloud-using-packer-and-terraform
 
 ## はじめに
 さくらのクラウドでPackerとTerraformを使って[CoreOS Container Linux](https://coreos.com/os/docs/latest/)の環境構築をしてみたのでメモです。

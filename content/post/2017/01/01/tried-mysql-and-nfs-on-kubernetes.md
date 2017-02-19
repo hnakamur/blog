@@ -2,7 +2,7 @@ Title: Kuberntesでデータ領域をNFSマウントしてMySQLを動かして�
 Date: 2017-01-01 12:38
 Category: blog
 Tags: kubernetes
-Slug: blog/2017/01/01/tried-mysql-and-nfs-on-kubernetes
+Slug: 2017/01/01/tried-mysql-and-nfs-on-kubernetes
 
 ## はじめに
 

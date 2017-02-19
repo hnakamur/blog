@@ -2,7 +2,7 @@ Title: LXDのREST APIをcurlで試してみた
 Date: 2016-05-07 21:17
 Category: blog
 Tags: lxd, curl
-Slug: blog/2016/05/07/tried-lxd-rest-api-with-curl
+Slug: 2016/05/07/tried-lxd-rest-api-with-curl
 
 ## LXDのREST API
 [Linux Containers - LXD - REST API](https://linuxcontainers.org/ja/lxd/rest-api/)と[lxd/rest-api.md at master · lxc/lxd](https://github.com/lxc/lxd/blob/master/doc/rest-api.md)にLXDのREST APIについて説明があります。

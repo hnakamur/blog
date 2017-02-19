@@ -2,7 +2,7 @@ Title: 私のソースコードの書き方
 Date: 2016-07-16 01:37
 Category: blog
 Tags: programming
-Slug: blog/2016/07/16/my-way-of-writing-source-codes
+Slug: 2016/07/16/my-way-of-writing-source-codes
 
 ## はじめに
 [ソースコードって実際のところどういうふうに書いていますか？｜Rui Ueyama｜note](https://note.mu/ruiu/n/n1083b2a5d547) を読んで参考になるなーと思ったのですが、はてブ見ても、みんなだいたい同じですみたいなコメントばかりで面白くないので、「上手い人」では無いかもしれませんが、私の書き方をまとめてみました。

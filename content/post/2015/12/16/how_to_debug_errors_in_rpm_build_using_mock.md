@@ -2,7 +2,7 @@ Title: mockを使ったrpmビルドが失敗した時の調査方法
 Date: 2015-12-16 01:10
 Category: blog
 Tags: mock, rpmbuild
-Slug: blog/2015/12/16/how_to_debug_errors_in_rpm_build_using_mock
+Slug: 2015/12/16/how_to_debug_errors_in_rpm_build_using_mock
 
 
 ## はじめに

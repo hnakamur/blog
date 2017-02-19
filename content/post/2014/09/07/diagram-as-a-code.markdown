@@ -2,7 +2,7 @@ Title: Diagram as a Code
 Date: 2014-09-07 00:00
 Category: blog
 Tags: diagram
-Slug: blog/2014/09/07/diagram-as-a-code
+Slug: 2014/09/07/diagram-as-a-code
 
 この記事はpplogに書いた記事 https://www.pplog.net/u/hnakamur2 の転載です。
 

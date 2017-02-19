@@ -2,7 +2,7 @@ Title: lua, V8, ruby, mrubyでfib(39)の実行時間比較 2013-03-12版
 Date: 2012-05-04 00:00
 Category: blog
 Tags: lua, v8, ruby
-Slug: blog/2012/05/04/fib-39-benchmark-in-lua
+Slug: 2012/05/04/fib-39-benchmark-in-lua
 
 2013-03-13追記
 

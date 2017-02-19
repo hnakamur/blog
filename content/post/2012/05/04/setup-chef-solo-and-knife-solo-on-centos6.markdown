@@ -2,7 +2,7 @@ Title: CentOS6でchef-soloとknife-soloをセットアップ
 Date: 2012-05-04 00:00
 Category: blog
 Tags: centos, chef-solo
-Slug: blog/2012/05/04/setup-chef-solo-and-knife-solo-on-centos6
+Slug: 2012/05/04/setup-chef-solo-and-knife-solo-on-centos6
 
 ## なぜ？
 

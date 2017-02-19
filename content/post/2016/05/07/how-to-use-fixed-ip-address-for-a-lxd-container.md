@@ -2,7 +2,7 @@ Title: LXDコンテナで固定IPアドレスを使うための設定
 Date: 2016-05-07 18:01
 Category: blog
 Tags: lxd
-Slug: blog/2016/05/07/how-to-use-fixed-ip-address-for-a-lxd-container
+Slug: 2016/05/07/how-to-use-fixed-ip-address-for-a-lxd-container
 
 ## 2016-08-12 追記
 

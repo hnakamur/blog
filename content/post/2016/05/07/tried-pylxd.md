@@ -2,7 +2,7 @@ Title: LXDのREST APIクライアントライブラリpylxdを試してみた
 Date: 2016-05-07 21:17
 Category: blog
 Tags: lxd, python
-Slug: blog/2016/05/07/tried-pylxd
+Slug: 2016/05/07/tried-pylxd
 
 Python Package Index (PyPI)の [pylxd 2.0.0](https://pypi.python.org/pypi/pylxd/2.0.0)のページにインストール方法と使い方の例が書いてあるので、これに沿って試しました。
 

@@ -2,7 +2,7 @@ Title: AnsibleのLXDコネクションプラグインを試してみた
 Date: 2016-05-07 20:32
 Category: blog
 Tags: lxd, ansible
-Slug: blog/2016/05/07/tried-ansible-lxd-connection-plugin
+Slug: 2016/05/07/tried-ansible-lxd-connection-plugin
 
 LXDを使うとなるとAnsibleのLXDコネクションプラグインが欲しいなと思って[ansible/ansibleのgithubのレポジトリ](https://github.com/ansible/ansible)を眺めていたら [lib/ansible/plugins/connection/lxd.py](https://github.com/ansible/ansible/blob/fca5ba153e9258d6a9a28c418d8339d507eee81c/lib/ansible/plugins/connection/lxd.py) に既に作られていることに気付きました。
 

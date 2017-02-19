@@ -2,7 +2,7 @@ Title: さくらのVPSにFreeBSD 10.1をクリーンインストールした時�
 Date: 2015-05-16 11:39
 Category: blog
 Tags: sakura-vps, freebsd
-Slug: blog/2015/05/16/install_freebsd10.1_on_sakura_vps
+Slug: 2015/05/16/install_freebsd10.1_on_sakura_vps
 
 ## はじめに
 

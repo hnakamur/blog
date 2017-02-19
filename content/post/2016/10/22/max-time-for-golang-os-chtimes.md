@@ -2,7 +2,7 @@ Title: Go言語のos.Chtimesで設定可能な最大日時は 2262-04-11 23:47:1
 Date: 2016-10-22 18:32
 Category: blog
 Tags: go
-Slug: blog/2016/10/22/max-time-for-golang-os-chtimes
+Slug: 2016/10/22/max-time-for-golang-os-chtimes
 
 
 [os.Chtimes](https://golang.org/pkg/os/#Chtimes) のソース

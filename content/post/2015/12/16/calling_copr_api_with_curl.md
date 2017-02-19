@@ -2,7 +2,7 @@ Title: coprのAPIをcurlで呼び出す
 Date: 2015-12-16 00:06
 Category: blog
 Tags: copr
-Slug: blog/2015/12/16/calling_copr_api_with_curl
+Slug: 2015/12/16/calling_copr_api_with_curl
 
 ## はじめに
 [copr](https://fedorahosted.org/copr/)を利用するには以下の3つの手段があります。

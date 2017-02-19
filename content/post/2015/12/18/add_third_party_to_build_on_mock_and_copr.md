@@ -2,7 +2,7 @@ Title: Mockやcoprでrpmをビルドする際にサードパーティのレポ�
 Date: 2015-12-18 01:43
 Category: blog
 Tags: copr, mock, rpmbuild
-Slug: blog/2015/12/18/add_third_party_to_build_on_mock_and_copr
+Slug: 2015/12/18/add_third_party_to_build_on_mock_and_copr
 
 ## はじめに
 [Mock](https://fedoraproject.org/wiki/Mock)や[copr](https://copr.fedoraproject.org/)でrpmをビルドする際にCentOS標準のレポジトリ以外のサードパーティのレポジトリのrpmに依存したい場合があります。この記事ではサードパーティのレポジトリの追加方法を説明します。

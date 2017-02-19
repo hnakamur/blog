@@ -2,7 +2,7 @@ Title: Ubuntu 16.04 LTSでLXD 2.0をセットアップして使ってみる
 Date: 2016-05-07 14:12
 Category: blog
 Tags: ubuntu, lxd
-Slug: blog/2016/05/07/start-using-lxd-2.0-on-ubuntu-16.04
+Slug: 2016/05/07/start-using-lxd-2.0-on-ubuntu-16.04
 
 ## 参考記事
 
