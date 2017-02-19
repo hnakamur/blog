@@ -39,3 +39,13 @@ DATE_FORMATS = {
           'en': '%a, %d %b %Y',
           'ja': '%Y-%m-%d',
 }
+
+ARTICLE_URL = '{slug}/'
+ARTICLE_SAVE_AS = '{slug}/index.html'
+PAGE_URL = 'pages/{slug}/'
+PAGE_SAVE_AS = 'pages/{slug}/index.html'
+
+GOOGLE_ANALYTICS = 'UA-53263855-1'
+
+THEME = 'themes/notmyidea-custom'
+PYGMENTS_RST_OPTIONS = {'classprefix': '', 'linenos': 'table'}
