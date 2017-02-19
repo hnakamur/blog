@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["ubuntu", "lxd"]
-date = "2016-05-07T14:12:49+09:00"
-title = "Ubuntu 16.04 LTSでLXD 2.0を試してみた"
+Title: Ubuntu 16.04 LTSでLXD 2.0を試してみた
+Date: 2016-05-07 14:12
+Category: blog
+Tags: ubuntu, lxd
+Slug: 2016/05/07/tried-lxd-2.0-on-ubuntu-16.04
 
-+++
 ## はじめに
 [LXC 2.0でCentOS 7のコンテナを動かしてみた · hnakamur's blog at github](/blog/2016/04/19/run_centos7_containers_on_lxc2/)でLXC 2.0を試しましたが、今度はLXD 2.0を試してみました。
 

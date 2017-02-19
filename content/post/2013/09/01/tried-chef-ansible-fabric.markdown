@@ -1,10 +1,8 @@
----
-layout: post
-title: "Chef-soloとAnsibleとFabricを試した感想"
-date: 2013-09-01
-comments: true
-categories: 
----
+Title: Chef-soloとAnsibleとFabricを試した感想
+Date: 2013-09-01 00:00
+Category: blog
+Slug: 2013/09/01/tried-chef-ansible-fabric
+
 Chef-soloとAnsibleとFabricを試してみたので感想をメモ。どれもそんなに深くは使い込んではいない。
 
 このメモは自分の脳内の考えを整理するためのもので、人が使うことについてどうこう言うつもりはないです。

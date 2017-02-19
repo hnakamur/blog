@@ -1,10 +1,9 @@
----
-layout: post
-title: "node.jsのfs.watch()で設定ファイルが更新されたらリロード"
-date: 2012-06-27
-comments: true
-categories: node.js
----
+Title: node.jsのfs.watch()で設定ファイルが更新されたらリロード
+Date: 2012-06-27 00:00
+Category: blog
+Tags: node.js
+Slug: 2012/06/27/node-dot-jsfalsefs-dot-watch-deshe-ding-huairugageng-xin-saretararirodo
+
 [javascript - Auto-reload of files in Node.js - Stack Overflow](http://stackoverflow.com/questions/1972242/auto-reload-of-files-in-node-js)によると、モジュールをリロードするには[isaacs/node-supervisor](https://github.com/isaacs/node-supervisor)がよさそうです。
 
 が、今回は設定ファイルのリロードなのでfs.watch(filename, [options], [listener]) で十分ということで試してみました。

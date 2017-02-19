@@ -1,10 +1,9 @@
----
-layout: post
-title: "daemontoolsの使い方"
-date: 2012-06-21
-comments: true
-categories: [daemontools, CentOS]
----
+Title: daemontoolsの使い方
+Date: 2012-06-21 00:00
+Category: blog
+Tags: daemontools, centos
+Slug: 2012/06/21/how-to-use-daemontools
+
 [daemontoolsを使う | Netsphere Laboratories](http://www.nslabs.jp/daemontools.rhtml)を参考にしました。ありがとうございます。
 
 ## 私的ルール

@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["github", "rpmbuild"]
-date = "2015-12-06T00:07:23+09:00"
-title = "rpmのspecファイルのSourceにGitHubの任意のコミットのtarballのURLを指定するときの良い書き方"
+Title: rpmのspecファイルのSourceにGitHubの任意のコミットのtarballのURLを指定するときの良い書き方
+Date: 2015-12-06 00:07
+Category: blog
+Tags: github, rpmbuild
+Slug: 2015/12/06/good_rpm_spec_source_url_syntax_for_tarball_on_github
 
-+++
 [Packaging:SourceURL - FedoraProject](https://fedoraproject.org/wiki/Packaging:SourceURL?rd=Packaging/SourceURL#Commit_Revision)で知ったtipsの紹介です。
 
 GitHubでプロジェクトの[Download ZIP]ボタンを押すと、ソースをZIP形式でダウンロードできます。

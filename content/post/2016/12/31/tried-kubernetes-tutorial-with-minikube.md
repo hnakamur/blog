@@ -1,11 +1,9 @@
-+++
-date = "2016-12-31T16:24:33+09:00"
-title = "minikubeでKubernetesのチュートリアルをやってみた"
-Categories = []
-Tags = ["kubernetes"]
-Description = ""
+Title: minikubeでKubernetesのチュートリアルをやってみた
+Date: 2016-12-31 16:24
+Category: blog
+Tags: kubernetes
+Slug: 2016/12/31/tried-kubernetes-tutorial-with-minikube
 
-+++
 ## はじめに
 
 検索してたら [Why Kubernetes is winning the container war | Hacker News](https://news.ycombinator.com/item?id=12462261) というHacker Newsのスレッドを見つけました。

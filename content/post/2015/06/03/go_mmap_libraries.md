@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["go", "mmap"]
-date = "2015-06-03T06:29:01+09:00"
-title = "Go言語用のメモリマップトファイルのライブラリを探してみた"
+Title: Go言語用のメモリマップトファイルのライブラリを探してみた
+Date: 2015-06-03 06:29
+Category: blog
+Tags: go, mmap
+Slug: 2015/06/03/go_mmap_libraries
 
-+++
 ふとGo言語でメモリマップトファイルを扱えるライブラリってあるのかなと気になったので探してみました。
 
 ## 標準ライブラリ

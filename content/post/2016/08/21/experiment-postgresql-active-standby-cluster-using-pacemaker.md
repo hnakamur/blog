@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["postgresql","pacemaker","lxd","ansible"]
-date = "2016-08-21T11:23:01+09:00"
-title = "Pacemakerを使ってPostgreSQLのアクティブ・スタンバイ(1+1構成)を試してみた"
+Title: Pacemakerを使ってPostgreSQLのアクティブ・スタンバイ(1+1構成)を試してみた
+Date: 2016-08-21 11:23
+Category: blog
+Tags: postgresql,pacemaker,lxd,ansible
+Slug: 2016/08/21/experiment-postgresql-active-standby-cluster-using-pacemaker
 
-+++
 ## はじめに
 
 STONITH無し、quorum無しのアクティブ・スタンバイ(1+1構成)がとりあえず動くところまでは来たので、一旦メモです。

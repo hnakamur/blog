@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["crypt", "ubuntu"]
-date = "2016-05-02T12:28:08+09:00"
-title = "Ubuntuでホームディレクトリを暗号化するのを止めた"
+Title: Ubuntuでホームディレクトリを暗号化するのを止めた
+Date: 2016-05-02 12:28
+Category: blog
+Tags: crypt, ubuntu
+Slug: 2016/05/02/uninstall-encrypted-home-on-ubuntu
 
-+++
 ## 背景
 [MacをPXEサーバにしてExpress5800/S70タイプRBにUbuntu16.04をインストールしてみた · hnakamur's blog at github](/blog/2016/05/01/install_ubuntu_xenial_with_pxe_boot/)でホームディレクトリを暗号化してみたのですが、OS起動後に鍵認証でsshしようとすると鍵は正しく指定しているのに `Permission denied (publickey).` と拒否されてしまうケースがありました。コンソールで一度ログインするとsshでもログイン出来るようになります。
 

@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["golang","ltsv","logging"]
-date = "2016-06-13T21:42:53+09:00"
-title = "GoでLTSV形式でログ出力するライブラリを書いた"
+Title: GoでLTSV形式でログ出力するライブラリを書いた
+Date: 2016-06-13 21:42
+Category: blog
+Tags: golang,ltsv,logging
+Slug: 2016/06/13/wrote_go_ltsvlog_library
 
-+++
 ## なぜ書いたか
 Goで高機能なサードパーティのログ出力ライブラリと言えば[Sirupsen/logrus](https://github.com/Sirupsen/logrus)が有名です。私も[doloopwhile/logrusltsv](https://github.com/doloopwhile/logrusltsv)と組み合わせてLTSV形式のログ出力するのに使っていました。
 

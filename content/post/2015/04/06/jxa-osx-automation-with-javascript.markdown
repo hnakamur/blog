@@ -1,11 +1,9 @@
-+++
-Categories = ["automation"]
-Description = ""
-Tags = ["jxa"]
-date = "2015-04-06T04:40:43+09:00"
-title = "JXA (JavaScript for Automation)を使ってOSXの初期設定を半自動化してみた"
+Title: JXA (JavaScript for Automation)を使ってOSXの初期設定を半自動化してみた
+Date: 2015-04-06 04:40
+Category: blog
+Tags: jxa
+Slug: 2015/04/06/jxa-osx-automation-with-javascript
 
-+++
 ## 概要
 
 OSXを再インストールしたときなどキーボードやトラックパッドの設定を行いますが、

@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["CentOS"]
-date = "2015-12-05T22:10:26+09:00"
-title = "mockコマンドでrpmをビルドする"
+Title: mockコマンドでrpmをビルドする
+Date: 2015-12-05 22:10
+Category: blog
+Tags: centos
+Slug: 2015/12/05/build_rpm_with_mock
 
-+++
 ## 2015-12-15 追記
 
 [nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました · hnakamur's blog at github](/blog/2015/12/15/using_mock_and_copr_to_build_nginx_rpm_on_docker/)という記事を書きましたのでそちらもご参照ください。

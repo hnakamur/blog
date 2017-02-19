@@ -1,11 +1,9 @@
-+++
-Categories = []
-Tags = ["kubernetes"]
-Description = ""
-date = "2017-01-01T16:31:08+09:00"
-title = "KubernetesのSecrets機能を試してみた"
+Title: KubernetesのSecrets機能を試してみた
+Date: 2017-01-01 16:31
+Category: blog
+Tags: kubernetes
+Slug: 2017/01/01/tried-kubernetes-secrets
 
-+++
 ## はじめに
 [Running a Single-Instance Stateful Application - Kubernetes](http://kubernetes.io/docs/tutorials/stateful-application/run-stateful-application/) ではMySQLのrootユーザのパスワードを設定のyamlファイルに直接書いていましたが、 安全に管理するためには[Secrets - Kubernetes](http://kubernetes.io/docs/user-guide/secrets/) を使うべきとのことなので試してみました。
 

@@ -1,13 +1,9 @@
-+++
-Categories = [
-]
-Description = ""
-Tags = ["go"
-]
-date = "2016-10-22T18:32:50+09:00"
-title = "Go言語のos.Chtimesで設定可能な最大日時は 2262-04-11 23:47:16.854775807 +0000 UTC"
+Title: Go言語のos.Chtimesで設定可能な最大日時は 2262-04-11 23:47:16.854775807 +0000 UTC
+Date: 2016-10-22 18:32
+Category: blog
+Tags: go
+Slug: 2016/10/22/max-time-for-golang-os-chtimes
 
-+++
 
 [os.Chtimes](https://golang.org/pkg/os/#Chtimes) のソース
 

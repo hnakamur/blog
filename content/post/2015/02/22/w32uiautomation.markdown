@@ -1,9 +1,8 @@
-+++
-date = "2015-02-22T00:09:24+09:00"
-draft = false
-title = "Windows UI Automation APIを使うためのGoライブラリw32uiautomationを書いた"
+Title: Windows UI Automation APIを使うためのGoライブラリw32uiautomationを書いた
+Date: 2015-02-22 00:09
+Category: blog
+Slug: 2015/02/22/w32uiautomation
 
-+++
 
 # なぜ
 

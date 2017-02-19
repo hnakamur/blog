@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+        <meta charset="utf-8" />
+        <title>LXCの特定の1つのコンテナの起動状態をシェルスクリプトで確認したいときのお勧めの方法</title>
+        <link rel="stylesheet" href="../../../../../theme/css/main.css" />
+
+        <!--[if IE]>
+            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+        <![endif]-->
+</head>
+
+<body id="index" class="home">
+        <header id="banner" class="body">
+                <h1><a href="../../../../../">hnakamur's blog at github </a></h1>
+                <nav><ul>
+                    <li class="active"><a href="../../../../../category/blog.html">blog</a></li>
+                </ul></nav>
+        </header><!-- /#banner -->
+<section id="content" class="body">
+  <article>
+    <header>
+      <h1 class="entry-title">
+        <a href="../../../../../blog/2016/05/07/script-to-check-running-status-of-lxd-container/" rel="bookmark"
+           title="Permalink to LXCの特定の1つのコンテナの起動状態をシェルスクリプトで確認したいときのお勧めの方法">LXCの特定の1つのコンテナの起動状態をシェルスクリプトで確認したいときのお勧めの方法</a></h1>
+    </header>
+
+    <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2016-05-07T14:12:00+09:00">
+                Published: 2016-05-07
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
+        </address>
+<p>In <a href="../../../../../category/blog.html">blog</a>.</p>
+<p>tags: <a href="../../../../../tag/lxd.html">lxd</a> </p>
+</footer><!-- /.post-info -->      <h2>イマイチな方法1: lxc listの出力をawkで加工</h2>
+<p><code>lxc list -h</code> を見ると <code>lxc list [resource] [filters] [--format table|json] [-c columns] [--fast]</code> というコマンドラインになっていて、 <code>-c</code> オプションで表示するカラムを指定可能です。</p>
+<p>例えば　以下のようにすれば <code>cent01</code> コンテナの起動状態だけを表示できます。</p>
+<div class="highlight"><pre><span></span>$ lxc list -c s cent01
++---------+
+<span class="p">|</span>  STATE  <span class="p">|</span>
++---------+
+<span class="p">|</span> RUNNING <span class="p">|</span>
++---------+
+</pre></div>
+
+
+<p>ただ、デフォルトの <code>--format table</code> だとASCII文字の罫線が表示されるので、状態を抜き出すにはawkで加工する必要があります。</p>
+<div class="highlight"><pre><span></span>$ lxc list -c s cent01 <span class="p">|</span> awk <span class="s1">&#39;NR==4{print $2}&#39;</span>
+RUNNING
+</pre></div>
+
+
+<h2>イマイチな方法2: lxc list --format jsonの出力をjqで加工</h2>
+<p><code>--format json</code> でJSON形式で出力できるのですが、この場合は <code>-c</code> オプションで項目を限定することは出来ませんでした。</p>
+<div class="highlight"><pre><span></span>$ lxc list --format json -c s cent01
+<span class="o">[{</span><span class="s2">&quot;architecture&quot;</span>:<span class="s2">&quot;x86_64&quot;</span>,<span class="s2">&quot;config&quot;</span>:<span class="o">{</span><span class="s2">&quot;volatile.base_image&quot;</span>:<span class="s2">&quot;a027d59858d663fb2bc12b5ba767e92196a4aee8dbb2a607db53d718b91eb5d2&quot;</span>,<span class="s2">&quot;volatile.eth0.hwaddr&quot;</span>:<span class="s2">&quot;00:16:3e:5f:01:7e&quot;</span>,<span class="s2">&quot;volatile.last_state.idmap&quot;</span>:<span class="s2">&quot;[{\&quot;Isuid\&quot;:true,\&quot;Isgid\&quot;:false,\&quot;Hostid\&quot;:100000,\&quot;Nsid\&quot;:0,\&quot;Maprange\</span>
+<span class="s2">&quot;</span>:65536<span class="o">}</span>,<span class="o">{</span><span class="se">\&quot;</span>Isuid<span class="se">\&quot;</span>:false,<span class="se">\&quot;</span>Isgid<span class="se">\&quot;</span>:true,<span class="se">\&quot;</span>Hostid<span class="se">\&quot;</span>:100000,<span class="se">\&quot;</span>Nsid<span class="se">\&quot;</span>:0,<span class="se">\&quot;</span>Maprange<span class="se">\&quot;</span>:65536<span class="o">}]</span><span class="s2">&quot;},&quot;</span>created_at<span class="s2">&quot;:&quot;</span><span class="m">2016</span>-05-06T18:56:46+09:00<span class="s2">&quot;,&quot;</span>devices<span class="s2">&quot;:{&quot;</span>root<span class="s2">&quot;:{&quot;</span>path<span class="s2">&quot;:&quot;</span>/<span class="s2">&quot;,&quot;</span>type<span class="s2">&quot;:&quot;</span>disk<span class="s2">&quot;}},&quot;</span>ephemeral<span class="s2">&quot;:false,&quot;</span>expanded_config<span class="s2">&quot;:{&quot;</span>volatile.base_image<span class="s2">&quot;:&quot;</span>a027d59858d663fb2bc12b5ba767e9
+2196a4aee8dbb2a607db53d718b91eb5d2<span class="s2">&quot;,&quot;</span>volatile.eth0.hwaddr<span class="s2">&quot;:&quot;</span><span class="m">00</span>:16:3e:5f:01:7e<span class="s2">&quot;,&quot;</span>volatile.last_state.idmap<span class="s2">&quot;:&quot;</span><span class="o">[{</span><span class="se">\&quot;</span>Isuid<span class="se">\&quot;</span>:true,<span class="se">\&quot;</span>Isgid<span class="se">\&quot;</span>:false,<span class="se">\&quot;</span>Hostid<span class="se">\&quot;</span>:100000,<span class="se">\&quot;</span>Nsid<span class="se">\&quot;</span>:0,<span class="se">\&quot;</span>Maprange<span class="se">\&quot;</span>:65536<span class="o">}</span>,<span class="o">{</span><span class="se">\&quot;</span>Isuid<span class="se">\&quot;</span>:false,<span class="se">\&quot;</span>Isgid<span class="se">\&quot;</span>:true,<span class="se">\&quot;</span>Hostid<span class="se">\&quot;</span>:100000,<span class="se">\&quot;</span>Nsid<span class="se">\&quot;</span>:0,<span class="se">\&quot;</span>Maprange<span class="se">\&quot;</span>:65536<span class="o">}</span>
+<span class="o">]</span><span class="s2">&quot;},&quot;</span>expanded_devices<span class="s2">&quot;:{&quot;</span>eth0<span class="s2">&quot;:{&quot;</span>name<span class="s2">&quot;:&quot;</span>eth0<span class="s2">&quot;,&quot;</span>nictype<span class="s2">&quot;:&quot;</span>bridged<span class="s2">&quot;,&quot;</span>parent<span class="s2">&quot;:&quot;</span>lxdbr0<span class="s2">&quot;,&quot;</span>type<span class="s2">&quot;:&quot;</span>nic<span class="s2">&quot;},&quot;</span>root<span class="s2">&quot;:{&quot;</span>path<span class="s2">&quot;:&quot;</span>/<span class="s2">&quot;,&quot;</span>type<span class="s2">&quot;:&quot;</span>disk<span class="s2">&quot;}},&quot;</span>name<span class="s2">&quot;:&quot;</span>cent01<span class="s2">&quot;,&quot;</span>profiles<span class="s2">&quot;:[&quot;</span>default<span class="s2">&quot;],&quot;</span>stateful<span class="s2">&quot;:false,&quot;</span>status<span class="s2">&quot;:&quot;</span>Running<span class="s2">&quot;,&quot;</span>status_code<span class="s2">&quot;:103,&quot;</span>state<span class="s2">&quot;:null,&quot;</span>snapshots<span class="s2">&quot;:null}]</span>
+</pre></div>
+
+
+<p><code>sudo apt install jq</code> で <code>jq</code> コマンドをインストールして、それで状態を抜き出すことは可能です。</p>
+<div class="highlight"><pre><span></span>$ lxc list --format json cent01 <span class="p">|</span> jq -r <span class="s1">&#39;.[0].status&#39;</span>
+Running
+</pre></div>
+
+
+<h2>お勧めの方法: lxc infoの出力をawkで加工</h2>
+<p><code>lxc list</code> の場合は指定した文字列は完全一致ではなくて前方一致で表示されました。上記の例のように <code>cent01</code> と <code>cent02</code> の2つのコンテナがあるときに、 <code>lxc list -c s cent0</code> と実行すると以下のようになります。</p>
+<div class="highlight"><pre><span></span>$ lxc list -c s cent0
++---------+
+<span class="p">|</span>  STATE  <span class="p">|</span>
++---------+
+<span class="p">|</span> RUNNING <span class="p">|</span>
++---------+
+<span class="p">|</span> RUNNING <span class="p">|</span>
++---------+
+</pre></div>
+
+
+<p>これだとどの行がどのコンテナかわからないのでコンテナ名の列も付ける必要があります。</p>
+<div class="highlight"><pre><span></span>$ lxc list -c ns cent0
++--------+---------+
+<span class="p">|</span>  NAME  <span class="p">|</span>  STATE  <span class="p">|</span>
++--------+---------+
+<span class="p">|</span> cent01 <span class="p">|</span> RUNNING <span class="p">|</span>
++--------+---------+
+<span class="p">|</span> cent02 <span class="p">|</span> RUNNING <span class="p">|</span>
++--------+---------+
+</pre></div>
+
+
+<p>この結果をawkで加工するのでも良いのですが、もっと良いのは <code>lxc info</code> コマンドを使うことです。</p>
+<div class="highlight"><pre><span></span>$ lxc info cent01
+コンテナ名: cent01
+アーキテクチャ: x86_64
+作成日時: <span class="m">2016</span>/05/06 <span class="m">09</span>:56 UTC
+状態: Running
+タイプ: persistent
+プロファイル: default
+Pid: <span class="m">29354</span>
+IPアドレス:
+  eth0: inet    <span class="m">10</span>.155.92.101   vethG4XSE4
+  eth0: inet6   fe80::216:3eff:fe5f:17e vethG4XSE4
+  lo:   inet    <span class="m">127</span>.0.0.1
+  lo:   inet6   ::1
+リソース:
+  プロセス数: <span class="m">10</span>
+  メモリ消費量:
+    メモリ <span class="o">(</span>現在値<span class="o">)</span>: <span class="m">23</span>.60MB
+    メモリ <span class="o">(</span>ピーク<span class="o">)</span>: <span class="m">43</span>.08MB
+  ネットワーク使用状況:
+    eth0:
+      受信バイト数: <span class="m">24</span>.16kB
+      送信バイト数: <span class="m">8</span>.06kB
+      受信パケット: <span class="m">232</span>
+      送信パケット: <span class="m">88</span>
+    lo:
+      受信バイト数: <span class="m">0</span> bytes
+      送信バイト数: <span class="m">0</span> bytes
+      受信パケット: <span class="m">0</span>
+      送信パケット: <span class="m">0</span>
+</pre></div>
+
+
+<p>存在しないコンテナ名を指定するとエラーになります。これは標準エラー出力に出力されています。</p>
+<div class="highlight"><pre><span></span>$ lxc info hoge
+エラー: not found
+</pre></div>
+
+
+<p>シェルスクリプトで加工するには英語出力のほうが良いので <code>LANG=C</code> 付きで実行します。</p>
+<div class="highlight"><pre><span></span>$ <span class="nv">LANG</span><span class="o">=</span>C lxc info cent01
+Name: cent01
+Architecture: x86_64
+Created: <span class="m">2016</span>/05/06 <span class="m">09</span>:56 UTC
+Status: Running
+Type: persistent
+Profiles: default
+Pid: <span class="m">29354</span>
+Ips:
+  eth0: inet    <span class="m">10</span>.155.92.101   vethG4XSE4
+  eth0: inet6   fe80::216:3eff:fe5f:17e vethG4XSE4
+  lo:   inet    <span class="m">127</span>.0.0.1
+  lo:   inet6   ::1
+Resources:
+  Processes: <span class="m">10</span>
+  Memory usage:
+    Memory <span class="o">(</span>current<span class="o">)</span>: <span class="m">23</span>.60MB
+    Memory <span class="o">(</span>peak<span class="o">)</span>: <span class="m">43</span>.08MB
+  Network usage:
+    eth0:
+      Bytes received: <span class="m">24</span>.58kB
+      Bytes sent: <span class="m">8</span>.56kB
+      Packets received: <span class="m">235</span>
+      Packets sent: <span class="m">93</span>
+    lo:
+      Bytes received: <span class="m">0</span> bytes
+      Bytes sent: <span class="m">0</span> bytes
+      Packets received: <span class="m">0</span>
+      Packets sent: <span class="m">0</span>
+$ <span class="nv">LANG</span><span class="o">=</span>C lxc info hoge
+error: not found
+</pre></div>
+
+
+<p>結局以下のように実行するのがお勧めです。</p>
+<div class="highlight"><pre><span></span>$ <span class="nv">LANG</span><span class="o">=</span>C lxc info cent01 <span class="m">2</span>&gt; /dev/null <span class="p">|</span> awk <span class="s1">&#39;$1==&quot;Status:&quot;{print $2}&#39;</span>
+Running
+</pre></div>
+
+
+<p>存在しない場合は空文字列になります。</p>
+<div class="highlight"><pre><span></span>$ <span class="nv">LANG</span><span class="o">=</span>C lxc info hoge <span class="m">2</span>&gt; /dev/null <span class="p">|</span> awk <span class="s1">&#39;$1==&quot;Status:&quot;{print $2}&#39;</span>
+</pre></div>
+
+
+<p>判定例はこんな感じです。</p>
+<div class="highlight"><pre><span></span>$ <span class="o">[</span> x<span class="sb">`</span><span class="nv">LANG</span><span class="o">=</span>C lxc info cent01 <span class="m">2</span>&gt; /dev/null <span class="p">|</span> awk <span class="s1">&#39;$1==&quot;Status:&quot;{print $2}&#39;</span><span class="sb">`</span> <span class="o">==</span> xRunning <span class="o">]</span> <span class="o">&amp;&amp;</span> <span class="nb">echo</span> <span class="s2">&quot;container is running&quot;</span>
+container is running
+$ <span class="o">[</span> x<span class="sb">`</span><span class="nv">LANG</span><span class="o">=</span>C lxc info hoge <span class="m">2</span>&gt; /dev/null <span class="p">|</span> awk <span class="s1">&#39;$1==&quot;Status:&quot;{print $2}&#39;</span><span class="sb">`</span> <span class="o">==</span> xRunning <span class="o">]</span> <span class="o">&amp;&amp;</span> <span class="nb">echo</span> <span class="s2">&quot;container is running&quot;</span>
+$
+</pre></div>
+    </div><!-- /.entry-content -->
+
+  </article>
+</section>
+        <section id="extras" class="body">
+        </section><!-- /#extras -->
+
+        <footer id="contentinfo" class="body">
+                <address id="about" class="vcard body">
+                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
+                </address><!-- /#about -->
+
+                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
+        </footer><!-- /#contentinfo -->
+
+    <script type="text/javascript">
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-53263855-1', 'auto');
+    ga('send', 'pageview');
+    </script>
+</body>
+</html>

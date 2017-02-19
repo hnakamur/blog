@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["lxc"]
-date = "2016-04-19T06:37:15+09:00"
-title = "LXC 2.0でCentOS 7のコンテナを動かしてみた"
+Title: LXC 2.0でCentOS 7のコンテナを動かしてみた
+Date: 2016-04-19 06:37
+Category: blog
+Tags: lxc
+Slug: 2016/04/19/run_centos7_containers_on_lxc2
 
-+++
 
 ## はじめに
 ### なぜDockerではなくLXCを使うのか

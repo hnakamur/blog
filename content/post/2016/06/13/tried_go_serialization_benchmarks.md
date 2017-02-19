@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["golang","serialization"]
-date = "2016-06-13T23:34:16+09:00"
-title = "Goのシリアライゼーションのベンチマークを自分でも試してみた"
+Title: Goのシリアライゼーションのベンチマークを自分でも試してみた
+Date: 2016-06-13 23:34
+Category: blog
+Tags: golang,serialization
+Slug: 2016/06/13/tried_go_serialization_benchmarks
 
-+++
 2015年12月の記事ですが[最速という噂のFlatbuffersの速度のヒミツと、導入方法の紹介(Go) - Qiita](http://qiita.com/shibukawa/items/878c5fe8ec09935fccd2)を読んで、「gobは遅いのかー、残念」、「一方Flatbuffersは面倒そうだなー」と思っていました。
 
 で、[alecthomas/go_serialization_benchmarks at 48e2bb8b7b6c38c24c88a0b027b30c80175a7b59](https://github.com/alecthomas/go_serialization_benchmarks/tree/48e2bb8b7b6c38c24c88a0b027b30c80175a7b59#results)のベンチマーク結果を見てみると、あれgob遅くないよ、というかVmihailencoMsgpackとUgorjiCodecMsgpackより速くなってました。

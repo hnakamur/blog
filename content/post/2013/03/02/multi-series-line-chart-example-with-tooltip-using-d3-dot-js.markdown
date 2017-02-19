@@ -1,10 +1,9 @@
----
-layout: post
-title: "d3.jsを使ったツールチップあり複数折れ線グラフのサンプルを作った"
-date: 2013-03-02
-comments: true
-categories: d3.js
----
+Title: d3.jsを使ったツールチップあり複数折れ線グラフのサンプルを作った
+Date: 2013-03-02 00:00
+Category: blog
+Tags: d3.js
+Slug: 2013/03/02/multi-series-line-chart-example-with-tooltip-using-d3-dot-js
+
 [D3.js - Data-Driven Documents](http://d3js.org/)を使ってツールチップあり複数折れ線グラフのサンプルを作ったのでメモ。
 
 <a href="/downloads/code/2013-03-02-multi-series-line-chart-example-with-tooltip-using-d3-dot-js/3884955.html">サンプル</a>

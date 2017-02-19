@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["rust", "shell-script"]
-date = "2015-07-18T23:13:32+09:00"
-title = "manyrustという複数バージョンのrustインストールスクリプトを書いた"
+Title: manyrustという複数バージョンのrustインストールスクリプトを書いた
+Date: 2015-07-18 23:13
+Category: blog
+Tags: rust, shell-script
+Slug: 2015/07/18/manyrust
 
-+++
 ## multirustがあるのに、なぜ新たに書いたのか
 
 rustのインストールは[Install · The Rust Programming Language](http://www.rust-lang.org/install.html)にあるように複数のチャネルから選んでインストールします。

@@ -1,10 +1,9 @@
----
-layout: post
-title: "CentOS6でchef-soloとknife-soloをセットアップ"
-date: 2012-05-04
-comments: true
-categories: [CentOS, chef-solo]
----
+Title: CentOS6でchef-soloとknife-soloをセットアップ
+Date: 2012-05-04 00:00
+Category: blog
+Tags: centos, chef-solo
+Slug: 2012/05/04/setup-chef-solo-and-knife-solo-on-centos6
+
 ## なぜ？
 
 [chef-soloで作業環境構築の自動化 | ひげろぐ](http://higelog.brassworks.jp/?p=654) を参考に、Chefサーバは使いたくないけど、chef-soloとknifeを使いたい！

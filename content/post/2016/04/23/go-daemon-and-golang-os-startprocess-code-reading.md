@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["golang"]
-date = "2016-04-23T16:45:09+09:00"
-title = "go-daemonとgoのos.StartProcess()のコードを読んでみた"
+Title: go-daemonとgoのos.StartProcess()のコードを読んでみた
+Date: 2016-04-23 16:45
+Category: blog
+Tags: golang
+Slug: 2016/04/23/go-daemon-and-golang-os-startprocess-code-reading
 
-+++
 ## 発端: Goでデーモンを書くのは無理と思っていたら実は出来るらしい
 
 Goでデーモンを書くのは無理と以前どこかで読んだ気がします。

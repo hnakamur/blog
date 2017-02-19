@@ -1,11 +1,8 @@
-+++
-Categories = []
-Description = ""
-Tags = []
-date = "2015-08-12T07:14:59+09:00"
-title = "自分のグローバルアドレスをOpenDNSとdigコマンドで調べる方法を試してみた"
+Title: 自分のグローバルアドレスをOpenDNSとdigコマンドで調べる方法を試してみた
+Date: 2015-08-12 07:14
+Category: blog
+Slug: 2015/08/12/get_my_global_ip_address_with_opendns
 
-+++
 [linux - How can I get my external IP address in bash? - Unix & Linux Stack Exchange](http://unix.stackexchange.com/questions/22615/how-can-i-get-my-external-ip-address-in-bash/81699)を読んで試してみたのでメモです。
 
 この記事を読むまでは `curl -s http://ifconfig.me` しか知りませんでした。

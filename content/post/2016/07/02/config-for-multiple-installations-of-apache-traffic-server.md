@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["apachetrafficserver"]
-date = "2016-07-02T01:00:00+09:00"
-title = "1台のサーバに異なる設定でApache Traffic Serverを複数立ち上げるためのビルド設定"
+Title: 1台のサーバに異なる設定でApache Traffic Serverを複数立ち上げるためのビルド設定
+Date: 2016-07-02 01:00
+Category: blog
+Tags: apachetrafficserver
+Slug: 2016/07/02/config-for-multiple-installations-of-apache-traffic-server
 
-+++
 ## はじめに
 Apache Traffic Serverには[Hierarchical Caching](https://docs.trafficserver.apache.org/en/latest/admin-guide/configuration/hierachical-caching.en.html)という機能があって、キャッシュを親と子の2階層にすることが出来ます。
 

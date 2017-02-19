@@ -1,11 +1,9 @@
-+++
-Tags = ["time-series-database","go"]
-Description = ""
-date = "2017-02-12T23:00:03+09:00"
-title = "Facebookの時系列データベースGorillaのデータ圧縮方式を試してみた"
-Categories = []
+Title: Facebookの時系列データベースGorillaのデータ圧縮方式を試してみた
+Date: 2017-02-12 23:00
+Category: blog
+Tags: time-series-database,go
+Slug: 2017/02/12/tried-facebook-gorilla-time-series-database-compression
 
-+++
 ## はじめに
 [Beringei: A high-performance time series storage engine | Engineering Blog | Facebook Code](https://code.facebook.com/posts/952820474848503/beringei-a-high-performance-time-series-storage-engine/) という記事を読んで、Facebookが2015年に ["Gorilla: A Fast, Scalable, In-Memory Time Series Database"](http://www.vldb.org/pvldb/vol8/p1816-teller.pdf) という論文でGorillaという時系列データベースについて発表したものを[Beringei](https://github.com/facebookincubator/beringei)としてオープンソースで公開したのを知りました。
 

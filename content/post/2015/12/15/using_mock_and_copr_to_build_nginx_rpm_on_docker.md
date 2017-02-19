@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["mock", "copr", "rpm", "nginx", "docker"]
-date = "2015-12-15T04:19:16+09:00"
-title = "nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました"
+Title: nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました
+Date: 2015-12-15 04:19
+Category: blog
+Tags: mock, copr, rpm, nginx, docker
+Slug: 2015/12/15/using_mock_and_copr_to_build_nginx_rpm_on_docker
 
-+++
 ## はじめに
 [Travis CIとcopr.fedoraproject.orgを使ってrpmをビルド・配布するのを試してみた · hnakamur's blog at github](/blog/2015/11/26/use_travis_and_copr_to_build_and_host_rpm/)と[mockコマンドでrpmをビルドする · hnakamur's blog at github](/blog/2015/12/05/build_rpm_with_mock/)の環境でいくつかrpmをビルド・配布してみたのですが、手元の環境でビルドを成功させるまでに試行錯誤するのと、coprにsrpmをアップロードしてビルド・配布するのが別の環境だと面倒なことに気付きました。
 

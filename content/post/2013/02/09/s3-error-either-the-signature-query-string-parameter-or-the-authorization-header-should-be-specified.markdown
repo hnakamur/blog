@@ -1,10 +1,9 @@
----
-layout: post
-title: "S3 error: Either the Signature query string parameter or the Authorization header should be specified"
-date: 2013-02-09
-comments: true
-categories: [S3, Apache]
----
+Title: S3 error: Either the Signature query string parameter or the Authorization header should be specified
+Date: 2013-02-09 00:00
+Category: blog
+Tags: s3, apache
+Slug: 2013/02/09/s3-error-either-the-signature-query-string-parameter-or-the-authorization-header-should-be-specified
+
 ## 現象
 ApacheからAmazon S3にmod_proxyでリクエストを送ったら、ステータスが400になり、
 "Either the Signature query string parameter or the Authorization header should be specified, not both"というエラーメッセージが出てハマったときのメモです。

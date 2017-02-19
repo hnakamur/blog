@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["xhyve", "freebsd"]
-date = "2015-07-12T06:34:46+09:00"
-title = "xhyveでFreeBSDを動かしてみた"
+Title: xhyveでFreeBSDを動かしてみた
+Date: 2015-07-12 06:34
+Category: blog
+Tags: xhyve, freebsd
+Slug: 2015/07/12/running_freebsd_on_xhyve
 
-+++
 下記の記事を参考に動かしただけですが、後々使うときに手順を忘れているはずなのでメモ。
 
 * [xhyve で FreeBSD を動かしてみた - blog.holidayworking.org](http://blog.holidayworking.org/entry/2015/06/27/xhyve_%E3%81%A7_FreeBSD_%E3%82%92%E5%8B%95%E3%81%8B%E3%81%97%E3%81%A6%E3%81%BF%E3%81%9F)

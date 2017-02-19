@@ -1,10 +1,9 @@
----
-layout: post
-title: "mod_xsendfileでダウンロード後にサーバ上のファイル自動削除"
-date: 2012-03-03
-comments: true
-categories: [Apache, PHP, Linux]
----
+Title: mod_xsendfileでダウンロード後にサーバ上のファイル自動削除
+Date: 2012-03-03 00:00
+Category: blog
+Tags: apache, php, linux
+Slug: 2012/03/03/delete-on-close-using-mod-xsendfile
+
 
 [mod_xsendfile](https://tn123.org/mod_xsendfile/)のホームページ上でリリースされているバージョン0.12には含まれていませんが、[Githubのレポジトリのソース](https://github.com/nmaier/mod_xsendfile/commit/f6b853ce0e555b61f83f928d9f927349346018b4)ではX-Sendfile-Temporaryという拡張ヘッダに対応しています。
 

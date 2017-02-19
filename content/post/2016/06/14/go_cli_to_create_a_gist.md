@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["golang","cli","gist"]
-date = "2016-06-14T00:52:22+09:00"
-title = "gistを作成するGoのCLIを見つけた"
+Title: gistを作成するGoのCLIを見つけた
+Date: 2016-06-14 00:52
+Category: blog
+Tags: golang,cli,gist
+Slug: 2016/06/14/go_cli_to_create_a_gist
 
-+++
 [delta24/gist: A command line gister in Go](https://github.com/delta24/gist)です。期待通りに動かない点があったのでプルリクエストを送ったら、すぐにマージされました。
 
 ## インストール

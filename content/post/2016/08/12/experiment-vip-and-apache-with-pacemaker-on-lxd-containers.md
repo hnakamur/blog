@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["pacemaker","virtual-ip"]
-date = "2016-08-12T18:54:27+09:00"
-title = "LXDコンテナ上でPacemakerを使って仮想IPとApacheのアクティブ・パッシブ・クラスタを試してみた"
+Title: LXDコンテナ上でPacemakerを使って仮想IPとApacheのアクティブ・パッシブ・クラスタを試してみた
+Date: 2016-08-12 18:54
+Category: blog
+Tags: pacemaker,virtual-ip
+Slug: 2016/08/12/experiment-vip-and-apache-with-pacemaker-on-lxd-containers
 
-+++
 [Cluster Labs - Pacemaker Documentation](http://clusterlabs.org/doc/) の "Pacemaker 1.1 for Corosync 2.x and pcs" の "Clusters from Scratch (en-US)" を参考にしつつ、多少手順を変更して試してみました。
 
 ## 実験用コンテナの環境構築

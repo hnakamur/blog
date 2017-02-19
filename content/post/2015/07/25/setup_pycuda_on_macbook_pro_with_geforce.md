@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["CUDA", "Python"]
-date = "2015-07-25T18:31:56+09:00"
-title = "GeForce搭載の旧モデルMacBook ProでPyCUDAを試してみた"
+Title: GeForce搭載の旧モデルMacBook ProでPyCUDAを試してみた
+Date: 2015-07-25 18:31
+Category: blog
+Tags: cuda, python
+Slug: 2015/07/25/setup_pycuda_on_macbook_pro_with_geforce
 
-+++
 ## はじめに
 
 [GeForce搭載の旧モデルMacBook ProでCUDAをセットアップする手順のメモ](../setup_cuda_on_macbook_pro_with_geforce/)でCUDAをセットアップした後、[PyCUDA](http://mathema.tician.de/software/pycuda/)も試してみたのでメモしておきます。

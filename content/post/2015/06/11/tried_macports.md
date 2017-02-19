@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["osx", "macports", "pkgng"]
-date = "2015-06-11T01:09:08+09:00"
-title = "Homebrewを辞めてMacPorts 2.3.3を入れてpkgngをビルドしてみた"
+Title: Homebrewを辞めてMacPorts 2.3.3を入れてpkgngをビルドしてみた
+Date: 2015-06-11 01:09
+Category: blog
+Tags: osx, macports, pkgng
+Slug: 2015/06/11/tried_macports
 
-+++
 # はじめに
 https://twitter.com/shibu_jp/status/598332736638582785 と [第2回　パッケージ管理システム「pkg 1.5」と基本的な使い方：BSD界隈四方山話｜gihyo.jp … 技術評論社](http://gihyo.jp/admin/serial/01/bsd-yomoyama/0002)で、実験段階ですがOS Xもサポート対象となったという話を見て `pkg` と `MacPorts` をシームレスに組み合わせて使えるかが気になっていました。
 

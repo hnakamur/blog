@@ -1,10 +1,9 @@
----
-layout: post
-title: "daemontoolsのインストール手順"
-date: 2012-06-21
-comments: true
-categories: [daemontools, CentOS]
----
+Title: daemontoolsのインストール手順
+Date: 2012-06-21 00:00
+Category: blog
+Tags: daemontools, centos
+Slug: 2012/06/21/how-to-install-daemontools
+
 CentOS6.2で確認。
 
 OS起動時にdaemontoolsを起動する設定は[How to start daemontools](http://cr.yp.to/daemontools/start.html)を参照。

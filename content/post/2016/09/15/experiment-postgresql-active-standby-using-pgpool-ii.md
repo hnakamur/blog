@@ -1,11 +1,8 @@
-+++
-Categories = []
-Description = ""
-Tags = []
-date = "2016-09-15T06:28:34+09:00"
-title = "pgpool-IIを使ってPostgreSQLのアクティブ・スタンバイ(1+1構成)を試してみた"
+Title: pgpool-IIを使ってPostgreSQLのアクティブ・スタンバイ(1+1構成)を試してみた
+Date: 2016-09-15 06:28
+Category: blog
+Slug: 2016/09/15/experiment-postgresql-active-standby-using-pgpool-ii
 
-+++
 ## はじめに
 pgool-IIを使ってPostgreSQLのアクティブ・スタンバイ(1+1構成)を試したのでメモです。
 

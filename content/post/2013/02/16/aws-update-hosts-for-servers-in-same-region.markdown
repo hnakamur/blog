@@ -1,10 +1,9 @@
----
-layout: post
-title: "EC2で同じリージョンの全ホストのプライベートIPを起動時にhostsに自動登録"
-date: 2013-02-16
-comments: true
-categories: AWS
----
+Title: EC2で同じリージョンの全ホストのプライベートIPを起動時にhostsに自動登録
+Date: 2013-02-16 00:00
+Category: blog
+Tags: aws
+Slug: 2013/02/16/aws-update-hosts-for-servers-in-same-region
+
 Elastic IPの上限数にひっかかって使えない自体に遭遇したので作りました。
 
 [Elastic IP アドレス上限緩和申請 | アマゾン ウェブ サービス（AWS 日本語）](http://aws.amazon.com/jp/contact-us/eip_limit_request/) から緩和申請できるようです。

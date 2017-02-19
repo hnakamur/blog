@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["ansible","python"]
-date = "2016-07-01T22:44:12+09:00"
-title = "lxd_containerというAnsibleモジュールを書いたときに学んだtips"
+Title: lxd_containerというAnsibleモジュールを書いたときに学んだtips
+Date: 2016-07-01 22:44
+Category: blog
+Tags: ansible,python
+Slug: 2016/07/01/tips_for_writing_ansible_module
 
-+++
 ## はじめに
 lxd_containerというAnsibleのモジュールを書いたときに学んだtipsのメモです。
 

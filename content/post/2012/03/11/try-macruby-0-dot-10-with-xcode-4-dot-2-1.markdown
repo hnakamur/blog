@@ -1,10 +1,9 @@
----
-layout: post
-title: "Xcode 4.2.1でMacRuby 0.10を試す"
-date: 2012-03-11
-comments: true
-categories: [MacRuby, Xcode]
----
+Title: Xcode 4.2.1でMacRuby 0.10を試す
+Date: 2012-03-11 00:00
+Category: blog
+Tags: macruby, xcode
+Slug: 2012/03/11/try-macruby-0-dot-10-with-xcode-4-dot-2-1
+
 ## Xcode 4.1やXcode 4.3.1ではうまくいかずXcode 4.2.1ならOKだった
 最終的にうまく行ったバージョンの組み合わせは以下の通りです。
 

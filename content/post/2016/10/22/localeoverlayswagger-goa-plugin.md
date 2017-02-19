@@ -1,13 +1,9 @@
-+++
-Description = ""
-Tags = ["goa", "swagger"
-]
-Categories = [
-]
-date = "2016-10-22T16:52:02+09:00"
-title = "LocaleOverlaySwaggerというgoaプラグインを書いた"
+Title: LocaleOverlaySwaggerというgoaプラグインを書いた
+Date: 2016-10-22 16:52
+Category: blog
+Tags: goa, swagger
+Slug: 2016/10/22/localeoverlayswagger-goa-plugin
 
-+++
 ## まず Swagger 仕様を複数ファイル出力する goa プラグイン Multiswagger を試してみました
 
 まずは [Swagger 仕様を複数ファイル出力する goa プラグイン Multiswagger を作った - tchsskのブログ](http://tchssk.hatenablog.com/entry/2016/10/18/122215) を読んで試してみました。

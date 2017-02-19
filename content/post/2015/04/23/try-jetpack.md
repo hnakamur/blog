@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["jetpack"]
-date = "2015-04-23T01:27:57+09:00"
-title = "jetpackを試してみた"
+Title: jetpackを試してみた
+Date: 2015-04-23 01:27
+Category: blog
+Tags: jetpack
+Slug: 2015/04/23/try-jetpack
 
-+++
 ## はじめに
 
 [3ofcoins/jetpack](https://github.com/3ofcoins/jetpack#using-jetpack)はFreeBSD, Jail, ZFSを使った[App Container Spec](https://github.com/appc/spec)の実装です。まだプロトタイプレベルとのことです。Go言語で実装されています。

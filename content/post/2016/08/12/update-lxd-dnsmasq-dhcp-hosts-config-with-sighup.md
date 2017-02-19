@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["lxd","dnsmasq"]
-date = "2016-08-12T06:38:18+09:00"
-title = "LXDのdnsmasqの固定IP設定をSIGHUPで更新する"
+Title: LXDのdnsmasqの固定IP設定をSIGHUPで更新する
+Date: 2016-08-12 06:38
+Category: blog
+Tags: lxd,dnsmasq
+Slug: 2016/08/12/update-lxd-dnsmasq-dhcp-hosts-config-with-sighup
 
-+++
 [LXDコンテナで固定IPアドレスを使うための設定 · hnakamur's blog at github](/blog/2016/05/07/how-to-use-fixed-ip-address-for-a-lxd-container/) では `/etc/dnsmasq.conf` に直接 `dhcp-host` で設定を書いていましたが、変更するためには `lxd-bridge` の再起動が必要でした。
 
 その後 [Ubuntu Manpage: dnsmasq - A lightweight DHCP and caching DNS server.](http://manpages.ubuntu.com/manpages/xenial/en/man8/dnsmasq.8.html) を見て `--dhcp-hostsfile=<path>` または `--dhcp-hostsdir=<path>` を使っておけば `lxd-bridge` を再起動しなくても `dnsmasq` に `SIGHUP` を送れば更新できることを知りました。 `--dhcp-hostsdir=<path>` の場合は、指定したディレクトリ以下のファイルを追加・更新する場合は SIGHUP すら不要で、ファイルを削除した後に反映するときだけ SIGHUP が必要です。

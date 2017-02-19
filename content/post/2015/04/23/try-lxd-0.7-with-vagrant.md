@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["lxd"]
-date = "2015-04-23T00:08:30+09:00"
-title = "LXD 0.7ではlxc execでシェルの対話操作もできるようになっていました"
+Title: LXD 0.7ではlxc execでシェルの対話操作もできるようになっていました
+Date: 2015-04-23 00:08
+Category: blog
+Tags: lxd
+Slug: 2015/04/23/try-lxd-0.7-with-vagrant
 
-+++
 ## はじめに
 
 [LXDを試してみた · hnakamur's blog at github](/blog/2014/12/01/lxd-the-linux-container-daemon/)の記事を書いて以来、LXD触る時間を作れてなかったのですが、久々に試してみました。

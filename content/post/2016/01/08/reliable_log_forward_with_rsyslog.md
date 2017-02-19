@@ -1,11 +1,8 @@
-+++
-Categories = []
-Description = ""
-Tags = []
-date = "2016-01-08T01:12:13+09:00"
-title = "rsyslogで信頼性のあるログ転送について調べたメモ"
+Title: rsyslogで信頼性のあるログ転送について調べたメモ
+Date: 2016-01-08 01:12
+Category: blog
+Slug: 2016/01/08/reliable_log_forward_with_rsyslog
 
-+++
 事の発端は fluentd を使ってみようかと思って [fluentd(td-agent)のインストールと設定](http://changineer.info/server/logging/fluentd-td-agent.html) を読んだことで す。fluentd のデメリットのところを読んで、ちょっと気になりました。
 
 Goで書かれた[moriyoshi/ik](https://github.com/moriyoshi/ik)も気になったのですが、最近話聞かないし最終コミットも3ヶ月前だったので、今回は見送りました。

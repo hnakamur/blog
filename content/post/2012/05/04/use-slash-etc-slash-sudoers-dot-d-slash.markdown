@@ -1,10 +1,9 @@
----
-layout: post
-title: "/etc/sudoers.d/を使う→やっぱり止め"
-date: 2012-05-04
-comments: true
-categories: [CentOS, sudo]
----
+Title: /etc/sudoers.d/を使う→やっぱり止め
+Date: 2012-05-04 00:00
+Category: blog
+Tags: centos, sudo
+Slug: 2012/05/04/use-slash-etc-slash-sudoers-dot-d-slash
+
 これまでいつも/etc/sudoersを編集していたのですが、よくみるとファイル末尾に
 
 ```

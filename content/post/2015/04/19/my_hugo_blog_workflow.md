@@ -1,11 +1,9 @@
-+++
-Categories = ["blog"]
-Description = ""
-Tags = ["hugo"]
-date = "2015-04-19T00:17:59+09:00"
-title = "Hugoに移行した私のブログの記事追加手順"
+Title: Hugoに移行した私のブログの記事追加手順
+Date: 2015-04-19 00:17
+Category: blog
+Tags: hugo
+Slug: 2015/04/19/my_hugo_blog_workflow
 
-+++
 
 ## はじめに
 

@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["lxd", "ansible"]
-date = "2016-05-07T20:32:13+09:00"
-title = "AnsibleのLXDコネクションプラグインを試してみた"
+Title: AnsibleのLXDコネクションプラグインを試してみた
+Date: 2016-05-07 20:32
+Category: blog
+Tags: lxd, ansible
+Slug: 2016/05/07/tried-ansible-lxd-connection-plugin
 
-+++
 LXDを使うとなるとAnsibleのLXDコネクションプラグインが欲しいなと思って[ansible/ansibleのgithubのレポジトリ](https://github.com/ansible/ansible)を眺めていたら [lib/ansible/plugins/connection/lxd.py](https://github.com/ansible/ansible/blob/fca5ba153e9258d6a9a28c418d8339d507eee81c/lib/ansible/plugins/connection/lxd.py) に既に作られていることに気付きました。
 
 ソースを見ると `lxc` コマンドを使った実装になっていました。aptでインストールしたansible 2.0.0.2にこのファイルだけ追加して使えないか試してみたのですが、 `AttributeError: 'PlayContext' object has no attribute 'executable'` というエラーが出て使えませんでした。

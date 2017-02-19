@@ -1,11 +1,8 @@
-+++
-Categories = []
-Description = ""
-Tags = []
-date = "2015-12-29T00:53:53+09:00"
-title = "ambiguous width cjk patchを当てたhomebrew用tmux"
+Title: ambiguous width cjk patchを当てたhomebrew用tmux
+Date: 2015-12-29 00:53
+Category: blog
+Slug: 2015/12/29/homebrew-tmux-ambiguous-width-cjk-patch
 
-+++
 ほぼ[Homebrewでサクッとpatchを当てる - Qiita](http://qiita.com/macoshita/items/2ee3c15f362103d1e373)のそのままですが、tmuxのバージョンを2.1に上げたものを[hnakamur/homebrew-custom](https://github.com/hnakamur/homebrew-custom)に置きました。
 
 ## パッチ適用版tmuxのインストール

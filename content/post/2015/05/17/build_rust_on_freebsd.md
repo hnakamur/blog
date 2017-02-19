@@ -1,11 +1,9 @@
-+++
-Categories = []
-Description = ""
-Tags = ["freebsd", "rust"]
-date = "2015-05-17T07:51:14+09:00"
-title = "FreeBSD 10.1 amd64でRustをビルドしてみた"
+Title: FreeBSD 10.1 amd64でRustをビルドしてみた
+Date: 2015-05-17 07:51
+Category: blog
+Tags: freebsd, rust
+Slug: 2015/05/17/build_rust_on_freebsd
 
-+++
 
 [Install · The Rust Programming Language](http://www.rust-lang.org/install.html)
 を見ると現在のところRustのバイナリが提供されているのはLinux, Mac, Windowsのみです。
