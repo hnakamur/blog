@@ -50,3 +50,5 @@ GOOGLE_ANALYTICS = 'UA-53263855-1'
 
 THEME = 'themes/notmyidea-custom'
 PYGMENTS_RST_OPTIONS = {'classprefix': '', 'linenos': 'table'}
+
+AUTHOR_URL = 'https://hnakamur.github.io'
