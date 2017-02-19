@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+        <meta charset="utf-8" />
+        <title>Mockやcoprでrpmをビルドする際にサードパーティのレポジトリを追加する方法</title>
+        <link rel="stylesheet" href="../../../../theme/css/main.css" />
+
+        <!--[if IE]>
+            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+        <![endif]-->
+</head>
+
+<body id="index" class="home">
+        <header id="banner" class="body">
+                <h1><a href="../../../../">hnakamur's blog at github </a></h1>
+                <nav><ul>
+                    <li class="active"><a href="../../../../category/blog.html">blog</a></li>
+                </ul></nav>
+        </header><!-- /#banner -->
+<section id="content" class="body">
+  <article>
+    <header>
+      <h1 class="entry-title">
+        <a href="../../../../2015/12/18/add_third_party_to_build_on_mock_and_copr/" rel="bookmark"
+           title="Permalink to Mockやcoprでrpmをビルドする際にサードパーティのレポジトリを追加する方法">Mockやcoprでrpmをビルドする際にサードパーティのレポジトリを追加する方法</a></h1>
+    </header>
+
+    <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2015-12-18T01:43:00+09:00">
+                Published: 2015-12-18
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
+        </address>
+<p>In <a href="../../../../category/blog.html">blog</a>.</p>
+<p>tags: <a href="../../../../tag/copr.html">copr</a> <a href="../../../../tag/mock.html">mock</a> <a href="../../../../tag/rpmbuild.html">rpmbuild</a> </p>
+</footer><!-- /.post-info -->      <h2>はじめに</h2>
+<p><a href="https://fedoraproject.org/wiki/Mock">Mock</a>や<a href="https://copr.fedoraproject.org/">copr</a>でrpmをビルドする際にCentOS標準のレポジトリ以外のサードパーティのレポジトリのrpmに依存したい場合があります。この記事ではサードパーティのレポジトリの追加方法を説明します。</p>
+<p>この記事では<a href="https://www.varnish-cache.org/vmod/header-manipulation">libvmod-header</a>をビルドするために<a href="https://www.varnish-cache.org/installation/redhat">varnish-cache.orgのRedHat用インストール手順</a>で提供されているEL7用のレポジトリを追加する例で説明します。</p>
+<p>ビルドするために私が作成したDockerfileとシェルスクリプトは<a href="https://github.com/hnakamur/libvmod-header-rpm">hnakamur/libvmod-header-rpm</a>にあります。</p>
+<h2>Mockでのrpmビルド時にサードパーティのレポジトリを追加する方法</h2>
+<p><a href="https://lists.fedorahosted.org/pipermail/softwarecollections/2012-November/000018.html">Building SCL packages with mock</a>で紹介されていた方法です。</p>
+<p>CentOS 7用のrpmをビルドする場合 <code>/etc/mock/epel-7-x86_64.cfg</code> をコピーして <code>/etc/mock/epel-7-varnish-x86_64.cfg</code> のように別名で保存します。</p>
+<p><code>/etc/mock/epel-7-varnish-x86_64.cfg</code> の最後に <code>config_opts['yum.conf']</code> の設定があります。変更前は以下のようになっています。</p>
+<div class="highlight"><pre><span></span>config_opts[&#39;root&#39;] = &#39;epel-7-x86_64&#39;
+config_opts[&#39;target_arch&#39;] = &#39;x86_64&#39;
+config_opts[&#39;legal_host_arches&#39;] = (&#39;x86_64&#39;,)
+config_opts[&#39;chroot_setup_cmd&#39;] = &#39;install @buildsys-build&#39;
+config_opts[&#39;dist&#39;] = &#39;el7&#39;  # only useful for --resultdir variable subst
+config_opts[&#39;releasever&#39;] = &#39;7&#39;
+
+config_opts[&#39;yum.conf&#39;] = &quot;&quot;&quot;
+[main]
+keepcache=1
+debuglevel=2
+reposdir=/dev/null
+logfile=/var/log/yum.log
+retries=20
+obsoletes=1
+gpgcheck=0
+assumeyes=1
+syslog_ident=mock
+syslog_device=
+
+# repos
+[base]
+name=BaseOS
+mirrorlist=http://mirrorlist.centos.org/?release=7&amp;arch=x86_64&amp;repo=os
+failovermethod=priority
+gpgkey=file:///etc/pki/mock/RPM-GPG-KEY-CentOS-7
+gpgcheck=1
+
+[updates]
+name=updates
+enabled=1
+mirrorlist=http://mirrorlist.centos.org/?release=7&amp;arch=x86_64&amp;repo=updates
+failovermethod=priority
+gpgkey=file:///etc/pki/mock/RPM-GPG-KEY-CentOS-7
+gpgcheck=1
+
+[epel]
+name=epel
+mirrorlist=http://mirrors.fedoraproject.org/mirrorlist?repo=epel-7&amp;arch=x86_64
+failovermethod=priority
+gpgkey=file:///etc/pki/mock/RPM-GPG-KEY-EPEL-7
+gpgcheck=1
+
+[extras]
+name=extras
+mirrorlist=http://mirrorlist.centos.org/?release=7&amp;arch=x86_64&amp;repo=extras
+failovermethod=priority
+gpgkey=file:///etc/pki/mock/RPM-GPG-KEY-EPEL-7
+gpgcheck=1
+
+[testing]
+name=epel-testing
+enabled=0
+mirrorlist=http://mirrors.fedoraproject.org/mirrorlist?repo=testing-epel7&amp;arch=x86_64
+failovermethod=priority
+
+
+[local]
+name=local
+baseurl=http://kojipkgs.fedoraproject.org/repos/epel7-build/latest/x86_64/
+cost=2000
+enabled=0
+
+[epel-debug]
+name=epel-debug
+mirrorlist=http://mirrors.fedoraproject.org/mirrorlist?repo=epel-debug-7&amp;arch=x86_64
+failovermethod=priority
+enabled=0
+&quot;&quot;&quot;
+</pre></div>
+
+
+<h3>失敗例1</h3>
+<p>varnish-cache.orgではEL7用のレポジトリ定義が https://repo.varnish-cache.org/redhat/varnish-4.1.el7.rpm で配布されています。</p>
+<p><code>config_opts['chroot_setup_cmd'] = 'install @buildsys-build'</code> にこのrpmのURLを追加して
+<code>config_opts['chroot_setup_cmd'] = 'install @buildsys-build https://repo.varnish-cache.org/redhat/varnish-4.1.el7.rpm'</code> にするというのを試してみましたが、これは失敗でした。</p>
+<p><code>sudo mock -r epel-7-varnish-x86_64 --init</code> で <code>varnish-4.1</code> というレポジトリのrpmがインストールされるところまではOKでした。
+が、 <code>sudo mock -r epel-7-varnish-x86_64 --install varnish</code> としてvarnishをインストールすると、このレポジトリからvarnish 4.1.0がインストールされずにepelから4.0.3がインストールされてしまいました。</p>
+<h3>うまくいく方法</h3>
+<p>ということでmockで作成するchroot環境では <code>config_opts['yum.conf']</code> に予めレポジトリ定義を書いておく必要があるようです。</p>
+<p>https://repo.varnish-cache.org/redhat/varnish-4.1.el7.rpm に含まれる <code>etc/yum.repos.d/varnish-4.1.repo</code> には以下の様なレポジトリ定義が含まれています。</p>
+<div class="highlight"><pre><span></span><span class="k">[varnish-4.1]</span>
+<span class="na">name</span><span class="o">=</span><span class="s">Varnish Cache 4.1 for Enterprise Linux</span>
+<span class="na">baseurl</span><span class="o">=</span><span class="s">https://repo.varnish-cache.org/redhat/varnish-4.1/el7/$basearch</span>
+<span class="na">enabled</span><span class="o">=</span><span class="s">1</span>
+<span class="na">gpgcheck</span><span class="o">=</span><span class="s">1</span>
+<span class="na">gpgkey</span><span class="o">=</span><span class="s">file:///etc/pki/rpm-gpg/RPM-GPG-KEY-VARNISH</span>
+</pre></div>
+
+
+<p><code>/etc/pki/rpm-gpg/RPM-GPG-KEY-VARNISH</code> というgpgkeyが折角用意されているので使いたいのですが良い方法が思いつきませんでした。 <code>config_opts['chroot_setup_cmd']</code> にセットアップ時に実行されるコマンドを書けるのですが、先頭に <code>yum</code> を追加して実行されるので任意のコマンドを実行できるわけではないです。</p>
+<p>今回は諦めてgpgkeyを使うのは諦めて、下記の内容を <code>config_opts['yum.conf']</code> の最後に追加するようにしました。</p>
+<div class="highlight"><pre><span></span><span class="k">[varnish-4.1]</span>
+<span class="na">name</span><span class="o">=</span><span class="s">Varnish Cache 4.1 for Enterprise Linux</span>
+<span class="na">baseurl</span><span class="o">=</span><span class="s">https://repo.varnish-cache.org/redhat/varnish-4.1/el7/$basearch</span>
+<span class="na">enabled</span><span class="o">=</span><span class="s">1</span>
+<span class="na">gpgcheck</span><span class="o">=</span><span class="s">0</span>
+</pre></div>
+
+
+<p>スクリプトでは以下のようにしています。
+https://github.com/hnakamur/libvmod-header-rpm/blob/5d5b2e580b11944ee630c6fbc2bea81b9fa7bb9a/scripts/build.sh#L47-L75</p>
+<div class="highlight"><pre><span></span>create_varnish_repo_file() {
+  varnish_repo_file=varnish-4.1.repo
+  if [ ! -f <span class="nv">$varnish_repo_file</span> ]; then
+    # NOTE: Although https://repo.varnish-cache.org/redhat/varnish-4.1.el7.rpm at https://www.varnish-cache.org/installation/redhat
+    #       has the gpgkey in it, I don&#39;t use it since I don&#39;t know how to add it to /etc/mock/*.cfg
+    cat &gt; <span class="cp">${</span><span class="n">varnish_repo_file</span><span class="cp">}</span> <span class="err">&lt;</span><span class="nt">&lt;EOF</span>
+<span class="err">[${varnish_repo_id}]</span>
+<span class="na">name=</span><span class="s">${varnish_repo_name}</span>
+<span class="na">baseurl=</span><span class="s">${varnish_repo_baseurl}</span>
+<span class="na">enabled=</span><span class="s">1</span>
+<span class="na">gpgcheck=</span><span class="s">0</span>
+<span class="err">EOF</span>
+  <span class="err">fi</span>
+<span class="err">}</span>
+
+<span class="err">create_mock_chroot_cfg()</span> <span class="err">{</span>
+  <span class="err">create_varnish_repo_file</span>
+
+  <span class="err">#</span> <span class="err">Insert</span> <span class="err">${scl_repo_file}</span> <span class="err">before</span> <span class="err">closing</span> <span class="err">&quot;&quot;&quot;</span> <span class="err">of</span> <span class="err">config_opts[&#39;yum.conf&#39;]</span>
+  <span class="err">#</span> <span class="err">See:</span> <span class="err">http://unix.stackexchange.com/a/193513/135274</span>
+  <span class="err">#</span>
+  <span class="err">#</span> <span class="err">NOTE:</span> <span class="err">Support</span> <span class="err">of</span> <span class="err">adding</span> <span class="err">repository</span> <span class="err">was</span> <span class="err">added</span> <span class="err">to</span> <span class="err">mock,</span>
+  <span class="err">#</span>       <span class="err">so</span> <span class="err">you</span> <span class="err">can</span> <span class="err">use</span> <span class="err">it</span> <span class="err">in</span> <span class="err">the</span> <span class="err">future.</span>
+  <span class="err">#</span> <span class="err">See:</span> <span class="err">https://github.com/rpm-software-management/ci-dnf-stack/issues/30</span>
+  <span class="err">(cd</span> <span class="err">${topdir}</span> <span class="err">\</span>
+    <span class="err">&amp;&amp;</span> <span class="err">echo</span> <span class="err">|</span> <span class="err">sed</span> <span class="err">-e</span> <span class="err">&#39;$d;N;P;/\n&quot;&quot;&quot;$/i\</span>
+<span class="err">&#39;</span> <span class="err">-e</span> <span class="err">&#39;/\n&quot;&quot;&quot;$/r</span> <span class="err">&#39;${varnish_repo_file}</span> <span class="err">-e</span> <span class="err">&#39;/\n&quot;&quot;&quot;$/a\</span>
+<span class="err">&#39;</span> <span class="err">-e</span> <span class="err">D</span> <span class="err">/etc/mock/${base_chroot}.cfg</span> <span class="err">-</span> <span class="err">|</span> <span class="err">sudo</span> <span class="err">sh</span> <span class="err">-c</span> <span class="err">&quot;cat</span> <span class="nt">&gt;</span> /etc/mock/<span class="cp">${</span><span class="n">mock_chroot</span><span class="cp">}</span>.cfg&quot;)
+}
+</pre></div>
+
+
+<p>sedでパターンにマッチした行の後にファイルを挿入するのは <code>/パターン/r ファイル名</code>ですが、マッチした行の前に挿入するのはトリッキーです。
+ここでは http://unix.stackexchange.com/a/193513/135274 で紹介されていた <code>echo | sed -e '$d;N;P;/\nPointer/r file1' -e D file2 -</code> という手法を使っています。
+ただし、ファイルを挿入する前後に改行を入れたかったので <code>i</code> や <code>a</code> も使っています。</p>
+<p>これで <code>sudo mock -r epel-7-varnish-x86_64 --rebuild ${SRPMのパス}</code> でrpmをビルドできます。</p>
+<h2>coprでのrpmビルド時にサードパーティのレポジトリを追加する方法</h2>
+<p><a href="https://copr.fedoraproject.org/api/">API for Copr</a>の"Create new project"のAPIにreposパラメータがありますので、ここに <code>*.repo</code> ファイルの <code>baseurl</code> の値、 <code>https://repo.varnish-cache.org/redhat/varnish-4.1/el7/$basearch</code> を指定すればOKです。</p>
+<p>実際のスクリプトでは以下の箇所です。
+https://github.com/hnakamur/libvmod-header-rpm/blob/5d5b2e580b11944ee630c6fbc2bea81b9fa7bb9a/scripts/build.sh#L108-L119</p>
+<div class="highlight"><pre><span></span>    # Create the project on copr.
+    # We call copr APIs with curl to work around the InsecurePlatformWarning problem
+    # since system python in CentOS 7 is old.
+    # I read the source code of https://pypi.python.org/pypi/copr/1.62.1
+    # since the API document at https://copr.fedoraproject.org/api/ is old.
+    curl -s -X POST -u &quot;<span class="cp">${</span><span class="n">COPR_LOGIN</span><span class="cp">}</span>:<span class="cp">${</span><span class="n">COPR_TOKEN</span><span class="cp">}</span>&quot; \
+      --data-urlencode &quot;name=<span class="cp">${</span><span class="n">project_name</span><span class="cp">}</span>&quot; \
+      --data-urlencode &quot;<span class="cp">${</span><span class="n">base_chroot</span><span class="cp">}</span>=y&quot; \
+      --data-urlencode &quot;repos=<span class="cp">${</span><span class="n">varnish_repo_baseurl</span><span class="cp">}</span>&quot; \
+      --data-urlencode &quot;description=<span class="nv">$copr_project_description</span>&quot; \
+      --data-urlencode &quot;instructions=<span class="nv">$copr_project_instructions</span>&quot; \
+      https://copr.fedoraproject.org/api/coprs/<span class="cp">${</span><span class="n">COPR_USERNAME</span><span class="cp">}</span>/new/
+</pre></div>
+    </div><!-- /.entry-content -->
+
+  </article>
+</section>
+        <section id="extras" class="body">
+        </section><!-- /#extras -->
+
+        <footer id="contentinfo" class="body">
+                <address id="about" class="vcard body">
+                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
+                </address><!-- /#about -->
+
+                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
+        </footer><!-- /#contentinfo -->
+
+    <script type="text/javascript">
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-53263855-1', 'auto');
+    ga('send', 'pageview');
+    </script>
+</body>
+</html>

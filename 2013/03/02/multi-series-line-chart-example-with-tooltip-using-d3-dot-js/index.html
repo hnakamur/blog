@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+        <meta charset="utf-8" />
+        <title>d3.jsを使ったツールチップあり複数折れ線グラフのサンプルを作った</title>
+        <link rel="stylesheet" href="../../../../theme/css/main.css" />
+
+        <!--[if IE]>
+            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+        <![endif]-->
+</head>
+
+<body id="index" class="home">
+        <header id="banner" class="body">
+                <h1><a href="../../../../">hnakamur's blog at github </a></h1>
+                <nav><ul>
+                    <li class="active"><a href="../../../../category/blog.html">blog</a></li>
+                </ul></nav>
+        </header><!-- /#banner -->
+<section id="content" class="body">
+  <article>
+    <header>
+      <h1 class="entry-title">
+        <a href="../../../../2013/03/02/multi-series-line-chart-example-with-tooltip-using-d3-dot-js/" rel="bookmark"
+           title="Permalink to d3.jsを使ったツールチップあり複数折れ線グラフのサンプルを作った">d3.jsを使ったツールチップあり複数折れ線グラフのサンプルを作った</a></h1>
+    </header>
+
+    <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2013-03-02T00:00:00+09:00">
+                Published: 2013-03-02
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
+        </address>
+<p>In <a href="../../../../category/blog.html">blog</a>.</p>
+<p>tags: <a href="../../../../tag/d3js.html">d3.js</a> </p>
+</footer><!-- /.post-info -->      <p><a href="http://d3js.org/">D3.js - Data-Driven Documents</a>を使ってツールチップあり複数折れ線グラフのサンプルを作ったのでメモ。</p>
+<p><a href="/downloads/code/2013-03-02-multi-series-line-chart-example-with-tooltip-using-d3-dot-js/3884955.html">サンプル</a></p>
+<p><a href="http://bl.ocks.org/mbostock/3884955">Multi-Series Line Chart</a>のサンプルをベースに改良しました。</p>
+<h2>X軸のラベルを回転</h2>
+<p><a href="http://www.d3noob.org/2013/01/how-to-rotate-text-labels-for-x-axis-of.html">D3.js Tips and Tricks: How to rotate the text labels for the x Axis of a d3.js graph</a>を参考にして回転させました。</p>
+<div class="highlight"><pre><span></span>  svg.append(&quot;g&quot;)
+      .attr(&quot;class&quot;, &quot;x axis&quot;)
+      .attr(&quot;transform&quot;, &quot;translate(0,&quot; + height + &quot;)&quot;)
+      .call(xAxis)
+      .selectAll(&quot;text&quot;)
+        .style(&quot;text-anchor&quot;, &quot;end&quot;)
+        .attr(&quot;dx&quot;, &quot;-.8em&quot;)
+        .attr(&quot;dy&quot;, &quot;-.6em&quot;)
+        .attr(&quot;transform&quot;, &quot;rotate(-90)&quot;);
+</pre></div>
+
+
+<h2>ツールチップを出す</h2>
+<p><a href="https://gist.github.com/biovisualize/1016860#gistcomment-61316">Simple D3 tooltip</a>の手法で、線でもツールチップは出せなくはないのですが、カーソル位置のデータが取れないので、データの点に円を作成することにしました。</p>
+<p><a href="https://groups.google.com/forum/?fromgroups=#!topic/d3-js/8XLzUYLoFnY">multi-line chart with circle points - Google グループ</a>を参考に以下の様なコードで円を作成しました。</p>
+<p>ツールチップを出す部分は<a href="https://gist.github.com/biovisualize/1016860#gistcomment-61316">Simple D3 tooltip</a>を参考にしました。元のコードではイベントを<code>event</code>で参照していましたが、ChromeとSafariでは動くもののFirefoxではundefinedになっていました。<a href="https://github.com/mbostock/d3/wiki/Selections#wiki-on">Selections · mbostock/d3 Wiki</a>を見ると、<code>d3.event</code>で参照するのが正しいので修正しました。</p>
+<div class="highlight"><pre><span></span> city. selectAll(&quot;circle&quot;)
+      .data(function(d) { return d.values.map(function(v) {
+              return {date: v.date, temperature: v.temperature, name: d.name};
+            }); })
+    .enter().append(&quot;circle&quot;)
+      .attr(&quot;cx&quot;, function(d, i) { return x(d.date); })
+      .attr(&quot;cy&quot;, function(d, i) { return y(d.temperature); })
+      .style(&quot;fill&quot;, function(d) { return color(d.name); })
+      .attr(&quot;r&quot;, 1)
+      .on(&quot;mouseover&quot;, function(){
+        return tooltip.style(&quot;visibility&quot;, &quot;visible&quot;);
+      })
+      .on(&quot;mousemove&quot;, function(d){
+        return tooltip
+          .style(&quot;top&quot;, (d3.event.pageY-10)+&quot;px&quot;)
+          .style(&quot;left&quot;,(d3.event.pageX+10)+&quot;px&quot;)
+          .html(&quot;<span class="nt">&lt;dl&gt;&lt;dt&gt;</span>date<span class="nt">&lt;/dt&gt;&lt;dd&gt;</span>&quot; + d3.time.format(&quot;%Y-%m-%d&quot;)(d.date) + &quot;<span class="nt">&lt;/dd&gt;&lt;dt&gt;</span>temperature<span class="nt">&lt;/dt&gt;&lt;dd&gt;</span>&quot; + d.temperature + &quot;<span class="nt">&lt;/dd&gt;&lt;dt&gt;</span>name<span class="nt">&lt;/dt&gt;&lt;dd&gt;</span>&quot; + d.name + &quot;<span class="nt">&lt;/dd&gt;&lt;/dl&gt;</span>&quot;);
+      })
+      .on(&quot;mouseout&quot;, function(){
+        return tooltip.style(&quot;visibility&quot;, &quot;hidden&quot;);
+      });
+</pre></div>
+
+
+<p>見た目がうるさくないように円の半径は1とし、線だけ見えるような感じにしています。すると点にカーソルでポイントするのが大変なので、太めのストロークを透明色で指定して、ポイントしやすくしています。</p>
+<div class="highlight"><pre><span></span><span class="p">.</span><span class="nc">tooltip</span> <span class="p">{</span>
+  <span class="k">border</span><span class="p">:</span> <span class="mi">1</span><span class="kt">px</span> <span class="kc">solid</span> <span class="kc">black</span><span class="p">;</span>
+  <span class="k">background-color</span><span class="p">:</span> <span class="kc">white</span><span class="p">;</span>
+  <span class="k">padding</span><span class="p">:</span> <span class="mi">5</span><span class="kt">px</span> <span class="mi">8</span><span class="kt">px</span> <span class="mi">4</span><span class="kt">px</span> <span class="mi">8</span><span class="kt">px</span><span class="p">;</span>
+  <span class="k">border-radius</span><span class="p">:</span> <span class="mi">4</span><span class="kt">px</span><span class="p">;</span>
+  <span class="kp">-moz-</span><span class="k">border-radius</span><span class="p">:</span> <span class="mi">4</span><span class="kt">px</span><span class="p">;</span>
+  <span class="kp">-webkit-</span><span class="k">border-radius</span><span class="p">:</span> <span class="mi">4</span><span class="kt">px</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+
+
+<h2>線のデータ補完を止める</h2>
+<p>データ補完してしまうと、線とデータ点がずれてしまうので、補完は止めます。
+interpolate()を呼ばなければOK。</p>
+<div class="highlight"><pre><span></span>var line = d3.svg.line()
+    //.interpolate(&quot;basis&quot;)
+    .x(function(d) { return x(d.date); })
+    .y(function(d) { return y(d.temperature); });
+</pre></div>
+    </div><!-- /.entry-content -->
+
+  </article>
+</section>
+        <section id="extras" class="body">
+        </section><!-- /#extras -->
+
+        <footer id="contentinfo" class="body">
+                <address id="about" class="vcard body">
+                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
+                </address><!-- /#about -->
+
+                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
+        </footer><!-- /#contentinfo -->
+
+    <script type="text/javascript">
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-53263855-1', 'auto');
+    ga('send', 'pageview');
+    </script>
+</body>
+</html>

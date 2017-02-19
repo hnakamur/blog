@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+        <meta charset="utf-8" />
+        <title>Goでグローバルなバッファを使いまわしてスタックトレースを取得するライブラリを書いてみた</title>
+        <link rel="stylesheet" href="../../../../theme/css/main.css" />
+
+        <!--[if IE]>
+            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+        <![endif]-->
+</head>
+
+<body id="index" class="home">
+        <header id="banner" class="body">
+                <h1><a href="../../../../">hnakamur's blog at github </a></h1>
+                <nav><ul>
+                    <li class="active"><a href="../../../../category/blog.html">blog</a></li>
+                </ul></nav>
+        </header><!-- /#banner -->
+<section id="content" class="body">
+  <article>
+    <header>
+      <h1 class="entry-title">
+        <a href="../../../../2015/08/31/go_stacktrace_library_with_global_buffer/" rel="bookmark"
+           title="Permalink to Goでグローバルなバッファを使いまわしてスタックトレースを取得するライブラリを書いてみた">Goでグローバルなバッファを使いまわしてスタックトレースを取得するライブラリを書いてみた</a></h1>
+    </header>
+
+    <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2015-08-31T00:43:00+09:00">
+                Published: 2015-08-31
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
+        </address>
+<p>In <a href="../../../../category/blog.html">blog</a>.</p>
+<p>tags: <a href="../../../../tag/go.html">go</a> </p>
+</footer><!-- /.post-info -->      <h2>背景と経緯</h2>
+<p>Goでもエラー処理にpanicを使えばスタックトレースが出力されます。でも、ライブラリでは <code>panic</code> するとエラー処理して続行したいときに困るのでpanicではなく <code>return err</code> を使うのが普通です。すると今度はスタックトレースが取れないのが残念だと思っていました。エラーが出た箇所でログ出力はするとして、やはりスタックトレースがあるほうがその関数までの呼出経路がわかってデバッグが捗ります。</p>
+<p>標準ライブラリを見てみると、<a href="http://golang.org/pkg/runtime/debug/#PrintStack">runtime.debug.PrintStack()</a> という便利そうな関数を見つけました。が、これは出力先が標準エラー出力固定となっています。私はログファイルに出したいんですよね。</p>
+<p>そこでドキュメントの関数のリンクをクリックしてソースを見てみます。
+<a href="http://golang.org/src/runtime/debug/stack.go?s=516:533#L15">src/runtime/debug/stack.go - The Go Programming Language</a></p>
+<div class="highlight"><pre><span></span>func PrintStack() {
+  os.Stderr.Write(stack())
+}
+
+// Stack returns a formatted stack trace of the goroutine that calls it.
+// For each routine, it includes the source line information and PC value,
+// then attempts to discover, for Go functions, the calling function or
+// method and the text of the line containing the invocation.
+//
+// Deprecated: Use package runtime&#39;s Stack instead.
+func Stack() []byte {
+  return stack()
+}
+</pre></div>
+
+
+<p>お、<code>Stack()</code> のほうを使えば <code>[]byte</code> で取得できるじゃないですか。あれ、でもdeprecatedなので <a href="http://golang.org/pkg/runtime/#Stack">runtime.Stack</a> のほうを使えとあります。シグネチャ見ると <code>func Stack(buf []byte, all bool) int</code> となっていて、こちらからバッファを渡す必要があるんですね。</p>
+<p>関数定義 <a href="http://golang.org/src/runtime/mprof.go?s=15278:15314#L552">src/runtime/mprof.go - The Go Programming Language</a>を見てみると、バッファサイズが足りない場合は、途中までしか書かれないようです。またどれだけのサイズがあれば大丈夫かを調べる方法もないようです。</p>
+<div class="highlight"><pre><span></span>func Stack(buf []byte, all bool) int {
+  if all {
+    stopTheWorld(&quot;stack trace&quot;)
+  }
+
+  n := 0
+  if len(buf) &gt; 0 {
+    gp := getg()
+    sp := getcallersp(unsafe.Pointer(&amp;buf))
+    pc := getcallerpc(unsafe.Pointer(&amp;buf))
+    systemstack(func() {
+      g0 := getg()
+      g0.writebuf = buf[0:0:len(buf)]
+      goroutineheader(gp)
+      traceback(pc, sp, 0, gp)
+      if all {
+        tracebackothers(gp)
+      }
+      n = len(g0.writebuf)
+      g0.writebuf = nil
+    })
+  }
+
+  if all {
+    startTheWorld()
+  }
+  return n
+}
+</pre></div>
+
+
+<p>実はさっきの <code>stack()</code> の定義<a href="http://golang.org/src/runtime/debug/stack.go?s=516:533#L40">src/runtime/debug/stack.go - The Go Programming Language</a>を見ると<a href="http://golang.org/pkg/runtime/#Caller">runtime.Caller</a>というより低レベルな関数があってこれを使って自前で実装すれば好きに作れそうではあります。</p>
+<p>しかし、私は手抜きで済ませたいので大きめのバッファをグローバルに予め確保しておいてそれを<a href="http://golang.org/pkg/runtime/#Stack">runtime.Stack</a>に渡す方式にしました。
+バッファを予め確保しておくのは、エラーが起きてからメモリ確保しようとして失敗するケースを避けたいからです。</p>
+<p>と言いつつ、<a href="http://golang.org/pkg/runtime/#Stack">runtime.Stack</a>内でメモリ割り当てが発生するかまでは確認していません。</p>
+<h2>実装と使い方</h2>
+<p>というわけで実装してみました。レポジトリは<a href="https://github.com/hnakamur/stacktrace">hnakamur/stacktrace</a>で、ライセンスはMITです。</p>
+<p>使用例はこちらです。<a href="https://github.com/hnakamur/stacktrace/blob/ed0a2c8b61528e59f349f6c108a84a6b9dd8e981/example/main.go">example.go</a></p>
+<div class="highlight"><pre><span></span><span class="n">package</span> <span class="n">main</span>
+
+<span class="kn">import</span> <span class="p">(</span>
+  <span class="s2">&quot;errors&quot;</span>
+  <span class="s2">&quot;log&quot;</span>
+
+  <span class="s2">&quot;github.com/hnakamur/stacktrace&quot;</span>
+<span class="p">)</span>
+
+<span class="n">func</span> <span class="n">logErrorWithStackTrace</span><span class="p">(</span><span class="n">msg</span> <span class="n">interface</span><span class="p">{})</span> <span class="p">{</span>
+  <span class="n">log</span><span class="o">.</span><span class="n">Printf</span><span class="p">(</span><span class="s2">&quot;error: </span><span class="si">%s</span><span class="se">\n</span><span class="s2">stacktrace: </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span> <span class="n">stacktrace</span><span class="o">.</span><span class="n">LockBufAndGetStackWithSkip</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span>
+  <span class="n">defer</span> <span class="n">stacktrace</span><span class="o">.</span><span class="n">UnlockBuf</span><span class="p">()</span>
+<span class="p">}</span>
+
+<span class="n">func</span> <span class="n">b</span><span class="p">()</span> <span class="p">{</span>
+  <span class="n">err</span> <span class="p">:</span><span class="o">=</span> <span class="n">errors</span><span class="o">.</span><span class="n">New</span><span class="p">(</span><span class="s2">&quot;some error&quot;</span><span class="p">)</span>
+  <span class="n">logErrorWithStackTrace</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="n">func</span> <span class="n">a</span><span class="p">()</span> <span class="p">{</span>
+  <span class="n">b</span><span class="p">()</span>
+<span class="p">}</span>
+
+<span class="n">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+  <span class="n">a</span><span class="p">()</span>
+<span class="p">}</span>
+</pre></div>
+
+
+<p>まずお好みのロギングライブラリ用にスタックトレースを取得してログ出力する関数を定義します。この例の場合は <code>logErrorWithStackTrace</code> です。メモリ割り当て回数を最低限にしたかったので、 <code>stacktrace.LockBufAndGetStackWithSkip()</code> はグローバルバッファをロックした状態でそのまま返すようにしています。ですので使い終わったら、<code>stacktrace.UnlockBuf()</code> でロックを解放する必要があります。</p>
+<p><code>stacktrace.LockBufAndGetStackWithSkip()</code> の引数で2を渡しているのはスタックトレースから <code>stacktrace.LockBufAndGetStackWithSkip</code> と <code>logErrorWithStackTrace</code> の2つを除外するためです。</p>
+<p>出力例は以下の通りです。</p>
+<div class="highlight"><pre><span></span>$ go run main.go
+<span class="m">2015</span>/08/31 <span class="m">01</span>:24:42 error: some error
+stacktrace: goroutine <span class="m">1</span> <span class="o">[</span>running<span class="o">]</span>:
+main.b<span class="o">()</span>
+        /Users/hnakamur/gocode/src/github.com/hnakamur/stacktrace/example/main.go:17 +0xce
+main.a<span class="o">()</span>
+        /Users/hnakamur/gocode/src/github.com/hnakamur/stacktrace/example/main.go:21 +0x14
+main.main<span class="o">()</span>
+        /Users/hnakamur/gocode/src/github.com/hnakamur/stacktrace/example/main.go:25 +0x14
+</pre></div>
+
+
+<p>これでスタックトレース付きのエラーログを簡単に出力できて快適ですね！</p>
+    </div><!-- /.entry-content -->
+
+  </article>
+</section>
+        <section id="extras" class="body">
+        </section><!-- /#extras -->
+
+        <footer id="contentinfo" class="body">
+                <address id="about" class="vcard body">
+                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
+                </address><!-- /#about -->
+
+                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
+        </footer><!-- /#contentinfo -->
+
+    <script type="text/javascript">
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-53263855-1', 'auto');
+    ga('send', 'pageview');
+    </script>
+</body>
+</html>

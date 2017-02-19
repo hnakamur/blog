@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+        <meta charset="utf-8" />
+        <title>Apache Traffic Server のコードリーディング</title>
+        <link rel="stylesheet" href="../../../../theme/css/main.css" />
+
+        <!--[if IE]>
+            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+        <![endif]-->
+</head>
+
+<body id="index" class="home">
+        <header id="banner" class="body">
+                <h1><a href="../../../../">hnakamur's blog at github </a></h1>
+                <nav><ul>
+                    <li class="active"><a href="../../../../category/blog.html">blog</a></li>
+                </ul></nav>
+        </header><!-- /#banner -->
+<section id="content" class="body">
+  <article>
+    <header>
+      <h1 class="entry-title">
+        <a href="../../../../2016/02/11/apache-traffic-server-code-reading/" rel="bookmark"
+           title="Permalink to Apache Traffic Server のコードリーディング">Apache Traffic Server のコードリーディング</a></h1>
+    </header>
+
+    <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2016-02-11T23:11:00+09:00">
+                Published: 2016-02-11
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
+        </address>
+<p>In <a href="../../../../category/blog.html">blog</a>.</p>
+<p>tags: <a href="../../../../tag/apache-traffic-server.html">apache-traffic-server</a> <a href="../../../../tag/code-reading.html">code-reading</a> </p>
+</footer><!-- /.post-info -->      <p>Apache Traffic Server のコードリーディングを少しやってみたので、将来の自分に向けてメモ。</p>
+<h2>コードリーディングの方法についての参考文献</h2>
+<ul>
+<li><a href="http://gihyo.jp/magazine/wdpress/archive/2012/vol69">WEB+DB PRESS Vol.69｜技術評論社</a><ul>
+<li><a href="http://dev.ariel-networks.com/wp/archives/author/inoue">アリエル・ネットワーク㈱の井上さん</a>による「大規模コードリーディング」の特集</li>
+<li>私は<a href="http://gihyo.jp/book/2013/978-4-7741-5783-2">WEB+DB PRESS総集編［Vol.1～72］：書籍案内｜技術評論社</a>を買ってたので、これに入っています。</li>
+<li><a href="http://gihyo.jp/book/2015/978-4-7741-7538-6">WEB+DB PRESS総集編［Vol.1～84］：書籍案内｜技術評論社</a>というのも出ていました。将来チェックするときはより新しい総集編が出ているかチェックしましょう。</li>
+</ul>
+</li>
+<li><a href="http://www.slideshare.net/satorutakeuchi18/viewing-source-code">大規模ソースコードの読み方</a></li>
+</ul>
+<h2>ツール</h2>
+<p>以下の 2 つのツールを使ってみました。</p>
+<ul>
+<li><a href="http://www.doxygen.jp/">Doxygen</a></li>
+<li><a href="http://www.tamacom.com/global-j.html">GNU GLOBAL</a></li>
+</ul>
+<p>Apache Traffic Server は C++ で書かれています。 C 言語に対応したツールなら他にもあるのですが、 C++ に対応していてちゃんと動いたのはこの 2 つでした。</p>
+<p><a href="http://gccxml.github.io/HTML/Index.html">GCC-XML</a> とその後継の <a href="https://github.com/CastXML/CastXML#readme">CastXML/CastXML: C-family Abstract Syntax Tree XML Output</a> はうまくいかなくて諦めました。</p>
+<h3>Doxygen</h3>
+<ul>
+<li><a href="http://www.doxygen.jp/starting.html">Doxygen</a></li>
+<li><a href="http://onlineconsultant.jp/pukiwiki/?Doxygen%2FGraphviz%E3%81%A7%E3%83%89%E3%82%AD%E3%83%A5%E3%83%A1%E3%83%B3%E3%83%88%E3%82%92%E8%87%AA%E5%8B%95%E7%94%9F%E6%88%90%E3%81%99%E3%82%8B">Doxygen/Graphvizでドキュメントを自動生成する -でじうぃき</a></li>
+</ul>
+<p>あたりを参考にしました。</p>
+<p>https://github.com/apache/trafficserver を <code>git clone</code> したディレクトリで作業しました。</p>
+<div class="highlight"><pre><span></span>doxygen -g
+</pre></div>
+
+
+<p>で <code>Doxyfile</code> を生成して、以下のように編集しました。</p>
+<div class="highlight"><pre><span></span><span class="gd">--- Doxyfile.generated  2016-02-11 23:27:47.000000000 +0900</span>
+<span class="gi">+++ Doxyfile    2016-01-22 20:52:30.000000000 +0900</span>
+<span class="gu">@@ -32,13 +32,13 @@</span>
+ # title of most generated pages and in a few other places.
+ # The default value is: My Project.
+
+<span class="gd">-PROJECT_NAME           = &quot;My Project&quot;</span>
+<span class="gi">+PROJECT_NAME           = &quot;Apache Traffic Server&quot;</span>
+
+ # The PROJECT_NUMBER tag can be used to enter a project or revision number. This
+ # could be handy for archiving the generated documentation or if some version
+ # control system is used.
+
+<span class="gd">-PROJECT_NUMBER         =</span>
+<span class="gi">+PROJECT_NUMBER         = 6.0</span>
+
+ # Using the PROJECT_BRIEF tag one can provide an optional one line description
+ # for a project that appears at the top of each page and should give viewer a
+<span class="gu">@@ -58,7 +58,7 @@</span>
+ # entered, it will be relative to the location where doxygen was started. If
+ # left blank the current directory will be used.
+
+<span class="gd">-OUTPUT_DIRECTORY       =</span>
+<span class="gi">+OUTPUT_DIRECTORY       = ../trafficserver-doxygen</span>
+
+ # If the CREATE_SUBDIRS tag is set to YES then doxygen will create 4096 sub-
+ # directories (in 2 levels) under the output directory of each output format and
+<span class="gu">@@ -802,7 +802,7 @@</span>
+ # be searched for input files as well.
+ # The default value is: NO.
+
+<span class="gd">-RECURSIVE              = NO</span>
+<span class="gi">+RECURSIVE              = YES</span>
+
+ # The EXCLUDE tag can be used to specify files and/or directories that should be
+ # excluded from the INPUT source files. This way you can easily exclude a
+<span class="gu">@@ -933,13 +933,13 @@</span>
+ # also VERBATIM_HEADERS is set to NO.
+ # The default value is: NO.
+
+<span class="gd">-SOURCE_BROWSER         = NO</span>
+<span class="gi">+SOURCE_BROWSER         = YES</span>
+
+ # Setting the INLINE_SOURCES tag to YES will include the body of functions,
+ # classes and enums directly into the documentation.
+ # The default value is: NO.
+
+<span class="gd">-INLINE_SOURCES         = NO</span>
+<span class="gi">+INLINE_SOURCES         = YES</span>
+
+ # Setting the STRIP_CODE_COMMENTS tag to YES will instruct doxygen to hide any
+ # special comment blocks from generated source code fragments. Normal C, C++ and
+<span class="gu">@@ -1865,7 +1865,7 @@</span>
+ # captures the structure of the code including all documentation.
+ # The default value is: NO.
+
+<span class="gd">-GENERATE_XML           = NO</span>
+<span class="gi">+GENERATE_XML           = YES</span>
+
+ # The XML_OUTPUT tag is used to specify where the XML pages will be put. If a
+ # relative path is entered the value of OUTPUT_DIRECTORY will be put in front of
+<span class="gu">@@ -2250,7 +2250,7 @@</span>
+ # The default value is: NO.
+ # This tag requires that the tag HAVE_DOT is set to YES.
+
+<span class="gd">-CALL_GRAPH             = NO</span>
+<span class="gi">+CALL_GRAPH             = YES</span>
+
+ # If the CALLER_GRAPH tag is set to YES then doxygen will generate a caller
+ # dependency graph for every global function or class method.
+<span class="gu">@@ -2262,7 +2262,7 @@</span>
+ # The default value is: NO.
+ # This tag requires that the tag HAVE_DOT is set to YES.
+
+<span class="gd">-CALLER_GRAPH           = NO</span>
+<span class="gi">+CALLER_GRAPH           = YES</span>
+
+ # If the GRAPHICAL_HIERARCHY tag is set to YES then doxygen will graphical
+ # hierarchy of all classes instead of a textual one.
+</pre></div>
+
+
+<p><code>Doxyfile</code> を編集したら、以下のように実行するとドキュメントが生成されます。</p>
+<div class="highlight"><pre><span></span>doxygen
+</pre></div>
+
+
+<p>上記では <code>GENERATE_XML</code> を <code>YES</code> にしていますが、通常は <code>NO</code> で良いです。生成された HTML に不満がある場合は <code>YES</code> にして xml ファイルを生成し好みに加工すれば良いということです。</p>
+<p>CALL_GRAPH と CALLER_GRAPH を作るには GraphViz をインストールしておく必要があります。メソッドの呼び出し図ではなくファイルのインクルード関係図っぽかったです (図のあるページへのたどり着き方を見失ってしまって現在確認できず)。</p>
+<h3>GNU GLOBAL</h3>
+<p>コードリーディング用にはこちらのほうが使いやすかったです。Homebrewからインストールしました。</p>
+<div class="highlight"><pre><span></span>brew install global
+</pre></div>
+
+
+<p>https://github.com/apache/trafficserver を <code>git clone</code> したディレクトリで以下のコマンドを実行して <code>HTML</code> ディレクトリにドキュメントが生成しました。</p>
+<div class="highlight"><pre><span></span>htags -sa
+</pre></div>
+
+
+<p><code>-s</code> をつけると関数などの定義箇所で名前がリンクになり、クリックすると参照箇所一覧のページに飛べます。</p>
+<p><code>-a</code> はアルファベットの索引を作るオプションです。</p>
+<p>以下のように <code>-n</code> も追加するとソースリストに行番号が追加されます。ただし、コピペしようとコードを選択すると行番号も混ざってしまいます。</p>
+<div class="highlight"><pre><span></span>htags -sa
+</pre></div>
+
+
+<p>ソースコードのフォントを Monaco にするには <code>HTML/styles.css</code> に以下のコードを追加します。</p>
+<div class="highlight"><pre><span></span><span class="nt">pre</span> <span class="p">{</span>
+        <span class="k">font-family</span><span class="p">:</span> <span class="n">Monaco</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+
+
+<p>時々参照箇所へのリンクが違うクラスに飛んだりすることがあったので、その場合は <a href="https://github.com/monochromegane/the_platinum_searcher">the_platinum_searcher</a> で</p>
+<div class="highlight"><pre><span></span>pt -G &#39;\.(h|cc)$&#39; 文字列
+</pre></div>
+
+
+<p>や</p>
+<div class="highlight"><pre><span></span>pt -e -G &#39;\.(h|cc)$&#39; 正規表現
+</pre></div>
+
+
+<p>で検索しました。</p>
+<h2>コードリーディングのメモ</h2>
+<p><a href="https://github.com/hnakamur/trafficserver-code-reading">hnakamur/trafficserver-code-reading: This is my code reading memo for Apache Traffic Server</a> に置きました。</p>
+    </div><!-- /.entry-content -->
+
+  </article>
+</section>
+        <section id="extras" class="body">
+        </section><!-- /#extras -->
+
+        <footer id="contentinfo" class="body">
+                <address id="about" class="vcard body">
+                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
+                </address><!-- /#about -->
+
+                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
+        </footer><!-- /#contentinfo -->
+
+    <script type="text/javascript">
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-53263855-1', 'auto');
+    ga('send', 'pageview');
+    </script>
+</body>
+</html>
