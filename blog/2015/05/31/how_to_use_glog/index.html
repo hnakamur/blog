@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+        <meta charset="utf-8" />
+        <title>goでglogを使うときのメモ</title>
+        <link rel="stylesheet" href="../../../../../theme/css/main.css" />
+
+        <!--[if IE]>
+            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+        <![endif]-->
+</head>
+
+<body id="index" class="home">
+        <header id="banner" class="body">
+                <h1><a href="../../../../../">hnakamur's blog at github </a></h1>
+                <nav><ul>
+                    <li class="active"><a href="../../../../../category/blog.html">blog</a></li>
+                </ul></nav>
+        </header><!-- /#banner -->
+<section id="content" class="body">
+  <article>
+    <header>
+      <h1 class="entry-title">
+        <a href="../../../../../blog/2015/05/31/how_to_use_glog/" rel="bookmark"
+           title="Permalink to goでglogを使うときのメモ">goでglogを使うときのメモ</a></h1>
+    </header>
+
+    <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2015-05-31T02:30:00+09:00">
+                Published: 2015-05-31
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
+        </address>
+<p>In <a href="../../../../../category/blog.html">blog</a>.</p>
+<p>tags: <a href="../../../../../tag/go.html">go</a> <a href="../../../../../tag/logging.html">logging</a> </p>
+</footer><!-- /.post-info -->      <p><a href="http://blog.satotaichi.info/logging-frameworks-for-go/">go言語におけるロギングについて</a>の記事と<a href="http://godoc.org/github.com/golang/glog">glog - GoDoc</a>を読んで試してみました。</p>
+<p><code>flag.Parse()</code> を呼ぶ必要があり、最後に <code>glog.Flush()</code> を呼ぶ必要があるので <code>main</code> で <code>defer</code> で書いておきます。</p>
+<div class="highlight"><pre><span></span><span class="n">package</span> <span class="n">main</span>
+
+<span class="kn">import</span> <span class="p">(</span>
+    <span class="s2">&quot;flag&quot;</span>
+
+    <span class="s2">&quot;github.com/golang/glog&quot;</span>
+<span class="p">)</span>
+
+<span class="n">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+    <span class="n">flag</span><span class="o">.</span><span class="n">Parse</span><span class="p">()</span>
+    <span class="n">defer</span> <span class="n">glog</span><span class="o">.</span><span class="n">Flush</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">glog</span><span class="o">.</span><span class="n">V</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">glog</span><span class="o">.</span><span class="n">Info</span><span class="p">(</span><span class="s2">&quot;Hello, glog&quot;</span><span class="p">)</span>
+    <span class="p">}</span>
+
+    <span class="n">glog</span><span class="o">.</span><span class="n">V</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">Info</span><span class="p">(</span><span class="s2">&quot;exiting&quot;</span><span class="p">)</span>
+<span class="p">}</span>
+</pre></div>
+
+
+<p>ログレベルは <code>-v</code> オプションで指定できるのですがデフォルト値は0なので、デフォルトで出力したいログはレベル0で書くようにします。</p>
+<p><a href="http://godoc.org/github.com/golang/glog#Verbose">Verbose</a>の説明によると、上の2つの書き方では前者のほうが実行時負荷が安上がりとのことです。これはログレベルの設定で出力を抑止した時に、 <code>Info</code> の引数の評価をしなくて済むからです。</p>
+<p>使い分けるのも面倒なので、常に前者を使うことにします。</p>
+<p>ログファイル名は非公開関数 <a href="https://github.com/golang/glog/blob/44145f04b68cf362d9c4df2182967c2275eaefed/glog_file.go#L83-L97">glog.logName()</a> の形式になります。</p>
+<p>ログのディレクトリは <code>-log_dir</code> オプションで指定可能ですが、デフォルトでは <a href="http://golang.org/pkg/os/#TempDir">os.TempDir()</a> になっています。</p>
+<p>OS Xの場合は環境変数 <code>$TMPDIR</code> になります。セキュリティ上 <code>/tmp</code> ではなくランダムは文字列のディレクトリになっています。</p>
+<div class="highlight"><pre><span></span>$ <span class="nb">echo</span> <span class="nv">$TMPDIR</span>
+/var/folders/9p/r7jylfyd163bszlxvp0wk36h0000gn/T/
+</pre></div>
+
+
+<p>ということで、ログファイルを見るときは <code>less $TMPDIR/${プログラム名}.INFO</code> とすればOKです。<code>go build</code> でビルドしてプログラムを実行した時はその名前ですが、 <code>go run main.go</code> のときは <code>main</code> になるようで <code>$TMPDIR/main.INFO</code> というファイルが出来ていました。</p>
+<p>このファイルはプログラム実行のたびに上書きされます。過去のログを見たいときは <code>less $TMPDIR/${プログラム名}</code> まで入力しTABでファイル名補完して見るようにします。</p>
+<p>上記のサンプルで出力されたログは以下のようになっていました。</p>
+<div class="highlight"><pre><span></span>Log file created at: 2015/05/31 02:22:07
+Running on machine: sunshine5
+Binary: Built with gc go1.4.2 for darwin/amd64
+Log line format: [IWEF]mmdd hh:mm:ss.uuuuuu threadid file:line] msg
+I0531 02:22:07.343002   54353 main.go:14] Hello, glog
+I0531 02:22:07.343897   54353 main.go:18] exiting
+</pre></div>
+
+
+<p>ログの行フォーマットは4行目に書いてありますが、 <a href="https://github.com/golang/glog/blob/44145f04b68cf362d9c4df2182967c2275eaefed/glog.go#L518-L534">glog.header()のコメント</a> に詳細な説明があります。</p>
+<p>各行の日付には年がないのですが、行のフォーマットは固定なので諦めましょう。ログファイルサイズ削減のために年は付けないようにしているのでしょう。先頭行に作成日時が年つきで書いてあるのでそちらを見れば良いです。</p>
+<p>スレッドIDやログ出力したファイル名と行番号が出るのが便利です。</p>
+<p>ということで開発時のデバッグログとしてはglog便利そうです。逆にシステムの運用ログとしては別のログライブラリのようが良いかもしれません。</p>
+    </div><!-- /.entry-content -->
+
+  </article>
+</section>
+        <section id="extras" class="body">
+        </section><!-- /#extras -->
+
+        <footer id="contentinfo" class="body">
+                <address id="about" class="vcard body">
+                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
+                </address><!-- /#about -->
+
+                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
+        </footer><!-- /#contentinfo -->
+
+    <script type="text/javascript">
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-53263855-1', 'auto');
+    ga('send', 'pageview');
+    </script>
+</body>
+</html>

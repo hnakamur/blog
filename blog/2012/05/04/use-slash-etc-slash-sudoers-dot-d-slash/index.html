@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+        <meta charset="utf-8" />
+        <title>/etc/sudoers.d/を使う→やっぱり止め</title>
+        <link rel="stylesheet" href="../../../../../theme/css/main.css" />
+
+        <!--[if IE]>
+            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+        <![endif]-->
+</head>
+
+<body id="index" class="home">
+        <header id="banner" class="body">
+                <h1><a href="../../../../../">hnakamur's blog at github </a></h1>
+                <nav><ul>
+                    <li class="active"><a href="../../../../../category/blog.html">blog</a></li>
+                </ul></nav>
+        </header><!-- /#banner -->
+<section id="content" class="body">
+  <article>
+    <header>
+      <h1 class="entry-title">
+        <a href="../../../../../blog/2012/05/04/use-slash-etc-slash-sudoers-dot-d-slash/" rel="bookmark"
+           title="Permalink to /etc/sudoers.d/を使う→やっぱり止め">/etc/sudoers.d/を使う→やっぱり止め</a></h1>
+    </header>
+
+    <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2012-05-04T00:00:00+09:00">
+                Published: 2012-05-04
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
+        </address>
+<p>In <a href="../../../../../category/blog.html">blog</a>.</p>
+<p>tags: <a href="../../../../../tag/centos.html">centos</a> <a href="../../../../../tag/sudo.html">sudo</a> </p>
+</footer><!-- /.post-info -->      <p>これまでいつも/etc/sudoersを編集していたのですが、よくみるとファイル末尾に</p>
+<div class="highlight"><pre><span></span>## Read drop-in files from /etc/sudoers.d (the # here does not mean a comment)
+#includedir /etc/sudoers.d
+</pre></div>
+
+
+<p>と書いてあって、/etc/sudoers.d/にファイルを置けば/etc/sudoersを編集しなくても済むんですね。（しかしなんでincludedirには#をつける仕様なんだろ。今までずっとコメントアウトされていると思ってました。その上のコメント行に#ついててもコメントじゃないと書いてあるのに気づいたのが今日です）</p>
+<p>/etc/sudoers.d/hnakamur を</p>
+<div class="highlight"><pre><span></span><span class="n">Defaults</span><span class="o">:</span><span class="n">hnakamur</span> <span class="o">!</span><span class="n">requiretty</span>
+<span class="n">hnakamur</span> <span class="n">ALL</span><span class="o">=(</span><span class="n">ALL</span><span class="o">)</span>      <span class="n">NOPASSWD</span><span class="o">:</span> <span class="n">ALL</span>
+</pre></div>
+
+
+<p>として試してみました。</p>
+<p>sudoすると</p>
+<div class="highlight"><pre><span></span>sudo: /etc/sudoers.d/hnakamur is mode 0644, should be 0440
+</pre></div>
+
+
+<p>というエラー。</p>
+<div class="highlight"><pre><span></span>chmod 0440 /etc/sudoers.d/hnakamur
+</pre></div>
+
+
+<p>して再度試すとOKでした。</p>
+<p>visudoではこのファイルは編集対象ではないので、複数人で同時に編集しないよう連絡しあうなどの運用が別途必要です。このせいでみんな使ってないんだろうか？</p>
+<h2>/etc/sudoers.d/* の罠にはまった</h2>
+<p>(2012-05-05 追記)</p>
+<p>使うべきでない理由がわかりました！</p>
+<p>/etc/sudoers.d/*のファイルで文法エラーのまま保存してしまうと、次にsudoを実行した時に以下の様なエラーが出ました。</p>
+<div class="highlight"><pre><span></span>$ sudo -s
+&gt;&gt;&gt; /etc/sudoers.d/hnakamur: syntax error near line <span class="m">2</span> <span class="o">&lt;&lt;&lt;</span>
+sudo: parse error in /etc/sudoers.d/hnakamur near line <span class="m">2</span>
+sudo: no valid sudoers sources found, quitting
+</pre></div>
+
+
+<p>こうなるとsu -でrootになるしかないです。/etc/sudoers.d/*を使わずvisudoで編集する場合は、保存時に文法エラーがある場合は抜けずに再編集が可能なので安全です。</p>
+<h2>visudoを使えば/etc/sudoers.d/* でも大丈夫</h2>
+<p>(2012-05-05 追記)</p>
+<p>さらに追記。visudoは/etc/sudoers.d/*に文法がエラーがある場合も抜ける前にプロンプトが出ました。人手で編集するときは必ずvisudoを使うよう肝に銘じます。</p>
+<h2>/etc/sudoers.d/* だとvisudoでもダメなパターンがありました</h2>
+<p>(2012-05-05 追記)</p>
+<p>さらに追記。
+visudoで起動して:e /etc/sudoers.d/hnakamurと切り替えて編集して:wqで保存して抜けると、文法エラーがあってもスルーしてしまいました。rootでもう一度起動して何も変更せずに:qで終わると文法エラーに反応してくれるのですが。</p>
+<p>ということで、結論としては/etc/sudoers.d/*は私は使わないことにしました。</p>
+    </div><!-- /.entry-content -->
+
+  </article>
+</section>
+        <section id="extras" class="body">
+        </section><!-- /#extras -->
+
+        <footer id="contentinfo" class="body">
+                <address id="about" class="vcard body">
+                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
+                </address><!-- /#about -->
+
+                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
+        </footer><!-- /#contentinfo -->
+
+    <script type="text/javascript">
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-53263855-1', 'auto');
+    ga('send', 'pageview');
+    </script>
+</body>
+</html>

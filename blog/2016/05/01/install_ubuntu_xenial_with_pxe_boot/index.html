@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+        <meta charset="utf-8" />
+        <title>MacをPXEサーバにしてExpress5800/S70タイプRBにUbuntu16.04をインストールしてみた</title>
+        <link rel="stylesheet" href="../../../../../theme/css/main.css" />
+
+        <!--[if IE]>
+            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+        <![endif]-->
+</head>
+
+<body id="index" class="home">
+        <header id="banner" class="body">
+                <h1><a href="../../../../../">hnakamur's blog at github </a></h1>
+                <nav><ul>
+                    <li class="active"><a href="../../../../../category/blog.html">blog</a></li>
+                </ul></nav>
+        </header><!-- /#banner -->
+<section id="content" class="body">
+  <article>
+    <header>
+      <h1 class="entry-title">
+        <a href="../../../../../blog/2016/05/01/install_ubuntu_xenial_with_pxe_boot/" rel="bookmark"
+           title="Permalink to MacをPXEサーバにしてExpress5800/S70タイプRBにUbuntu16.04をインストールしてみた">MacをPXEサーバにしてExpress5800/S70タイプRBにUbuntu16.04をインストールしてみた</a></h1>
+    </header>
+
+    <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2016-05-01T22:36:00+09:00">
+                Published: 2016-05-01
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
+        </address>
+<p>In <a href="../../../../../category/blog.html">blog</a>.</p>
+<p>tags: <a href="../../../../../tag/ubuntu.html">ubuntu</a> <a href="../../../../../tag/macos.html">macos</a> <a href="../../../../../tag/pxe-boot.html">pxe-boot</a> </p>
+</footer><!-- /.post-info -->      <h2>背景</h2>
+<p>Goで書いたプログラムをMacBook Pro上で負荷試験をしていたら、ビーチボールカーソルが回りっぱなしになって大変でした。そういえば、負荷試験するときは極力余計なプロセスを止めて外界の影響を受けない状態でやるべきという話を思い出しました。</p>
+<p>そこで5年前に買ったけど、ここ2年は全く電源を入れていなかった自宅サーバを再び活用することにしました。起動してみるとCentOS 6.4が入っていました。せっかくなので人生初のPXEブートでUbuntu 16.04をインストールしてみました。ということで自分用メモです。</p>
+<h2>サーバハードウェア構成</h2>
+<p>ハードウェアの情報は有志のまとめWikiに詳しく載っています。
+<a href="http://pc.usy.jp/wiki/index.php?NEC%20Express5800%A1%BFS70%20%A5%BF%A5%A4%A5%D7RB">NEC Express5800／S70 タイプRB - usyWiki</a></p>
+<p>私のExpress5800の構成は以下の通りです。</p>
+<ul>
+<li>Express5800/S70タイプRB</li>
+<li>CPU: Intel Pentium G6950 (2.8GHz)</li>
+<li>RAM: 16GBに増設済み</li>
+<li>SSD: Intel SSDSA2M160G2GC (換装済み)</li>
+<li>BIOS: Phoenix</li>
+</ul>
+<h2>MacをPXEサーバにする</h2>
+<p>今まではこの方法を知らなくてPXEブートを諦めていたのですが、 <a href="http://qiita.com/honeniq/items/d020368ea31b2f052a12">MacをPXEサーバーにする - Qiita</a> と <a href="http://c-rtx.com/2015/09/21/macosx-pxe-server/">MacOSXをPXEブートサーバーにしてLinuxのインストールに使う | C-RTX BLOG</a> の記事のおかげで私にも出来ました。ありがとうございます！</p>
+<h3>環境</h3>
+<ul>
+<li>MacBook Pro (Retina, Mid 2012)</li>
+<li>OS X El Capitan</li>
+<li>tftpd (OS X 標準)</li>
+<li>bootpd (OS X 標準)</li>
+</ul>
+<h3>構成図</h3>
+<div class="highlight"><pre><span></span>+--------+  Ethernet   +-------------+  Wi-Fi   +----------+ 
+| Server | ----------&gt; | MacBook Pro | -------&gt; | Wi-Fi AP | -----&gt; Internet
++--------+             +-------------+          +----------+
+</pre></div>
+
+
+<h3>tftpdの起動とnetbootのファイル配置</h3>
+<p>tftpd起動</p>
+<div class="highlight"><pre><span></span>$ sudo launchctl load -w /System/Library/LaunchDaemons/tftp.plist
+</pre></div>
+
+
+<p>osx上でのtftpについて私はよく知らないのですが、起動後</p>
+<div class="highlight"><pre><span></span>sudo ps auxww | grep tftp
+</pre></div>
+
+
+<p>としてもヒットしませんでした。</p>
+<p>以下のように実際に繋いでみて試すか、</p>
+<div class="highlight"><pre><span></span>$ tftp
+tftp&gt; quit
+</pre></div>
+
+
+<p>lsofで確認すれば大丈夫でした。後者は <a href="http://qiita.com/tukiyo3/items/c9ca4bc6c62e78e80ae3">Macでtftpサーバを起動 - Qiita</a> を参考にしました。</p>
+<div class="highlight"><pre><span></span>$ sudo lsof -i:69
+COMMAND PID USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+launchd   <span class="m">1</span> root   42u  IPv6 0x4d07726546506a3f      0t0  UDP *:tftp
+launchd   <span class="m">1</span> root   47u  IPv4 0x4d0772654650a3ff      0t0  UDP *:tftp
+launchd   <span class="m">1</span> root   48u  IPv4 0x4d0772654650a3ff      0t0  UDP *:tftp
+launchd   <span class="m">1</span> root   49u  IPv6 0x4d07726546506a3f      0t0  UDP *:tftp
+</pre></div>
+
+
+<p>Ubuntuのセットアップが終わった後は以下のコマンドでtftpdを停止します。</p>
+<div class="highlight"><pre><span></span>sudo launchctl unload /System/Library/LaunchDaemons/tftp.plist
+</pre></div>
+
+
+<p>/private/tftpboot/ 以下にUbuntuのネットワークインストールに必要なファイルを配置します。</p>
+<p>最初は http://archive.ubuntu.com/ubuntu/dists/xenial/main/installer-amd64/current/images/netboot/ から pxelinux.0 をダウンロードして置いていたのですが、ブートしてみると他のファイルも必要なことがわかりました。</p>
+<p>試行錯誤した結果、 <a href="https://www.ubuntulinux.jp/ubuntu/mirrors">日本国内のダウンロードサイト | Ubuntu Japanese Team</a> に載っているミラーの1つの ftp://ftp.kddilabs.jp/Linux/packages/ubuntu/archive/dists/xenial/main/installer-amd64/current/images/netboot/ から netboot.tar.gz をダウンロードして展開すれば大丈夫でした。</p>
+<h3>bootpd</h3>
+<p>私がよくわかっていなくて、ここはちょっと苦労しました。まず、インターネット共有を切にした状態では /etc/bootpd.plist は以下のようになっていました。</p>
+<div class="highlight"><pre><span></span><span class="cp">&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;</span>
+<span class="cp">&lt;!DOCTYPE plist PUBLIC &quot;-//Apple//DTD PLIST 1.0//EN&quot; &quot;http://www.apple.com/DTDs/PropertyList-1.0.dtd&quot;&gt;</span>
+<span class="nt">&lt;plist</span> <span class="na">version=</span><span class="s">&quot;1.0&quot;</span><span class="nt">&gt;</span>
+<span class="nt">&lt;dict&gt;</span>
+    <span class="nt">&lt;key&gt;</span>bootp_enabled<span class="nt">&lt;/key&gt;</span>
+    <span class="nt">&lt;false/&gt;</span>
+    <span class="nt">&lt;key&gt;</span>detect_other_dhcp_server<span class="nt">&lt;/key&gt;</span>
+    <span class="nt">&lt;false/&gt;</span>
+    <span class="nt">&lt;key&gt;</span>dhcp_enabled<span class="nt">&lt;/key&gt;</span>
+    <span class="nt">&lt;false/&gt;</span>
+    <span class="nt">&lt;key&gt;</span>dhcp_ignore_client_identifier<span class="nt">&lt;/key&gt;</span>
+    <span class="nt">&lt;true/&gt;</span>
+    <span class="nt">&lt;key&gt;</span>use_server_config_for_dhcp_options<span class="nt">&lt;/key&gt;</span>
+    <span class="nt">&lt;false/&gt;</span>
+<span class="nt">&lt;/dict&gt;</span>
+<span class="nt">&lt;/plist&gt;</span>
+</pre></div>
+
+
+<p>「システム環境設定」→「共有」と進んで「インターネット共有」のチェックボックスをオンにしようとしたのですが、画面中央に「接続を共有するためのポートを選択していないため、インターネット共有を開始できません。」と表示されていてオンにならない状態でした。</p>
+<p>試行錯誤した結果、MacをWi-FiでWi-Fi AP (Time Capsule)に繋ぎつつ<a href="http://www.apple.com/jp/shop/product/MD463ZM/A/apple-thunderbolt%E3%82%AE%E3%82%AC%E3%83%93%E3%83%83%E3%83%88ethernet%E3%82%A2%E3%83%80%E3%83%97%E3%82%BF?afid=p238%7CsKTonmsKf-dc_mtid_18707vxu38484_pcrid_96182712077_&amp;cid=aos-jp-kwg-pla-btb-product-MD463ZM/A">Apple Thunderbolt - ギガビットEthernetアダプタ - Apple (日本)</a>でも有線で繋いだ状態で、「共有する接続経路」で「Wi-Fi」を選び、「相手のコンピュータでのポート」で「Thunderbolt Ethernet」にチェックをつけた状態で「インターネット共有」にチェックをつけるとうまくいきました。</p>
+<p>この時はよく分かってなかったのですが、参考にした記事にもある通り、Express 5800のLANケーブルはMacに繋ぐのが正しいです。上記の構成図も正しい構成のほうを書いています。</p>
+<p>この状態で5秒ぐらいすると /etc/bootpd.plist が以下のように変更されました。</p>
+<div class="highlight"><pre><span></span><span class="cp">&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;</span>
+<span class="cp">&lt;!DOCTYPE plist PUBLIC &quot;-//Apple//DTD PLIST 1.0//EN&quot; &quot;http://www.apple.com/DTDs/PropertyList-1.0.dtd&quot;&gt;</span>
+<span class="nt">&lt;plist</span> <span class="na">version=</span><span class="s">&quot;1.0&quot;</span><span class="nt">&gt;</span>
+<span class="nt">&lt;dict&gt;</span>
+    <span class="nt">&lt;key&gt;</span>Subnets<span class="nt">&lt;/key&gt;</span>
+    <span class="nt">&lt;array&gt;</span>
+        <span class="nt">&lt;dict&gt;</span>
+            <span class="nt">&lt;key&gt;</span>_creator<span class="nt">&lt;/key&gt;</span>
+            <span class="nt">&lt;string&gt;</span>com.apple.NetworkSharing<span class="nt">&lt;/string&gt;</span>
+            <span class="nt">&lt;key&gt;</span>allocate<span class="nt">&lt;/key&gt;</span>
+            <span class="nt">&lt;true/&gt;</span>
+            <span class="nt">&lt;key&gt;</span>dhcp_domain_name_server<span class="nt">&lt;/key&gt;</span>
+            <span class="nt">&lt;array&gt;</span>
+                <span class="nt">&lt;string&gt;</span>192.168.2.1<span class="nt">&lt;/string&gt;</span>
+            <span class="nt">&lt;/array&gt;</span>
+            <span class="nt">&lt;key&gt;</span>dhcp_router<span class="nt">&lt;/key&gt;</span>
+            <span class="nt">&lt;string&gt;</span>192.168.2.1<span class="nt">&lt;/string&gt;</span>
+            <span class="nt">&lt;key&gt;</span>interface<span class="nt">&lt;/key&gt;</span>
+            <span class="nt">&lt;string&gt;</span>bridge100<span class="nt">&lt;/string&gt;</span>
+            <span class="nt">&lt;key&gt;</span>lease_max<span class="nt">&lt;/key&gt;</span>
+            <span class="nt">&lt;integer&gt;</span>86400<span class="nt">&lt;/integer&gt;</span>
+            <span class="nt">&lt;key&gt;</span>lease_min<span class="nt">&lt;/key&gt;</span>
+            <span class="nt">&lt;integer&gt;</span>86400<span class="nt">&lt;/integer&gt;</span>
+            <span class="nt">&lt;key&gt;</span>name<span class="nt">&lt;/key&gt;</span>
+            <span class="nt">&lt;string&gt;</span>192.168.2/24<span class="nt">&lt;/string&gt;</span>
+            <span class="nt">&lt;key&gt;</span>net_address<span class="nt">&lt;/key&gt;</span>
+            <span class="nt">&lt;string&gt;</span>192.168.2.0<span class="nt">&lt;/string&gt;</span>
+            <span class="nt">&lt;key&gt;</span>net_mask<span class="nt">&lt;/key&gt;</span>
+            <span class="nt">&lt;string&gt;</span>255.255.255.0<span class="nt">&lt;/string&gt;</span>
+            <span class="nt">&lt;key&gt;</span>net_range<span class="nt">&lt;/key&gt;</span>
+            <span class="nt">&lt;array&gt;</span>
+                <span class="nt">&lt;string&gt;</span>192.168.2.2<span class="nt">&lt;/string&gt;</span>
+                <span class="nt">&lt;string&gt;</span>192.168.2.254<span class="nt">&lt;/string&gt;</span>
+            <span class="nt">&lt;/array&gt;</span>
+        <span class="nt">&lt;/dict&gt;</span>
+    <span class="nt">&lt;/array&gt;</span>
+    <span class="nt">&lt;key&gt;</span>bootp_enabled<span class="nt">&lt;/key&gt;</span>
+    <span class="nt">&lt;false/&gt;</span>
+    <span class="nt">&lt;key&gt;</span>detect_other_dhcp_server<span class="nt">&lt;/key&gt;</span>
+    <span class="nt">&lt;array&gt;</span>
+        <span class="nt">&lt;string&gt;</span>bridge100<span class="nt">&lt;/string&gt;</span>
+    <span class="nt">&lt;/array&gt;</span>
+    <span class="nt">&lt;key&gt;</span>dhcp_enabled<span class="nt">&lt;/key&gt;</span>
+    <span class="nt">&lt;array&gt;</span>
+        <span class="nt">&lt;string&gt;</span>bridge100<span class="nt">&lt;/string&gt;</span>
+    <span class="nt">&lt;/array&gt;</span>
+    <span class="nt">&lt;key&gt;</span>dhcp_ignore_client_identifier<span class="nt">&lt;/key&gt;</span>
+    <span class="nt">&lt;true/&gt;</span>
+    <span class="nt">&lt;key&gt;</span>ignore_allow_deny<span class="nt">&lt;/key&gt;</span>
+    <span class="nt">&lt;array&gt;</span>
+        <span class="nt">&lt;string&gt;</span>bridge100<span class="nt">&lt;/string&gt;</span>
+    <span class="nt">&lt;/array&gt;</span>
+    <span class="nt">&lt;key&gt;</span>use_server_config_for_dhcp_options<span class="nt">&lt;/key&gt;</span>
+    <span class="nt">&lt;false/&gt;</span>
+<span class="nt">&lt;/dict&gt;</span>
+<span class="nt">&lt;/plist&gt;</span>
+</pre></div>
+
+
+<p>Subnets キーの <code>&lt;/dict&gt;</code> の前に以下の設定を追加します。 <code>cHhlbGludXguMAA=</code> は <code>pxelinux.0</code> をBase64エンコーディングした値です。</p>
+<div class="highlight"><pre><span></span>        <span class="nt">&lt;key&gt;</span>dhcp_option_66<span class="nt">&lt;/key&gt;</span>
+        <span class="nt">&lt;string&gt;</span>192.168.2.1<span class="nt">&lt;/string&gt;</span>
+        <span class="nt">&lt;key&gt;</span>dhcp_option_67<span class="nt">&lt;/key&gt;</span>
+        <span class="nt">&lt;data&gt;</span>cHhlbGludXguMAA=<span class="nt">&lt;/data&gt;</span>
+</pre></div>
+
+
+<p>ここで追記した内容を反映させる際に、「システム環境設定」の「共有」で「インターネット共有」をオフ→オンにすると設定ファイルが元に戻されてしまってダメでした。</p>
+<p>/etc/bootpd.plist を書き換えた後、以下のようにコマンドで bootpd を再起動すると大丈夫でした。</p>
+<div class="highlight"><pre><span></span>sudo launchctl unload /System/Library/LaunchDaemons/bootps.plist
+sudo launchctl load -w /System/Library/LaunchDaemons/bootps.plist
+</pre></div>
+
+
+<p>/etc/bootpub を作成・編集して固定アサインの設定もやっておきました。
+が、今思えば私はこれはいらないかなと思います。後述の通り、ネットワークブートが終わったらLANケーブルを繋ぎ変えて、Wi-Fi APのDHCPを使ってIPアドレスを取得してその後のインストールを行うので。</p>
+<div class="highlight"><pre><span></span># hostname      hwtype  hwaddr              ipaddr          bootfile
+client1         1       01:02:03:04:05:06   192.168.2.11    pxelinux.0
+</pre></div>
+
+
+<p>hwaddrの値は実際には事前に Express 5800 で <code>ip a</code> で調べたMACアドレスに書き換えました。PXEブート中にもMACアドレスが表示されていたのでそれを見て書き換えるのでも良さそうです。</p>
+<p>Macで <code>ifconfig</code> を実行すると <code>bridge100</code> というのが作られていました。最初は <code>bridge0</code> というのが作られたのですが、このときは接続を間違えていて ServerをWi-Fi APに有線でつなぎ、MacはWi-Fi APにWi-Fiと有線でつないでいました。</p>
+<p>その後上記の構成図の配線に修正したりしているうちに <code>bridge0</code> とは別に <code>bridge100</code> というのが作られていました。</p>
+<p><code>ifconfig</code> の結果は以下のようになっていました。</p>
+<div class="highlight"><pre><span></span>$ ifconfig
+...<span class="o">(</span>snip<span class="o">)</span>...
+bridge100: <span class="nv">flags</span><span class="o">=</span><span class="m">8863</span>&lt;UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST&gt; mtu <span class="m">1500</span>
+        <span class="nv">options</span><span class="o">=</span><span class="m">3</span>&lt;RXCSUM,TXCSUM&gt;
+        ether ba:f6:b1:71:3c:64
+        inet <span class="m">192</span>.168.2.1 netmask 0xffffff00 broadcast <span class="m">192</span>.168.2.255
+        inet6 fe80::b8f6:b1ff:fe71:3c64%bridge100 prefixlen <span class="m">64</span> scopeid 0x12
+        Configuration:
+                id <span class="m">0</span>:0:0:0:0:0 priority <span class="m">0</span> hellotime <span class="m">0</span> fwddelay <span class="m">0</span>
+                maxage <span class="m">0</span> holdcnt <span class="m">0</span> proto stp maxaddr <span class="m">100</span> timeout <span class="m">1200</span>
+                root id <span class="m">0</span>:0:0:0:0:0 priority <span class="m">0</span> ifcost <span class="m">0</span> port <span class="m">0</span>
+                ipfilter disabled flags 0x2
+        member: en4 <span class="nv">flags</span><span class="o">=</span><span class="m">3</span>&lt;LEARNING,DISCOVER&gt;
+                ifmaxaddr <span class="m">0</span> port <span class="m">17</span> priority <span class="m">0</span> path cost <span class="m">0</span>
+        nd6 <span class="nv">options</span><span class="o">=</span><span class="m">1</span>&lt;PERFORMNUD&gt;
+        media: autoselect
+        status: active
+</pre></div>
+
+
+<h3>OS Xのファイアウォールを切る必要はない</h3>
+<p>初回はたぶんファイアウォールは切る必要があるだろうと思って切っておきました。</p>
+<p>「システム環境設定」→「セキュリティとプライバシー」→「ファイアウォール」タブ
+左下の「変更するにはカギをクリックします」を押してパスワードを入力し、
+「ファイアウォールを切にする」ボタンを押してオフにしました。</p>
+<p>Ubuntuのインストールが終わったら「ファイアウォールを入にする」ボタンを押して
+オンに戻しておきます。</p>
+<p>が、2回目の検証でファイアウォールを切らなくても大丈夫なことがわかりました。</p>
+<h3>Phoenix BIOSでPXEブートを有効にする</h3>
+<p><a href="http://changineer.info/server/server_hardware_management/server_hardware_bios.html#Phoenix_BIOS_8211BIOS_PXE_boot">BIOS 設定方法</a>を参考にしました。</p>
+<p>Express 5800を再起動し、起動時に[F2]キーを押してPhoenix BIOSの設定画面に入ります。カーソルキーの左右で[Boot]メニューを選びます。私はPXEブートを無効にしていたので、[PCI BEV]は画面下部の[Excluded from boot order:]のほうにありました。カーソルキーの上下で[PCI BEV]を選んでxキーを押し、画面上部の[Boot priority order:]のほうに移動します。
+その後テンキーの+を押して[PCI BEV]を1番上に持ってきます。購入時に同梱されていた日本語キーボードを使っているのですがフルキーの-は効くのですが+ (Shift+;)は効きませんでした。</p>
+<p>なお、一旦有効にした後は[PCI BEV]の項目は[PCI BEV: IBA GE Slot 00C8 v1352]という表示になっていました。</p>
+<p>変更したら[F10]を押してBIOSの設定を保存して終了します。</p>
+<p>Ubuntuの設定が終わったら[PCI BEV]を[Excluded from boot order:]のほうに戻しておきます。</p>
+<h3>PXEブートでUbuntuのインストール</h3>
+<p>Express 5800を再起動すると、Ubuntuのインストーラが起動しました。
+予めMacで <code>tail -f /var/log/system.log | grep DHCP</code> を実行しておくとDHCPのログが確認できました。</p>
+<div class="highlight"><pre><span></span>$ tail -f /var/log/system.log <span class="p">|</span> grep DHCP
+May  <span class="m">2</span> <span class="m">00</span>:55:44 machostname bootpd<span class="o">[</span><span class="m">8589</span><span class="o">]</span>: DHCP REQUEST <span class="o">[</span>bridge100<span class="o">]</span>: <span class="m">1</span>,01:02:03:04:05:06
+May  <span class="m">2</span> <span class="m">00</span>:56:37 machostname bootpd<span class="o">[</span><span class="m">8589</span><span class="o">]</span>: DHCP DISCOVER <span class="o">[</span>bridge100<span class="o">]</span>: <span class="m">1</span>,01:02:03:04:05:06
+...
+</pre></div>
+
+
+<p>実際には <code>machostname</code> の部分はMacBook Proのホスト名が、 <code>01:02:03:04:05:06</code> の部分は Express 5800 のネットワークカードのMACアドレスが出力されていますが、セキュリティ上伏せています。</p>
+<p>後は普通にUbuntuのインストーラに沿ってインストールすれば良いのですが、インストーラが起動した後はMacを経由せずに通信するほうが効率が良いので、Express 5800とMacをつないでいるLANケーブルをMacから外してWi-Fi APに繋ぎ直します。</p>
+<div class="highlight"><pre><span></span>+--------+  Ethernet   +----------+ 
+| Server | ----------&gt; | Wi-Fi AP | -----&gt; Internet
++--------+             +----------+
+</pre></div>
+
+
+<p>インストーラの「Ubuntu アーカイブのミラーを選択」のところで「戻る」を選び、
+「Ubuntu インストーラメインメニュー」で「ネットワークの設定」を選びます。
+するとDHCPでIPアドレスを再取得してくれます。</p>
+<h3>Ubuntuのセットアップ</h3>
+<p>以下はUbuntuのセットアップのメモです。</p>
+<p>ホームパーティションの暗号化とパーティショニングの暗号化LVMを選んでみました。
+後者を選ぶと暗号化用のパスフレーズを求められるので設定します。設定するとサーバの起動時にパスフレーズの入力が必要になります。</p>
+<p>インストールするソフトウェアの選択では以下の3つを選びました。</p>
+<ul>
+<li>標準システムユーティリティ</li>
+<li>OpenSSH server</li>
+<li>Basic Ubuntu server</li>
+</ul>
+<p>GRUBブートローダはSSDのデバイスにインストールしました。</p>
+<p>タイムゾーンは日本にし、システム時間はUTCにしました。</p>
+<h2>おわりに</h2>
+<p>PXEブート便利です！</p>
+    </div><!-- /.entry-content -->
+
+  </article>
+</section>
+        <section id="extras" class="body">
+        </section><!-- /#extras -->
+
+        <footer id="contentinfo" class="body">
+                <address id="about" class="vcard body">
+                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
+                </address><!-- /#about -->
+
+                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
+        </footer><!-- /#contentinfo -->
+
+    <script type="text/javascript">
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-53263855-1', 'auto');
+    ga('send', 'pageview');
+    </script>
+</body>
+</html>
