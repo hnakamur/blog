@@ -2,6 +2,7 @@
 #################################################
 
 :date: 2017-02-19 23:20
+:modified: 2017-02-20 16:34
 :tags: pelican
 :slug: 2017/02/19/switch-from-hugo-to-pelican-for-blog-software
 
@@ -132,7 +133,8 @@ Ansibleでも使っていて私は慣れているのでさくっと変更でき�
         My super title
         ##############
 
-        :date: 2010-10-03 10:20
+        :date: 2017-02-19 23:20
+        :modified: 2017-02-20 16:34
         :tags: thats, awesome
         :category: blog
         :slug: YYYY/MM/DD/my-super-title
@@ -141,6 +143,8 @@ Ansibleでも使っていて私は慣れているのでさくっと変更でき�
 保存する度に自動生成が動きます。
 `さくらのVPS <http://vps.sakura.ad.jp/>`_ の1Gプランの環境で記事数119で12秒前後かかります。
 Hugoのときに比べると長いですが、許容範囲です。
+
+``code-block`` によるとシンタクスハイライトで使える言語一覧は `Available lexers — Pygments <http://pygments.org/docs/lexers/>`_ にあります。
 
 記事を書き終わったら、以下のコマンドを実行して変更をコミットします。
 
