@@ -2,6 +2,7 @@ monitのif failed urlのコードリーディング
 ########################################
 
 :date: 2017-02-20 11:14
+:modified: 2017-02-21 09:51
 :tags: monit, code-reading
 :category: blog
 :slug: 2017/02/20/monit-if-failed-url-code-reading
@@ -460,6 +461,16 @@ check_process 関数の実装
                 }
                 
         }
+
+上記の194行目で ``retry_count-- > 1`` という条件を満たすと ``retry`` ラベルに飛んでソケット通信を再度行います。
+``retry_count--`` と後置演算子を使っているので、まず今の値で比較した後に ``retry_count`` を ``1`` 減らします。
+
+``retry_count`` は143行目で ``volatile int retry_count = p->retry;`` のように初期化されています。
+もし ``p->retry`` が ``1`` だった場合は1度ソケット通信を行った後の ``retry_count-- > 1`` が ``1 > 1`` で ``false`` になるので、再度ソケット通信は行われずに200行目で ``STATE_FAILED`` で ``Event_post`` が呼ばれることになります。
+
+``retry`` という名前から、まず1度通信してみて失敗したら追加で ``retry`` 回分の通信を試みるのかと想像していたのですが、上記のコードだと全体の通信回数が ``retry`` 回になるということですね。
+
+195行目の ``DEBUG`` を見ても ``(attempt %d/%d)`` の値に対応する部分が ``p->retry - retry_count`` と ``p->retry`` となっていて、分母の全体の試行回数が ``p->retry`` ですのでこの理解で間違いなさそうです。
 
 上記の200行と203行で呼んでいる ``Event_post`` 関数やイベントループの処理も気になりますが、この記事が長くなりすぎるので別記事にします。
 

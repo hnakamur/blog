@@ -30,6 +30,10 @@
         <abbr class="published" title="2017-02-20T11:14:00+09:00">
                 Published: 2017-02-20
         </abbr>
+		<br />
+        <abbr class="modified" title="2017-02-21T09:51:00+09:00">
+                Updated: 2017-02-21
+        </abbr>
 
         <address class="vcard author">
                 By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
@@ -732,7 +736,13 @@
 
 <span class="p">}</span>
 </pre></div>
-</td></tr></table><p>上記の200行と203行で呼んでいる <tt class="docutils literal">Event_post</tt> 関数やイベントループの処理も気になりますが、この記事が長くなりすぎるので別記事にします。</p>
+</td></tr></table><p>上記の194行目で <tt class="docutils literal"><span class="pre">retry_count--</span> &gt; 1</tt> という条件を満たすと <tt class="docutils literal">retry</tt> ラベルに飛んでソケット通信を再度行います。
+<tt class="docutils literal"><span class="pre">retry_count--</span></tt> と後置演算子を使っているので、まず今の値で比較した後に <tt class="docutils literal">retry_count</tt> を <tt class="docutils literal">1</tt> 減らします。</p>
+<p><tt class="docutils literal">retry_count</tt> は143行目で <tt class="docutils literal">volatile int retry_count = <span class="pre">p-&gt;retry;</span></tt> のように初期化されています。
+もし <tt class="docutils literal"><span class="pre">p-&gt;retry</span></tt> が <tt class="docutils literal">1</tt> だった場合は1度ソケット通信を行った後の <tt class="docutils literal"><span class="pre">retry_count--</span> &gt; 1</tt> が <tt class="docutils literal">1 &gt; 1</tt> で <tt class="docutils literal">false</tt> になるので、再度ソケット通信は行われずに200行目で <tt class="docutils literal">STATE_FAILED</tt> で <tt class="docutils literal">Event_post</tt> が呼ばれることになります。</p>
+<p><tt class="docutils literal">retry</tt> という名前から、まず1度通信してみて失敗したら追加で <tt class="docutils literal">retry</tt> 回分の通信を試みるのかと想像していたのですが、上記のコードだと全体の通信回数が <tt class="docutils literal">retry</tt> 回になるということですね。</p>
+<p>195行目の <tt class="docutils literal">DEBUG</tt> を見ても <tt class="docutils literal">(attempt <span class="pre">%d/%d)</span></tt> の値に対応する部分が <tt class="docutils literal"><span class="pre">p-&gt;retry</span> - retry_count</tt> と <tt class="docutils literal"><span class="pre">p-&gt;retry</span></tt> となっていて、分母の全体の試行回数が <tt class="docutils literal"><span class="pre">p-&gt;retry</span></tt> ですのでこの理解で間違いなさそうです。</p>
+<p>上記の200行と203行で呼んでいる <tt class="docutils literal">Event_post</tt> 関数やイベントループの処理も気になりますが、この記事が長くなりすぎるので別記事にします。</p>
 <p><tt class="docutils literal">Protocol_T</tt> の型定義。
 <a class="reference external" href="https://bitbucket.org/tildeslash/monit/src/97641b51c99226fbf8862797c8f5ec16ac68a18b/src/monit.h?at=release-5-11-0&amp;fileviewer=file-view-default#monit.h-438:442">src/monit.h#L438-L442</a></p>
 <table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>438
