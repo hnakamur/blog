@@ -392,3 +392,11 @@ socket_readln関数からの流れ
             } while (r == -1 && errno == EINTR);
             return (r > 0);
     }
+
+
+まとめ
+------
+
+* if failed urlでretryとtimeoutを指定しない場合のデフォルトはretry=1, timeout=5秒
+* retryは名前に反して初回の試行＋追加試行の回数ではなく、全体の試行回数（retry=1だと1回だけ試してリトライ無し）
+* timeoutはconnect, write, readの個々の操作が指定のタイムアウト内に終わらなければエラー
