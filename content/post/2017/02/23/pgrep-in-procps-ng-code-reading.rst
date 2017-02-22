@@ -50,7 +50,7 @@ pgrep.cのコードリーディング
     {
     	struct el *procs;
     	int num;
-    
+
     #ifdef HAVE_PROGRAM_INVOCATION_NAME
     	program_invocation_name = program_invocation_short_name;
     #endif
@@ -58,9 +58,9 @@ pgrep.cのコードリーディング
     	bindtextdomain(PACKAGE, LOCALEDIR);
     	textdomain(PACKAGE);
     	atexit(close_stdout);
-    
+
     	parse_opts (argc, argv);
-    
+
     	procs = select_procs (&num);
     	if (i_am_pkill) {
     		int i;
@@ -102,7 +102,7 @@ pgrep.cのコードリーディング
     	char opts[32] = "";
     	int opt;
     	int criteria_count = 0;
-    
+
     	enum {
     		SIGNAL_OPTION = CHAR_MAX + 1,
     		NS_OPTION,
@@ -136,7 +136,7 @@ pgrep.cのコードリーディング
     		{"version", no_argument, NULL, 'V'},
     		{NULL, 0, NULL, 0}
     	};
-    
+
     	if (strstr (program_invocation_short_name, "pkill")) {
     		int sig;
     		i_am_pkill = 1;
@@ -149,9 +149,9 @@ pgrep.cのコードリーディング
     		/* These options are for pgrep only */
     		strcat (opts, "lad:vw");
     	}
-    
+
     	strcat (opts, "LF:cfnoxP:g:s:u:U:G:t:?Vh");
-    
+
     	while ((opt = getopt_long (argc, argv, opts, longopts, NULL)) != -1) {
     		switch (opt) {
     		case SIGNAL_OPTION:
@@ -295,12 +295,12 @@ pgrep.cのコードリーディング
     			break;
     		}
     	}
-    
+
     	if(opt_lock && !opt_pidfile)
     		xerrx(EXIT_USAGE, _("-L without -F makes no sense\n"
     				     "Try `%s --help' for more information."),
     				     program_invocation_short_name);
-    
+
     	if(opt_pidfile){
     		opt_pid = read_pidfile();
     		if(!opt_pid)
@@ -308,7 +308,7 @@ pgrep.cのコードリーディング
     					     "Try `%s --help' for more information."),
     					     program_invocation_short_name);
     	}
-    
+
     	if (argc - optind == 1)
     		opt_pattern = argv[optind];
     	else if (argc - optind > 1)
@@ -381,13 +381,13 @@ pgrep.cのコードリーディング
     	char cmdsearch[CMDSTRSIZE];
     	char cmdoutput[CMDSTRSIZE];
     	proc_t ns_task;
-    
+
     	ptp = do_openproc();
     	preg = do_regcomp();
-    
+
     	if (opt_newest) saved_start_time =  0ULL;
     	else saved_start_time = ~0ULL;
-    
+
     	if (opt_newest) saved_pid = 0;
     	if (opt_oldest) saved_pid = INT_MAX;
     	if (opt_ns_pid && ns_read(opt_ns_pid, &ns_task)) {
@@ -395,11 +395,11 @@ pgrep.cのコードリーディング
     		      stderr);
     		exit (EXIT_FATAL);
     	}
-    
+
     	memset(&task, 0, sizeof (task));
     	while(readproc(ptp, &task)) {
     		int match = 1;
-    
+
     		if (task.XXXID == myself)
     			continue;
     		else if (opt_newest && task.start_time < saved_start_time)
@@ -435,12 +435,12 @@ pgrep.cのコードリーディング
     		if (task.cmdline && (opt_longlong || opt_full) ) {
     			int i = 0;
     			int bytes = sizeof (cmdline) - 1;
-    
+
     			/* make sure it is always NUL-terminated */
     			cmdline[bytes] = 0;
     			/* make room for SPC in loop below */
     			--bytes;
-    
+
     			strncpy (cmdline, task.cmdline[i], bytes);
     			bytes -= strlen (task.cmdline[i++]);
     			while (task.cmdline[i] && bytes > 0) {
@@ -449,24 +449,24 @@ pgrep.cのコードリーディング
     				bytes -= strlen (task.cmdline[i++]) + 1;
     			}
     		}
-    
+
     		if (opt_long || opt_longlong || (match && opt_pattern)) {
     			if (opt_longlong && task.cmdline)
     				strncpy (cmdoutput, cmdline, CMDSTRSIZE);
     			else
     				strncpy (cmdoutput, task.cmd, CMDSTRSIZE);
     		}
-    
+
     		if (match && opt_pattern) {
     			if (opt_full && task.cmdline)
     				strncpy (cmdsearch, cmdline, CMDSTRSIZE);
     			else
     				strncpy (cmdsearch, task.cmd, CMDSTRSIZE);
-    
+
     			if (regexec (preg, cmdsearch, 0, NULL, 0) != 0)
     				match = 0;
     		}
-    
+
     		if (match ^ opt_negate) {	/* Exclusive OR is neat */
     			if (opt_newest) {
     				if (saved_start_time == task.start_time &&
@@ -496,7 +496,7 @@ pgrep.cのコードリーディング
     			} else {
     				xerrx(EXIT_FAILURE, _("internal error"));
     			}
-    
+
     			// pkill does not need subtasks!
     			// this control is still done at
     			// argparse time, but a further
@@ -508,7 +508,7 @@ pgrep.cのコードリーディング
     					// don't add redundand tasks
     					if (task.XXXID == subtask.XXXID)
     						continue;
-    
+
     					// eventually grow output buffer
     					if (matches == size) {
     						size = size * 5 / 4 + 4;
@@ -525,15 +525,15 @@ pgrep.cのコードリーディング
     					memset(&subtask, 0, sizeof (subtask));
     				}
     			}
-    
-    
-    
+
+
+
     		}
-    
-    
-    
-    
-    
+
+
+
+
+
     		memset (&task, 0, sizeof (task));
     	}
     	closeproc (ptp);
@@ -556,15 +556,15 @@ pgrep.cのコードリーディング
     static void stat2proc(const char* S, proc_t *restrict P) {
         unsigned num;
         char* tmp;
-    
+
     ENTER(0x160);
-    
+
         /* fill in default values for older kernels */
         P->processor = 0;
         P->rtprio = -1;
         P->sched = -1;
         P->nlwp = 0;
-    
+
         S = strchr(S, '(') + 1;
         tmp = strrchr(S, ')');
         num = tmp - S;
@@ -577,30 +577,28 @@ pgrep.cのコードリーディング
 .. code-block:: console
     :linenos: table
 
-    [root@ats7 ~]# ps auxww | grep traffic
-    root     20837  0.0  0.0 143076  6276 ?        Ssl  15:14   0:00 /opt/trafficserver/bin/traffic_cop
-    ats      20838  0.0  0.0 448784 11960 ?        Sl   15:14   0:00 /opt/trafficserver/bin/traffic_manager --bind_stdout /opt/trafficserver/var/logs/traffic.out --bind_stderr /opt/trafficserver/var/logs/traffic.out
-    ats      20877  0.0  0.3 1047868 55464 ?       Sl   15:14   0:00 /opt/trafficserver/bin/traffic_server -M --bind_stdout /opt/trafficserver/var/logs/traffic.out --bind_stderr /opt/trafficserver/var/logs/traffic.out --httpport 8080:fd=9,8080:fd=10:ipv6
-    root     20992  0.0  0.0   9040   852 ?        S+   15:15   0:00 grep --color=auto traffic
-    [root@ats7 ~]# cat /proc/20837/stat                                                                                                   
-    20837 (traffic_cop) S 1 20837 20837 0 -1 1077936384 489 0 6 0 4 24 0 0 20 0 2 0 553918400 146509824 1569 18446744073709551615 94079978
-    950656 94079979051376 140726768039552 140726768030720 140350454315997 0 0 3674113 91342 0 0 0 17 0 0 0 9 0 0 94079981152352 9407998120
-    3568 94079988858880 140726768041851 140726768041886 140726768041886 140726768041941 0
-    [root@ats7 ~]# cat /proc/20838/stat                                                                                                   
-    20838 (traffic_manager) S 20837 20837 20837 0 -1 4194560 1461 0 1 0 472 63 0 0 20 0 6 0 553918413 459685888 2990 18446744073709551615 
-    94657453907968 94657455120371 140723571977072 140723571830272 139779374492579 0 2147193488 3670016 93263 0 0 0 17 1 0 0 0 0 0 94657457
-    217984 94657457272704 94657464983552 140723571982087 140723571982234 140723571982234 140723571982289 0
+    [root@ats7 ~]# cat /proc/20837/stat
+    20837 (traffic_cop) S 1 20837 20837 0 -1 1077936384 489 0 6 0 4 24 0 0 20 0 2 0 553918400 146509824 1569 18446744073709551615 94079978950656 94079979051376 140726768039552 140726768030720 140350454315997 0 0 3674113 91342 0 0 0 17 0 0 0 9 0 0 94079981152352 94079981203568 94079988858880 140726768041851 140726768041886 140726768041886 140726768041941 0
+    [root@ats7 ~]# cat /proc/20838/stat
+    20838 (traffic_manager) S 20837 20837 20837 0 -1 4194560 1461 0 1 0 472 63 0 0 20 0 6 0 553918413 459685888 2990 18446744073709551615 94657453907968 94657455120371 140723571977072 140723571830272 139779374492579 0 2147193488 3670016 93263 0 0 0 17 1 0 0 0 0 0 94657457217984 94657457272704 94657464983552 140723571982087 140723571982234 140723571982234 140723571982289 0
     [root@ats7 ~]# cat /proc/20877/stat
-    20877 ([TS_MAIN]) S 20838 20837 20837 0 -1 1077936384 26525 0 0 0 1101 3438 0 0 20 0 20 0 553918517 1140125696 13868 18446744073709551
-    615 94103198183424 94103202477292 140734131727600 140734131721984 46982532413037 0 0 3674113 20222 0 0 0 17 1 0 0 1 0 0 94103204576832
-     94103204684656 94103237705728 140734131732164 140734131732350 140734131732350 140734131732434 0
-    [root@ats7 ~]# cat /proc/20878/stat                                                                                                   
-    20878 (traffic_server) S 20838 20837 20837 0 -1 1077936448 26787 0 0 0 1115 3478 0 0 20 0 20 0 553918520 1140125696 13870 184467440737
-    09551615 94103198183424 94103202477292 140734131727600 46982562638768 46982532413037 0 2147193488 3674113 20222 0 0 0 -1 1 0 0 0 0 0 9
-    4103204576832 94103204684656 94103237705728 140734131732164 140734131732350 140734131732350 140734131732434 0
+    20877 ([TS_MAIN]) S 20838 20837 20837 0 -1 1077936384 26656 0 0 0 1108 3458 0 0 20 0 20 0 553918517 1140125696 13869 18446744073709551615 94103198183424 94103202477292 140734131727600 140734131721984 46982532413037 0 0 3674113 20222 0 0 0 17 0 0 0 1 0 0 94103204576832 94103204684656 94103237705728 140734131732164 140734131732350 140734131732350 140734131732434 0
+    [root@ats7 ~]# cat /proc/20878/stat
+    20878 (traffic_server) S 20838 20837 20837 0 -1 1077936448 26787 0 0 0 1115 3478 0 0 20 0 20 0 553918520 1140125696 13870 18446744073709551615 94103198183424 94103202477292 140734131727600 46982562638768 46982532413037 0 2147193488 3674113 20222 0 0 0 -1 1 0 0 0 0 0 94103204576832 94103204684656 94103237705728 140734131732164 140734131732350 140734131732350 140734131732434 0
 
 20877 のプロセスは ``ps auxww`` で見るとコマンドラインのコマンド部分は ``/opt/trafficserver/bin/traffic_server`` となっていますが、
 ``/proc/20877/stat`` の ``(`` と ``)`` の間は ``[TS_MAIN]`` となっているので ``pgrep`` では検索がマッチせず出力されないんですね。
 
 試しに ``/proc/20878/stat`` を見るとそちらは ``(`` と ``)`` の間が ``traffic_server`` となっていました。
 が、 ``ps auxww`` で見ると PID=20878 のプロセスは存在していませんでした。
+
+以下のように ``pgrep -fa traffic`` にすれば ``traffic_server`` もマッチしました。コマンドライン全体でマッチするので指定した文字列が引数に含まれる場合もマッチになる点が要注意ですが、必要なものがマッチしないよりはこちらのほうが良いと思います。
+
+.. code-block:: console
+    :linenos: table
+
+    [root@ats7 ~]# pgrep -fa traffic
+    20837 /opt/trafficserver/bin/traffic_cop
+    20838 /opt/trafficserver/bin/traffic_manager --bind_stdout /opt/trafficserver/var/logs/traffic.out --bind_stderr /opt/trafficserver/var/logs/traffic.out
+    20877 /opt/trafficserver/bin/traffic_server -M --bind_stdout /opt/trafficserver/var/logs/traffic.out --bind_stderr /opt/trafficserver/var/logs/traffic.out --httpport 8080:fd=9,8080:fd=10:ipv6
+
