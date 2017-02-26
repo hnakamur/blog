@@ -2,7 +2,7 @@ iptables-restoreのコードリーディング
 ####################################
 
 :date: 2017-02-24 00:25
-:modified: 2017-02-26 09:05
+:modified: 2017-02-26 11:40
 :tags: iptables, code-reading
 :category: blog
 :slug: 2017/02/24/iptables-restore-code-reading
@@ -1606,3 +1606,5 @@ commit
 まとめ
 ------
 ``iptables-restore`` に ``:INPUT ACCEPT [191890:367927864]`` のような行を入力しても ``-c`` オプションを指定しない場合はカウンタは0にリセットされます。
+
+`iptablesのコードリーディング </blog/2017/02/26/iptables-code-reading/>`_ に続きます。
