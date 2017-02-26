@@ -413,6 +413,37 @@ equivalentで検索した結果
         { "NONE", 0 },
     };
 
+``strcasecmp`` で大文字小文字無視で比較していました。
+`extensions/libxt_tcp.c#L79-#L102 <https://git.netfilter.org/iptables/tree/extensions/libxt_tcp.c?id=482c6d3731e2681cb4baae835c294840300197e6#n79>`_
+
+.. code-block:: c
+    :linenos: table
+    :linenostart: 79
+
+    static unsigned int
+    parse_tcp_flag(const char *flags)
+    {
+    	unsigned int ret = 0;
+    	char *ptr;
+    	char *buffer;
+
+    	buffer = strdup(flags);
+
+    	for (ptr = strtok(buffer, ","); ptr; ptr = strtok(NULL, ",")) {
+    		unsigned int i;
+    		for (i = 0; i < ARRAY_SIZE(tcp_flag_names); ++i)
+    			if (strcasecmp(tcp_flag_names[i].name, ptr) == 0) {
+    				ret |= tcp_flag_names[i].flag;
+    				break;
+    			}
+    		if (i == ARRAY_SIZE(tcp_flag_names))
+    			xtables_error(PARAMETER_PROBLEM,
+    				   "Unknown TCP flag `%s'", ptr);
+    	}
+
+    	free(buffer);
+    	return ret;
+    }
 
 ``--dports`` などの値定義
 -------------------------
