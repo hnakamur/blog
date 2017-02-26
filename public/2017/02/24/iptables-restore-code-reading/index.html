@@ -30,6 +30,10 @@
         <abbr class="published" title="2017-02-24T00:25:00+09:00">
                 Published: 2017-02-24
         </abbr>
+		<br />
+        <abbr class="modified" title="2017-02-26T09:05:00+09:00">
+                Updated: 2017-02-26
+        </abbr>
 
         <address class="vcard author">
                 By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
@@ -895,7 +899,9 @@
     <span class="k">return</span> <span class="mi">1</span><span class="p">;</span>
 <span class="p">}</span>
 </pre></div>
-</td></tr></table><p><a class="reference external" href="https://git.netfilter.org/iptables/tree/libiptc/libiptc.c?id=482c6d3731e2681cb4baae835c294840300197e6#n107">libiptc/libiptc.c#L107-#L125</a></p>
+</td></tr></table><p>2438行目のif文を見ると引数の <tt class="docutils literal">counters</tt> が <tt class="docutils literal">NULL</tt> の場合は2443行目で <tt class="docutils literal"><span class="pre">c-&gt;counter_map.maptype</span></tt> が <tt class="docutils literal">COUNTER_MAP_NOMAP</tt> にセットされます。
+ですが <tt class="docutils literal">iptables_restore_main</tt> 関数の356〜380行目を見ると <tt class="docutils literal"><span class="pre">-c</span></tt> オプションを指定するしないに関わらず、 <tt class="docutils literal">set_policy</tt> の <tt class="docutils literal">counters</tt> に <tt class="docutils literal">NULL</tt> でない値を渡していますので、 2441行目で <tt class="docutils literal"><span class="pre">c-&gt;counter_map.maptype</span></tt> が <tt class="docutils literal">COUNTER_MAP_SET</tt> にセットされます。</p>
+<p><a class="reference external" href="https://git.netfilter.org/iptables/tree/libiptc/libiptc.c?id=482c6d3731e2681cb4baae835c294840300197e6#n107">libiptc/libiptc.c#L107-#L125</a></p>
 <table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>107
 108
 109
@@ -2857,6 +2863,27 @@
     <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
 <span class="p">}</span>
 </pre></div>
+</td></tr></table><p><a class="reference external" href="https://git.netfilter.org/iptables/tree/libiptc/libiptc.c?id=482c6d3731e2681cb4baae835c294840300197e6#n2505">libiptc/libiptc.c#L2505-#L2514</a></p>
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>2505
+2506
+2507
+2508
+2509
+2510
+2511
+2512
+2513
+2514</pre></div></td><td class="code"><div class="highlight"><pre><span></span><span class="k">static</span> <span class="kt">void</span> <span class="nf">counters_map_set</span><span class="p">(</span><span class="n">STRUCT_COUNTERS_INFO</span> <span class="o">*</span><span class="n">newcounters</span><span class="p">,</span>
+                             <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">idx</span><span class="p">,</span> <span class="n">STRUCT_COUNTERS</span> <span class="o">*</span><span class="n">counters</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="cm">/* Want to set counter (iptables-restore) */</span>
+
+    <span class="n">memcpy</span><span class="p">(</span><span class="o">&amp;</span><span class="n">newcounters</span><span class="o">-&gt;</span><span class="n">counters</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span> <span class="n">counters</span><span class="p">,</span>
+            <span class="k">sizeof</span><span class="p">(</span><span class="n">STRUCT_COUNTERS</span><span class="p">));</span>
+
+    <span class="n">DEBUGP_C</span><span class="p">(</span><span class="s">&quot;SET</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+<span class="p">}</span>
+</pre></div>
 </td></tr></table><p><a class="reference external" href="https://git.netfilter.org/iptables/tree/libiptc/libiptc.c?id=482c6d3731e2681cb4baae835c294840300197e6#n2467">libiptc/libiptc.c#L2467-#L2471</a></p>
 <table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>2467
 2468
@@ -2868,7 +2895,13 @@
     <span class="n">DEBUGP_C</span><span class="p">(</span><span class="s">&quot;NOMAP =&gt; zero</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
 <span class="p">}</span>
 </pre></div>
-</td></tr></table></div>
+</td></tr></table><p>ということで <tt class="docutils literal">iptc_set_policy</tt> 関数の2443行目で <tt class="docutils literal"><span class="pre">c-&gt;counter_map.maptype</span></tt> が <tt class="docutils literal">COUNTER_MAP_NOMAP</tt> にセットされたとしても、
+<tt class="docutils literal">counters_nomap</tt> 関数で <tt class="docutils literal">counters</tt> は <tt class="docutils literal">{0, 0}</tt> にセットされることになります。</p>
+</div>
+<div class="section" id="id2">
+<h2>まとめ</h2>
+<p><tt class="docutils literal"><span class="pre">iptables-restore</span></tt> に <tt class="docutils literal">:INPUT ACCEPT [191890:367927864]</tt> のような行を入力しても <tt class="docutils literal"><span class="pre">-c</span></tt> オプションを指定しない場合はカウンタは0にリセットされます。</p>
+</div>
 
     </div><!-- /.entry-content -->
 

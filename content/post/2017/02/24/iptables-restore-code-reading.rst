@@ -2,6 +2,7 @@ iptables-restoreのコードリーディング
 ####################################
 
 :date: 2017-02-24 00:25
+:modified: 2017-02-26 09:05
 :tags: iptables, code-reading
 :category: blog
 :slug: 2017/02/24/iptables-restore-code-reading
@@ -512,6 +513,9 @@ set_policy関連
 
     	return 1;
     }
+
+2438行目のif文を見ると引数の ``counters`` が ``NULL`` の場合は2443行目で ``c->counter_map.maptype`` が ``COUNTER_MAP_NOMAP`` にセットされます。
+ですが ``iptables_restore_main`` 関数の356〜380行目を見ると ``-c`` オプションを指定するしないに関わらず、 ``set_policy`` の ``counters`` に ``NULL`` でない値を渡していますので、 2441行目で ``c->counter_map.maptype`` が ``COUNTER_MAP_SET`` にセットされます。
 
 `libiptc/libiptc.c#L107-#L125 <https://git.netfilter.org/iptables/tree/libiptc/libiptc.c?id=482c6d3731e2681cb4baae835c294840300197e6#n107>`_
 
@@ -1567,6 +1571,22 @@ commit
     	return 0;
     }
 
+`libiptc/libiptc.c#L2505-#L2514 <https://git.netfilter.org/iptables/tree/libiptc/libiptc.c?id=482c6d3731e2681cb4baae835c294840300197e6#n2505>`_
+
+.. code-block:: c
+    :linenos: table
+    :linenostart: 2505
+
+    static void counters_map_set(STRUCT_COUNTERS_INFO *newcounters,
+                                 unsigned int idx, STRUCT_COUNTERS *counters)
+    {
+    	/* Want to set counter (iptables-restore) */
+
+    	memcpy(&newcounters->counters[idx], counters,
+    		sizeof(STRUCT_COUNTERS));
+
+    	DEBUGP_C("SET\n");
+    }
 
 `libiptc/libiptc.c#L2467-#L2471 <https://git.netfilter.org/iptables/tree/libiptc/libiptc.c?id=482c6d3731e2681cb4baae835c294840300197e6#n2467>`_
 
@@ -1579,3 +1599,10 @@ commit
     	newcounters->counters[idx] = ((STRUCT_COUNTERS) { 0, 0});
     	DEBUGP_C("NOMAP => zero\n");
     }
+
+ということで ``iptc_set_policy`` 関数の2443行目で ``c->counter_map.maptype`` が ``COUNTER_MAP_NOMAP`` にセットされたとしても、
+``counters_nomap`` 関数で ``counters`` は ``{0, 0}`` にセットされることになります。
+
+まとめ
+------
+``iptables-restore`` に ``:INPUT ACCEPT [191890:367927864]`` のような行を入力しても ``-c`` オプションを指定しない場合はカウンタは0にリセットされます。
