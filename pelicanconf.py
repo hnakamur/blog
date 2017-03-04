@@ -18,8 +18,8 @@ ARTICLE_SAVE_AS = '{slug}/index.html'
 PAGE_URL = 'pages/{slug}/'
 PAGE_SAVE_AS = 'pages/{slug}/index.html'
 # http://docs.getpelican.com/en/stable/content.html#attaching-static-files
-STATIC_PATHS = ['images']
-ARTICLE_PATHS = ['images']
+STATIC_PATHS = ['images', 'files']
+ARTICLE_PATHS = ['post', 'images', 'files']
 
 DEFAULT_LANG = 'ja'
 TIMEZONE = 'Asia/Tokyo'
