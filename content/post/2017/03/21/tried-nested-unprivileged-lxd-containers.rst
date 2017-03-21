@@ -2,6 +2,7 @@ LXDでネストした非特権コンテナを試してみた
 #########################################
 
 :date: 2017-03-21 21:00
+:updated: 2017-03-22 00:05
 :tags: lxd
 :category: blog
 :slug: 2017/03/21/tried-nested-unprivileged-lxd-containers
@@ -16,6 +17,14 @@ https://twitter.com/ten_forward/status/844142416282054658
 
 というツイートを受けて自分でもLXDでネストした非特権コンテナを試してみました。
 環境はUbuntu 16.04です。
+lxdのバージョンは2.0.9です。
+
+.. code-block:: console
+
+    $ uname -a
+    Linux bai1b7faf04 4.4.0-53-generic #74-Ubuntu SMP Fri Dec 2 15:59:10 UTC 2016 x86_64 x86_64 x86_64 GNU/Linux
+    $ lxd --version
+    2.0.9
 
 subuidとsubgidファイルを編集しつつ作成
 --------------------------------------
@@ -274,3 +283,4 @@ subuidとsubgidファイルを元に戻して再度実験
 
 
 :code:`apparmor_parser: Unable to replace "ファイル名".  Permission denied; attempted to load a profile while confined?` のエラーが気になりますが、とりあえずネストして非特権コンテナが動いているっぽいです。
+
