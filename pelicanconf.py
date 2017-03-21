@@ -49,3 +49,6 @@ DISPLAY_CATEGORIES_ON_MENU = True
 
 THEME = 'themes/notmyidea-custom'
 # PYGMENTS_RST_OPTIONS = {'classprefix': '', 'linenos': 'table'}
+
+# https://github.com/lqez/pelican-embed-tweet
+PLUGINS = ['pelican.plugins.embed_tweet']
