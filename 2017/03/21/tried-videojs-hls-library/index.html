@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+        <meta charset="utf-8" />
+        <title>video.jsのHLSライブラリを試してみた</title>
+        <link rel="stylesheet" href="../../../../theme/css/main.css" />
+
+        <!--[if IE]>
+            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+        <![endif]-->
+</head>
+
+<body id="index" class="home">
+        <header id="banner" class="body">
+                <h1><a href="../../../../">hnakamur's blog at github </a></h1>
+                <nav><ul>
+                    <li class="active"><a href="../../../../category/blog.html">blog</a></li>
+                </ul></nav>
+        </header><!-- /#banner -->
+<section id="content" class="body">
+  <article>
+    <header>
+      <h1 class="entry-title">
+        <a href="../../../../2017/03/21/tried-videojs-hls-library/" rel="bookmark"
+           title="Permalink to video.jsのHLSライブラリを試してみた">video.jsのHLSライブラリを試してみた</a></h1>
+    </header>
+
+    <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2017-03-21T14:52:00+09:00">
+                Published: 2017-03-21
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
+        </address>
+<p>In <a href="../../../../category/blog.html">blog</a>.</p>
+<p>tags: <a href="../../../../tag/video-videojs-hls.html">video video.js hls</a> </p>
+</footer><!-- /.post-info -->      <div class="section" id="id1">
+<h2>はじめに</h2>
+<p><a class="reference external" href="http://qiita.com/gabby-gred/items/c1a3dbe026f83dd7e1ff">MPEG DASHを知る - Qiita</a> を見て、HTML5のvideoタグでHLSと <a class="reference external" href="https://github.com/Dash-Industry-Forum/dash.js">Dash-Industry-Forum/dash.js: A reference client implementation for the playback of MPEG DASH via Javascript and compliant browsers.</a> でMPEG DASHを試してみたところ、各ブラウザの対応状況は以下のような感じでした。</p>
+<ul class="simple">
+<li>iOSのSafari, iOSのChrome, Microsoft EdgeはHLSのみ対応。</li>
+<li>WindowsのChrome, FirefoxはMPEG DASHのみ対応。</li>
+</ul>
+<p>いちいち動画を2セット用意するのは大変だよなーと思っていたら、 <a class="reference external" href="https://github.com/videojs/video.js">videojs/video.js: Video.js - open source HTML5 &amp; Flash video player</a> 用に <a class="reference external" href="https://github.com/videojs/videojs-contrib-hls">videojs/videojs-contrib-hls: HLS library for video.js</a> というライブラリがあるのを見つけたので試してみました。</p>
+<p>結論を先に書いておくと、上記の環境全てで無事に再生できました。</p>
+</div>
+<div class="section" id="id2">
+<h2>動画ファイルの分割</h2>
+<p>YouTube で <code>license:cc0</code> で検索して見つけた <a class="reference external" href="https://www.youtube.com/watch?v=4ZvJGV6YF6Y">Creative Commons licences explained - YouTube</a> をFirefoxの <a class="reference external" href="https://addons.mozilla.org/ja/firefox/addon/video-downloadhelper/">Video DownloadHelper :: Add-ons for Firefox</a> で1280x720と640x480のmp4ファイルをダウンロードして試してみました。</p>
+<p>分割にはUbuntu 16.04のffmpeg 2.8.11-0ubuntu0.16.04.1を使いました。</p>
+<p>1280x720の動画は <a class="reference external" href="http://stackoverflow.com/questions/35444324/ffmpeg-hls-video-transcoding-generating-partial-playlist/35452686#35452686">FFMpeg HLS Video Transcoding Generating Partial Playlist - Stack Overflow</a> を参考に以下のようにして分割しました。</p>
+<div class="highlight"><pre><span></span><span class="go">destdir=1280x720</span>
+<span class="go">mkdir -p &quot;$destdir&quot;</span>
+<span class="go">ffmpeg -y \</span>
+<span class="go"> -i Creative-Commons-licences-explained-1280x720.mp4 \</span>
+<span class="go"> -codec copy \</span>
+<span class="go"> -bsf h264_mp4toannexb \</span>
+<span class="go"> -map 0 \</span>
+<span class="go"> -f segment \</span>
+<span class="go"> -segment_time 10 \</span>
+<span class="go"> -segment_format mpegts \</span>
+<span class="go"> -segment_list &quot;$destdir/playlist.m3u8&quot; \</span>
+<span class="go"> -segment_list_type m3u8 \</span>
+<span class="go"> &quot;$destdir/segment%03d.ts&quot;</span>
+</pre></div>
+<p>640x480の動画は同様にして実行すると以下のエラーが出ました。</p>
+<div class="highlight"><pre><span></span><span class="go">Failed to open bitstream filter h264_mp4toannexb for stream 0 with codec copy: Invalid argument</span>
+<span class="go">[mpegts @ 0x121e2c0] AAC bitstream not in ADTS format and extradata missing</span>
+<span class="go">av_interleaved_write_frame(): Invalid data found when processing input</span>
+<span class="go">frame=  302 fps=0.0 q=-1.0 Lsize=N/A time=00:00:12.21 bitrate=N/A</span>
+<span class="go">video:566kB audio:143kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: unknown</span>
+<span class="go">Conversion failed!</span>
+</pre></div>
+<p>エラーの内容はよくわかってないですが、対処療法としては音声だけ再エンコードすると分割できました。
+オプションはググって見つけた <a class="reference external" href="http://qiita.com/joker1007/items/def9d58ddb00fafc936d">HTML5のvideoタグで利用するmp4の動画を作る時のTips - Qiita</a> を真似していますが、私はちゃんと理解していません。</p>
+<div class="highlight"><pre><span></span><span class="go">destdir=640x360</span>
+<span class="go">mkdir -p &quot;$destdir&quot;</span>
+<span class="go">ffmpeg -y \</span>
+<span class="go"> -i Creative-Commons-licences-explained-640x360.mp4 \</span>
+<span class="go"> -vcodec copy \</span>
+<span class="go"> -strict -2 -acodec aac -b:a 256k \</span>
+<span class="go"> -flags +loop-global_header \</span>
+<span class="go"> -bsf h264_mp4toannexb \</span>
+<span class="go"> -map 0 \</span>
+<span class="go"> -f segment \</span>
+<span class="go"> -segment_time 10 \</span>
+<span class="go"> -segment_format mpegts \</span>
+<span class="go"> -segment_list &quot;$destdir/playlist.m3u8&quot; \</span>
+<span class="go"> -segment_list_type m3u8 \</span>
+<span class="go"> &quot;$destdir/segment%03d.ts&quot;</span>
+</pre></div>
+</div>
+<div class="section" id="aac">
+<h2>AACのエンコーダの選択</h2>
+<p><a class="reference external" href="http://wiki.hydrogenaud.io/index.php?title=Fraunhofer_FDK_AAC">Fraunhofer FDK AAC - Hydrogenaudio Knowledgebase</a> にAACのエンコーダおすすめトップ6が載っています。</p>
+<p>Apple AACはソース非公開でLinuxでは使えず、Fraunhofer FDK AACはライセンスの関係で <code>apt install</code> では使えず、Nero AACは開発終了とのことで、今回はffmpeg内蔵のAACエンコーダを使いました。</p>
+<p><a class="reference external" href="http://qiita.com/joker1007/items/def9d58ddb00fafc936d">HTML5のvideoタグで利用するmp4の動画を作る時のTips - Qiita</a> で <code>-acodec libfaac -b:a 128k -flags +loop-global_header -map 0</code> の部分で <code>libfaac</code> を <code>aac</code> に変えて実行したら</p>
+<div class="highlight"><pre><span></span><span class="go">The encoder &#39;aac&#39; is experimental but experimental codecs are not enabled, add &#39;-strict -2&#39; if you want to use it.</span>
+</pre></div>
+<p>というエラーが出ました。
+そこで <a class="reference external" href="https://trac.ffmpeg.org/wiki/Encode/AAC#NativeFFmpegAACencoder">Native FFmpeg AAC encoder</a> を見て <code>-strict -2</code> オプションをつけたら問題なく動きました。</p>
+</div>
+<div class="section" id="id4">
+<h2>ブラウザの幅に応じて動画の解像度自動選択</h2>
+<p><a class="reference external" href="https://coolestguidesontheplanet.com/videodrome/videojs/">VideoJS setup guide to scale for responsive design on all browsers &amp; mobile</a> を参考にして画面の幅一杯に動画を表示するようにしてみました。
+動画の解像度の縦横比に合わせて <code>video</code> タグの <code>class</code> 属性に <code>vjs-16-9</code> または <code>vjs-4-3</code> 属性をつけるだけです。</p>
+<p>せっかくなので、ブラウザの幅 (正確には <code>video</code> タグの幅) に応じて再生する動画を自動的に選択するようにしてみました。
+<code>video</code> の子供の <code>source</code> タグに <code>data-width</code> 属性をつけておいて、 <code>video</code> タグの幅と比較して選択するようにしています。</p>
+<div class="highlight"><pre><span></span><span class="p">&lt;</span><span class="nt">link</span> <span class="na">href</span><span class="o">=</span><span class="s">&quot;//vjs.zencdn.net/5.11/video-js.min.css&quot;</span> <span class="na">rel</span><span class="o">=</span><span class="s">&quot;stylesheet&quot;</span><span class="p">&gt;</span>
+
+<span class="p">&lt;</span><span class="nt">video</span> <span class="na">id</span><span class="o">=</span><span class="s">&quot;example-video&quot;</span> <span class="na">class</span><span class="o">=</span><span class="s">&quot;video-js vjs-default-skin vjs-16-9 vjs-big-play-centered&quot;</span> <span class="na">controls</span>
+  <span class="na">preload</span><span class="o">=</span><span class="s">&quot;none&quot;</span> <span class="na">poster</span><span class="o">=</span><span class="s">&quot;poster-640x360.jpg&quot;</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">source</span> <span class="na">data-width</span><span class="o">=</span><span class="s">&quot;640&quot;</span> <span class="na">src</span><span class="o">=</span><span class="s">&quot;640x360/playlist.m3u8&quot;</span> <span class="na">type</span><span class="o">=</span><span class="s">&quot;application/x-mpegURL&quot;</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">source</span> <span class="na">data-width</span><span class="o">=</span><span class="s">&quot;1280&quot;</span> <span class="na">src</span><span class="o">=</span><span class="s">&quot;1280x720/playlist.m3u8&quot;</span> <span class="na">type</span><span class="o">=</span><span class="s">&quot;application/x-mpegURL&quot;</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">video</span><span class="p">&gt;</span>
+<span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">&quot;//vjs.zencdn.net/5.11/video.min.js&quot;</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+<span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">&quot;//cdnjs.cloudflare.com/ajax/libs/videojs-contrib-hls/5.3.3/videojs-contrib-hls.min.js&quot;</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+<span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span>
+<span class="kd">var</span> <span class="nx">player</span> <span class="o">=</span> <span class="nx">videojs</span><span class="p">(</span><span class="s1">&#39;example-video&#39;</span><span class="p">);</span>
+<span class="nx">player</span><span class="p">.</span><span class="nx">one</span><span class="p">(</span><span class="s2">&quot;loadedmetadata&quot;</span><span class="p">,</span> <span class="kd">function</span><span class="p">()</span> <span class="p">{</span>
+  <span class="kd">var</span> <span class="nx">playerWidth</span> <span class="o">=</span> <span class="nx">player</span><span class="p">.</span><span class="nx">currentWidth</span><span class="p">();</span>
+  <span class="kd">var</span> <span class="nx">sources</span> <span class="o">=</span> <span class="nx">player</span><span class="p">.</span><span class="nx">$$</span><span class="p">(</span><span class="s1">&#39;source&#39;</span><span class="p">);</span>
+  <span class="kd">var</span> <span class="nx">len</span> <span class="o">=</span> <span class="nx">sources</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span>
+  <span class="k">for</span> <span class="p">(</span><span class="kd">var</span> <span class="nx">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="o">&lt;</span> <span class="nx">len</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">source</span> <span class="o">=</span> <span class="nx">sources</span><span class="p">[</span><span class="nx">i</span><span class="p">];</span>
+    <span class="kd">var</span> <span class="nx">srcWidth</span> <span class="o">=</span> <span class="o">+</span><span class="nx">source</span><span class="p">.</span><span class="nx">getAttribute</span><span class="p">(</span><span class="s1">&#39;data-width&#39;</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">playerWidth</span> <span class="o">&lt;=</span> <span class="nx">srcWidth</span> <span class="o">||</span> <span class="nx">i</span> <span class="o">===</span> <span class="nx">len</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+      <span class="k">if</span> <span class="p">(</span><span class="nx">i</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">player</span><span class="p">.</span><span class="nx">src</span><span class="p">({</span><span class="nx">src</span><span class="o">:</span> <span class="nx">source</span><span class="p">.</span><span class="nx">getAttribute</span><span class="p">(</span><span class="s1">&#39;src&#39;</span><span class="p">),</span> <span class="nx">type</span><span class="o">:</span> <span class="nx">source</span><span class="p">.</span><span class="nx">getAttribute</span><span class="p">(</span><span class="s1">&#39;type&#39;</span><span class="p">)});</span>
+        <span class="nx">player</span><span class="p">.</span><span class="nx">play</span><span class="p">();</span>
+      <span class="p">}</span>
+      <span class="k">break</span><span class="p">;</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+<span class="p">});</span>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+</pre></div>
+<p>上記のHTMLで <code>video</code> タグに <code>autoplay</code> 属性を指定すれば自動再生もできました。</p>
+<div class="section" id="video-640px">
+<h3><code>video</code> タグの幅が640px以下の時のアクセスログ</h3>
+<p>HTMLファイルを表示した時点では <code>/hls/640x360/playlist.m3u8</code> の行までで、その後再生ボタンを押すと以降のアクセスがあります。このケースでは無駄なアクセスはありません。</p>
+<div class="highlight"><pre><span></span>192.168.0.22 - - [21/Mar/2017:16:09:52 +0900] &quot;GET /hls/ HTTP/1.1&quot; 200 576 &quot;-&quot; &quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.98 Safari/537.36&quot;
+192.168.0.22 - - [21/Mar/2017:16:09:52 +0900] &quot;GET /hls/poster-640x360.jpg HTTP/1.1&quot; 200 23701 &quot;http://192.168.0.201/hls/&quot; &quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.98 Safari/537.36&quot;
+192.168.0.22 - - [21/Mar/2017:16:09:52 +0900] &quot;GET /hls/640x360/playlist.m3u8 HTTP/1.1&quot; 200 1222 &quot;http://192.168.0.201/hls/&quot; &quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.98 Safari/537.36&quot;
+192.168.0.22 - - [21/Mar/2017:16:09:55 +0900] &quot;GET /hls/640x360/segment000.ts HTTP/1.1&quot; 200 1098484 &quot;http://192.168.0.201/hls/&quot; &quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.98 Safari/537.36&quot;
+192.168.0.22 - - [21/Mar/2017:16:09:55 +0900] &quot;GET /hls/640x360/segment001.ts HTTP/1.1&quot; 200 824192 &quot;http://192.168.0.201/hls/&quot; &quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.98 Safari/537.36&quot;
+192.168.0.22 - - [21/Mar/2017:16:09:55 +0900] &quot;GET /hls/640x360/segment002.ts HTTP/1.1&quot; 200 658940 &quot;http://192.168.0.201/hls/&quot; &quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.98 Safari/537.36&quot;
+192.168.0.22 - - [21/Mar/2017:16:09:55 +0900] &quot;GET /hls/640x360/segment003.ts HTTP/1.1&quot; 200 875892 &quot;http://192.168.0.201/hls/&quot; &quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.98 Safari/537.36&quot;
+</pre></div>
+</div>
+<div class="section" id="id5">
+<h3><code>video</code> タグの幅が640pxより大きいの時のアクセスログ</h3>
+<p>HTMLファイルを表示した時点では <code>/hls/640x360/playlist.m3u8</code> の行までで、その後再生ボタンを押すと以降のアクセスがあります。
+このケースでは <code>/hls/640x360/playlist.m3u8</code> と <code>/hls/640x360/segment000.ts</code> へのアクセスは無駄です。
+無駄な転送量をなるべく少なくしたいので <code>video</code> タグの <code>source</code> の並び順は解像度が小さいものから順に並べるようにしました。
+遅い回線で画面が小さい時に、必要以上に解像度の大きな画像を無駄にダウンロードするのが一番無駄が大きいと思うので、そういう意味でも小さい順が良いと思いました。</p>
+<div class="highlight"><pre><span></span>192.168.0.22 - - [21/Mar/2017:16:11:01 +0900] &quot;GET /hls/ HTTP/1.1&quot; 200 576 &quot;-&quot; &quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.98 Safari/537.36&quot;
+192.168.0.22 - - [21/Mar/2017:16:11:01 +0900] &quot;GET /hls/poster-640x360.jpg HTTP/1.1&quot; 200 23701 &quot;http://192.168.0.201/hls/&quot; &quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.98 Safari/537.36&quot;
+192.168.0.22 - - [21/Mar/2017:16:11:02 +0900] &quot;GET /hls/640x360/playlist.m3u8 HTTP/1.1&quot; 200 1222 &quot;http://192.168.0.201/hls/&quot; &quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.98 Safari/537.36&quot;
+192.168.0.22 - - [21/Mar/2017:16:11:04 +0900] &quot;GET /hls/640x360/segment000.ts HTTP/1.1&quot; 200 1098484 &quot;http://192.168.0.201/hls/&quot; &quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.98 Safari/537.36&quot;
+192.168.0.22 - - [21/Mar/2017:16:11:04 +0900] &quot;GET /hls/1280x720/playlist.m3u8 HTTP/1.1&quot; 200 1196 &quot;http://192.168.0.201/hls/&quot; &quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.98 Safari/537.36&quot;
+192.168.0.22 - - [21/Mar/2017:16:11:04 +0900] &quot;GET /hls/1280x720/segment000.ts HTTP/1.1&quot; 200 1668876 &quot;http://192.168.0.201/hls/&quot; &quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.98 Safari/537.36&quot;
+192.168.0.22 - - [21/Mar/2017:16:11:05 +0900] &quot;GET /hls/1280x720/segment001.ts HTTP/1.1&quot; 200 1667372 &quot;http://192.168.0.201/hls/&quot; &quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.98 Safari/537.36&quot;
+192.168.0.22 - - [21/Mar/2017:16:11:05 +0900] &quot;GET /hls/1280x720/segment002.ts HTTP/1.1&quot; 200 1664364 &quot;http://192.168.0.201/hls/&quot; &quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.98 Safari/537.36&quot;
+192.168.0.22 - - [21/Mar/2017:16:11:07 +0900] &quot;GET /hls/1280x720/segment003.ts HTTP/1.1&quot; 200 1651204 &quot;http://192.168.0.201/hls/&quot; &quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.98 Safari/537.36&quot;
+</pre></div>
+<p>多少無駄なアクセスが発生するものの一応これで切り替えは出来ました。
+ただ <a class="reference external" href="https://developer.mozilla.org/en-US/docs/Web/HTML/Element/video">&lt;video&gt; - HTML | MDN</a> を見た感じでは <code>video</code> タグの <code>poster</code> 属性には画像のURLを1つしか指定できないようです。
+これも併せて考えると、 <code>video</code> タグを作る前にブラウザの幅を調べておいて <code>poster</code> 属性や <code>source</code> タグを動的に生成するほうが良いのかもしれません。
+具体的には <code>video</code> タグを置くための <code>div</code> を先に作って幅を調べるとか。</p>
+</div>
+</div>
+
+    </div><!-- /.entry-content -->
+
+  </article>
+</section>
+        <section id="extras" class="body">
+        </section><!-- /#extras -->
+
+        <footer id="contentinfo" class="body">
+                <address id="about" class="vcard body">
+                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
+                </address><!-- /#about -->
+
+                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
+        </footer><!-- /#contentinfo -->
+
+    <script type="text/javascript">
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-53263855-1', 'auto');
+    ga('send', 'pageview');
+    </script>
+</body>
+</html>
