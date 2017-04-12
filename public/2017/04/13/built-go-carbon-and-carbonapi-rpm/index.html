@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+        <meta charset="utf-8" />
+        <title>go, go-carbon, carbonapiのrpmをfedora coprでビルドしてみた</title>
+        <link rel="stylesheet" href="../../../../theme/css/main.css" />
+
+        <!--[if IE]>
+            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+        <![endif]-->
+</head>
+
+<body id="index" class="home">
+        <header id="banner" class="body">
+                <h1><a href="../../../../">hnakamur's blog at github </a></h1>
+                <nav><ul>
+                    <li class="active"><a href="../../../../category/blog.html">blog</a></li>
+                </ul></nav>
+        </header><!-- /#banner -->
+<section id="content" class="body">
+  <article>
+    <header>
+      <h1 class="entry-title">
+        <a href="../../../../2017/04/13/built-go-carbon-and-carbonapi-rpm/" rel="bookmark"
+           title="Permalink to go, go-carbon, carbonapiのrpmをfedora coprでビルドしてみた">go, go-carbon, carbonapiのrpmをfedora coprでビルドしてみた</a></h1>
+    </header>
+
+    <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2017-04-13T05:13:00+09:00">
+                Published: 2017-04-13
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
+        </address>
+<p>In <a href="../../../../category/blog.html">blog</a>.</p>
+<p>tags: <a href="../../../../tag/go-rpm-carbon.html">go rpm carbon</a> </p>
+</footer><!-- /.post-info -->      <div class="section" id="id1">
+<h2>はじめに</h2>
+<p>go, go-carbon, carbonapiのrpmをfedora coprでビルドしたのでメモです。</p>
+<p>goのrpmはCentOS 6と7、go-carbonとcarbonapiはCentOS 7用のrpmをビルドしました。</p>
+</div>
+<div class="section" id="gorpm">
+<h2>goのrpm</h2>
+<p>今まではgoの公式バイナリを
+<a class="reference external" href="https://golang.org/dl/">Downloads - The Go Programming Language</a>
+からダウンロードして使っていました。通常の利用では公式バイナリを使うほうが安心感があって良いのですが、goで書かれたライブラリやプログラムのrpmを
+<a class="reference external" href="https://copr.fedorainfracloud.org/">Fedora Copr</a>
+でビルドするとなると、rpmのspecファイルに <code>BuildRequires: golang &gt;= 1.8</code> のように書いてgoのrpmを参照するようにしたいところです。</p>
+<p>この記事を書いている時点ではCentOS7のbaseレポジトリでgolangというパッケージ名でバージョン1.6.3が提供されています。</p>
+<div class="highlight"><pre><span></span><span class="gp">$</span> yum info golang
+<span class="go">...(snip)...</span>
+<span class="go">Available Packages</span>
+<span class="go">Name        : golang</span>
+<span class="go">Arch        : x86_64</span>
+<span class="go">Version     : 1.6.3</span>
+<span class="go">Release     : 2.el7</span>
+<span class="go">...(snip)...</span>
+</pre></div>
+<p>しかしやはり最新版が使いたいです。</p>
+<div class="section" id="ubuntu-16-04go">
+<h3>Ubuntu 16.04でのgoのパッケージ</h3>
+<p>ちなみにUbuntu 16.04の標準パッケージではgolangというパッケージ名で1.6が提供されています。</p>
+<div class="highlight"><pre><span></span><span class="gp">$</span> apt show golang
+<span class="go">Package: golang</span>
+<span class="go">Version: 2:1.6-1ubuntu4</span>
+<span class="go">Priority: optional</span>
+<span class="go">Section: devel</span>
+<span class="go">Source: golang-defaults</span>
+<span class="go">Origin: Ubuntu</span>
+<span class="go">Maintainer: Ubuntu Developers &lt;ubuntu-devel-discuss@lists.ubuntu.com&gt;</span>
+<span class="go">Bugs: https://bugs.launchpad.net/ubuntu/+filebug</span>
+<span class="go">...(snip)...</span>
+</pre></div>
+<p><cite>Ubuntu · golang/go Wiki &lt;https://github.com/golang/go/wiki/Ubuntu&gt;</cite>
+に Ubuntu 16.04用の PPA
+<a class="reference external" href="https://launchpad.net/~longsleep/+archive/ubuntu/golang-backports">Golang Backports : Simon Eisenmann</a>
+が紹介されていて1.8がインストール可能らしいです。
+<a class="reference external" href="https://www.stdin.xyz/2017/01/04/golang-1.8-ppa-for-ubuntu-16.04-xenial/">Golang 1.8 PPA for Ubuntu 16.04 Xenial - Stdin.xyz</a>
+にブログ記事がありました。</p>
+<p>さらに検索してみると
+<a class="reference external" href="https://launchpad.net/ubuntu/+source/golang-1.8">golang-1.8 package : Ubuntu</a>
+というページもあって、これはUbuntu developersがメンテナになっていて2017-04-11に1.8.1が提供されていました。</p>
+<p>なお、どちらもまだ試してないです。</p>
+</div>
+<div class="section" id="fedora-coprredhatrpm">
+<h3>fedora coprでredhatの方によるrpmを発見</h3>
+<p>CentOS 7用のrpmを探してみると
+<a class="reference external" href="https://copr.fedorainfracloud.org/coprs/jcajka/golang1.8/">jcajka/golang1.8 Copr</a>
+というのを見つけました。
+ページ右の Homepage のリンクを辿ると
+<a class="reference external" href="https://github.com/jcajka/copr-golang">jcajka/copr-golang: Spec files for golang builds in COPR(https://copr.fedoraproject.org)</a>
+でソースも公開されています。
+<code>golang1.8</code> ブランチが1.8.xリリース用となっています。</p>
+<p>READMEに Based on Fedora dist-git(<a class="reference external" href="http://pkgs.fedoraproject.org/cgit/golang.git/">http://pkgs.fedoraproject.org/cgit/golang.git/</a>). と書かれており、
+<a class="reference external" href="https://github.com/jcajka/copr-golang/blob/golang1.8/golang.spec">copr-golang/golang.spec at golang1.8 · jcajka/copr-golang</a>
+のChangelogを見るとredhatの方が作られているので、独自パッチが当たってはいますが安心して使えそうです。</p>
+<p>ですが
+<a class="reference external" href="https://copr.fedorainfracloud.org/coprs/jcajka/golang1.8/">jcajka/golang1.8 Copr</a>
+を見るとCentOS 7はビルド対象ですが、CentOS 6は含まれていません。
+また、
+<a class="reference external" href="https://copr.fedorainfracloud.org/coprs/jcajka/golang1.8/builds/">Builds for jcajka/golang1.8</a>
+を見ると、この記事を書いている2017-04-13時点ではgo 1.8が提供されていますが最新版の1.8.1は提供されていません。</p>
+</div>
+<div class="section" id="spec1-8-1rpm">
+<h3>specファイルを書き換えて1.8.1のrpmを作成</h3>
+<p>ということで、
+<a class="reference external" href="https://github.com/jcajka/copr-golang/blob/golang1.8/golang.spec">copr-golang/golang.spec at golang1.8 · jcajka/copr-golang</a>
+を元にバージョンを1.8.1に書き換えてビルドしてみました。</p>
+<p><a class="reference external" href="https://copr.fedorainfracloud.org/coprs/hnakamur/golang-1.8/">hnakamur/golang-1.8 Copr</a>
+から以下のコマンドでインストール可能です。</p>
+<div class="highlight"><pre><span></span><span class="go">ver=$(rpm -q --qf %{VERSION} --whatprovides redhat-release)</span>
+
+<span class="go">sudo curl -sL -o /etc/yum.repos.d/hnakamur-golang-1.8.repo https://copr.fedoraproject.org/coprs/hnakamur/golang-1.8/repo/epel-${ver}/hnakamur-golang-1.8-epel-${ver}.repo</span>
+
+<span class="go">sudo yum install golang</span>
+</pre></div>
+<p>rpmのソースは
+<a class="reference external" href="https://github.com/hnakamur/golang-1.8-rpm">hnakamur/golang-1.8-rpm</a>
+で公開しています。
+<a class="reference external" href="http://blog-preview.naruh.com/blog/2015/12/15/using_mock_and_copr_to_build_nginx_rpm_on_docker/">nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました</a> で書いた方法で、手元のdockerでビルドが通ることを確認後、sprmをcoprにアップロードしてビルドしました。</p>
+<p>今後1.8.xがリリースされたら適宜更新していく予定です。なお、fedora coreでは最新版以外はそのうち消されるので、将来1.8.2をビルド、公開すると1.8.1はそのうちこのレポジトリからは消えます。</p>
+<p>特定のバージョンのrpmのレポジトリを維持したい方はこのレポジトリは当てにせず、自前でレポジトリを作ってください。</p>
+</div>
+</div>
+<div class="section" id="go-carboncarbonapi">
+<h2>go-carbonとcarbonapi</h2>
+<ul class="simple">
+<li><a class="reference external" href="https://github.com/lomik/go-carbon">lomik/go-carbon: Golang implementation of Graphite/Carbon server with classic architecture: Agent -&gt; Cache -&gt; Persister</a></li>
+<li><a class="reference external" href="https://github.com/go-graphite/carbonapi">go-graphite/carbonapi: API server for github.com/dgryski/carbonzipper</a></li>
+</ul>
+<p>は</p>
+<ul class="simple">
+<li><a class="reference external" href="https://github.com/graphite-project/carbon">graphite-project/carbon: Carbon is one of the components of Graphite, and is responsible for receiving metrics over the network and writing them down to disk using a storage backend.</a></li>
+<li><a class="reference external" href="https://github.com/graphite-project/graphite-web">graphite-project/graphite-web: A highly scalable real-time graphing system</a></li>
+</ul>
+<p>をGoで再実装したものです。完全互換ではなくサブセットですが実用上必要な機能は揃っていると思います。
+環境構築にPythonのインストールが不要なのとパフォーマンスが良いのでGo版のほうが魅力的です。</p>
+<p>Go版の作者の1人である <a class="reference external" href="https://twitter.com/dgryski/status/847308606722588673">Damian Gryskiさんのツイート: &quot;&#64;icecrime here's a talk about our stack from fosdem this year: https://t.co/MT04Z7Embm&quot;</a>
+で紹介されている動画
+<a class="reference external" href="https://fosdem.org/2017/schedule/event/graphite_at_scale/">FOSDEM 2017 - Graphite&#64;Scale or How to store millions metrics per second</a>
+を見たのですが、最初はPython版を使っていたが規模が大きくなるにつれて大変になったので、コンポーネントをひとつずつGoで再実装して置き換えていったという話がされていて素晴らしかったです。
+また今後の展望についても話されていて、whisperファイルに代わるフォーマットを検討するなどこちらも期待が持てる内容でした。</p>
+</div>
+<div class="section" id="go-carbonrpm">
+<h2>go-carbonのrpm</h2>
+<p><a class="reference external" href="https://github.com/lomik/go-carbon">lomik/go-carbon: Golang implementation of Graphite/Carbon server with classic architecture: Agent -&gt; Cache -&gt; Persister</a> の
+<a class="reference external" href="https://github.com/lomik/go-carbon/blob/061fa9139b1912206b4ec09dbcba51678d8e97ad/deploy/go-carbon.spec.centos">go-carbon/go-carbon.spec.centos at 061fa9139b1912206b4ec09dbcba51678d8e97ad · lomik/go-carbon</a>
+にrpmのspecファイルが提供されているのですがCentOS 6用となっていて
+<a class="reference external" href="https://github.com/lomik/go-carbon/blob/master/deploy/go-carbon.init.centos">initスクリプト</a>
+は用意されていますが、CentOS 7のsystemd用のserviceファイルはありません。
+またインストール先が <code>/usr/local/sbin</code> になっているのもrpmパッケージとしてはいまいちです。</p>
+<p>そこで、CentOS 7用のrpmを作成しました。
+<a class="reference external" href="https://copr.fedorainfracloud.org/coprs/hnakamur/go-carbon/">hnakamur/go-carbon Copr</a></p>
+<p>ソースは
+<a class="reference external" href="https://github.com/hnakamur/go-carbon-rpm">hnakamur/go-carbon-rpm</a>
+で公開しています。</p>
+<p>specファイルは
+<a class="reference external" href="https://github.com/hnakamur/go-carbon-rpm/blob/67bb23168fe8b56fe6b83b482b2e2129f2dfd2b9/SPECS/go-carbon.spec">go-carbon-rpm/go-carbon.spec</a>
+です。</p>
+<p>rpmパッケージを作るにあたって、バージョンのつけ方は
+<a class="reference external" href="https://fedoraproject.org/wiki/PackagingDrafts/Go">PackagingDrafts/Go - FedoraProject</a>
+の方針に合わせました。</p>
+<p>当初
+<a class="reference external" href="https://github.com/lomik/go-carbon/releases/tag/v0.9.1">Release Version 0.9.1 · lomik/go-carbon</a>
+のタグに対してrpmを作ろうと思ったのですが
+<a class="reference external" href="https://github.com/go-graphite/carbonapi/releases/tag/0.7.0">Release 0.7.0 · go-graphite/carbonapi</a>
+との組み合わせだと動かなかったので、新しいコミットで動くものを選びました。</p>
+<div class="section" id="fedora-coprsrpm">
+<h3>fedora coprでビルドするには必要なファイルを全てsrpmに入れておく必要があります</h3>
+<p>当初手元でビルドしていたときはspecファイルの <code>%prep</code> セクションで <code>go get</code> や <code>git clone</code> や <code>make submodules</code> してソースをネットワーク経由で取得していたのですが、fedora copr上ではホスト名が解決できないというエラーが出てダメでした。</p>
+<p>そこで
+<a class="reference external" href="https://github.com/hnakamur/go-carbon-rpm/blob/67bb23168fe8b56fe6b83b482b2e2129f2dfd2b9/SPECS/go-carbon.spec#L23-L29">go-carbon-rpm/go-carbon.specのコメント</a>
+に書いた手順で予め必要なソースファイルを全てtarballに入れてsrpm内に含めるようにしました。</p>
+</div>
+</div>
+<div class="section" id="carbonapirpm">
+<h2>carbonapiのrpm</h2>
+<p>当初は最新のコミットでrpmを作ろうとしていたのですが、grafanaでグラフが表示されないという問題に遭遇しました。調べてみると
+<a class="reference external" href="https://github.com/go-graphite/carbonapi/issues/198">Current master seems to always force caching and return no results · Issue #198 · go-graphite/carbonapi</a>
+というイシューを発見。タグが打たれたリリースを使ってくださいとコメントされていたので、それに従って
+<a class="reference external" href="https://github.com/go-graphite/carbonapi/releases/tag/0.7.0">Release 0.7.0</a>
+のrpmを作りました。</p>
+<p><a class="reference external" href="https://copr.fedorainfracloud.org/coprs/hnakamur/carbonapi/">hnakamur/carbonapi Copr</a></p>
+<p>ソースは
+<a class="reference external" href="https://github.com/hnakamur/carbonapi-rpm">hnakamur/carbonapi-rpm</a>
+で
+specファイルは
+<a class="reference external" href="https://github.com/hnakamur/carbonapi-rpm/blob/84659a13ce235f33a9c699f93cfe6d2864850b9e/SPECS/carbonapi.spec">carbonapi-rpm/carbonapi.spec at 84659a13ce235f33a9c699f93cfe6d2864850b9e · hnakamur/carbonapi-rpm</a>
+です。</p>
+<p>ソースのtarballは
+<a class="reference external" href="https://github.com/hnakamur/carbonapi-rpm/blob/84659a13ce235f33a9c699f93cfe6d2864850b9e/SPECS/carbonapi.spec#L21-L33">carbonapi-rpm/carbonapi.specのコメント</a>
+に書いた手順で作っています。
+carbonapiのgithubレポジトリはつい最近
+<a class="reference external" href="https://github.com/dgryski/carbonapi">https://github.com/dgryski/carbonapi</a>
+から
+<a class="reference external" href="https://github.com/go-graphite/carbonapi">https://github.com/go-graphite/carbonapi</a>
+に移管されました。
+タグ0.7.0の頃は
+<a class="reference external" href="https://github.com/dgryski/carbonapi">https://github.com/dgryski/carbonapi</a>
+だったので、tarball内のソースのディレクトリをそれに合わせて調整しています。</p>
+</div>
+<div class="section" id="id6">
+<h2>おわりに</h2>
+<p>goのrpmとそれを使ってgo-carbonとcarbonapiのrpmを作ってみました。</p>
+<p><a class="reference external" href="https://gist.github.com/hnakamur/0a0e18acc1a8c452c0d64124a61a7d94">go-carbon with built-in carbonserver enabled, carbonapi and grafana setup memo</a>
+の最後のほうに書いた手順でgrafanaを入れて軽く動作確認はしましたが、高負荷時にちゃんと動くかは未検証です。</p>
+<p>これでgoで書かれたツールもrpmパッケージを作れるようになったので、自分が使うものはパッケージを作っていきたいと思います。</p>
+</div>
+
+    </div><!-- /.entry-content -->
+
+  </article>
+</section>
+        <section id="extras" class="body">
+        </section><!-- /#extras -->
+
+        <footer id="contentinfo" class="body">
+                <address id="about" class="vcard body">
+                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
+                </address><!-- /#about -->
+
+                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
+        </footer><!-- /#contentinfo -->
+
+    <script type="text/javascript">
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-53263855-1', 'auto');
+    ga('send', 'pageview');
+    </script>
+</body>
+</html>
