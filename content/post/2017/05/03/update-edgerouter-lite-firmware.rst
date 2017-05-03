@@ -4,7 +4,7 @@ EdgeRouter Lite (ERLite-3)のファームウェアアップデート
 :date: 2017-05-03 07:30
 :tags: edgerouter
 :category: blog
-:slug: content/post/2017/05/03/update-edgerouter-lite-firmware
+:slug: 2017/05/03/update-edgerouter-lite-firmware
 
 はじめに
 --------
