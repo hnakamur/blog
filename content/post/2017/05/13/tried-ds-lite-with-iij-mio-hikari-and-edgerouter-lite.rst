@@ -2,6 +2,7 @@ IIJmioひかりとEdgeRouter-LiteでDS-Liteを試してみた
 ##################################################
 
 :date: 2017-05-13 16:23
+:modified: 2017-05-14 10:03
 :tags: edgerouter
 :category: blog
 :slug: 2017/05/13/tried-ds-lite-with-iij-mio-hikari-and-edgerouter-lite
@@ -486,6 +487,33 @@ remote-ip のアドレスはNTT東日本と西日本で違うということで
 補足: ちょっと気になったのは :code:`ipv6-tunnel` はVyattaやVyOSのドキュメントでは見当たらずそちらでは :code:`tunnel` になっていました。最初試行錯誤してたときに :code:`tunnel` も試してみたのですが :code:`local-ip` や :code:`remote-ip` にIPv6を指定して実行すると、コマンド実行時か :code:`commit` 実行時かは忘れましたが、 【指定したアドレス】 is not valid type of ipv4というエラーになりました。
 
 ということでipv6-tunnelはEdgeOSがVyattaからフォークした後独自に拡張した部分なのかもしれません。ググってはみたんですが特に情報が見つけられていません。
+
+DNSフォワーディングの設定追加
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+2017-05-14 追記。一晩たって再度試してみるとEdgeRouterからは :code:`ping6 www.iij.ad.jp` で接続できますが、ThinkPadからは出来ないという状態になっていました。
+
+冒頭のQiitaの記事で行っていたdns forwardingの設定を入れれば解決しました。
+
+.. code-block:: text
+
+    set service dns forwarding cache-size 150
+    set service dns forwarding listen-on eth1
+    set service dns forwarding listen-on eth2
+    set service dns forwarding name-server 192.168.1.1
+
+DNSサーバのアドレスですが、最初試行錯誤してた時は :code:`192.168.1.1` ではなくIIJmioひかりのプライマリDNSのIPv6とセカンダリDNSのアドレスを指定していました。
+
+.. code-block:: text
+
+    set service dns forwarding name-server 【IIJmioひかりのプライマリDNSのIPv6アドレス】
+    set service dns forwarding name-server 【IIJmioひかりのセカンダリDNSのIPv6アドレス】
+
+IIJmioひかりの「サービス詳細情報」ページ (ホーム > 設定と利用 > サービス詳細情報 > IIJmioひかり、要ログイン）の
+「インターネット（IPv6 PPPoE）接続で接続する場合」の項に載っていました。
+IPv6 PPPoEを使っているわけではないですが、DNSサーバは共通で行けました。
+
+ですが、なるべくなら自動で取得してほしいので、RT-500KIに任せるように 192.168.1.1 に変えてみたらそれでも動いたので、今は上記の設定にしています。
 
 スピードテスト
 --------------
