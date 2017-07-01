@@ -144,12 +144,15 @@ RSAの4096bitにして有効期限は1年にします。
 
 .. code-block:: console
 
-    build@debuild:~$ head -4 gpg-build-private.key.pem.key
+    build@debuild:~$ head -4 gpg-hnakamur-secret.key.pem
     -----BEGIN PGP PRIVATE KEY BLOCK-----
     Version: GnuPG v1
 
     lQdGBFlXL+kBEACmCvShw49DAEGD/hdZ3aAOYK3aYyOJ61uinvih1VyjndxDefLJ
-    build@debuild:~$ tail -4 gpg-build-private.key.pem.key
+
+.. code-block:: console
+
+    build@debuild:~$ tail -4 gpg-hnakamur-secret.key.pem
     Ej4RU9NnoFQBvSRS+lwRZNp09igV6myNK6/lajF8oHkzH2Nvlz6bYf6OX1m27Cqk
     zVo=
     =6LVK
@@ -164,7 +167,7 @@ RSAの4096bitにして有効期限は1年にします。
 
 .. code-block:: console
 
-    build@debuild2:~$ gpg --import gpg-hnakamur-secret.pem.key
+    build@debuild2:~$ gpg --import gpg-hnakamur-secret.key.pem
     gpg: directory `/home/build/.gnupg' created
     gpg: new configuration file `/home/build/.gnupg/gpg.conf' created
     gpg: WARNING: options in `/home/build/.gnupg/gpg.conf' are not yet active during this run
