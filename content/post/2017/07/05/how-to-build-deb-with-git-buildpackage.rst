@@ -2,6 +2,7 @@ git-buildpackageでdebパッケージをビルドしてPPAにアップロード�
 ####################################################################
 
 :date: 2017-07-05 21:04
+:udpated: 2017-07-18 15:15
 :tags: deb git-buildpackage
 :category: blog
 :slug: 2017/07/05/how-to-build-deb-with-git-buildpackage
@@ -47,6 +48,37 @@ gpgで秘密鍵作成
 ~~~~~~~~~~~~~~~
 
 PPAにdebパッケージをアップロードするにはdebソースパッケージに署名する必要があるので `gpgで秘密鍵を作成する <https://hnakamur.github.io/blog/2017/07/01/generate-secret-key-with-gpg/>`_ の手順で秘密鍵を生成しておきます。
+
+gpgの設定追加
+~~~~~~~~~~~~~
+
+`packaging - How to automate the pass phrases when GPG signing dpkg-buildpackage? - Ask Ubuntu <https://askubuntu.com/questions/186329/how-to-automate-the-pass-phrases-when-gpg-signing-dpkg-buildpackage/186359#186359>`_
+を参考にして :code:`~/.bash_profile` に以下のような設定を追加しました。
+:code:`DEBFULLNAME` 、 :code:`DEBEMAIL` 、 :code:`GPGKEY` 環境変数の値は、適宜自分のものに書き換えてください。
+
+.. code-block:: text
+
+    # http://manpages.ubuntu.com/manpages/precise/en/man1/dch.1.html
+    export DEBFULLNAME="Hiroaki Nakamura"
+    export DEBEMAIL="hnakamur@gmail.com"
+
+    # https://askubuntu.com/questions/186329/how-to-automate-the-pass-phrases-when-gpg-signing-dpkg-buildpackage
+    export GPGKEY=0x1DFBC664
+
+Ubuntuでは :code:`~/.bash_profile` が存在すると :code:`~/.bashrc` が読まれないようなので、以下のようなコードを
+:code:`~/.bash_profile` に追加しました。
+
+.. code-block:: text
+
+    if [ -f ~/.bashrc ]; then
+        . ~/.bashrc
+    fi
+
+ログインし直すか以下のコマンドを実行して、上記の設定を反映します。
+
+.. code-block:: console
+
+    exec $SHELL -l
 
 必要なパッケージのインストール
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

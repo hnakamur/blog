@@ -26,25 +26,25 @@ ngx_http_v2_upstreamモジュールを追加したnginxのdebパッケージを�
 
 .. code-block:: text
 
-    deb http://nginx.org/packages/mainline/ubuntu/ xenial nginx
-    deb-src http://nginx.org/packages/mainline/ubuntu/ xenial nginx
+	deb http://nginx.org/packages/mainline/ubuntu/ xenial nginx
+	deb-src http://nginx.org/packages/mainline/ubuntu/ xenial nginx
 
 作業ディレクトリを作って nginx.org で配布しているdebのソースパッケージをダウンロードします。
 
 .. code-block:: console
 
-    mkdir -p ~/nginx.org-deb/nginx-1.13.3-deb
-    cd !$
-    sudo apt update
-    sudo apt source nginx
+	mkdir -p ~/nginx.org-deb/nginx-1.13.3-deb
+	cd !$
+	sudo apt update
+	sudo apt source nginx
 
 ダウンロードされたファイルは以下の通りです。
 
 .. code-block:: console
 
-    hnakamur@express:~/nginx.org-deb/nginx-1.13.3-deb$ ls -F
-    nginx-1.13.3/                        nginx_1.13.3-1~xenial.dsc
-    nginx_1.13.3-1~xenial.debian.tar.xz  nginx_1.13.3.orig.tar.gz
+	$ ls -F
+	nginx-1.13.3/                        nginx_1.13.3-1~xenial.dsc
+	nginx_1.13.3-1~xenial.debian.tar.xz  nginx_1.13.3.orig.tar.gz
 
 パッチファイルをDEP-3準拠にして保存
 -----------------------------------
@@ -74,41 +74,41 @@ ngx_http_v2_upstreamモジュールを追加したnginxのdebパッケージを�
 
 .. code-block:: text
 
-    # HG changeset patch
-    # User Piotr Sikora <piotrsikora at google.com>
-    # Date 1489621682 25200
-    #      Wed Mar 15 16:48:02 2017 -0700
-    # Node ID 96075d4cd2a6e8bd67caf1d7b78f8e87d757c48d
-    # Parent  154ca6c5e62a1931a616e9f2b99ef2553b7c2c8b
-    Proxy: add "proxy_ssl_alpn" directive.
+	# HG changeset patch
+	# User Piotr Sikora <piotrsikora at google.com>
+	# Date 1489621682 25200
+	#      Wed Mar 15 16:48:02 2017 -0700
+	# Node ID 96075d4cd2a6e8bd67caf1d7b78f8e87d757c48d
+	# Parent  154ca6c5e62a1931a616e9f2b99ef2553b7c2c8b
+	Proxy: add "proxy_ssl_alpn" directive.
 
-    ALPN is used here only to indicate which version of the HTTP protocol
-    is going to be used and we doesn't verify that upstream agreed to it.
+	ALPN is used here only to indicate which version of the HTTP protocol
+	is going to be used and we doesn't verify that upstream agreed to it.
 
-    Please note that upstream is allowed to reject SSL connection with a
-    fatal "no_application_protocol" alert if it doesn't support it.
+	Please note that upstream is allowed to reject SSL connection with a
+	fatal "no_application_protocol" alert if it doesn't support it.
 
-    Signed-off-by: Piotr Sikora <piotrsikora at google.com>
+	Signed-off-by: Piotr Sikora <piotrsikora at google.com>
 
-    diff -r 154ca6c5e62a -r 96075d4cd2a6 src/event/ngx_event_openssl.c
-    …(略)…
+	diff -r 154ca6c5e62a -r 96075d4cd2a6 src/event/ngx_event_openssl.c
+	…(略)…
 
 これは以下の内容で :code:`~/nginx.org-deb/ngx_http_v2_upstream-patches/` ディレクトリに
 :code:`ngx_http_v2_upstream-09-of-14.diff` というファイル名で保存しました。
 
 .. code-block:: text
 
-    Subject: Proxy: add "proxy_ssl_alpn" directive
-    Description: ALPN is used here only to indicate which version of the HTTP protocol
-     is going to be used and we doesn't verify that upstream agreed to it.
-     .
-     Please note that upstream is allowed to reject SSL connection with a
-     fatal "no_application_protocol" alert if it doesn't support it.
-    Author: Piotr Sikora <piotrsikora at google.com>
-    Origin: http://mailman.nginx.org/pipermail/nginx-devel/2017-June/010217.html
+	Subject: Proxy: add "proxy_ssl_alpn" directive
+	Description: ALPN is used here only to indicate which version of the HTTP protocol
+	 is going to be used and we doesn't verify that upstream agreed to it.
+	 .
+	 Please note that upstream is allowed to reject SSL connection with a
+	 fatal "no_application_protocol" alert if it doesn't support it.
+	Author: Piotr Sikora <piotrsikora at google.com>
+	Origin: http://mailman.nginx.org/pipermail/nginx-devel/2017-June/010217.html
 
-    diff -r 154ca6c5e62a -r 96075d4cd2a6 src/event/ngx_event_openssl.c
-    …(略)…
+	diff -r 154ca6c5e62a -r 96075d4cd2a6 src/event/ngx_event_openssl.c
+	…(略)…
 
 変更内容は以下の通りです。
 
@@ -124,16 +124,16 @@ ngx_http_v2_upstreamモジュールを追加したnginxのdebパッケージを�
 
 .. code-block:: console
 
-    cd ~/.ghq/github.com/hnakamur
-    gbp import-dsc --pristine-tar ~/nginx.org-deb/nginx-1.13.3-deb/nginx_1.13.3-1~xenial.dsc
+	cd ~/.ghq/github.com/hnakamur
+	gbp import-dsc --pristine-tar ~/nginx.org-deb/nginx-1.13.3-deb/nginx_1.13.3-1~xenial.dsc
 
 :code:`~/.ghq/github.com/hnakamur/nginx` ディレクトリが作られるので 
 :code:`~/.ghq/github.com/hnakamur/nginx-deb` にリネームしてそこに移動します。
 
 .. code-block:: console
 
-    mv nginx nginx-deb
-    cd !$
+	mv nginx nginx-deb
+	cd !$
 
 dquiltでパッチをインポート
 --------------------------
@@ -149,52 +149,52 @@ dquiltでパッチをインポート
 
 .. code-block:: console
 
-    hnakamur@express:~/.ghq/github.com/hnakamur/nginx-deb$ for i in {14..01}; do dquilt import ~/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-$i-of-14.diff; done
-    Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-14-of-14.diff (stored as ngx_http_v2_upstream-14-of-14.diff)
-    Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-13-of-14.diff (stored as ngx_http_v2_upstream-13-of-14.diff)
-    Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-12-of-14.diff (stored as ngx_http_v2_upstream-12-of-14.diff)
-    Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-11-of-14.diff (stored as ngx_http_v2_upstream-11-of-14.diff)
-    Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-10-of-14.diff (stored as ngx_http_v2_upstream-10-of-14.diff)
-    Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-09-of-14.diff (stored as ngx_http_v2_upstream-09-of-14.diff)
-    Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-08-of-14.diff (stored as ngx_http_v2_upstream-08-of-14.diff)
-    Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-07-of-14.diff (stored as ngx_http_v2_upstream-07-of-14.diff)
-    Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-06-of-14.diff (stored as ngx_http_v2_upstream-06-of-14.diff)
-    Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-05-of-14.diff (stored as ngx_http_v2_upstream-05-of-14.diff)
-    Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-04-of-14.diff (stored as ngx_http_v2_upstream-04-of-14.diff)
-    Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-03-of-14.diff (stored as ngx_http_v2_upstream-03-of-14.diff)
-    Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-02-of-14.diff (stored as ngx_http_v2_upstream-02-of-14.diff)
-    Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-01-of-14.diff (stored as ngx_http_v2_upstream-01-of-14.diff)
+	$ for i in {14..01}; do dquilt import ~/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-$i-of-14.diff; done
+	Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-14-of-14.diff (stored as ngx_http_v2_upstream-14-of-14.diff)
+	Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-13-of-14.diff (stored as ngx_http_v2_upstream-13-of-14.diff)
+	Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-12-of-14.diff (stored as ngx_http_v2_upstream-12-of-14.diff)
+	Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-11-of-14.diff (stored as ngx_http_v2_upstream-11-of-14.diff)
+	Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-10-of-14.diff (stored as ngx_http_v2_upstream-10-of-14.diff)
+	Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-09-of-14.diff (stored as ngx_http_v2_upstream-09-of-14.diff)
+	Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-08-of-14.diff (stored as ngx_http_v2_upstream-08-of-14.diff)
+	Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-07-of-14.diff (stored as ngx_http_v2_upstream-07-of-14.diff)
+	Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-06-of-14.diff (stored as ngx_http_v2_upstream-06-of-14.diff)
+	Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-05-of-14.diff (stored as ngx_http_v2_upstream-05-of-14.diff)
+	Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-04-of-14.diff (stored as ngx_http_v2_upstream-04-of-14.diff)
+	Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-03-of-14.diff (stored as ngx_http_v2_upstream-03-of-14.diff)
+	Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-02-of-14.diff (stored as ngx_http_v2_upstream-02-of-14.diff)
+	Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-01-of-14.diff (stored as ngx_http_v2_upstream-01-of-14.diff)
 
 :code:`debian/patches/` ディレクトリを :code:`ls` で見るとパッチファイルと :code:`series` ファイルが作られています。
 
 .. code-block:: console
 
-    hnakamur@express:~/.ghq/github.com/hnakamur/nginx-deb$ ls debian/patches/
-    ngx_http_v2_upstream-01-of-14.diff  ngx_http_v2_upstream-06-of-14.diff  ngx_http_v2_upstream-11-of-14.diff
-    ngx_http_v2_upstream-02-of-14.diff  ngx_http_v2_upstream-07-of-14.diff  ngx_http_v2_upstream-12-of-14.diff
-    ngx_http_v2_upstream-03-of-14.diff  ngx_http_v2_upstream-08-of-14.diff  ngx_http_v2_upstream-13-of-14.diff
-    ngx_http_v2_upstream-04-of-14.diff  ngx_http_v2_upstream-09-of-14.diff  ngx_http_v2_upstream-14-of-14.diff
-    ngx_http_v2_upstream-05-of-14.diff  ngx_http_v2_upstream-10-of-14.diff  series
+	$ ls debian/patches/
+	ngx_http_v2_upstream-01-of-14.diff  ngx_http_v2_upstream-06-of-14.diff  ngx_http_v2_upstream-11-of-14.diff
+	ngx_http_v2_upstream-02-of-14.diff  ngx_http_v2_upstream-07-of-14.diff  ngx_http_v2_upstream-12-of-14.diff
+	ngx_http_v2_upstream-03-of-14.diff  ngx_http_v2_upstream-08-of-14.diff  ngx_http_v2_upstream-13-of-14.diff
+	ngx_http_v2_upstream-04-of-14.diff  ngx_http_v2_upstream-09-of-14.diff  ngx_http_v2_upstream-14-of-14.diff
+	ngx_http_v2_upstream-05-of-14.diff  ngx_http_v2_upstream-10-of-14.diff  series
 
 :code:`dquilt series` コマンドを実行して今取り込んだパッチが1番から14番の順に表示されることを確認します。
 
 .. code-block:: console
 
-    hnakamur@express:~/.ghq/github.com/hnakamur/nginx-deb$ dquilt series
-    ngx_http_v2_upstream-01-of-14.diff
-    ngx_http_v2_upstream-02-of-14.diff
-    ngx_http_v2_upstream-03-of-14.diff
-    ngx_http_v2_upstream-04-of-14.diff
-    ngx_http_v2_upstream-05-of-14.diff
-    ngx_http_v2_upstream-06-of-14.diff
-    ngx_http_v2_upstream-07-of-14.diff
-    ngx_http_v2_upstream-08-of-14.diff
-    ngx_http_v2_upstream-09-of-14.diff
-    ngx_http_v2_upstream-10-of-14.diff
-    ngx_http_v2_upstream-11-of-14.diff
-    ngx_http_v2_upstream-12-of-14.diff
-    ngx_http_v2_upstream-13-of-14.diff
-    ngx_http_v2_upstream-14-of-14.diff
+	$ dquilt series
+	ngx_http_v2_upstream-01-of-14.diff
+	ngx_http_v2_upstream-02-of-14.diff
+	ngx_http_v2_upstream-03-of-14.diff
+	ngx_http_v2_upstream-04-of-14.diff
+	ngx_http_v2_upstream-05-of-14.diff
+	ngx_http_v2_upstream-06-of-14.diff
+	ngx_http_v2_upstream-07-of-14.diff
+	ngx_http_v2_upstream-08-of-14.diff
+	ngx_http_v2_upstream-09-of-14.diff
+	ngx_http_v2_upstream-10-of-14.diff
+	ngx_http_v2_upstream-11-of-14.diff
+	ngx_http_v2_upstream-12-of-14.diff
+	ngx_http_v2_upstream-13-of-14.diff
+	ngx_http_v2_upstream-14-of-14.diff
 
 なお、ここで逆順になってしまっても、少なくともこの時点であれば :code:`debian/patches/series` を編集して順序を入れ替えれば大丈夫でした。一部のパッチを適用した後は試してないです。
 
@@ -202,23 +202,23 @@ dquiltでパッチをインポート
 
 .. code-block:: console
 
-    hnakamur@express:~/.ghq/github.com/hnakamur/nginx-deb$ dquilt next
-    ngx_http_v2_upstream-01-of-14.diff
-    hnakamur@express:~/.ghq/github.com/hnakamur/nginx-deb$ dquilt push
-    Applying patch ngx_http_v2_upstream-01-of-14.diff
-    patching file src/core/ngx_output_chain.c
+	$ dquilt next
+	ngx_http_v2_upstream-01-of-14.diff
+	$ dquilt push
+	Applying patch ngx_http_v2_upstream-01-of-14.diff
+	patching file src/core/ngx_output_chain.c
 
-    Now at patch ngx_http_v2_upstream-01-of-14.diff
+	Now at patch ngx_http_v2_upstream-01-of-14.diff
 
 gitレポジトリの状態を確認します。ここでは省略しますが :code:`git diff` で差分も見てみました。
 
 .. code-block:: console
 
-    hnakamur@express:~/.ghq/github.com/hnakamur/nginx-deb$ git status -sb
-    ## master
-     M src/core/ngx_output_chain.c
-     ?? .pc/
-     ?? debian/patches/
+	$ git status -sb
+	## master
+	 M src/core/ngx_output_chain.c
+	 ?? .pc/
+	 ?? debian/patches/
 
 :code:`.pc/` ディレクトリにはパッチの適用状況が管理されています。前回の記事では適用後は消すようにしていましたが、消すと :code:`dquilt applied` で適用状態を確認したりできなくなることがわかったので今回は残しておくことにしました。この記事では省略しますが、パッチを1つずつ適用するたびに中を見ていくとパッチごとのディレクトリが作られて状態を管理していることがわかります。
 
@@ -228,69 +228,69 @@ gitレポジトリの状態を確認します。ここでは省略しますが :
 
 .. code-block:: console
 
-    hnakamur@express:~/.ghq/github.com/hnakamur/nginx-deb$ dquilt next
-    ngx_http_v2_upstream-08-of-14.diff
-    hnakamur@express:~/.ghq/github.com/hnakamur/nginx-deb$ dquilt push
-    Applying patch ngx_http_v2_upstream-08-of-14.diff
-    patching file auto/modules
-    patching file src/core/ngx_connection.h
-    patching file src/http/ngx_http_upstream.c
-    Hunk #2 succeeded at 190 (offset 2 lines).
-    Hunk #3 succeeded at 1523 (offset 7 lines).
-    Hunk #4 succeeded at 1558 (offset 7 lines).
-    Hunk #5 succeeded at 1626 (offset 7 lines).
-    Hunk #6 succeeded at 1649 (offset 7 lines).
-    Hunk #7 FAILED at 1742.
-    Hunk #8 succeeded at 1878 (offset 15 lines).
-    Hunk #9 succeeded at 2017 (offset 15 lines).
-    Hunk #10 succeeded at 2219 (offset 15 lines).
-    Hunk #11 succeeded at 2282 (offset 15 lines).
-    Hunk #12 succeeded at 2400 (offset 15 lines).
-    Hunk #13 succeeded at 2436 (offset 15 lines).
-    Hunk #14 succeeded at 2684 (offset 15 lines).
-    Hunk #15 succeeded at 4192 (offset 15 lines).
-    Hunk #16 succeeded at 4373 (offset 15 lines).
-    1 out of 16 hunks FAILED -- rejects in file src/http/ngx_http_upstream.c
-    patching file src/http/ngx_http_upstream.h
-    patching file src/http/v2/ngx_http_v2.c
-    patching file src/http/v2/ngx_http_v2.h
-    patching file src/http/v2/ngx_http_v2_filter_module.c
-    patching file src/http/v2/ngx_http_v2_module.c
-    patching file src/http/v2/ngx_http_v2_upstream.c
-    Patch ngx_http_v2_upstream-08-of-14.diff does not apply (enforce with -f)
+	$ dquilt next
+	ngx_http_v2_upstream-08-of-14.diff
+	$ dquilt push
+	Applying patch ngx_http_v2_upstream-08-of-14.diff
+	patching file auto/modules
+	patching file src/core/ngx_connection.h
+	patching file src/http/ngx_http_upstream.c
+	Hunk #2 succeeded at 190 (offset 2 lines).
+	Hunk #3 succeeded at 1523 (offset 7 lines).
+	Hunk #4 succeeded at 1558 (offset 7 lines).
+	Hunk #5 succeeded at 1626 (offset 7 lines).
+	Hunk #6 succeeded at 1649 (offset 7 lines).
+	Hunk #7 FAILED at 1742.
+	Hunk #8 succeeded at 1878 (offset 15 lines).
+	Hunk #9 succeeded at 2017 (offset 15 lines).
+	Hunk #10 succeeded at 2219 (offset 15 lines).
+	Hunk #11 succeeded at 2282 (offset 15 lines).
+	Hunk #12 succeeded at 2400 (offset 15 lines).
+	Hunk #13 succeeded at 2436 (offset 15 lines).
+	Hunk #14 succeeded at 2684 (offset 15 lines).
+	Hunk #15 succeeded at 4192 (offset 15 lines).
+	Hunk #16 succeeded at 4373 (offset 15 lines).
+	1 out of 16 hunks FAILED -- rejects in file src/http/ngx_http_upstream.c
+	patching file src/http/ngx_http_upstream.h
+	patching file src/http/v2/ngx_http_v2.c
+	patching file src/http/v2/ngx_http_v2.h
+	patching file src/http/v2/ngx_http_v2_filter_module.c
+	patching file src/http/v2/ngx_http_v2_module.c
+	patching file src/http/v2/ngx_http_v2_upstream.c
+	Patch ngx_http_v2_upstream-08-of-14.diff does not apply (enforce with -f)
 
 メッセージの最後に書かれているように :code:`-f` をつけて :code:`dquilt push -f` を実行して強制的に適用します。
 
 .. code-block:: console
 
-    hnakamur@express:~/.ghq/github.com/hnakamur/nginx-deb$ dquilt push -f
-    Applying patch ngx_http_v2_upstream-08-of-14.diff
-    patching file auto/modules
-    patching file src/core/ngx_connection.h
-    patching file src/http/ngx_http_upstream.c
-    Hunk #2 succeeded at 190 (offset 2 lines).
-    Hunk #3 succeeded at 1523 (offset 7 lines).
-    Hunk #4 succeeded at 1558 (offset 7 lines).
-    Hunk #5 succeeded at 1626 (offset 7 lines).
-    Hunk #6 succeeded at 1649 (offset 7 lines).
-    Hunk #7 FAILED at 1742.
-    Hunk #8 succeeded at 1878 (offset 15 lines).
-    Hunk #9 succeeded at 2017 (offset 15 lines).
-    Hunk #10 succeeded at 2219 (offset 15 lines).
-    Hunk #11 succeeded at 2282 (offset 15 lines).
-    Hunk #12 succeeded at 2400 (offset 15 lines).
-    Hunk #13 succeeded at 2436 (offset 15 lines).
-    Hunk #14 succeeded at 2684 (offset 15 lines).
-    Hunk #15 succeeded at 4192 (offset 15 lines).
-    Hunk #16 succeeded at 4373 (offset 15 lines).
-    1 out of 16 hunks FAILED -- saving rejects to file src/http/ngx_http_upstream.c.rej
-    patching file src/http/ngx_http_upstream.h
-    patching file src/http/v2/ngx_http_v2.c
-    patching file src/http/v2/ngx_http_v2.h
-    patching file src/http/v2/ngx_http_v2_filter_module.c
-    patching file src/http/v2/ngx_http_v2_module.c
-    patching file src/http/v2/ngx_http_v2_upstream.c
-    Applied patch ngx_http_v2_upstream-08-of-14.diff (forced; needs refresh)
+	$ dquilt push -f
+	Applying patch ngx_http_v2_upstream-08-of-14.diff
+	patching file auto/modules
+	patching file src/core/ngx_connection.h
+	patching file src/http/ngx_http_upstream.c
+	Hunk #2 succeeded at 190 (offset 2 lines).
+	Hunk #3 succeeded at 1523 (offset 7 lines).
+	Hunk #4 succeeded at 1558 (offset 7 lines).
+	Hunk #5 succeeded at 1626 (offset 7 lines).
+	Hunk #6 succeeded at 1649 (offset 7 lines).
+	Hunk #7 FAILED at 1742.
+	Hunk #8 succeeded at 1878 (offset 15 lines).
+	Hunk #9 succeeded at 2017 (offset 15 lines).
+	Hunk #10 succeeded at 2219 (offset 15 lines).
+	Hunk #11 succeeded at 2282 (offset 15 lines).
+	Hunk #12 succeeded at 2400 (offset 15 lines).
+	Hunk #13 succeeded at 2436 (offset 15 lines).
+	Hunk #14 succeeded at 2684 (offset 15 lines).
+	Hunk #15 succeeded at 4192 (offset 15 lines).
+	Hunk #16 succeeded at 4373 (offset 15 lines).
+	1 out of 16 hunks FAILED -- saving rejects to file src/http/ngx_http_upstream.c.rej
+	patching file src/http/ngx_http_upstream.h
+	patching file src/http/v2/ngx_http_v2.c
+	patching file src/http/v2/ngx_http_v2.h
+	patching file src/http/v2/ngx_http_v2_filter_module.c
+	patching file src/http/v2/ngx_http_v2_module.c
+	patching file src/http/v2/ngx_http_v2_upstream.c
+	Applied patch ngx_http_v2_upstream-08-of-14.diff (forced; needs refresh)
 
 :code:`src/http/ngx_http_upstream.c.rej` を確認すると以下のような内容でした。
 
@@ -319,8 +319,8 @@ gitレポジトリの状態を確認します。ここでは省略しますが :
 :code:`src/http/ngx_http_upstream.c` の1742行付近を見た感じ、1769行目の前に入れればよさそうな雰囲気です。
 
 .. code-block:: text
-    :linenos: table
-    :linenostart: 1736
+	:linenos: table
+	:linenostart: 1736
 
 	static void
 	ngx_http_upstream_ssl_handshake(ngx_http_request_t *r, ngx_http_upstream_t *u,
@@ -374,14 +374,14 @@ gitレポジトリの状態を確認します。ここでは省略しますが :
 
 .. code-block:: console
 
-	hnakamur@express:~/.ghq/github.com/hnakamur/nginx-deb$ dquilt refresh
+	$ dquilt refresh
 	Refreshed patch ngx_http_v2_upstream-08-of-14.diff
 
 11番目のパッチは全く当たりませんでした。
 
 .. code-block:: console
 
-	hnakamur@express:~/.ghq/github.com/hnakamur/nginx-deb$ dquilt push
+	$ dquilt push
 	Applying patch ngx_http_v2_upstream-11-of-14.diff
 	patching file src/http/modules/ngx_http_proxy_module.c
 	Hunk #1 FAILED at 1151.
@@ -394,7 +394,7 @@ gitレポジトリの状態を確認します。ここでは省略しますが :
 
 .. code-block:: console
 
-	hnakamur@express:~/.ghq/github.com/hnakamur/nginx-deb$ dquilt push -f
+	$ dquilt push -f
 	Applying patch ngx_http_v2_upstream-11-of-14.diff
 	patching file src/http/modules/ngx_http_proxy_module.c
 	Hunk #1 FAILED at 1151.
@@ -415,7 +415,7 @@ gitレポジトリの状態を確認します。ここでは省略しますが :
 
 .. code-block:: console
 
-	hnakamur@express:~/.ghq/github.com/hnakamur/nginx-deb$ dquilt delete -r debian/patches/ngx_http_v2_upstream-11-of-14.d
+	$ dquilt delete -r debian/patches/ngx_http_v2_upstream-11-of-14.d
 	iff
 	Removing patch ngx_http_v2_upstream-11-of-14.diff
 	Now at patch ngx_http_v2_upstream-10-of-14.diff
@@ -425,9 +425,9 @@ gitレポジトリの状態を確認します。ここでは省略しますが :
 
 .. code-block:: console
 
-	hnakamur@express:~/.ghq/github.com/hnakamur/nginx-deb$ dquilt next
+	$ dquilt next
 	ngx_http_v2_upstream-12-of-14.diff
-	hnakamur@express:~/.ghq/github.com/hnakamur/nginx-deb$ dquilt push
+	$ dquilt push
 	Applying patch ngx_http_v2_upstream-12-of-14.diff
 	patching file src/http/modules/ngx_http_proxy_module.c
 	patching file src/http/v2/ngx_http_v2.h
@@ -441,7 +441,7 @@ gitレポジトリの状態は以下のようになっていました。
 
 .. code-block:: console
 
-	hnakamur@express:~/.ghq/github.com/hnakamur/nginx-deb$ git status -sb
+	$ git status -sb
 	## master
 	 M auto/modules
 	 M src/core/ngx_connection.h
@@ -507,7 +507,7 @@ gitレポジトリの状態を確認し、 :code:`debian/changelog` をコミッ
 
 .. code-block:: console
 
-	hnakamur@express:~/.ghq/github.com/hnakamur/nginx-deb$ git status -sb
+	$ git status -sb
 	## master
 	 M debian/changelog
 
@@ -544,7 +544,7 @@ debのバージョンに :code:`~` が入っていますが、gitのタグに :c
 
 .. code-block:: console
 
-	hnakamur@express:~/.ghq/github.com/hnakamur/nginx-deb$ git tag
+	$ git tag
 	debian/1.13.3-1_xenial
 	upstream/1.13.3
 
@@ -552,4 +552,4 @@ debのバージョンに :code:`~` が入っていますが、gitのタグに :c
 
 .. code-block:: console
 
-	hnakamur@express:~/.ghq/github.com/hnakamur/nginx-deb$ git tag debian/1.13.3-1_xenial1ppa1
+	$ git tag debian/1.13.3-1_xenial1ppa1
