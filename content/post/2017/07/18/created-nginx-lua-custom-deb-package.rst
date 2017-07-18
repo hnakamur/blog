@@ -158,3 +158,16 @@ LXDのコンテナを新規作成するなどしてクリーンな環境に作�
 * :code:`gdebi-core` パッケージをインストールしておいて、 :code:`gdebi debパッケージファイル名` でインストールする。
 
 そしてdebソースパッケージのmasterブランチを適宜rebaseしつつ、再ビルドして作成したdebパッケージが問題なくインストールできるようになったら完成です。
+
+PPAでビルドするアーキテクチャの変更
+-----------------------------------
+
+ローカルでビルドが通るようになったのでPPAを作ってアップロードしてみたのですが、amd64ではビルド成功するけどi386ではビルド失敗しました。
+
+i386のdebパッケージは私は不要なのでビルド対象から外すことにしました。
+
+`Packaging/PPA - Launchpad Help <https://help.launchpad.net/Packaging/PPA?action=show&redirect=PPA>`_ の
+`ARM builds <https://dev.launchpad.net/CommunityARMBuilds>`_ にARMをビルド対象に追加する手順が書かれていました。
+
+これを参考にi386を削除しました。自分のnginxのPPAのページの右上に Change details というリンクがあるので、
+それをクリックし Processors の下のチェックボックスの選択を変更してSaveボタンを押せばOKです。
