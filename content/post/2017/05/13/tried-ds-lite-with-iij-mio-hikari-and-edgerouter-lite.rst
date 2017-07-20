@@ -2,7 +2,7 @@ IIJmioひかりとEdgeRouter-LiteでDS-Liteを試してみた
 ##################################################
 
 :date: 2017-05-13 16:23
-:modified: 2017-05-14 10:03
+:modified: 2017-07-20 23:38
 :tags: edgerouter
 :category: blog
 :slug: 2017/05/13/tried-ds-lite-with-iij-mio-hikari-and-edgerouter-lite
@@ -521,7 +521,7 @@ IPv6 PPPoEを使っているわけではないですが、DNSサーバは共通�
 `IIJmioのIPv6スピードテスト <http://speedtest6.iijmio.jp>`_ で試しました。Flash Playerが必要なので、Chromeで chrome://settings/content にアクセスしてFlashの[例外を管理]ボタンを押して http://speedtest6.iijmio.jp を許可で追加しておきます。
 何回か時間を変えて計測してみると 93 Mbps ぐらいでした。
 
-`光回線でどのくらい速度が出ているか測定したい。 | 会員サポート ＞ Q&A（よくあるご質問） : @nifty <http://qa.nifty.com/cs/catalog/faq_nqa/qid_10463/1.htm>`_ の「NTT西日本」の「IPv6接続の場合」から辿って大阪のサーバで測定できるフレッツ速度測定サイト http://osaka.spee.flets-west.jp でも計ってみました。こちらも下り の「NTT西日本」の「IPv6接続の場合」から辿って大阪のサーバで測定できるフレッツ速度測定サイト http://osaka.spee.flets-west.jp でも計ってみました。こちらも下り91 Mbpsとだいたい90ちょっとでした。
+`光回線でどのくらい速度が出ているか測定したい。 | 会員サポート ＞ Q&A（よくあるご質問） : @nifty <http://qa.nifty.com/cs/catalog/faq_nqa/qid_10463/1.htm>`_ の「NTT西日本」の「IPv6接続の場合」から辿って大阪のサーバで測定できるフレッツ速度測定サイト http://osaka.speed.flets-west.jp でも計ってみました。こちらも下り91 Mbpsとだいたい90ちょっとでした。
 
 おわりに
 --------
