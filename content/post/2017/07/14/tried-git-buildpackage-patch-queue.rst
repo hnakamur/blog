@@ -2,7 +2,7 @@ git-buildpackageのpatch-queue機能を試してみた
 #############################################
 
 :date: 2017-07-14 11:20
-:tags: deb nginx
+:tags: deb, nginx
 :category: blog
 :slug: 2017/07/14/tried-git-buildpackage-patch-queue
 

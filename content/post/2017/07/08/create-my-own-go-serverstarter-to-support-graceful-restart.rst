@@ -2,7 +2,7 @@
 ##################################################################
 
 :date: 2017-07-08 21:25
-:tags: go graceful-restart
+:tags: go, graceful-restart
 :category: blog
 :slug: 2017/07/08/create-my-own-go-serverstarter-to-support-graceful-restart
 

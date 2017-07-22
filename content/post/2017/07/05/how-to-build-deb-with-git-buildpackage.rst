@@ -3,7 +3,7 @@ git-buildpackageでdebパッケージをビルドしてPPAにアップロード�
 
 :date: 2017-07-05 21:04
 :udpated: 2017-07-18 15:15
-:tags: deb git-buildpackage
+:tags: deb, git-buildpackage
 :category: blog
 :slug: 2017/07/05/how-to-build-deb-with-git-buildpackage
 

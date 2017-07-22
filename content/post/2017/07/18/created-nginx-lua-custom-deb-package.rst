@@ -2,7 +2,7 @@ nginx+luaのカスタムdebパッケージを作ってみた
 ############################################
 
 :date: 2017-07-18 15:20
-:tags: deb nginx lua
+:tags: deb, nginx, lua
 :category: blog
 :slug: 2017/07/18/created-nginx-custom-deb-package
 

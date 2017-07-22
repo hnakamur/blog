@@ -2,7 +2,7 @@ ngx_http_v2_upstreamモジュールを追加したnginxのdebパッケージを�
 ########################################################################
 
 :date: 2017-07-14 06:07
-:tags: deb nginx
+:tags: deb, nginx
 :category: blog
 :slug: 2017/07/14/build-nginx-deb-with-ngx_http_v2_upstream
 
