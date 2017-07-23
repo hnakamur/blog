@@ -2,6 +2,7 @@ badgerのコードリーディング
 ##########################
 
 :date: 2017-07-22 21:57
+:modified: 2017-07-23 09:54
 :tags: go, badger
 :category: blog
 :slug: 2017/07/22/code-reading-of-badger
@@ -22,7 +23,10 @@ badgerのコードリーディング
 
 なので、1つのプロセスで開いておいて、そのプロセスにアクセスを依頼する構成にする必要があります。
 
-:code:`NewKV` で返ってくる :code:`KV` がスレッドセーフ (正確にはgoroutineセーフ)、つまり複数のgoroutineから扱えるかは私はまだわかっていなくて、イシューで質問中です。
+:code:`NewKV` で返ってくる :code:`KV` がスレッドセーフ (正確にはgoroutineセーフ)、つまり複数のgoroutineから扱えるかは私はまだわかっていなくて、イシューで質問してみました。
+
+回答を頂いて複数のgoroutineから扱えるとのことでした。その後気づいたのですが、パフォーマンスを上げるには複数のgoroutineから :code:`BatchSet` でまとめて設定するのが良いと `FAQ <https://github.com/dgraph-io/badger#frequently-asked-questions>`_ にも書いてありました。
+
 
 SetやCompareAndSetなども内部ではBatchSetを呼んでいる
 ----------------------------------------------------
@@ -72,6 +76,11 @@ CompareAndSetでcasCounterを0にするとSetとほぼ同じ
 
 また、 :code:`Set` と違って :code:`CompareAndSet` のほうは :code:`BatchSet` が返す :code:`err` が :code:`nil` の場合にエントリ :code:`e` の :code:`Error` フィールドの値を返していますが、この違いがどういうことなのかは私はまだわかっていません。これもイシューで聞いてみました。
 
+その後回答を頂き、自分でもコードを改変してテストを実行するとエラーが出るのを確認して違いがわかりました。
+https://github.com/dgraph-io/badger/issues/113#issuecomment-317217631
+
+:code:`CasMismatch` のエラーは :code:`Entry` にセットされますが、 :code:`BatchSet` からは返されないので追加でチェックする必要があるというわけでした。
+
 casCounterが0になることはない
 -----------------------------
 
@@ -117,6 +126,18 @@ casCounterが0になることはない
         rand.Seed(time.Now().UnixNano())
     }
 
+casCounterが偶然衝突する確率は0.0015%
+-------------------------------------
+
+:code:`casCounter` の型は :code:`uint16` で上記の通り0は使わないので65535通り。
+
+.. code-block:: text
+
+    >>> 1.0 / 65535 * 100
+    0.0015259021896696422
+
+0.0015% が十分低いのかは私はよくわかりません。
+
 Touchが設定する値は空のbyteスライス
 -----------------------------------
 
@@ -125,3 +146,5 @@ Touchが設定する値は空のbyteスライス
 ドキュメントに明記してほしいと思ったので、テストの追加とドキュメント修正のプルリクエストを投げてみました。
 
 `Document the value created by Touch is an empty byte slice by hnakamur · Pull Request #115 · dgraph-io/badger <https://github.com/dgraph-io/badger/pull/115/files>`_
+
+その後このプルリクエストはマージされました。

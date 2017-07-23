@@ -30,6 +30,10 @@
         <abbr class="published" title="2017-07-22T21:57:00+09:00">
                 Published: 2017-07-22
         </abbr>
+		<br />
+        <abbr class="modified" title="2017-07-23T09:54:00+09:00">
+                Updated: 2017-07-23
+        </abbr>
 
         <address class="vcard author">
                 By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
@@ -47,7 +51,8 @@
 <h2>1つのデータディレクトリは複数のプロセスから同時アクセスは出来ない</h2>
 <p><code>NewKV</code> を読んだ時点でロックファイルを作るようになっているので、複数のプロセスから同じデータディレクトリに対して同時にアクセスは出来ません。やってみたらエラーになりました。</p>
 <p>なので、1つのプロセスで開いておいて、そのプロセスにアクセスを依頼する構成にする必要があります。</p>
-<p><code>NewKV</code> で返ってくる <code>KV</code> がスレッドセーフ (正確にはgoroutineセーフ)、つまり複数のgoroutineから扱えるかは私はまだわかっていなくて、イシューで質問中です。</p>
+<p><code>NewKV</code> で返ってくる <code>KV</code> がスレッドセーフ (正確にはgoroutineセーフ)、つまり複数のgoroutineから扱えるかは私はまだわかっていなくて、イシューで質問してみました。</p>
+<p>回答を頂いて複数のgoroutineから扱えるとのことでした。その後気づいたのですが、パフォーマンスを上げるには複数のgoroutineから <code>BatchSet</code> でまとめて設定するのが良いと <a class="reference external" href="https://github.com/dgraph-io/badger#frequently-asked-questions">FAQ</a> にも書いてありました。</p>
 </div>
 <div class="section" id="setcompareandsetbatchset">
 <h2>SetやCompareAndSetなども内部ではBatchSetを呼んでいる</h2>
@@ -86,6 +91,9 @@
 <code>Set</code> と同じ内容の <code>Entry</code> を作ることになるので同じ動きになることがわかります。</p>
 <p><code>Set</code> はキーが無い場合は作成し、有る場合は上書き更新しますので、 <code>CompareAndSet</code> でも <code>casCounter</code> を <code>0</code> にした場合は上書きされ得るということです。</p>
 <p>また、 <code>Set</code> と違って <code>CompareAndSet</code> のほうは <code>BatchSet</code> が返す <code>err</code> が <code>nil</code> の場合にエントリ <code>e</code> の <code>Error</code> フィールドの値を返していますが、この違いがどういうことなのかは私はまだわかっていません。これもイシューで聞いてみました。</p>
+<p>その後回答を頂き、自分でもコードを改変してテストを実行するとエラーが出るのを確認して違いがわかりました。
+<a class="reference external" href="https://github.com/dgraph-io/badger/issues/113#issuecomment-317217631">https://github.com/dgraph-io/badger/issues/113#issuecomment-317217631</a></p>
+<p><code>CasMismatch</code> のエラーは <code>Entry</code> にセットされますが、 <code>BatchSet</code> からは返されないので追加でチェックする必要があるというわけでした。</p>
 </div>
 <div class="section" id="cascounter0">
 <h2>casCounterが0になることはない</h2>
@@ -125,11 +133,20 @@
 <span class="p">}</span>
 </pre></div>
 </div>
+<div class="section" id="cascounter0-0015">
+<h2>casCounterが偶然衝突する確率は0.0015%</h2>
+<p><code>casCounter</code> の型は <code>uint16</code> で上記の通り0は使わないので65535通り。</p>
+<div class="highlight"><pre><span></span>&gt;&gt;&gt; 1.0 / 65535 * 100
+0.0015259021896696422
+</pre></div>
+<p>0.0015% が十分低いのかは私はよくわかりません。</p>
+</div>
 <div class="section" id="touchbyte">
 <h2>Touchが設定する値は空のbyteスライス</h2>
 <p><a class="reference external" href="https://godoc.org/github.com/dgraph-io/badger#KV.Touch">Touch - GoDoc</a> にはキーが存在する場合はそのまま帰って来て、キーが存在しない場合は設定すると書いてあります。が、どんな値が設定されるのか気になったので、テストを書いて確認してみたところ、空のbyteスライスでした。</p>
 <p>ドキュメントに明記してほしいと思ったので、テストの追加とドキュメント修正のプルリクエストを投げてみました。</p>
 <p><a class="reference external" href="https://github.com/dgraph-io/badger/pull/115/files">Document the value created by Touch is an empty byte slice by hnakamur · Pull Request #115 · dgraph-io/badger</a></p>
+<p>その後このプルリクエストはマージされました。</p>
 </div>
 
     </div><!-- /.entry-content -->
