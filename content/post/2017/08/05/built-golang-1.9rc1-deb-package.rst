@@ -4,7 +4,7 @@ golang 1.9rc1のUbuntu 16.04用debパッケージをビルドした
 :date: 2017-08-05 10:15
 :tags: go, deb
 :category: blog
-:slug: 08/05/built-golang-1.9rc1-deb-package
+:slug: 2017/08/05/built-golang-1.9rc1-deb-package
 
 はじめに
 --------
