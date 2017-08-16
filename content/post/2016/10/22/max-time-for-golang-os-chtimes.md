@@ -1,5 +1,6 @@
 Title: Go言語のos.Chtimesで設定可能な最大日時は 2262-04-11 23:47:16.854775807 +0000 UTC
 Date: 2016-10-22 18:32
+Modified: 2017-08-16 17:45
 Category: blog
 Tags: go
 Slug: 2016/10/22/max-time-for-golang-os-chtimes
@@ -10,7 +11,7 @@ Slug: 2016/10/22/max-time-for-golang-os-chtimes
 * [src/os/file_posix.go - The Go Programming Language](https://golang.org/src/os/file_posix.go?s=3693:3758#L123)
 * [go/file_posix.go at go1.7.3 · golang/go](https://github.com/golang/go/blob/go1.7.3/src/os/file_posix.go#L133-L141)
 
-を見ると、引数は `time.Time` なのですが、 `syscall.Timespec` に変換するときに `time` の `UnixNano()` を使っています。 `UnixNano()` は 1970-01-01T00:00:00Z からの通算ミリ秒です。
+を見ると、引数は `time.Time` なのですが、 `syscall.Timespec` に変換するときに `time` の `UnixNano()` を使っています。 `UnixNano()` は 1970-01-01T00:00:00Z からの通算ナノ秒です。
 
 `UnixNano()` で int64 の最大値を設定したときと、 `time.Time` で表現可能な最大の日時を調べてみました。
 
