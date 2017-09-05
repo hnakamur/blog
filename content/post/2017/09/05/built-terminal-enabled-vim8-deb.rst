@@ -32,7 +32,7 @@ vim が既にインストール済みの場合は :code:`apt upgrade` でアッ�
 
 .. code-block:: console
 
-        sudo apt install --only-upgrade vim
+        sudo apt install --only-upgrade vim vim-common vim-runtime vim-tiny xxd
 
 この方法は `How to upgrade a single package using apt-get? - Ask Ubuntu <https://askubuntu.com/questions/44122/how-to-upgrade-a-single-package-using-apt-get>`_ で知りました。
 
