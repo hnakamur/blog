@@ -2,6 +2,7 @@ pbuilderのchroot環境にレポジトリを追加する
 ##########################################
 
 :date: 2017-09-02 16:00
+:modified: 2017-09-10 09:13
 :tags: deb, pbuilder
 :category: blog
 :slug: 2017/09/02/add-repositories-to-pbuilder-chroot-images
@@ -88,6 +89,40 @@ gcc-7を使う際の chroot 環境の作成手順
 :code:`sudo pbuilder login --basetgz /var/cache/pbuilder/gcc7.tgz`
 で確認できます。
 
+pbuilder の chroot 環境の手動更新
+---------------------------------
+
+chroot 環境は一度作成すると更新されないので、ときどき以下の手順で :code:`apt update` と :code:`apt upgrade` 相当の更新をする必要があります。
+
+:code:`/var/cache/pbuilder/base.tgz` を更新する場合は以下のコマンドを実行します。
+
+.. code-block:: console
+
+        $ sudo pbuilder update
+       
+:code:`/var/cache/pbuilder/gcc7.tgz` を更新する場合は以下のコマンドを実行します。
+
+.. code-block:: console
+
+        $ sudo pbuilder update --basetgz /var/cache/pbuilder/gcc7.tgz
+
+ビルド時に apt update するための設定
+------------------------------------
+
+:code:`~/.pbuilderrc` に以下の設定を追加します。
+
+.. code-block:: text
+
+        HOOKDIR="/var/cache/pbuilder/hook.d"
+
+:code:`mkdir -p /var/cache/pbuilder/hook.d` でディレクトリを作成し、以下の内容で :code:`/var/cache/pbuilder/hook.d/D70apt-update` というファイルを作成し実行パーミションを付与します。
+
+.. code-block:: text
+
+        #!/bin/sh
+        /usr/bin/apt update
+
+
 ローカルにある自作debパッケージを使いたい場合のビルド手順
 ---------------------------------------------------------
 
@@ -95,10 +130,24 @@ gcc-7を使う際の chroot 環境の作成手順
 `How to include local packages in the build <https://wiki.debian.org/PbuilderTricks#How_to_include_local_packages_in_the_build>`_
 に書かれていました。
 
-上記のように chroot 環境を作っておけば、gcc-7 を使いつつローカルにある自作debパッケージのディレクトリ :code:`/var/www/html/my-debs/cache` をレポジトリとして追加してビルドするには以下のようにすればOKです。
+上記のように chroot 環境を作っておけば、gcc-7 を使いつつローカルにある自作debパッケージのレポジトリ :code:`http://localhost/my-debs/cache` をレポジトリとして追加してビルドするには以下のようにします。
 
 .. code-block:: console
 
-        $ sudo pbuilder build --override-config \
-                --othermirror 'deb [trusted=yes] file:/var/www/freight/cache xenial main' \
+        $ sudo pbuilder build --basetgz /var/cache/pbuilder/gcc7.tgz \
+                --override-config \
+                --othermirror 'deb [trusted=yes] http://localhost/my-debs/cache xenial main' \
                 dscファイル名
+
+なお、上記の「ビルド時に apt update するための設定」を行っておく必要があります。
+
+ビルド時にエラーになったときに chroot 環境に入る設定
+----------------------------------------------------
+
+上記の「ビルド時に apt update するための設定」の :code:`~/.pbuilderrc` の設定追加と
+:code:`HOOKDIR` のディレクトリを作成するのをやった上で、以下のコマンドで
+:code:`/var/cache/pbuilder/hook.d/C10shell` というシンボリックリンクを作成します。
+
+.. code-block:: console
+
+        $ sudo ln -s /usr/share/doc/pbuilder/examples/C10shell /var/cache/pbuilder/hook.d/
