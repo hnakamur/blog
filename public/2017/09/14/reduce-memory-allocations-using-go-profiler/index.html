@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+        <meta charset="utf-8" />
+        <title>Goのプロファイラを使ってメモリ割り当て回数を減らす</title>
+        <link rel="stylesheet" href="../../../../theme/css/main.css" />
+
+        <!--[if IE]>
+            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+        <![endif]-->
+</head>
+
+<body id="index" class="home">
+        <header id="banner" class="body">
+                <h1><a href="../../../../">hnakamur's blog at github </a></h1>
+                <nav><ul>
+                    <li class="active"><a href="../../../../category/blog.html">blog</a></li>
+                </ul></nav>
+        </header><!-- /#banner -->
+<section id="content" class="body">
+  <article>
+    <header>
+      <h1 class="entry-title">
+        <a href="../../../../2017/09/14/reduce-memory-allocations-using-go-profiler/" rel="bookmark"
+           title="Permalink to Goのプロファイラを使ってメモリ割り当て回数を減らす">Goのプロファイラを使ってメモリ割り当て回数を減らす</a></h1>
+    </header>
+
+    <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2017-09-14T22:30:00+09:00">
+                Published: 2017-09-14
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
+        </address>
+<p>In <a href="../../../../category/blog.html">blog</a>.</p>
+<p>tags: <a href="../../../../tag/go.html">go</a> <a href="../../../../tag/profiler.html">profiler</a> </p>
+</footer><!-- /.post-info -->      <div class="section" id="id1">
+<h2>はじめに</h2>
+<p>Goのプロファイラを使ってメモリ割り当て回数を減らすように自分のプログラムを改善するのを試してみたのでメモです。</p>
+</div>
+<div class="section" id="id2">
+<h2>参考資料</h2>
+<p>プロファイラの基本的な使い方の公式ブログ記事。</p>
+<ul class="simple">
+<li><a class="reference external" href="https://blog.golang.org/profiling-go-programs">Profiling Go Programs - The Go Blog</a></li>
+</ul>
+<p>プロファイラを使って最適化する説明動画とスライド。</p>
+<ul>
+<li><p class="first"><a class="reference external" href="https://www.youtube.com/watch?v=xxDZuPEgbBU&amp;feature=youtu.be">Profiling &amp; Optimizing in Go / Brad Fitzpatrick - YouTube</a></p>
+<blockquote>
+<ul class="simple">
+<li><a class="reference external" href="https://github.com/bradfitz/talk-yapc-asia-2015/blob/master/talk.md">talk-yapc-asia-2015/talk.md</a></li>
+</ul>
+</blockquote>
+</li>
+</ul>
+<p>pprofをプロダクションのコードに使ってメモリーリークを見つける方法の説明動画。</p>
+<ul class="simple">
+<li><a class="reference external" href="https://www.youtube.com/watch?v=ydWFpcoYraU">Finding Memory Leaks in Go Programs - Oleg Shaldybin - YouTube</a></li>
+</ul>
+</div>
+<div class="section" id="id3">
+<h2>サンプルプログラム</h2>
+<p>Linux で <code>/proc/loadavg</code> からロードアベレージの値を読み取るプログラムを書いて試してみました。</p>
+<p><code>~/go/src/github.com/hnakamur/systat</code> というディレクトリを作って、以下の2つのファイルを作成します。</p>
+<p><code>loadavg.go</code></p>
+<div class="highlight"><pre><span></span><span class="kn">package</span> <span class="nx">sysstat</span>
+
+<span class="kn">import</span> <span class="p">(</span>
+        <span class="s">&quot;os&quot;</span>
+        <span class="s">&quot;strconv&quot;</span>
+        <span class="s">&quot;strings&quot;</span>
+<span class="p">)</span>
+
+<span class="c1">// LoadAvg represents load averages for 1 minute, 5 minutes, and 15 minutes.</span>
+<span class="kd">type</span> <span class="nx">LoadAvg</span> <span class="kd">struct</span> <span class="p">{</span>
+        <span class="nx">Load1</span>  <span class="kt">float64</span>
+        <span class="nx">Load5</span>  <span class="kt">float64</span>
+        <span class="nx">Load15</span> <span class="kt">float64</span>
+<span class="p">}</span>
+
+<span class="c1">// ReadLoadAvg read the load average values.</span>
+<span class="kd">func</span> <span class="nx">ReadLoadAvg</span><span class="p">(</span><span class="nx">a</span> <span class="o">*</span><span class="nx">LoadAvg</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+        <span class="nx">file</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">os</span><span class="p">.</span><span class="nx">Open</span><span class="p">(</span><span class="s">&quot;/proc/loadavg&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+                <span class="k">return</span> <span class="nx">err</span>
+        <span class="p">}</span>
+        <span class="k">defer</span> <span class="nx">file</span><span class="p">.</span><span class="nx">Close</span><span class="p">()</span>
+
+        <span class="kd">var</span> <span class="nx">buf</span> <span class="p">[</span><span class="mi">80</span><span class="p">]</span><span class="kt">byte</span>
+        <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">file</span><span class="p">.</span><span class="nx">Read</span><span class="p">(</span><span class="nx">buf</span><span class="p">[:])</span>
+        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+                <span class="k">return</span> <span class="nx">err</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="nx">parseLoadAvg</span><span class="p">(</span><span class="nb">string</span><span class="p">(</span><span class="nx">buf</span><span class="p">[:</span><span class="nx">n</span><span class="p">]),</span> <span class="nx">a</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="nx">parseLoadAvg</span><span class="p">(</span><span class="nx">b</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">a</span> <span class="o">*</span><span class="nx">LoadAvg</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+        <span class="nx">fields</span> <span class="o">:=</span> <span class="nx">strings</span><span class="p">.</span><span class="nx">Fields</span><span class="p">(</span><span class="nx">b</span><span class="p">)</span>
+        <span class="nx">load1</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">strconv</span><span class="p">.</span><span class="nx">ParseFloat</span><span class="p">(</span><span class="nx">fields</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">64</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+                <span class="k">return</span> <span class="nx">err</span>
+        <span class="p">}</span>
+
+        <span class="nx">load5</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">strconv</span><span class="p">.</span><span class="nx">ParseFloat</span><span class="p">(</span><span class="nx">fields</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="mi">64</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+                <span class="k">return</span> <span class="nx">err</span>
+        <span class="p">}</span>
+
+        <span class="nx">load15</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">strconv</span><span class="p">.</span><span class="nx">ParseFloat</span><span class="p">(</span><span class="nx">fields</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="mi">64</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+                <span class="k">return</span> <span class="nx">err</span>
+        <span class="p">}</span>
+
+        <span class="nx">a</span><span class="p">.</span><span class="nx">Load1</span> <span class="p">=</span> <span class="nx">load1</span>
+        <span class="nx">a</span><span class="p">.</span><span class="nx">Load5</span> <span class="p">=</span> <span class="nx">load5</span>
+        <span class="nx">a</span><span class="p">.</span><span class="nx">Load15</span> <span class="p">=</span> <span class="nx">load15</span>
+        <span class="k">return</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</pre></div>
+<p><code>loadavg_test.go</code></p>
+<div class="highlight"><pre><span></span><span class="kn">package</span> <span class="nx">sysstat</span>
+
+<span class="kn">import</span> <span class="s">&quot;testing&quot;</span>
+
+<span class="kd">func</span> <span class="nx">TestParseLoadAvg</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">var</span> <span class="nx">a</span> <span class="nx">LoadAvg</span>
+        <span class="nx">line</span> <span class="o">:=</span> <span class="s">&quot;1.31 1.39 1.43 2/1081 24188\n&quot;</span>
+        <span class="nx">err</span> <span class="o">:=</span> <span class="nx">parseLoadAvg</span><span class="p">(</span><span class="nx">line</span><span class="p">,</span> <span class="o">&amp;</span><span class="nx">a</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+                <span class="nx">t</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="nx">a</span><span class="p">.</span><span class="nx">Load1</span> <span class="o">!=</span> <span class="mf">1.31</span> <span class="p">{</span>
+                <span class="nx">t</span><span class="p">.</span><span class="nx">Errorf</span><span class="p">(</span><span class="s">&quot;Load1 unmatch, got=%g, want=%g&quot;</span><span class="p">,</span> <span class="nx">a</span><span class="p">.</span><span class="nx">Load1</span><span class="p">,</span> <span class="mf">1.31</span><span class="p">)</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="nx">a</span><span class="p">.</span><span class="nx">Load5</span> <span class="o">!=</span> <span class="mf">1.39</span> <span class="p">{</span>
+                <span class="nx">t</span><span class="p">.</span><span class="nx">Errorf</span><span class="p">(</span><span class="s">&quot;Load5 unmatch, got=%g, want=%g&quot;</span><span class="p">,</span> <span class="nx">a</span><span class="p">.</span><span class="nx">Load5</span><span class="p">,</span> <span class="mf">1.39</span><span class="p">)</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="nx">a</span><span class="p">.</span><span class="nx">Load15</span> <span class="o">!=</span> <span class="mf">1.43</span> <span class="p">{</span>
+                <span class="nx">t</span><span class="p">.</span><span class="nx">Errorf</span><span class="p">(</span><span class="s">&quot;Load15 unmatch, got=%g, want=%g&quot;</span><span class="p">,</span> <span class="nx">a</span><span class="p">.</span><span class="nx">Load15</span><span class="p">,</span> <span class="mf">1.43</span><span class="p">)</span>
+        <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="nx">BenchmarkReadLoadAvg</span><span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">B</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">var</span> <span class="nx">a</span> <span class="nx">LoadAvg</span>
+        <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nx">b</span><span class="p">.</span><span class="nx">N</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+                <span class="nx">err</span> <span class="o">:=</span> <span class="nx">ReadLoadAvg</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">a</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+                        <span class="nx">b</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+                <span class="p">}</span>
+        <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+<p><code>~/go/src/github.com/hnakamur/systat</code> ディレクトリで以下のコマンドを実行し、テストが通ることを確認します。</p>
+<div class="highlight"><pre><span></span><span class="gp">$</span> go <span class="nb">test</span> -v
+<span class="go">=== RUN   TestParseLoadAvg</span>
+<span class="go">--- PASS: TestParseLoadAvg (0.00s)</span>
+<span class="go">PASS</span>
+<span class="go">ok      github.com/hnakamur/sysstat     0.001s</span>
+</pre></div>
+</div>
+<div class="section" id="id4">
+<h2>初回のベンチマーク</h2>
+<div class="highlight"><pre><span></span><span class="gp">$</span> go <span class="nb">test</span> -count<span class="o">=</span><span class="m">10</span> -run<span class="o">=</span>NONE -bench<span class="o">=</span>. -benchmem -memprofile<span class="o">=</span>loadavg.0.mprof -cpuprofile<span class="o">=</span>loadavg.0.cprof <span class="p">|</span> tee loadavg.0.bench
+<span class="go">goos: linux</span>
+<span class="go">goarch: amd64</span>
+<span class="go">pkg: github.com/hnakamur/sysstat</span>
+<span class="go">BenchmarkReadLoadAvg-2            200000              9378 ns/op             216 B/op          5 allocs/op</span>
+<span class="go">BenchmarkReadLoadAvg-2            200000              9381 ns/op             216 B/op          5 allocs/op</span>
+<span class="go">BenchmarkReadLoadAvg-2            200000              9404 ns/op             216 B/op          5 allocs/op</span>
+<span class="go">BenchmarkReadLoadAvg-2            200000              9370 ns/op             216 B/op          5 allocs/op</span>
+<span class="go">BenchmarkReadLoadAvg-2            200000              9372 ns/op             216 B/op          5 allocs/op</span>
+<span class="go">BenchmarkReadLoadAvg-2            200000              9369 ns/op             216 B/op          5 allocs/op</span>
+<span class="go">BenchmarkReadLoadAvg-2            200000              9348 ns/op             216 B/op          5 allocs/op</span>
+<span class="go">BenchmarkReadLoadAvg-2            200000              9450 ns/op             216 B/op          5 allocs/op</span>
+<span class="go">BenchmarkReadLoadAvg-2            200000              9438 ns/op             216 B/op          5 allocs/op</span>
+<span class="go">BenchmarkReadLoadAvg-2            200000              9429 ns/op             216 B/op          5 allocs/op</span>
+<span class="go">PASS</span>
+<span class="go">ok      github.com/hnakamur/sysstat     19.925s</span>
+</pre></div>
+</div>
+<div class="section" id="id5">
+<h2>メモリ割り当て量が多い箇所の確認</h2>
+<p><code>go tool pprof</code> に <code>--alloc_space</code> オプションを指定して起動するとメモリ割り当て量を調べられます。
+起動すると <code>(pprof)</code> というプロンプトが表示されます。</p>
+<div class="highlight"><pre><span></span><span class="gp">$</span> go tool pprof --alloc_space sysstat.test loadavg.0.mprof
+<span class="go">File: sysstat.test</span>
+<span class="go">Type: alloc_space</span>
+<span class="go">Time: Sep 14, 2017 at 10:55am (JST)</span>
+<span class="go">Entering interactive mode (type &quot;help&quot; for commands, &quot;o&quot; for options)</span>
+<span class="go">(pprof)</span>
+</pre></div>
+<p><code>top</code> コマンドを実行すると、メモリ割り当て量が多かった top 10 のソースコードの箇所が表示されます。</p>
+<div class="highlight"><pre><span></span><span class="go">(pprof) top</span>
+<span class="go">Showing nodes accounting for 420.03MB, 99.38% of 422.63MB total</span>
+<span class="go">Dropped 14 nodes (cum &lt;= 2.11MB)</span>
+<span class="go">Showing top 10 nodes out of 13</span>
+<span class="go">          flat  flat%   sum%        cum   cum%</span>
+<span class="go">  174.01MB 41.17% 41.17%   174.01MB 41.17%  os.newFile /usr/lib/go-1.9/src/os/file_unix.go</span>
+<span class="go">  154.51MB 36.56% 77.73%   154.51MB 36.56%  strings.Fields /usr/lib/go-1.9/src/strings/strings.go</span>
+<span class="go">   60.50MB 14.32% 92.05%   420.03MB 99.38%  github.com/hnakamur/sysstat.ReadLoadAvg /home/hnakamur/go/src/github.com/hnakamur/sysstat/loadavg.go</span>
+<span class="go">          31MB  7.34% 99.38%       31MB  7.34%  syscall.ByteSliceFromString /usr/lib/go-1.9/src/syscall/syscall.go</span>
+<span class="go">                 0     0% 99.38%   420.03MB 99.38%  github.com/hnakamur/sysstat.BenchmarkReadLoadAvg /home/hnakamur/go/src/github.com/hnakamur/sysstat/loadavg_test.go</span>
+<span class="go">                 0     0% 99.38%   154.51MB 36.56%  github.com/hnakamur/sysstat.parseLoadAvg /home/hnakamur/go/src/github.com/hnakamur/sysstat/loadavg.go</span>
+<span class="go">                 0     0% 99.38%   205.01MB 48.51%  os.Open /usr/lib/go-1.9/src/os/file.go</span>
+<span class="go">                 0     0% 99.38%   205.01MB 48.51%  os.OpenFile /usr/lib/go-1.9/src/os/file_unix.go</span>
+<span class="go">                 0     0% 99.38%       31MB  7.34%  syscall.BytePtrFromString /usr/lib/go-1.9/src/syscall/syscall.go</span>
+<span class="go">                 0     0% 99.38%       31MB  7.34%  syscall.Open /usr/lib/go-1.9/src/syscall/syscall_linux.go</span>
+</pre></div>
+</div>
+<div class="section" id="id6">
+<h2>メモリ割り当て回数が多い箇所の確認</h2>
+<p>Ctrl-D を押して抜けて、今度は <code>go tool pprof</code> に <code>--alloc_objects</code> オプションを指定して起動し、 <code>top</code> コマンドを実行して、メモリ割り当て回数の top 10 を確認します。</p>
+<div class="highlight"><pre><span></span><span class="gp">$</span> go tool pprof --alloc_objects sysstat.test loadavg.0.mprof
+<span class="go">File: sysstat.test</span>
+<span class="go">Type: alloc_objects</span>
+<span class="go">Time: Sep 14, 2017 at 10:55am (JST)</span>
+<span class="go">Entering interactive mode (type &quot;help&quot; for commands, &quot;o&quot; for options)</span>
+<span class="go">(pprof) top</span>
+<span class="go">Showing nodes accounting for 9853756, 100% of 9853762 total</span>
+<span class="go">Dropped 14 nodes (cum &lt;= 49268)</span>
+<span class="go">Showing top 10 nodes out of 13</span>
+<span class="go">          flat  flat%   sum%        cum   cum%</span>
+<span class="go">   3814369 38.71% 38.71%    3814369 38.71%  os.newFile /usr/lib/go-1.9/src/os/file_unix.go</span>
+<span class="go">   2031647 20.62% 59.33%    2031647 20.62%  syscall.ByteSliceFromString /usr/lib/go-1.9/src/syscall/syscall.go</span>
+<span class="go">   2025216 20.55% 79.88%    2025216 20.55%  strings.Fields /usr/lib/go-1.9/src/strings/strings.go</span>
+<span class="go">   1982524 20.12%   100%    9853756   100%  github.com/hnakamur/sysstat.ReadLoadAvg /home/hnakamur/go/src/github.com/hnakamur/sysstat/loadavg.go</span>
+<span class="go">                 0     0%   100%    9853756   100%  github.com/hnakamur/sysstat.BenchmarkReadLoadAvg /home/hnakamur/go/src/github.com/hnakamur/sysstat/loadavg_test.go</span>
+<span class="go">                 0     0%   100%    2025216 20.55%  github.com/hnakamur/sysstat.parseLoadAvg /home/hnakamur/go/src/github.com/hnakamur/sysstat/loadavg.go</span>
+<span class="go">                 0     0%   100%    5846016 59.33%  os.Open /usr/lib/go-1.9/src/os/file.go</span>
+<span class="go">                 0     0%   100%    5846016 59.33%  os.OpenFile /usr/lib/go-1.9/src/os/file_unix.go</span>
+<span class="go">                 0     0%   100%    2031647 20.62%  syscall.BytePtrFromString /usr/lib/go-1.9/src/syscall/syscall.go</span>
+<span class="go">                 0     0%   100%    2031647 20.62%  syscall.Open /usr/lib/go-1.9/src/syscall/syscall_linux.go</span>
+</pre></div>
+<p>一番割り当て回数が多い <code>os.newFile</code> 関数について <code>list</code> コマンドを実行し、関数内のどこでメモリ割り当てが行われているかを確認します。</p>
+<div class="highlight"><pre><span></span><span class="go">(pprof) list os.newFile</span>
+<span class="go">Total: 9853762</span>
+<span class="go">ROUTINE ======================== os.newFile in /usr/lib/go-1.9/src/os/file_unix.go</span>
+<span class="go">   3814369    3814369 (flat, cum) 38.71% of Total</span>
+<span class="go">                 .          .     82:func newFile(fd uintptr, name string, pollable bool) *File {</span>
+<span class="go">                 .          .     83:   fdi := int(fd)</span>
+<span class="go">                 .          .     84:   if fdi &lt; 0 {</span>
+<span class="go">                 .          .     85:           return nil</span>
+<span class="go">                 .          .     86:   }</span>
+<span class="go">   1703949    1703949     87:   f := &amp;File{&amp;file{</span>
+<span class="go">                 .          .     88:           pfd: poll.FD{</span>
+<span class="go">                 .          .     89:                   Sysfd:         fdi,</span>
+<span class="go">                 .          .     90:                   IsStream:      true,</span>
+<span class="go">                 .          .     91:                   ZeroReadIsEOF: true,</span>
+<span class="go">                 .          .     92:           },</span>
+<span class="go">   2110420    2110420     93:           name: name,</span>
+<span class="go">                 .          .     94:   }}</span>
+<span class="go">                 .          .     95:</span>
+<span class="go">                 .          .     96:   // Don&#39;t try to use kqueue with regular files on FreeBSD.</span>
+<span class="go">                 .          .     97:   // It crashes the system unpredictably while running all.bash.</span>
+<span class="go">                 .          .     98:   // Issue 19093.</span>
+</pre></div>
+<p><code>os.File</code> 構造体を作るためにメモリ割り当てが行われているようです。</p>
+</div>
+<div class="section" id="os-opensyscall-open">
+<h2>os.Openなどを止めてsyscall.Openなどを使うように改変</h2>
+<p><code>loadavg.go</code> の <code>ReadLoadAvg</code> 関数を以下のように書き換えてみます。</p>
+<div class="highlight"><pre><span></span><span class="c1">// ReadLoadAvg read the load average values.</span>
+<span class="kd">func</span> <span class="nx">ReadLoadAvg</span><span class="p">(</span><span class="nx">a</span> <span class="o">*</span><span class="nx">LoadAvg</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+        <span class="nx">fd</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">Open</span><span class="p">(</span><span class="s">&quot;/proc/loadavg&quot;</span><span class="p">,</span> <span class="nx">os</span><span class="p">.</span><span class="nx">O_RDONLY</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+                <span class="k">return</span> <span class="nx">err</span>
+        <span class="p">}</span>
+        <span class="k">defer</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">Close</span><span class="p">(</span><span class="nx">fd</span><span class="p">)</span>
+
+        <span class="kd">var</span> <span class="nx">buf</span> <span class="p">[</span><span class="mi">80</span><span class="p">]</span><span class="kt">byte</span>
+        <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">Read</span><span class="p">(</span><span class="nx">fd</span><span class="p">,</span> <span class="nx">buf</span><span class="p">[:])</span>
+        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+                <span class="k">return</span> <span class="nx">err</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="nx">parseLoadAvg</span><span class="p">(</span><span class="nb">string</span><span class="p">(</span><span class="nx">buf</span><span class="p">[:</span><span class="nx">n</span><span class="p">]),</span> <span class="nx">a</span><span class="p">)</span>
+<span class="p">}</span>
+</pre></div>
+<p>import 文も適宜変更します。私は <a class="reference external" href="https://github.com/fatih/vim-go">fatih/vim-go: Go development plugin for Vim</a> と <a class="reference external" href="https://godoc.org/golang.org/x/tools/cmd/goimports">goimports</a> を使ってファイルの保存時に自動的に変更するようにしています。</p>
+<p>詳しくは vim-go チュートリアルの <a class="reference external" href="https://github.com/fatih/vim-go-tutorial#imports">imports</a> あるいは
+その日本語訳の <a class="reference external" href="https://github.com/hnakamur/vim-go-tutorial-ja#import%E6%96%87">import文</a> を参照してください。</p>
+</div>
+<div class="section" id="id7">
+<h2>改変後のベンチマーク</h2>
+<p>出力ファイル名を変えて再度ベンチマークを実行します。</p>
+<div class="highlight"><pre><span></span><span class="gp">$</span> go <span class="nb">test</span> -count<span class="o">=</span><span class="m">10</span> -run<span class="o">=</span>NONE -bench<span class="o">=</span>. -benchmem -memprofile<span class="o">=</span>loadavg.1.mprof <span class="p">|</span> tee loadavg.1.bench
+<span class="go">goos: linux</span>
+<span class="go">goarch: amd64</span>
+<span class="go">pkg: github.com/hnakamur/sysstat</span>
+<span class="go">BenchmarkReadLoadAvg-2            200000              6275 ns/op             128 B/op          3 allocs/op</span>
+<span class="go">BenchmarkReadLoadAvg-2            200000              6233 ns/op             128 B/op          3 allocs/op</span>
+<span class="go">BenchmarkReadLoadAvg-2            200000              6204 ns/op             128 B/op          3 allocs/op</span>
+<span class="go">BenchmarkReadLoadAvg-2            300000              6205 ns/op             128 B/op          3 allocs/op</span>
+<span class="go">BenchmarkReadLoadAvg-2            200000              8682 ns/op             128 B/op          3 allocs/op</span>
+<span class="go">BenchmarkReadLoadAvg-2            200000              7113 ns/op             128 B/op          3 allocs/op</span>
+<span class="go">BenchmarkReadLoadAvg-2            300000              6178 ns/op             128 B/op          3 allocs/op</span>
+<span class="go">BenchmarkReadLoadAvg-2            300000              6229 ns/op             128 B/op          3 allocs/op</span>
+<span class="go">BenchmarkReadLoadAvg-2            200000              6209 ns/op             128 B/op          3 allocs/op</span>
+<span class="go">BenchmarkReadLoadAvg-2            200000              6206 ns/op             128 B/op          3 allocs/op</span>
+<span class="go">PASS</span>
+<span class="go">ok      github.com/hnakamur/sysstat     15.753s</span>
+</pre></div>
+</div>
+<div class="section" id="id8">
+<h2>ベンチマーク結果の比較</h2>
+<p><a class="reference external" href="/blog/2017/05/28/improve-ltsvlog-with-referring-to-zerolog/">zerologを参考にしてltsvlogを改良してみた</a> に書いた <code>benchstat</code> コマンドを使って結果を比較します。</p>
+<div class="highlight"><pre><span></span><span class="gp">$</span> benchstat loadavg.0.bench loadavg.1.bench
+<span class="go">name          old time/op    new time/op    delta</span>
+<span class="go">ReadLoadAvg-2    9.39µs ± 1%    6.22µs ± 1%  -33.81%  (p=0.000 n=10+8)</span>
+
+<span class="go">name          old alloc/op   new alloc/op   delta</span>
+<span class="go">ReadLoadAvg-2      216B ± 0%      128B ± 0%  -40.74%  (p=0.000 n=10+10)</span>
+
+<span class="go">name          old allocs/op  new allocs/op  delta</span>
+<span class="go">ReadLoadAvg-2      5.00 ± 0%      3.00 ± 0%  -40.00%  (p=0.000 n=10+10)</span>
+</pre></div>
+<p>ReadLoadAvg の1回の呼び出しに対して、
+メモリ割り当て回数 <code>allocs/op</code> は5回から3回、
+メモリ割り当て量 <code>alloc/op</code> は216バイトから128バイト、
+実行時間 <code>time/op</code> は9.39マイクロ秒から6.22マイクロ秒に改善されました。</p>
+</div>
+
+    </div><!-- /.entry-content -->
+
+  </article>
+</section>
+        <section id="extras" class="body">
+        </section><!-- /#extras -->
+
+        <footer id="contentinfo" class="body">
+                <address id="about" class="vcard body">
+                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
+                </address><!-- /#about -->
+
+                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
+        </footer><!-- /#contentinfo -->
+
+    <script type="text/javascript">
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-53263855-1', 'auto');
+    ga('send', 'pageview');
+    </script>
+</body>
+</html>
