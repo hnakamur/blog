@@ -2,7 +2,7 @@ git-buildpackageでdebパッケージをビルドしてPPAにアップロード�
 ####################################################################
 
 :date: 2017-07-05 21:04
-:udpated: 2017-07-18 15:15
+:udpated: 2018-03-20 23:00
 :tags: deb, git-buildpackage
 :category: blog
 :slug: 2017/07/05/how-to-build-deb-with-git-buildpackage
@@ -87,7 +87,9 @@ Ubuntuでは :code:`~/.bash_profile` が存在すると :code:`~/.bashrc` が読
 
 .. code-block:: console
 
-    sudo apt install git-buildpackage quilt pbuilder debootstrap devscripts dput
+    sudo apt install git-buildpackage quilt pbuilder debootstrap devscripts dput debhelper
+
+2018-03-20 追記 debhelper も必要だったので上記に追記しました。
 
 pbuilderで使うchroot環境作成
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
