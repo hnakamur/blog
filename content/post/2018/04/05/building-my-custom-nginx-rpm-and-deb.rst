@@ -474,11 +474,23 @@ debのgitレポジトリの更新とリリース作成
 --------------------------------------
 
 ローカルのgitレポジトリでの変更をgithubに反映します。
-:code:`g push origin --all` と :code:`-f` なしだと :code:`patch-queue` ブランチがconflictするので、乱暴ですが :code:`-f` ありで実行しています。まあ、 :code:`patch-queue` は一時的な作業用ブランチなのとこのgitレポジトリはチームではなく一人作業用なのでよしということで。
+
+一旦以下のコマンドでプッシュを試みます。
+
+.. code-block:: console
+
+        g push origin --all
+
+:code:`patch-queue` ブランチがconflictする場合は、乱暴ですが :code:`-f` つきで再度プッシュします。まあ、 :code:`patch-queue` は一時的な作業用ブランチなのとこのgitレポジトリはチームではなく一人作業用なのでよしということで。
 
 .. code-block:: console
 
         g push origin --all -f
+
+タグもプッシュします。
+
+.. code-block:: console
+
         g push origin --tags
 
 PPAでビルドされたrpmをダウンロードし、githubレポジトリにリリースを作成してアップロード。
