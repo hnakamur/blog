@@ -15,6 +15,13 @@ nginxのカスタムrpmとdebをビルドし始めてから結構経っていま
 
 以下ではバージョン1.13.11の例をメモします。
 
+必要に応じてluajitのrpmをビルド
+===============================
+
+`Releases · openresty/luajit2 <https://github.com/openresty/luajit2/releases>`_ を見て新しいリリースが出ていたら
+`hnakamur/luajit-rpm <https://github.com/hnakamur/luajit-rpm>`_ を更新してluajitのrpmを
+`hnakamur/luajit Copr <https://copr.fedorainfracloud.org/coprs/hnakamur/luajit/>`_ でビルドします。手順はこのnginxのrpmとほぼ同様なので省略します。
+
 tarballのダウンロード
 =====================
 
