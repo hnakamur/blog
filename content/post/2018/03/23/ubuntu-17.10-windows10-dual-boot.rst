@@ -2,6 +2,7 @@ Ubuntu 17.10とWindows10でデュアルブート構成にしてみた
 #####################################################
 
 :date: 2018-03-23 20:15
+:modified: 2018-04-08 19:25
 :tags: ubuntu, windows
 :category: blog
 :slug: 2018/03/23/ubuntu-17.10-windows10-dual-boot
@@ -147,6 +148,30 @@ WaylandからXorgに切り替え
 
 1. [編集]→[プロファイルの設定]メニューを選択
 2. [全般]タブの[フォントを指定する]にチェックを入れて、右のボタンを押してフォントを選択して設定
+
+Windowsでブートしたときの時刻のずれを解消 (2018-04-08追記)
+----------------------------------------------------------
+
+UbuntuをインストールするとハードウェアクロックはUTCに設定されます。
+一方Windowsはデフォルトではローカルタイムを想定しているので、Windowsでブートすると時刻がずれた状態になります。
+自動設定を一度オフにして再度オンにすると治るのですが、リブートすると再発して困ってました。
+
+過去のページを参考に設定したら解消できました。
+
+* `UbuntuTime - Community Help Wiki <https://help.ubuntu.com/community/UbuntuTime#Multiple_Boot_Systems_Time_Conflicts>`_
+* `Linux_Windowsデュアルブート環境時における時刻ずれの解決 - Varg <http://d.hatena.ne.jp/gin135/20140304/1393943319>`_
+
+WindowsがハードウェアクロックのタイムゾーンをUTCとして扱うように変更するには、管理者権限でコマンドプロンプトを起動して以下のコマンドを実行し、再起動します。
+
+.. code-block:: console
+
+    reg add HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation /v RealTimeIsUniversal /t REG_DWORD /d 1
+
+もし元に戻す場合は以下のコマンドを実行して再起動します。
+
+.. code-block:: console
+
+    reg delete HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation /v RealTimeIsUniversal /f
 
 おわりに
 ========
