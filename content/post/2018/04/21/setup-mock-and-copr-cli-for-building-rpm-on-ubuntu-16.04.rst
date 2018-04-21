@@ -125,5 +125,5 @@ fedora coprアカウントでログインするとAPIトークンのファイル
 実際のビルドの例
 ----------------
 
-* `私のnginxのカスタムrpmとdebをビルドする手順 <http://192.168.2.203:8000/2018/04/05/building-my-custom-nginx-rpm-and-deb/>`_
-* `私のgoのrpmとdebをビルドする手順 <http://192.168.2.203:8000/2018/04/05/building-my-golang-rpm-and-deb/>`_
+* `私のnginxのカスタムrpmとdebをビルドする手順 </blog/2018/04/05/building-my-custom-nginx-rpm-and-deb/>`_
+* `私のgoのrpmとdebをビルドする手順 </blog/2018/04/05/building-my-golang-rpm-and-deb/>`_
