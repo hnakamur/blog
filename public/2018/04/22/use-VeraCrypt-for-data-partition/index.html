@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+        <meta charset="utf-8" />
+        <title>VeraCryptでデータパーティションを暗号化してみた</title>
+        <link rel="stylesheet" href="../../../../theme/css/main.css" />
+
+        <!--[if IE]>
+            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+        <![endif]-->
+</head>
+
+<body id="index" class="home">
+        <header id="banner" class="body">
+                <h1><a href="../../../../">hnakamur's blog at github </a></h1>
+                <nav><ul>
+                    <li class="active"><a href="../../../../category/blog.html">blog</a></li>
+                </ul></nav>
+        </header><!-- /#banner -->
+<section id="content" class="body">
+  <article>
+    <header>
+      <h1 class="entry-title">
+        <a href="../../../../2018/04/22/use-VeraCrypt-for-data-partition/" rel="bookmark"
+           title="Permalink to VeraCryptでデータパーティションを暗号化してみた">VeraCryptでデータパーティションを暗号化してみた</a></h1>
+    </header>
+
+    <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2018-04-22T20:45:00+09:00">
+                Published: 2018-04-22
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
+        </address>
+<p>In <a href="../../../../category/blog.html">blog</a>.</p>
+<p>tags: <a href="../../../../tag/ubuntu.html">ubuntu</a> <a href="../../../../tag/veraccypt.html">veraCcypt</a> </p>
+</footer><!-- /.post-info -->      <div class="section" id="id1">
+<h2>はじめに</h2>
+<p>Windows 10とUbuntu 16.04のデュアルブート環境でデータ用のパーティションを <a class="reference external" href="https://www.veracrypt.fr/en/Home.html">VeraCrypt - Free Open source disk encryption with strong security for the Paranoid</a> で暗号化して
+両方からマウントするというのを試してみたのでメモです。</p>
+<p><a class="reference external" href="https://ja.wikipedia.org/wiki/VeraCrypt">VeraCrypt - Wikipedia</a> によると開発が終了したTrueCryptというソフトウェアのフォークらしいです。</p>
+</div>
+<div class="section" id="ntfs">
+<h2>ファイルシステムはNTFSを選択</h2>
+<p>データパーティションのファイルシステムは何にしようかと思って検索してみると
+<a class="reference external" href="http://www.ext2fsd.com/">Ext2Fsd Project</a> というのもみつけました。
+これで、Windowsからext3やext4をマウントするという案もちょっとだけ考えたのですが、
+2017-11-02の &quot;Ext2Fsd 0.69 released !&quot; の記事を眺めてみるとまだデータ消失のリスクがありそうな感じでした。</p>
+<p>FAT32はジャーナルが無いのでファイルシステムで不整合が起きたときのことを考えると
+ジャーナルのあるNTFSをLinuxからマウントするほうが良さそうと思いました。</p>
+<p>検索してみると <a class="reference external" href="https://www.tuxera.com/community/open-source-ntfs-3g/">NTFS-3G - Tuxera</a> という
+ドライバがあって読み書きともに安定して使えるようです。
+<a class="reference external" href="https://ja.wikipedia.org/wiki/NTFS-3G">NTFS-3G - Wikipedia</a> と
+<a class="reference external" href="https://wiki.archlinux.jp/index.php/NTFS-3G">NTFS-3G - ArchWiki</a> も眺めてみましたが良さそうです。</p>
+<p>ということでNTFSを選択しました。</p>
+</div>
+<div class="section" id="windowsveracrypt">
+<h2>WindowsにVeraCryptをインストールしてデータパーティションを暗号化</h2>
+<p>データのドライブの作成とNTFSでのフォーマットは
+<a class="reference external" href="http://www.century.co.jp/support/faq/windows-10-format.html">Windows10でのハードディスク（HDD）のフォーマット方法 - 株式会社センチュリー</a>
+のような感じで行いました。</p>
+<p>「ドライブ文字またはパスの割り当て」では「ドライブ文字またはドライブパスを割り当てない」を選択しました。
+VeraCrypt経由でアクセスするためのドライブを別に作るのでそちらにドライブ文字を割り当てるので、
+元のパーティションでは不要という判断です。</p>
+<p>ドライブ文字を割り当てても動作に問題はないのですが、エクスプローラで元のパーティションのドライブを選んでも
+エラーになるだけなので割り当てる利点は薄いと思います。</p>
+<p>VeraCryptについては <a class="reference external" href="https://freepc.jp/post-14806">「VeraCypt」で暗号化された仮想ドライブを作成する手順</a> を参考にしました。
+ただしダウンロードは <a class="reference external" href="https://www.veracrypt.fr/en/Downloads.html">VeraCryptのダウンロードページ</a> からにしました。また、VeraCryptボリューム作成ウィザードの箇所では「非システムパーティション/ドライブを暗号化」を選んで、上記で作成したデータ用のパーティションを選択しました。</p>
+<div class="section" id="windows">
+<h3>Windowsのログオン時に自動的にマウントする設定</h3>
+<p><a class="reference external" href="https://www.veracrypt.fr/en/FAQ.html">VeraCryptのFAQ</a> の
+&quot;Can a volume be automatically mounted whenever I log on to Windows?&quot; に書かれていた手順で出来ました。</p>
+<ol class="arabic simple">
+<li>対象のパーティションをマウントする。</li>
+<li>VeraCryptのメインウィンドウでマウントしたドライブを選んで右クリックし &quot;Add to Favorites&quot; (お気に入りに追加)メニューを選択。</li>
+<li>Favorites Orgranizerのウィンドウで &quot;Mount selected volume upon logon&quot; を有効にしてOKを押す。</li>
+</ol>
+</div>
+<div class="section" id="id2">
+<h3>Windowsのシャットダウンや再起動時は自動的にアンマウント</h3>
+<p>また、同じページの
+&quot;Do I have to dismount VeraCrypt volumes before shutting down or restarting Windows?&quot;
+によるとWindowsのシャットダウンや再起動時は自動的にアンマウントされるとのことなので、手動でのアンマウントは不要です。</p>
+</div>
+</div>
+<div class="section" id="ubuntuveracryptwindowsveracrypt">
+<h2>UbuntuにVeraCryptをインストールしてWindowsのVeraCryptで暗号化したパーティションをマウント</h2>
+<p><a class="reference external" href="https://www.veracrypt.fr/en/Downloads.html">VeraCryptのダウンロードページ</a> を見るとLinux用にもインストーラが用意されているのですが
+<a class="reference external" href="https://launchpad.net/~unit193/+archive/ubuntu/encryption">Encryption software : Unit 193</a> というPPAにUbuntu 16.04用のパッケージがありましたので、これを使わせて頂きました。ありがとうございます！</p>
+<div class="highlight"><pre><span></span><span class="go">sudo add-apt-repository ppa:unit193/encryption</span>
+<span class="go">sudo apt update</span>
+<span class="go">sudo apt install veracrypt</span>
+</pre></div>
+<p>インストール後は <a class="reference external" href="https://linuxfan.info/veracrypt">死んだ後も安心！？VeraCryptで秘密のファイル置き場を作る方法 | Linux Fan</a> を参考にして、上記でWindowsのVeraCryptで暗号化したパーティションをマウントしました。</p>
+<p>マウントしたらWindowsのときと同様にお気に入りに追加しておきます。</p>
+<div class="section" id="linuxgui">
+<h3>LinuxのGUIでのログイン時に自動的にマウントする設定</h3>
+<ol class="arabic">
+<li><p class="first">「アプリケーションを表示する」→「自動起動するアプリケーションの設定」をクリック。</p>
+</li>
+<li><p class="first">追加を押して以下の内容を追加。</p>
+<blockquote>
+<ul class="simple">
+<li>名前: VeraCryptボリュームマウント</li>
+<li>コマンド: <code>veracrypt --auto-mount=favorites</code></li>
+</ul>
+</blockquote>
+</li>
+</ol>
+</div>
+<div class="section" id="linux">
+<h3>Linuxのシャットダウンや再起動時も自動的にアンマウント</h3>
+<p><a class="reference external" href="https://askubuntu.com/questions/799277/do-i-have-to-dismount-veracrypt-volumes-before-shutting-down-or-restarting-ubunt/921884#921884">mount - Do I have to dismount VeraCrypt volumes before shutting down or restarting Ubuntu? - Ask Ubuntu</a> によるとLinuxではシャットダウン時に自動でアンマウントはされないとあったのですが、実際に試してみるとjournalログにアンマウントされたようなメッセージが表示されていました。</p>
+<p>VeraCrypt_1.22_Source.tar.bz2 内の Driver/Fuse/FuseService.cpp にも以下のようなコードがあったのでシグナルを受けたらアンマウントするようです。</p>
+<div class="highlight"><pre><span></span><span class="kt">void</span> <span class="n">FuseService</span><span class="o">::</span><span class="n">OnSignal</span> <span class="p">(</span><span class="kt">int</span> <span class="n">signal</span><span class="p">)</span>
+<span class="p">{</span>
+        <span class="k">try</span>
+        <span class="p">{</span>
+                <span class="n">shared_ptr</span> <span class="o">&lt;</span><span class="n">VolumeInfo</span><span class="o">&gt;</span> <span class="n">volume</span> <span class="o">=</span> <span class="n">Core</span><span class="o">-&gt;</span><span class="n">GetMountedVolume</span> <span class="p">(</span><span class="n">SlotNumber</span><span class="p">);</span>
+
+                <span class="k">if</span> <span class="p">(</span><span class="n">volume</span><span class="p">)</span>
+                        <span class="n">Core</span><span class="o">-&gt;</span><span class="n">DismountVolume</span> <span class="p">(</span><span class="n">volume</span><span class="p">,</span> <span class="nb">true</span><span class="p">);</span>
+        <span class="p">}</span>
+        <span class="k">catch</span> <span class="p">(...)</span> <span class="p">{</span> <span class="p">}</span>
+
+        <span class="n">_exit</span> <span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="id3">
+<h2>おわりに</h2>
+<p>これで暗号化したパーティションをデュアルブートのWindowsとLinuxの両方からマウント出来ました。
+KeePass のデータファイルなどを置いています。</p>
+<p><a class="reference external" href="https://www.veracrypt.fr/en/System%20Encryption.html">System Encryption</a>
+や <a class="reference external" href="https://www.howtogeek.com/howto/6169/use-truecrypt-to-secure-your-data/">How to Encrypt Your Windows System Drive With VeraCrypt</a> によるとWindowsのシステムパーティションの暗号化も出来るようなので、いつか気が向いたらこちらも試してみたいです。</p>
+</div>
+
+    </div><!-- /.entry-content -->
+
+  </article>
+</section>
+        <section id="extras" class="body">
+        </section><!-- /#extras -->
+
+        <footer id="contentinfo" class="body">
+                <address id="about" class="vcard body">
+                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
+                </address><!-- /#about -->
+
+                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
+        </footer><!-- /#contentinfo -->
+
+    <script type="text/javascript">
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-53263855-1', 'auto');
+    ga('send', 'pageview');
+    </script>
+</body>
+</html>
