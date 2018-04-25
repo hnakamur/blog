@@ -2,7 +2,7 @@ git-buildpackageでdebパッケージをビルドしてPPAにアップロード�
 ####################################################################
 
 :date: 2017-07-05 21:04
-:udpated: 2018-03-20 23:00
+:udpated: 2018-04-25 11:45
 :tags: deb, git-buildpackage
 :category: blog
 :slug: 2017/07/05/how-to-build-deb-with-git-buildpackage
@@ -341,11 +341,12 @@ DFSGクリーンでないupstreamのソースのインポート
 
     git branch dfsg_clean upstream
 
-:code:`upstream` ブランチに切り替えてから、先程生成した :code:`~/deb-tutorial/luajit/luajit_2.0.5.orig.tar.gz` をインポートします。
+:code:`master` ブランチに切り替えてから、先程生成した :code:`~/deb-tutorial/luajit/luajit_2.0.5.orig.tar.gz` をインポートします。
+(2018-04-25修正。 :code:`gbp import-orig` を実行するときは :code:`upstream` ではなく :code:`master` ブランチに切り替えておく必要がありました。)
 
 .. code-block:: console
 
-    git checkout upstream
+    git checkout master
     gbp import-orig --no-merge -u 2.0.5 --pristine-tar ~/.ghq/luajit.org/git/luajit_2.0.5.orig.tar.gz
 
 この時点で :code:`upstream/2.0.5` というタグが追加されています。
