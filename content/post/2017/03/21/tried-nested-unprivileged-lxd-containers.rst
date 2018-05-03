@@ -2,7 +2,7 @@ LXDでネストした非特権コンテナを試してみた
 #########################################
 
 :date: 2017-03-21 21:00
-:updated: 2017-03-22 00:05
+:modified: 2017-03-22 00:05
 :tags: lxd
 :category: blog
 :slug: 2017/03/21/tried-nested-unprivileged-lxd-containers
