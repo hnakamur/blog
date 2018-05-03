@@ -2,6 +2,7 @@ Ubuntu 17.10とgnomeとIBus mozcのキーボードショートカットを自分
 ########################################################################
 
 :date: 2018-03-30 16:30
+:modified: 2018-05-03 21:00
 :tags: ubuntu, windows
 :category: blog
 :slug: 2018/03/30/ubuntu-17.10-gnome-IBus-mozc-keyboard-shortcut
@@ -62,6 +63,10 @@ UbuntuではIBusと `google/mozc: Mozc - a Japanese Input Method Editor designed
 
     * 「設定」→「デバイス」→「キーボード」の「次の入力ソースへ切り替える」を super + backquote に変更。「前の入力ソースへ切り替える」は自動的にshift + super + backquoteに変更される。
 
+2018-05-03追記。初期状態では「設定」→「デバイス」→「キーボード」の「ひとつのアプリケーション内のウィンドウを切り替える」は「無効」となっていますが、実際は super + backquote と alt + backquote の両方が割り当てられています。上記のように super + backquote を「次の入力ソースに切り替える」に割り当てるだけではウィンドウ切り替えのほうが優先されてしまったので「ひとつのアプリケーション内のウィンドウを切り替える」を alt + backquote に明示的に設定する必要がありました。
+
+ついでにもうひとつ。「すべての通常のウィンドウを隠す」も初期状態ではCtrl+Super+DとCtrl+Alt+Dの両方が割り当てられています。このうちCtrl+Alt+Dは私が愛用しているChromeでdiigoの拡張のショートカットと衝突しています。そこで「すべての通常のウィンドウを隠す」にCtrl+Super+Dを明示的に設定することでCtrl+Alt+Dの割り当てが解除されてdiigoで使えるようになります。
+
 * Windows
 
    * 設定変更なし
@@ -70,6 +75,7 @@ UbuntuではIBusと `google/mozc: Mozc - a Japanese Input Method Editor designed
 
     * 「システム環境設定」→「キーボード」→「ショートカット」タブで「入力ソース」の「入力メニューの次のソースを選択」をcommand + backquote、「前の入力ソースを選択」をshift + command + backquoteに変更。
     * 「システム環境設定」→「キーボード」→「ショートカット」タブで「キーボード」の「次のウィンドウを捜査対象にする」をalt + backquoteに変更。
+
 
 IBus mozcの初期状態をひらがなにする
 ===================================
