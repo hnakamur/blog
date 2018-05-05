@@ -2,6 +2,7 @@ Ubuntu 17.10とmacOS High Sierraでデュアルブート構成にしてみた
 #############################################################
 
 :date: 2018-03-23 14:50
+:modified: 2018-05-06 08:45
 :tags: ubuntu, macOS
 :category: blog
 :slug: 2018/03/23/ubuntu-17.10-mac-os-high-sierra-dual-boot
@@ -22,7 +23,7 @@ Antergosを試そうかとも思ったのですが、自宅サーバでUbuntuを
 思ったのですが、 Linuxデスクトップを使うのは約10年ぶりなのでまずは安定版で慣れようということで
 Ubuntu 17.10にしました。
 
-今回試したのは MacBook Pro 15-inch, Mid 2012 です。
+今回試したのは MacBook Pro 15-inch, Mid 2012 (機種ID: MacBookPro10,1)です。
 
 インストールの手順自体は
 `Ubuntu 17.10インストールガイド【スクリーンショットつき解説】 | Linux Fan <https://linuxfan.info/ubuntu-17-10-install-guide>`_ に詳しい説明があるのでそちらを参照してください。
