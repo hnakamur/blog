@@ -12,7 +12,6 @@ Ubuntu 17.10でL2TPのVPN接続を試してみた
 Ubuntu 17.10でL2TPのVPN接続を試してみたのでメモです。
 以下の手順の一部は接続先の設定に依存して変動がありえます。
 
-
 セットアップ
 ============
 
@@ -78,6 +77,8 @@ VPN設定を追加
    2. 認証方式の「MSCHAP」と「MSCHAPｖ２」の2つのみがチェックされた状態になるので「MSCHAP」のチェックを外す。
    3. 「PPP Echoパケットを送信する」チェックボックスをオン（これは絶対に必要かは不明ですが試行錯誤した感じではオンにしたほうが良さそうな感じ）。
 
+2018-05-06追記。その後他の環境やUbuntu 18.04でもVPN接続の設定を試した感じでは「PPP Echoパケットを送信する」は不要なようでした。
+
 .. image:: {attach}/images/2018/03/31/l2tp-vpn-on-ubuntu-17.10/ppp-options.png
         :width: 401px
         :height: 669px
@@ -129,6 +130,8 @@ VPN切断の手順
 
 2. デスクトップ右上のVPN接続のアイコンが消えたら切断完了ですが、ウェブブラウザでインターネットのどこかのサイトを開いてアクセスできない場合Wifiを一旦オフにしてからオンにします。
 
+2018-05-06追記。Wifiを一旦オフにしてからオンにするよりはマシな回避策を見つけました。 `Ubuntu 18.04でVPN切断後にホスト名解決が動くようにするための回避策 </blog/2018/05/06/workaround-to-get-dns-working-after-vpn-disconnection-on-ubuntu-18.04/>`_
+
 デバッグ
 ========
 
@@ -152,6 +155,12 @@ VPN切断の手順
         xl2tpd[3698]: check_control: Received out of order control packet on tunnel 61298 (got 0, expected 1)
         xl2tpd[3698]: handle_packet: bad control packet!
         xl2tpd[3698]: network_thread: bad packet
+
+2018-05-06追記。接続のデバッグは上記の手順以外に、以下のコマンドでjournaldのログを見るのでも十分でした。
+
+.. code-block:: console
+
+        journalctl -f
 
 IPsecのアルゴリズムのスキャン
 -----------------------------
