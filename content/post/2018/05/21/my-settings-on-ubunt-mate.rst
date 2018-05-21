@@ -163,3 +163,29 @@ L2TPでのVPN接続
 `Ubuntu 18.04でVPN切断後にホスト名解決が動くようにするための回避策 </blog/2018/05/06/workaround-to-get-dns-working-after-vpn-disconnection-on-ubuntu-18.04/>`_ の手順でインストールとセットアップしました。
 
 設定後、一度再起動ではVPNに接続エラーになったのですが、二度再起動したら接続できるようになりました。実は記事を書いた後何箇所かで同じ設定を試したのですが一度の再起動ではうまくいってなくて、試行錯誤しているうちに接続できるようになるというパターンになってました。原因は未調査です。
+
+GUIのキーバインディングをEmacsライクにする
+==========================================
+
+`GNOME上でEmacsライクなキーバインディングを使う <http://127.0.0.1:8000/2018/05/06/use-emacs-like-keybindings-on-gnome/>`_ とほぼ同じですが、Ubuntu MATEの場合は :code:`org.gnome.desktop.interface` ではなく :code:`org.mate.interface` でした。
+
+Emacsライクにするには以下のようにします。
+
+.. code-block:: console
+
+        $ gsettings set org.mate.interface gtk-key-theme Emacs
+
+設定の確認は以下のようにします。
+
+.. code-block:: console
+
+        $ gsettings get org.mate.interface gtk-key-theme 
+        'Emacs'
+
+デフォルトに戻すには以下のようにします。
+
+.. code-block:: console
+
+        $ gsettings set org.mate.interface gtk-key-theme Default
+
+Emacsライクなキーバインディングは便利ではあるのですが、URL欄にフォーカスがあるときにCtrl+Nで新しいウィンドウが開けないのが不便なのでデフォルトに戻しました。
