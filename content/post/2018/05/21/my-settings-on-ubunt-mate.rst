@@ -2,6 +2,7 @@ Ubuntu MATE 18.04 LTSの私用設定メモ
 ###################################
 
 :date: 2018-05-21 12:20
+:modified: 2018-05-22 06:30
 :tags: ubuntu, ubuntu-mate
 :category: blog
 :slug: 2018/05/21/my-settings-on-ubunt-mate
@@ -25,6 +26,14 @@ Chromeのインストール
 --------------------
 
 `Ubuntu 18.04でaptを使ってchromeをインストール </blog/2018/05/04/install-chrome-using-apt-on-ubuntu-18.04/>`_ の手順でインストールしました。
+
+KeepassXCのインストール
+-----------------------
+
+.. code-block:: console
+
+        sudo apt install -y keepassxc
+
 
 セットアップ
 ============
@@ -189,3 +198,20 @@ Emacsライクにするには以下のようにします。
         $ gsettings set org.mate.interface gtk-key-theme Default
 
 Emacsライクなキーバインディングは便利ではあるのですが、URL欄にフォーカスがあるときにCtrl+Nで新しいウィンドウが開けないのが不便なのでデフォルトに戻しました。
+
+ウィンドウ枠を広げてリサイズしやすくする
+========================================
+
+ウィンドウをリサイズするときに枠にマウスカーソルをポイントするのですが、リサイズカーソルになる範囲が狭すぎてタッチパッドの操作が辛いと思っていたら
+`linux - MATE: how to increase window resizing area - Super User <https://superuser.com/questions/1012464/mate-how-to-increase-window-resizing-area/1027320#1027320>`_
+に解決策が書かれていました。
+
+以下のコマンドを実行して通常時のウィンドウ枠の左、右、下の太さを1から3に変えて再起動すると快適になりました。
+
+.. code-block:: console
+
+        sudo sed -e '/^<frame_geometry name="frame_geometry_normal"/,/<\/frame_geometry>/{
+        s|<distance name="left_width" value="1"/>|<distance name="left_width" value="3"/>|
+        s|<distance name="right_width" value="1"/>|<distance name="right_width" value="3"/>|
+        s|<distance name="bottom_height" value="1"/>|<distance name="bottom_height" value="3"/>|
+        }' /usr/share/themes/Ambiant-MATE/metacity-1/metacity-theme-1.xml
