@@ -10,7 +10,7 @@ Ubuntu MATE 18.04 LTSの私用設定メモ
 はじめに
 ========
 
-USキーボードのThinkPad T480sでUbuntu MATE 18.04 LTSを試してみました。ということで自分用の設定メモです。
+USキーボードのThinkPad T480sとThinkPad X260にUbuntu MATE 18.04 LTSをセットアップしました。ということで自分用の設定メモです。
 
 インストール
 ============
@@ -210,7 +210,7 @@ Emacsライクなキーバインディングは便利ではあるのですが、
 
 .. code-block:: console
 
-        sudo sed -e '/^<frame_geometry name="frame_geometry_normal"/,/<\/frame_geometry>/{
+        sudo sed -i.orig -e '/^<frame_geometry name="frame_geometry_normal"/,/<\/frame_geometry>/{
         s|<distance name="left_width" value="1"/>|<distance name="left_width" value="3"/>|
         s|<distance name="right_width" value="1"/>|<distance name="right_width" value="3"/>|
         s|<distance name="bottom_height" value="1"/>|<distance name="bottom_height" value="3"/>|
