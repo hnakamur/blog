@@ -2,6 +2,7 @@ VeraCryptでデータパーティションを暗号化してみた
 ###############################################
 
 :date: 2018-04-22 20:45
+:modified: 2018-05-21 11:50
 :tags: ubuntu, veraCcypt
 :category: blog
 :slug: 2018/04/22/use-VeraCrypt-for-data-partition
@@ -89,7 +90,25 @@ LinuxのGUIでのログイン時に自動的にマウントする設定
 2. 追加を押して以下の内容を追加。
 
     - 名前: VeraCryptボリュームマウント
-    - コマンド: :code:`veracrypt --auto-mount=favorites`
+    - コマンド: :code:`veracrypt --auto-mount=favorites --background-task`
+
+2018-05-21 追記。veracryptでお気に入りをマウントする際に :code:`--background-task` オプションも指定したほうが良いことがわかりました。これを指定するとGNOMEのシステムトレイにVeraCryptのアイコンが追加されます。これをメニューから終了させようとすると以下のようなメッセージのダイアログが表示されます。
+
+.. code-block:: text
+
+    WARNING: If VeraCrypt exits now, the following functions, depending on the platform,
+    will be disabled:
+
+    1) Auto-dismount (e.g., upon logoff, time-out, etc.)
+    2) Notifications (e.g., when damage to hidden volume is prevented)
+    3) Tray icon
+
+    Note: If you do not wish VeraCrypt to continue running in background after you close
+    its window, disable the Background Task in the Preferences.
+
+    Are you sure you want VeraCrypt to exit?
+
+メッセージの内容を読むと終了させずに動かしておいたほうが良いと思いました。
 
 Linuxのシャットダウンや再起動時も自動的にアンマウント
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -114,6 +133,26 @@ VeraCrypt_1.22_Source.tar.bz2 内の Driver/Fuse/FuseService.cpp にも以下の
                 _exit (0);
         }
 
+マウント状態確認
+++++++++++++++++
+
+2018-05-21追記。VeraCryptでマウントされているボリューム一覧を端末上で表示するには以下のコマンドを実行します。
+
+.. code-block:: console
+
+        veracrypt -t -l
+
+:code:`-t` 無しで :code:`-l` のみ指定すると端末上ではなくダイアログが開いて表示されます。
+
+:code:`-t` (:code:`--text`) はGUIを使わずテキストインタフェースを使うためのオプションです。
+
+.. code-block:: text
+
+        -t, --text
+         Use text user interface. Graphical user interface is used by default if
+          available. This option must be specified as the first argument.
+
+オプション確認の :code:`-h` も :code:`-t` 無しで :code:`veracrypt -h` と実行すると端末に表示しつつダイアログも表示されます。 :code:`-t` 有りで :code:`veracrypt -t -h` と実行すると端末のみに表示されます。
 
 おわりに
 --------
