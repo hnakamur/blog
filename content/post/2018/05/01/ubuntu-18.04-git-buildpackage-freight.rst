@@ -2,6 +2,7 @@ Ubuntu 18.04でgit-buildpackageとfreightを使うときのメモ
 #######################################################
 
 :date: 2018-05-01 12:35
+:modified: 2018-05-29 10:55
 :tags: ubuntu
 :category: blog
 :slug: 2018/05/01/ubuntu-18.04-git-buildpackage-freight
@@ -116,7 +117,8 @@ frightの-pオプションを使うには修正が必要
 ++++++++++++++++++++++++++++++++++++++++
 
 freightのほうはfreightのソースを変更する必要があったので、変更してプルリクエストを送りました。
-`Support gpg2 in freight cache passphrase file option by hnakamur · Pull Request #84 · freight-team/freight <https://github.com/freight-team/freight/pull/84>`_
+`Support gpg2 in freight cache passphrase file option by hnakamur · Pull Request #84 · freight-team/freight <https://github.com/freight-team/freight/pull/84>`_ 
+（2018-05-29追記。マージされました！）
 
 この変更を加えた状態ですと、以前と同じ以下のコマンドでOKです。
 
