@@ -2,6 +2,7 @@ universal-ctagsのUbuntu 18.04 LTS用debパッケージをビルドした
 ############################################################
 
 :date: 2018-06-08 00:30
+:modified: 2018-06-09 12:25
 :tags: ubuntu, deb, universal-ctags
 :category: blog
 :slug: 2018/06/08/build-universal-ctags-deb-for-ubuntu-18.04-lts
@@ -305,3 +306,7 @@ universal-ctags のパッケージをビルド後、exuberant-ctags とともに
 	+0001-Skip-Tmain-parser-own-fields-stdout-comparison-test.patch
 
 これでPPAでも無事ビルドできました。
+
+2018-06-09 追記。その後universal-ctagsの開発者の方から連絡をいただき、PPAのビルド時に :code:`V=1` という環境変数を設定している影響でテストが誤作動していることが判明しました。回避策を教えていただいたのでdebのビルド時にパッチを当てて回避できることを確認しました。その後
+`Tmain: initialize "V" variable explicitly by masatake · Pull Request #1762 · universal-ctags/ctags <https://github.com/universal-ctags/ctags/pull/1762>`_
+でupstream側に取り込んでくださったので、次回upstreamのソースを更新するタイミングでdeb側のパッチを削除予定です。
