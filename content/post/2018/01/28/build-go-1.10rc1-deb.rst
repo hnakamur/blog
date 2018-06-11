@@ -132,7 +132,7 @@ https://github.com/hnakamur/golang-deb
 
     gbp buildpackage --git-export-dir=../build-area -S -sa -p/home/hnakamur/bin/gpg-passphrase
 
-最後の :code:`-p` オプションは `git-buildpacakgeとfreightでパスフレーズをファイルから入力させる </blog/2017/08/28/use-passphrase-file-in-git-buildpackage-and-freight/>`_ にメモした通りパスフレーズを自動入力するためのものです。
+最後の :code:`-p` オプションは `git-buildpackageとfreightでパスフレーズをファイルから入力させる </blog/2017/08/28/use-passphrase-file-in-git-buildpackage-and-freight/>`_ にメモした通りパスフレーズを自動入力するためのものです。
 
 1.10rc1のdebパッケージをローカルでビルド
 ++++++++++++++++++++++++++++++++++++++++

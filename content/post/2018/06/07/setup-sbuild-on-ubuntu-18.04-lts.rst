@@ -127,7 +127,7 @@ sbuildでのdebパッケージビルド例
 
 試行錯誤したのでもっと良いやり方があるかもしれません。最初は上のメッセージのように引数で :code:`.dsc` のファイルパスを指定する方法を試したのですが :code:`../build-area/universal-ctags_0+SNAPSHOT20180606-1ubuntu1ppa3~ubuntu18.04.1.dsc` のように相対パスで指定するとログディレクトリを作るところでおかしくなってしまいました。一方で、カレントディレクトリに :code:`debian` ディレクトリがある状態で実行する必要があるようです。
 
-:code:`gbp-buildpackage buildpacakge` でビルドしたソースパッケージを :code:`~/ubuntu/scratch` ディレクトリにコピーします。コピー後の状態は以下のような感じです。
+:code:`gbp-buildpackage buildpackage` でビルドしたソースパッケージを :code:`~/ubuntu/scratch` ディレクトリにコピーします。コピー後の状態は以下のような感じです。
 
 .. code-block:: console
 

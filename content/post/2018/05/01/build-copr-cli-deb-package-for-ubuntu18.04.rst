@@ -4,7 +4,7 @@ Ubuntu 18.04でcopr-cliのdebパッケージを作ったときのメモ
 :date: 2018-05-01 12:35
 :tags: ubuntu
 :category: blog
-:slug: 2018/05/01/build-copr-cli-deb-pacakge-for-ubuntu18.04
+:slug: 2018/05/01/build-copr-cli-deb-package-for-ubuntu18.04
 
 はじめに
 --------
