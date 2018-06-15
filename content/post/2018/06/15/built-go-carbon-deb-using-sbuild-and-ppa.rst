@@ -2,6 +2,7 @@ go-carbonのdebパッケージをsbuildとPPAでビルドした
 #################################################
 
 :date: 2018-06-15 10:55
+:modified: 2018-06-15 16:15
 :tags: ubuntu, deb, sbuild, go-carbon
 :category: blog
 :slug: 2018/06/15/built-go-carbon-deb-using-sbuild-and-ppa
@@ -316,3 +317,26 @@ go-carbonのソースに含まれていたsystemd service定義ファイルを�
 	    --extra-repository="deb http://ppa.launchpad.net/hnakamur/golang-1.10/ubuntu bionic main" \
 	    --extra-repository-key /etc/apt/trusted.gpg.d/hnakamur_ubuntu_golang-1_10.gpg
 
+何度も試行錯誤しているとPPAからダウンロードする時間が気になってくるので、以下のコマンドでchrootのホストのfreightを使うようにしました。
+
+.. code-block:: console
+
+	TERM=unknown DEB_BUILD_OPTIONS=parallel=2 V=1 sbuild --sbuild-mode=buildd \
+		--extra-repository="deb http://127.0.0.1/freight bionic main" \
+		--extra-repository-key /var/cache/freight/pubkey.gpg
+
+:code:`/etc/nginx/conf.d/default.conf` には以下のように設定しています。
+
+.. code-block:: text
+
+	server {
+	    listen       80;
+
+	…（略） …
+
+	    location /freight {
+		alias  /var/cache/freight;
+		index  index.html index.htm;
+	    }
+
+	…（略） …
