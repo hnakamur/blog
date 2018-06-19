@@ -2,7 +2,7 @@ go-carbonのdebパッケージをsbuildとPPAでビルドした
 #################################################
 
 :date: 2018-06-15 10:55
-:modified: 2018-06-15 16:15
+:modified: 2018-06-19 23:40
 :tags: ubuntu, deb, sbuild, go-carbon
 :category: blog
 :slug: 2018/06/15/built-go-carbon-deb-using-sbuild-and-ppa
@@ -340,3 +340,27 @@ go-carbonのソースに含まれていたsystemd service定義ファイルを�
 	    }
 
 	…（略） …
+
+2018-06-19 追記。 `man sbuild <http://manpages.ubuntu.com/manpages/bionic/en/man1/sbuild.1.html>`_ によると sbuild は引数に .dsc ファイルのパスを渡すこともできます。当初は省略して使っていたのですが、こうすると親ディレクトリの :code:`*.dsc` や :code:`*_source.changes` が署名なしのファイルで上書きされ :code:`dput` でPPAにアップロードしようとするとエラーになってしまうことがわかりました。
+
+sbuild でも署名する方法もあるようなのですがchroot環境でgpgを使えるようにセットアップが必要そうで面倒そうです。sbuildの引数に .dsc ファイルのパスを渡せば、指定したファイルを読み込んでビルドし上書きはしないことがわかったので、渡すようにしました。
+
+例えば以下のように実行します。
+
+.. code-block:: console
+
+	TERM=unknown DEB_BUILD_OPTIONS=parallel=2 V=1 sbuild --sbuild-mode=buildd \
+		--extra-repository="deb http://127.0.0.1/freight bionic main" \
+		--extra-repository-key /var/cache/freight/pubkey.gpg \
+                ../go-carbon_0.12.0-1ppa6~ubuntu18.04.1.dsc
+
+.dscファイルパスを書くときにbashのコマンドライン補完が効かなかったので、事前に :code:`ls` とかで補完して tmux でコピーしてから、上記のコマンドを書いてペーストするようにしました。
+
+引数に .dsc ファイルを指定した場合は、ビルドの成果物は親ディレクトリではなくカレントディレクトリに作られました。
+
+.. code-block:: console
+
+        $ ls -1 go-carbon_*
+        go-carbon_0.12.0-1ppa6~ubuntu18.04.1_amd64.buildinfo
+        go-carbon_0.12.0-1ppa6~ubuntu18.04.1_amd64.changes
+        go-carbon_0.12.0-1ppa6~ubuntu18.04.1_amd64.deb
