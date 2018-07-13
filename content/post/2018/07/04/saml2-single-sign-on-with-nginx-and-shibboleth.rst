@@ -2,6 +2,7 @@ nginxとshibbolethでSAML2のシングルサインオンを試してみた
 ########################################################
 
 :date: 2018-07-04 16:40
+:modified: 2018-07-13 09:50
 :tags: saml, nginx, single-sign-on, shibboleth
 :category: blog
 :slug: 2018/07/04/saml2-single-sign-on-with-nginx-and-shibboleth
@@ -177,6 +178,12 @@ yumでインストールしようとしたのですが、これはCentOS 7の標
 
     sudo yum install nginx shibboleth xmltooling-schemas opensaml-schemas
 
+2018-07-13 追記。
+:code:`nginx` ユーザが :code:`/run/shibboleth/shibauthorizer.socket` と :code:`/run/shibboleth/shibresponder.socket` に読み書きできるようにするため、 :code:`shibd` グループに :code:`nginx` ユーザを追加します。
+
+.. code-block:: console
+
+    sudo usermod -a -G shibd nginx
 
 設定ファイルの編集
 ==================
