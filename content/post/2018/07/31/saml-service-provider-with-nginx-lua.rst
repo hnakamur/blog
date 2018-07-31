@@ -2,6 +2,7 @@ nginx luaでSAMLのService Providerを作ってみた
 #############################################
 
 :date: 2018-07-31 10:00
+:modified: 2018-08-01 09:00
 :tags: nginx, lua, saml, sso
 :category: blog
 :slug: 2018/07/31/saml-service-provider-with-nginx-lua
@@ -196,7 +197,16 @@ LuaJIT の `ffi.load <http://luajit.org/ext_ffi_api.html#ffi_load>`_ を使っ�
 
 この設定ファイルは `Lua <https://www.lua.org/>`_ で書いています。 Lua はこのように設定ファイルを書くときに読みやすくなるようにも設計されたと聞いたことがありますが、確かに良い感じです。なお、ここでは書いていませんが :code:`--` で始まるコメント行を含めることも出来ます。
 
-あとは :code:`/usr/local/etc/idp.crt` に IdP の証明書を配備します。
+あとは :code:`/usr/local/etc/idp.crt` に IdP の証明書（PEM形式）を配備します。
+
+.. code-block:: text
+
+	-----BEGIN CERTIFICATE-----
+	MIIDbDCCAlQCCQC2lvI/q52P9zANBgkqhkiG9w0BAQUFADB4MQswCQYDVQQGEwJK
+	…(略)…
+	MOnar9vP8eOYXOtO9laTow==
+	-----END CERTIFICATE-----
+
 
 SP が保持する状態についての説明
 ===============================
