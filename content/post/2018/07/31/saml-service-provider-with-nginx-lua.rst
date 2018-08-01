@@ -2,7 +2,7 @@ nginx luaでSAMLのService Providerを作ってみた
 #############################################
 
 :date: 2018-07-31 10:00
-:modified: 2018-08-01 09:00
+:modified: 2018-08-01 20:55
 :tags: nginx, lua, saml, sso
 :category: blog
 :slug: 2018/07/31/saml-service-provider-with-nginx-lua
@@ -82,6 +82,8 @@ LuaJIT の `ffi.load <http://luajit.org/ext_ffi_api.html#ffi_load>`_ を使っ�
 .. code-block:: console
 
         ln -s libz.so.1 /lib64/libz.so
+
+2018-08-01 追記。どうやらこれは LXD の CentOS 7 コンテナ特有の問題だったようで、他の環境では上記のシンボリックリンクは存在していました。
 
 設定例
 ======
