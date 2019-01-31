@@ -93,7 +93,7 @@ HTTP サーバで配信するためのディレクトリを作り、 mnt/live �
 .. code-block:: console
 
     sudo mkdir -p /opt/kickstart/export/vyos
-    sudo mnt/live/filesystem.squashfs !$
+    sudo cp -p mnt/live/filesystem.squashfs !$
 
 
 nginx で以下の設定を :code:`/etc/nginx/conf.d/vyos-pxe-boot.conf` として作成し(他の設定がある場合は適宜調整し) :code:`systemctl reload nginx` で反映させます。
