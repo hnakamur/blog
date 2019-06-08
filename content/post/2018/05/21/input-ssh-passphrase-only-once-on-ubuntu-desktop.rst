@@ -2,7 +2,7 @@ Ubuntuのデスクトップ環境でsshのパスフレーズ入力を1回だけ�
 ##############################################################
 
 :date: 2018-05-21 16:10
-:modified: 2018-05-29 10:35
+:modified: 2019-06-09 05:55
 :tags: ubuntu, ssh-agent
 :category: blog
 :slug: 2018/05/21/input-ssh-passphrase-only-once-on-ubuntu-desktop
@@ -55,3 +55,19 @@ grepで最後に空白を含めているのは :code:`$HOME/.ssh/id_rsa.foo` の
         2048 SHA256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  (RSA)
 
 また今回は関係ないですが :code:`~/.ssh/id_rsa.myapp.deploy` と :code:`~/.ssh/id_rsa.myapp.deploy.pub` のようなパスフレーズ無しの鍵ペアで公開鍵の方にコメントを入れていると、2行目のようにコメントで表示されるようです。
+
+2019-06-09追記。公開鍵にコメント入れると上のスクリプトでは ssh-add を繰り返してしまうので、以下のように修正しました。fingerprintには :code:`+` が入ることがあったので grep には :code:`-F` を指定しています。
+
+.. code-block:: sh
+
+        ssh_private_key_path="$HOME/.ssh/id_ed25519"
+        ssh_private_key_fingerprint="SHA256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        if ! ssh-add -l | grep -q -F "$ssh_private_key_fingerprint "; then
+          ssh-add "$ssh_private_key_path"
+        fi
+
+上記の fingerprint の値は以下のコマンドで調べて指定します。
+
+.. code-block:: sh
+
+        ssh-keygen -l -f ~/.ssh/id_ed25519
