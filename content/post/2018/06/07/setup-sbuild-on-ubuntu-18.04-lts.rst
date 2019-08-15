@@ -2,6 +2,7 @@ Ubuntu 18.04 LTSでsbuildをセットアップ
 ######################################
 
 :date: 2018-06-07 21:10
+:updated: 2019-08-15 15:20
 :tags: ubuntu, deb, sbuild
 :category: blog
 :slug: 2018/06/07/setup-sbuild-on-ubuntu-18.04-lts
@@ -39,7 +40,7 @@ sbuildのセットアップ手順
 
 .. code-block:: console
 
-        cat <<'EOF' > ~/.buildrc
+        cat <<'EOF' > ~/.sbuildrc
         # Name to use as override in .changes files for the Maintainer: field
         # (mandatory, no default!).
         $maintainer_name='Your Name <your_name@example.com>';
