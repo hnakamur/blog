@@ -2,6 +2,7 @@ Ubuntu 16.04上にUbuntu 18.04のPXEブートサーバをセットアップ
 ###########################################################
 
 :date: 2018-04-24 01:00
+:updated: 2019-08-17 14:30
 :tags: ubuntu
 :category: blog
 :slug: 2018/04/24/ubuntu18.04-pxe-boot-server-on-ubuntu16.04
@@ -104,9 +105,10 @@ PXEブートのときにコンソールに表示されていたのでそれを�
 Ubuntu 18.04のネットブートイメージの取得と設置
 ----------------------------------------------
 
-参考にした記事ではpreseedを使うためにネットブートイメージのtarballを取得・展開した後、小分けにコピーしていましたが、preseed無しなら単にtarballをtfptd-hpaの公開ディレクトリ :code:`/var/lib/tftpboot` に展開するだけでOKでした。
+参考にした記事ではpreseedを使うためにネットブートイメージのtarballを取得・展開した後、小分けにコピーしていましたが、preseed無しなら単にtarballをtfptd-hpaの公開ディレクトリ :code:`/var/lib/tftpboot` に展開して所有者を :code:`tftp` にするだけでOKでした。
 
 .. code-block:: console
 
         curl -LO http://archive.ubuntu.com/ubuntu/dists/bionic/main/installer-amd64/current/images/netboot/netboot.tar.gz
 	sudo tar xf netboot.tar.gz -C /var/lib/tftpboot
+        sudo chown -R tftp:tftp /var/lib/tftpboot
