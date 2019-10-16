@@ -41,17 +41,17 @@
 <p>ですが、実際に試してみると <code>--dhcp-hostsdir</code> のほうは SIGHUP を送ると <code>duplicate dhcp-host IP address</code> というエラーになってしまったので (下記のハマりメモ参照)、 <code>--dhcp-hostsfile</code> のほうを使うことにしました。</p>
 <h2>lxd-bridgeのdnsmasqで--dhcp-hostsfile を使う設定</h2>
 <p><code>/var/lib/lxd-bridge/dhcp-hosts</code> というファイルを作って、そこを見るように切り替えてみます。</p>
-<div class="highlight"><pre><span></span>sudo touch /var/lib/lxd-bridge/dhcp-hosts
-echo &#39;dhcp-hostsfile=/var/lib/lxd-bridge/dhcp-hosts&#39; | sudo tee /etc/dnsmasq.conf &gt; /dev/null
-sudo systemctl restart lxd-bridge
+<div class="highlight"><pre><span></span><span class="n">sudo</span> <span class="n">touch</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dhcp</span><span class="o">-</span><span class="n">hosts</span>
+<span class="n">echo</span> <span class="s1">&#39;dhcp-hostsfile=/var/lib/lxd-bridge/dhcp-hosts&#39;</span> <span class="o">|</span> <span class="n">sudo</span> <span class="n">tee</span> <span class="o">/</span><span class="n">etc</span><span class="o">/</span><span class="n">dnsmasq</span><span class="p">.</span><span class="n">conf</span> <span class="o">&gt;</span> <span class="o">/</span><span class="n">dev</span><span class="o">/</span><span class="k">null</span>
+<span class="n">sudo</span> <span class="n">systemctl</span> <span class="k">restart</span> <span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span>
 </pre></div>
 
 
 <h2>IPアドレスを指定して新規コンテナを作成する</h2>
 <p>例えば <code>web01</code> というコンテナを <code>10.155.92.201</code> というアドレスで作成したい場合は以下のようにします。 <a href="http://manpages.ubuntu.com/manpages/xenial/en/man8/dnsmasq.8.html">Ubuntu Manpage: dnsmasq - A lightweight DHCP and caching DNS server.</a> によると <code>--dhcp-range</code> で指定した範囲の外でも良いが <code>--dhcp-range</code> と同じサブネットである必要があるとのことです。 <code>ps auxww | grep dnsmasq</code> で見たところ <code>/etc/default/lxd-bridge</code> の <code>LXD_IPV4_DHCP_RANGE</code> の値が <code>--dhcp-range</code> に使われています。</p>
-<div class="highlight"><pre><span></span>echo web01,10.155.92.201 | sudo tee /var/lib/lxd-bridge/dhcp-hosts &gt; /dev/null
-sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
-lxc launch images:centos/7/amd64 web01
+<div class="highlight"><pre><span></span><span class="n">echo</span> <span class="n">web01</span><span class="p">,</span><span class="mi">10</span><span class="p">.</span><span class="mi">155</span><span class="p">.</span><span class="mi">92</span><span class="p">.</span><span class="mi">201</span> <span class="o">|</span> <span class="n">sudo</span> <span class="n">tee</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dhcp</span><span class="o">-</span><span class="n">hosts</span> <span class="o">&gt;</span> <span class="o">/</span><span class="n">dev</span><span class="o">/</span><span class="k">null</span>
+<span class="n">sudo</span> <span class="n">kill</span> <span class="o">-</span><span class="n">HUP</span> <span class="o">`</span><span class="n">cat</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">run</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dnsmasq</span><span class="p">.</span><span class="n">pid</span><span class="o">`</span>
+<span class="n">lxc</span> <span class="n">launch</span> <span class="n">images</span><span class="p">:</span><span class="n">centos</span><span class="o">/</span><span class="mi">7</span><span class="o">/</span><span class="n">amd64</span> <span class="n">web01</span>
 </pre></div>
 
 
@@ -59,9 +59,9 @@ lxc launch images:centos/7/amd64 web01
 <p>なお、この例では dhcp-hosts 内のエントリが web01 の1つだけなので echo と tee で作成・更新していますが、実際の利用時には複数エントリがあるので既存のエントリを残しつつエントリを追加・更新する必要がありますのでご注意ください。</p>
 <h2>既存のコンテナのIPアドレスを変更する</h2>
 <p>上記で作成した <code>web01</code> というコンテナのアドレスを <code>10.155.92.202</code> に変更してみます。変更にはコンテナの再起動が必要になります。</p>
-<div class="highlight"><pre><span></span>echo web01,10.155.92.202 | sudo tee /var/lib/lxd-bridge/dhcp-hosts &gt; /dev/null
-sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
-lxc restart -f web01
+<div class="highlight"><pre><span></span><span class="n">echo</span> <span class="n">web01</span><span class="p">,</span><span class="mi">10</span><span class="p">.</span><span class="mi">155</span><span class="p">.</span><span class="mi">92</span><span class="p">.</span><span class="mi">202</span> <span class="o">|</span> <span class="n">sudo</span> <span class="n">tee</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dhcp</span><span class="o">-</span><span class="n">hosts</span> <span class="o">&gt;</span> <span class="o">/</span><span class="n">dev</span><span class="o">/</span><span class="k">null</span>
+<span class="n">sudo</span> <span class="n">kill</span> <span class="o">-</span><span class="n">HUP</span> <span class="o">`</span><span class="n">cat</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">run</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dnsmasq</span><span class="p">.</span><span class="n">pid</span><span class="o">`</span>
+<span class="n">lxc</span> <span class="k">restart</span> <span class="o">-</span><span class="n">f</span> <span class="n">web01</span>
 </pre></div>
 
 
@@ -70,28 +70,28 @@ lxc restart -f web01
 <h2>コンテナを削除後、同じIPアドレスを他のコンテナで使う</h2>
 <p>一方、コンテナを削除しても使っていたIPアドレスはまだ貸出中になっています。</p>
 <p>上記の状態の後</p>
-<div class="highlight"><pre><span></span>lxc delete -f web01
-: | sudo tee /var/lib/lxd-bridge/dhcp-hosts
-sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
+<div class="highlight"><pre><span></span><span class="n">lxc</span> <span class="k">delete</span> <span class="o">-</span><span class="n">f</span> <span class="n">web01</span>
+<span class="p">:</span> <span class="o">|</span> <span class="n">sudo</span> <span class="n">tee</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dhcp</span><span class="o">-</span><span class="n">hosts</span>
+<span class="n">sudo</span> <span class="n">kill</span> <span class="o">-</span><span class="n">HUP</span> <span class="o">`</span><span class="n">cat</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">run</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dnsmasq</span><span class="p">.</span><span class="n">pid</span><span class="o">`</span>
 </pre></div>
 
 
 <p>としても <code>/var/lib/lxd-bridge/dnsmasq.lxdbr0.leases</code> には</p>
-<div class="highlight"><pre><span></span>1470963716 00:16:3e:45:a6:d1 10.155.92.202 web01 *
+<div class="highlight"><pre><span></span><span class="mi">1470963716</span> <span class="mi">00</span><span class="p">:</span><span class="mi">16</span><span class="p">:</span><span class="mi">3</span><span class="n">e</span><span class="p">:</span><span class="mi">45</span><span class="p">:</span><span class="n">a6</span><span class="p">:</span><span class="n">d1</span> <span class="mi">10</span><span class="p">.</span><span class="mi">155</span><span class="p">.</span><span class="mi">92</span><span class="p">.</span><span class="mi">202</span> <span class="n">web01</span> <span class="o">*</span>
 </pre></div>
 
 
 <p>のようなエントリが残っています。
 このアドレスを他のコンテナで使うためには一旦解放する必要があります。</p>
-<div class="highlight"><pre><span></span>sudo dhcp_release lxdbr0 10.155.92.202 00:16:3e:45:a6:d1
+<div class="highlight"><pre><span></span><span class="n">sudo</span> <span class="n">dhcp_release</span> <span class="n">lxdbr0</span> <span class="mi">10</span><span class="p">.</span><span class="mi">155</span><span class="p">.</span><span class="mi">92</span><span class="p">.</span><span class="mi">202</span> <span class="mi">00</span><span class="p">:</span><span class="mi">16</span><span class="p">:</span><span class="mi">3</span><span class="n">e</span><span class="p">:</span><span class="mi">45</span><span class="p">:</span><span class="n">a6</span><span class="p">:</span><span class="n">d1</span>
 </pre></div>
 
 
 <p>のように実行するか、あるいは <a href="/blog/2016/08/11/release-all-unused-addresses-of-lxd-bridge/">LXDのDHCPで使っていないIPアドレスを一括で解放するスクリプトを書いた · hnakamur's blog at github</a> で書いたスクリプトを実行して解放します。以下では後者のスクリプトを <code>~/bin/lxd-bridge-release-all-unused-addresses.sh</code> に保存してあるものとして説明します。</p>
 <p>IPアドレスを解放した後で</p>
-<div class="highlight"><pre><span></span>echo web02,10.155.92.202 | sudo tee /var/lib/lxd-bridge/dhcp-hosts &gt; /dev/null
-sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
-lxc launch images:centos/7/amd64 web02
+<div class="highlight"><pre><span></span><span class="n">echo</span> <span class="n">web02</span><span class="p">,</span><span class="mi">10</span><span class="p">.</span><span class="mi">155</span><span class="p">.</span><span class="mi">92</span><span class="p">.</span><span class="mi">202</span> <span class="o">|</span> <span class="n">sudo</span> <span class="n">tee</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dhcp</span><span class="o">-</span><span class="n">hosts</span> <span class="o">&gt;</span> <span class="o">/</span><span class="n">dev</span><span class="o">/</span><span class="k">null</span>
+<span class="n">sudo</span> <span class="n">kill</span> <span class="o">-</span><span class="n">HUP</span> <span class="o">`</span><span class="n">cat</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">run</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dnsmasq</span><span class="p">.</span><span class="n">pid</span><span class="o">`</span>
+<span class="n">lxc</span> <span class="n">launch</span> <span class="n">images</span><span class="p">:</span><span class="n">centos</span><span class="o">/</span><span class="mi">7</span><span class="o">/</span><span class="n">amd64</span> <span class="n">web02</span>
 </pre></div>
 
 
@@ -99,34 +99,34 @@ lxc launch images:centos/7/amd64 web02
 <h2>--dhcp-hostsdirのハマりメモ</h2>
 <h3>lxd-bridgeのdnsmasqで--dhcp-hostsdir を使う設定</h3>
 <p><code>/var/lib/lxd-bridge/dhcp-hosts</code> というディレクトリを作って、そこを見るように切り替えてみます。</p>
-<div class="highlight"><pre><span></span>[ -f /var/lib/lxd-bridge/dhcp-hosts ] &amp;&amp; sudo rm /var/lib/lxd-bridge/dhcp-hosts
-sudo mkdir -p /var/lib/lxd-bridge/dhcp-hosts
-echo &#39;dhcp-hostsdir=/var/lib/lxd-bridge/dhcp-hosts&#39; | sudo tee /etc/dnsmasq.conf &gt; /dev/null
-sudo systemctl restart lxd-bridge
+<div class="highlight"><pre><span></span><span class="p">[</span> <span class="o">-</span><span class="n">f</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dhcp</span><span class="o">-</span><span class="n">hosts</span> <span class="p">]</span> <span class="o">&amp;&amp;</span> <span class="n">sudo</span> <span class="n">rm</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dhcp</span><span class="o">-</span><span class="n">hosts</span>
+<span class="n">sudo</span> <span class="n">mkdir</span> <span class="o">-</span><span class="n">p</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dhcp</span><span class="o">-</span><span class="n">hosts</span>
+<span class="n">echo</span> <span class="s1">&#39;dhcp-hostsdir=/var/lib/lxd-bridge/dhcp-hosts&#39;</span> <span class="o">|</span> <span class="n">sudo</span> <span class="n">tee</span> <span class="o">/</span><span class="n">etc</span><span class="o">/</span><span class="n">dnsmasq</span><span class="p">.</span><span class="n">conf</span> <span class="o">&gt;</span> <span class="o">/</span><span class="n">dev</span><span class="o">/</span><span class="k">null</span>
+<span class="n">sudo</span> <span class="n">systemctl</span> <span class="k">restart</span> <span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span>
 </pre></div>
 
 
 <h3>IPアドレスを指定して新規コンテナを作成する</h3>
 <p>例えば <code>web01</code> というコンテナを <code>10.155.92.201</code> というアドレスで作成したい場合は以下のようにします。</p>
-<div class="highlight"><pre><span></span>echo web01,10.155.92.201 | sudo tee /var/lib/lxd-bridge/dhcp-hosts/web01 &gt; /dev/null
-lxc launch images:centos/7/amd64 web01
+<div class="highlight"><pre><span></span><span class="n">echo</span> <span class="n">web01</span><span class="p">,</span><span class="mi">10</span><span class="p">.</span><span class="mi">155</span><span class="p">.</span><span class="mi">92</span><span class="p">.</span><span class="mi">201</span> <span class="o">|</span> <span class="n">sudo</span> <span class="n">tee</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dhcp</span><span class="o">-</span><span class="n">hosts</span><span class="o">/</span><span class="n">web01</span> <span class="o">&gt;</span> <span class="o">/</span><span class="n">dev</span><span class="o">/</span><span class="k">null</span>
+<span class="n">lxc</span> <span class="n">launch</span> <span class="n">images</span><span class="p">:</span><span class="n">centos</span><span class="o">/</span><span class="mi">7</span><span class="o">/</span><span class="n">amd64</span> <span class="n">web01</span>
 </pre></div>
 
 
 <p>数秒してから <code>lxc list</code> を実行すると指定したアドレスになっていることが確認できます。</p>
 <p>と、ここまでは良かったのですが、</p>
-<div class="highlight"><pre><span></span>journalctl -f
+<div class="highlight"><pre><span></span><span class="n">journalctl</span> <span class="o">-</span><span class="n">f</span>
 </pre></div>
 
 
 <p>でログを見ておいて、別端末で</p>
-<div class="highlight"><pre><span></span>sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
+<div class="highlight"><pre><span></span><span class="n">sudo</span> <span class="n">kill</span> <span class="o">-</span><span class="n">HUP</span> <span class="o">`</span><span class="n">cat</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">run</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dnsmasq</span><span class="p">.</span><span class="n">pid</span><span class="o">`</span>
 </pre></div>
 
 
 <p>と実行すると</p>
-<div class="highlight"><pre><span></span>Aug 12 08:39:56 lxdhostname dnsmasq-dhcp[2455]: read /var/lib/lxd-bridge/dhcp-hosts/web01
-Aug 12 08:39:56 lxdhostname dnsmasq[2455]: duplicate dhcp-host IP address 10.155.92.201 at line 1 of /var/lib/lxd-bridge/dhcp-hosts/web01
+<div class="highlight"><pre><span></span><span class="n">Aug</span> <span class="mi">12</span> <span class="mi">08</span><span class="p">:</span><span class="mi">39</span><span class="p">:</span><span class="mi">56</span> <span class="n">lxdhostname</span> <span class="n">dnsmasq</span><span class="o">-</span><span class="n">dhcp</span><span class="p">[</span><span class="mi">2455</span><span class="p">]:</span> <span class="k">read</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dhcp</span><span class="o">-</span><span class="n">hosts</span><span class="o">/</span><span class="n">web01</span>
+<span class="n">Aug</span> <span class="mi">12</span> <span class="mi">08</span><span class="p">:</span><span class="mi">39</span><span class="p">:</span><span class="mi">56</span> <span class="n">lxdhostname</span> <span class="n">dnsmasq</span><span class="p">[</span><span class="mi">2455</span><span class="p">]:</span> <span class="n">duplicate</span> <span class="n">dhcp</span><span class="o">-</span><span class="k">host</span> <span class="n">IP</span> <span class="n">address</span> <span class="mi">10</span><span class="p">.</span><span class="mi">155</span><span class="p">.</span><span class="mi">92</span><span class="p">.</span><span class="mi">201</span> <span class="k">at</span> <span class="n">line</span> <span class="mi">1</span> <span class="k">of</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dhcp</span><span class="o">-</span><span class="n">hosts</span><span class="o">/</span><span class="n">web01</span>
 </pre></div>
 
 
@@ -134,22 +134,22 @@ Aug 12 08:39:56 lxdhostname dnsmasq[2455]: duplicate dhcp-host IP address 10.155
 <h3>コンテナを削除後、同じIPアドレスを他のコンテナで使いたいが失敗</h3>
 <p>以下では <a href="/blog/2016/08/11/release-all-unused-addresses-of-lxd-bridge/">LXDのDHCPで使っていないIPアドレスを一括で解放するスクリプトを書いた · hnakamur's blog at github</a> のスクリプトを <code>~/bin/lxd-bridge-release-all-unused-addresses.sh</code> に保存してあるものとして説明します。</p>
 <p>上記の状態の後、 <code>journalctl -f</code> を引き続き別端末で実行しておいて</p>
-<div class="highlight"><pre><span></span>lxc delete -f web01
-sudo rm /var/lib/lxd-bridge/dhcp-hosts/web01
-sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
-~/bin/lxd-bridge-release-all-unused-addresses.sh
-echo web02,10.155.92.201 | sudo tee /var/lib/lxd-bridge/dhcp-hosts/web02 &gt; /dev/null
+<div class="highlight"><pre><span></span><span class="n">lxc</span> <span class="k">delete</span> <span class="o">-</span><span class="n">f</span> <span class="n">web01</span>
+<span class="n">sudo</span> <span class="n">rm</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dhcp</span><span class="o">-</span><span class="n">hosts</span><span class="o">/</span><span class="n">web01</span>
+<span class="n">sudo</span> <span class="n">kill</span> <span class="o">-</span><span class="n">HUP</span> <span class="o">`</span><span class="n">cat</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">run</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dnsmasq</span><span class="p">.</span><span class="n">pid</span><span class="o">`</span>
+<span class="o">~/</span><span class="n">bin</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">-</span><span class="n">release</span><span class="o">-</span><span class="k">all</span><span class="o">-</span><span class="n">unused</span><span class="o">-</span><span class="n">addresses</span><span class="p">.</span><span class="n">sh</span>
+<span class="n">echo</span> <span class="n">web02</span><span class="p">,</span><span class="mi">10</span><span class="p">.</span><span class="mi">155</span><span class="p">.</span><span class="mi">92</span><span class="p">.</span><span class="mi">201</span> <span class="o">|</span> <span class="n">sudo</span> <span class="n">tee</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dhcp</span><span class="o">-</span><span class="n">hosts</span><span class="o">/</span><span class="n">web02</span> <span class="o">&gt;</span> <span class="o">/</span><span class="n">dev</span><span class="o">/</span><span class="k">null</span>
 </pre></div>
 
 
 <p>と実行すると</p>
-<div class="highlight"><pre><span></span>Aug 12 08:44:13 lxdhostname dnsmasq-dhcp[2455]: read /var/lib/lxd-bridge/dhcp-hosts/web02
-Aug 12 08:44:13 lxdhostname dnsmasq[2455]: duplicate dhcp-host IP address 10.155.92.201 at line 1 of /var/lib/lxd-bridge/dhcp-hosts/web02
+<div class="highlight"><pre><span></span><span class="n">Aug</span> <span class="mi">12</span> <span class="mi">08</span><span class="p">:</span><span class="mi">44</span><span class="p">:</span><span class="mi">13</span> <span class="n">lxdhostname</span> <span class="n">dnsmasq</span><span class="o">-</span><span class="n">dhcp</span><span class="p">[</span><span class="mi">2455</span><span class="p">]:</span> <span class="k">read</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dhcp</span><span class="o">-</span><span class="n">hosts</span><span class="o">/</span><span class="n">web02</span>
+<span class="n">Aug</span> <span class="mi">12</span> <span class="mi">08</span><span class="p">:</span><span class="mi">44</span><span class="p">:</span><span class="mi">13</span> <span class="n">lxdhostname</span> <span class="n">dnsmasq</span><span class="p">[</span><span class="mi">2455</span><span class="p">]:</span> <span class="n">duplicate</span> <span class="n">dhcp</span><span class="o">-</span><span class="k">host</span> <span class="n">IP</span> <span class="n">address</span> <span class="mi">10</span><span class="p">.</span><span class="mi">155</span><span class="p">.</span><span class="mi">92</span><span class="p">.</span><span class="mi">201</span> <span class="k">at</span> <span class="n">line</span> <span class="mi">1</span> <span class="k">of</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span><span class="o">/</span><span class="n">dhcp</span><span class="o">-</span><span class="n">hosts</span><span class="o">/</span><span class="n">web02</span>
 </pre></div>
 
 
 <p>と先程と同様のエラーが出ました。ここから</p>
-<div class="highlight"><pre><span></span>lxc launch images:centos/7/amd64 web02
+<div class="highlight"><pre><span></span><span class="n">lxc</span> <span class="n">launch</span> <span class="n">images</span><span class="p">:</span><span class="n">centos</span><span class="o">/</span><span class="mi">7</span><span class="o">/</span><span class="n">amd64</span> <span class="n">web02</span>
 </pre></div>
 
 

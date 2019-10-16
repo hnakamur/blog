@@ -41,51 +41,51 @@
 <p>標準ライブラリを見てみると、<a href="http://golang.org/pkg/runtime/debug/#PrintStack">runtime.debug.PrintStack()</a> という便利そうな関数を見つけました。が、これは出力先が標準エラー出力固定となっています。私はログファイルに出したいんですよね。</p>
 <p>そこでドキュメントの関数のリンクをクリックしてソースを見てみます。
 <a href="http://golang.org/src/runtime/debug/stack.go?s=516:533#L15">src/runtime/debug/stack.go - The Go Programming Language</a></p>
-<div class="highlight"><pre><span></span>func PrintStack() {
-  os.Stderr.Write(stack())
+<div class="highlight"><pre><span></span><span class="nv">func</span> <span class="nv">PrintStack</span><span class="ss">()</span> {
+  <span class="nv">os</span>.<span class="nv">Stderr</span>.<span class="nv">Write</span><span class="ss">(</span><span class="nv">stack</span><span class="ss">())</span>
 }
 
-// Stack returns a formatted stack trace of the goroutine that calls it.
-// For each routine, it includes the source line information and PC value,
-// then attempts to discover, for Go functions, the calling function or
-// method and the text of the line containing the invocation.
-//
-// Deprecated: Use package runtime&#39;s Stack instead.
-func Stack() []byte {
-  return stack()
+<span class="o">//</span> <span class="nv">Stack</span> <span class="nv">returns</span> <span class="nv">a</span> <span class="nv">formatted</span> <span class="nv">stack</span> <span class="nv">trace</span> <span class="nv">of</span> <span class="nv">the</span> <span class="nv">goroutine</span> <span class="nv">that</span> <span class="nv">calls</span> <span class="nv">it</span>.
+<span class="o">//</span> <span class="k">For</span> <span class="nv">each</span> <span class="nv">routine</span>, <span class="nv">it</span> <span class="nv">includes</span> <span class="nv">the</span> <span class="nv">source</span> <span class="nv">line</span> <span class="nv">information</span> <span class="nv">and</span> <span class="nv">PC</span> <span class="nv">value</span>,
+<span class="o">//</span> <span class="k">then</span> <span class="nv">attempts</span> <span class="nv">to</span> <span class="nv">discover</span>, <span class="k">for</span> <span class="nv">Go</span> <span class="nv">functions</span>, <span class="nv">the</span> <span class="nv">calling</span> <span class="nv">function</span> <span class="nv">or</span>
+<span class="o">//</span> <span class="nv">method</span> <span class="nv">and</span> <span class="nv">the</span> <span class="nv">text</span> <span class="nv">of</span> <span class="nv">the</span> <span class="nv">line</span> <span class="nv">containing</span> <span class="nv">the</span> <span class="nv">invocation</span>.
+<span class="o">//</span>
+<span class="o">//</span> <span class="nv">Deprecated</span>: <span class="nv">Use</span> <span class="nv">package</span> <span class="nv">runtime</span><span class="s1">&#39;</span><span class="s">s Stack instead.</span>
+<span class="nv">func</span> <span class="nv">Stack</span><span class="ss">()</span> []<span class="nv">byte</span> {
+  <span class="k">return</span> <span class="nv">stack</span><span class="ss">()</span>
 }
 </pre></div>
 
 
 <p>お、<code>Stack()</code> のほうを使えば <code>[]byte</code> で取得できるじゃないですか。あれ、でもdeprecatedなので <a href="http://golang.org/pkg/runtime/#Stack">runtime.Stack</a> のほうを使えとあります。シグネチャ見ると <code>func Stack(buf []byte, all bool) int</code> となっていて、こちらからバッファを渡す必要があるんですね。</p>
 <p>関数定義 <a href="http://golang.org/src/runtime/mprof.go?s=15278:15314#L552">src/runtime/mprof.go - The Go Programming Language</a>を見てみると、バッファサイズが足りない場合は、途中までしか書かれないようです。またどれだけのサイズがあれば大丈夫かを調べる方法もないようです。</p>
-<div class="highlight"><pre><span></span>func Stack(buf []byte, all bool) int {
-  if all {
-    stopTheWorld(&quot;stack trace&quot;)
+<div class="highlight"><pre><span></span><span class="nv">func</span> <span class="nv">Stack</span><span class="ss">(</span><span class="nv">buf</span> []<span class="nv">byte</span>, <span class="nv">all</span> <span class="nv">bool</span><span class="ss">)</span> <span class="nv">int</span> {
+  <span class="k">if</span> <span class="nv">all</span> {
+    <span class="nv">stopTheWorld</span><span class="ss">(</span><span class="s2">&quot;</span><span class="s">stack trace</span><span class="s2">&quot;</span><span class="ss">)</span>
   }
 
-  n := 0
-  if len(buf) &gt; 0 {
-    gp := getg()
-    sp := getcallersp(unsafe.Pointer(&amp;buf))
-    pc := getcallerpc(unsafe.Pointer(&amp;buf))
-    systemstack(func() {
-      g0 := getg()
-      g0.writebuf = buf[0:0:len(buf)]
-      goroutineheader(gp)
-      traceback(pc, sp, 0, gp)
-      if all {
-        tracebackothers(gp)
+  <span class="nv">n</span> :<span class="o">=</span> <span class="mi">0</span>
+  <span class="k">if</span> <span class="nv">len</span><span class="ss">(</span><span class="nv">buf</span><span class="ss">)</span> <span class="o">&gt;</span> <span class="mi">0</span> {
+    <span class="nv">gp</span> :<span class="o">=</span> <span class="nv">getg</span><span class="ss">()</span>
+    <span class="nv">sp</span> :<span class="o">=</span> <span class="nv">getcallersp</span><span class="ss">(</span><span class="nv">unsafe</span>.<span class="nv">Pointer</span><span class="ss">(</span><span class="o">&amp;</span><span class="nv">buf</span><span class="ss">))</span>
+    <span class="nv">pc</span> :<span class="o">=</span> <span class="nv">getcallerpc</span><span class="ss">(</span><span class="nv">unsafe</span>.<span class="nv">Pointer</span><span class="ss">(</span><span class="o">&amp;</span><span class="nv">buf</span><span class="ss">))</span>
+    <span class="nv">systemstack</span><span class="ss">(</span><span class="nv">func</span><span class="ss">()</span> {
+      <span class="nv">g0</span> :<span class="o">=</span> <span class="nv">getg</span><span class="ss">()</span>
+      <span class="nv">g0</span>.<span class="nv">writebuf</span> <span class="o">=</span> <span class="nv">buf</span>[<span class="mi">0</span>:<span class="mi">0</span>:<span class="nv">len</span><span class="ss">(</span><span class="nv">buf</span><span class="ss">)</span>]
+      <span class="nv">goroutineheader</span><span class="ss">(</span><span class="nv">gp</span><span class="ss">)</span>
+      <span class="nv">traceback</span><span class="ss">(</span><span class="nv">pc</span>, <span class="nv">sp</span>, <span class="mi">0</span>, <span class="nv">gp</span><span class="ss">)</span>
+      <span class="k">if</span> <span class="nv">all</span> {
+        <span class="nv">tracebackothers</span><span class="ss">(</span><span class="nv">gp</span><span class="ss">)</span>
       }
-      n = len(g0.writebuf)
-      g0.writebuf = nil
-    })
+      <span class="nv">n</span> <span class="o">=</span> <span class="nv">len</span><span class="ss">(</span><span class="nv">g0</span>.<span class="nv">writebuf</span><span class="ss">)</span>
+      <span class="nv">g0</span>.<span class="nv">writebuf</span> <span class="o">=</span> <span class="nv">nil</span>
+    }<span class="ss">)</span>
   }
 
-  if all {
-    startTheWorld()
+  <span class="k">if</span> <span class="nv">all</span> {
+    <span class="nv">startTheWorld</span><span class="ss">()</span>
   }
-  return n
+  <span class="k">return</span> <span class="nv">n</span>
 }
 </pre></div>
 
@@ -129,15 +129,15 @@ func Stack() []byte {
 <p>まずお好みのロギングライブラリ用にスタックトレースを取得してログ出力する関数を定義します。この例の場合は <code>logErrorWithStackTrace</code> です。メモリ割り当て回数を最低限にしたかったので、 <code>stacktrace.LockBufAndGetStackWithSkip()</code> はグローバルバッファをロックした状態でそのまま返すようにしています。ですので使い終わったら、<code>stacktrace.UnlockBuf()</code> でロックを解放する必要があります。</p>
 <p><code>stacktrace.LockBufAndGetStackWithSkip()</code> の引数で2を渡しているのはスタックトレースから <code>stacktrace.LockBufAndGetStackWithSkip</code> と <code>logErrorWithStackTrace</code> の2つを除外するためです。</p>
 <p>出力例は以下の通りです。</p>
-<div class="highlight"><pre><span></span>$ go run main.go
-<span class="m">2015</span>/08/31 <span class="m">01</span>:24:42 error: some error
-stacktrace: goroutine <span class="m">1</span> <span class="o">[</span>running<span class="o">]</span>:
-main.b<span class="o">()</span>
-        /Users/hnakamur/gocode/src/github.com/hnakamur/stacktrace/example/main.go:17 +0xce
-main.a<span class="o">()</span>
-        /Users/hnakamur/gocode/src/github.com/hnakamur/stacktrace/example/main.go:21 +0x14
-main.main<span class="o">()</span>
-        /Users/hnakamur/gocode/src/github.com/hnakamur/stacktrace/example/main.go:25 +0x14
+<div class="highlight"><pre><span></span><span class="err">$</span><span class="w"> </span><span class="k">go</span><span class="w"> </span><span class="n">run</span><span class="w"> </span><span class="n">main</span><span class="p">.</span><span class="k">go</span><span class="w"></span>
+<span class="mi">2015</span><span class="o">/</span><span class="mi">08</span><span class="o">/</span><span class="mi">31</span><span class="w"> </span><span class="mi">01</span><span class="err">:</span><span class="mi">24</span><span class="err">:</span><span class="mi">42</span><span class="w"> </span><span class="nl">error</span><span class="p">:</span><span class="w"> </span><span class="ow">some</span><span class="w"> </span><span class="n">error</span><span class="w"></span>
+<span class="nl">stacktrace</span><span class="p">:</span><span class="w"> </span><span class="n">goroutine</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">[</span><span class="n">running</span><span class="o">]</span><span class="err">:</span><span class="w"></span>
+<span class="n">main</span><span class="p">.</span><span class="n">b</span><span class="p">()</span><span class="w"></span>
+<span class="w">        </span><span class="o">/</span><span class="n">Users</span><span class="o">/</span><span class="n">hnakamur</span><span class="o">/</span><span class="n">gocode</span><span class="o">/</span><span class="n">src</span><span class="o">/</span><span class="n">github</span><span class="p">.</span><span class="n">com</span><span class="o">/</span><span class="n">hnakamur</span><span class="o">/</span><span class="n">stacktrace</span><span class="o">/</span><span class="n">example</span><span class="o">/</span><span class="n">main</span><span class="p">.</span><span class="k">go</span><span class="err">:</span><span class="mi">17</span><span class="w"> </span><span class="o">+</span><span class="mh">0xce</span><span class="w"></span>
+<span class="n">main</span><span class="p">.</span><span class="n">a</span><span class="p">()</span><span class="w"></span>
+<span class="w">        </span><span class="o">/</span><span class="n">Users</span><span class="o">/</span><span class="n">hnakamur</span><span class="o">/</span><span class="n">gocode</span><span class="o">/</span><span class="n">src</span><span class="o">/</span><span class="n">github</span><span class="p">.</span><span class="n">com</span><span class="o">/</span><span class="n">hnakamur</span><span class="o">/</span><span class="n">stacktrace</span><span class="o">/</span><span class="n">example</span><span class="o">/</span><span class="n">main</span><span class="p">.</span><span class="k">go</span><span class="err">:</span><span class="mi">21</span><span class="w"> </span><span class="o">+</span><span class="mh">0x14</span><span class="w"></span>
+<span class="n">main</span><span class="p">.</span><span class="n">main</span><span class="p">()</span><span class="w"></span>
+<span class="w">        </span><span class="o">/</span><span class="n">Users</span><span class="o">/</span><span class="n">hnakamur</span><span class="o">/</span><span class="n">gocode</span><span class="o">/</span><span class="n">src</span><span class="o">/</span><span class="n">github</span><span class="p">.</span><span class="n">com</span><span class="o">/</span><span class="n">hnakamur</span><span class="o">/</span><span class="n">stacktrace</span><span class="o">/</span><span class="n">example</span><span class="o">/</span><span class="n">main</span><span class="p">.</span><span class="k">go</span><span class="err">:</span><span class="mi">25</span><span class="w"> </span><span class="o">+</span><span class="mh">0x14</span><span class="w"></span>
 </pre></div>
 
 

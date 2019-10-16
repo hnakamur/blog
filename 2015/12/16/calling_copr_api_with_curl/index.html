@@ -64,49 +64,49 @@ softwarecollection.orgの<a href="https://www.softwarecollections.org/repos/rhsc
 <p>というわけでcopr-cliを使わずにcurlでCoprのAPIを呼び出す方法を調べました。</p>
 <p>まずは認証ですが、<a href="https://copr.fedoraproject.org/api/">API for Copr</a>の先頭にcopr-cli用の設定ファイル形式でAPIトークンの情報が表示されています。が、APIの認証方法は記載されていません。</p>
 <p>しかたがないので、python-coprのソースを読んでみるとcopr/client/client.pyに以下のようなコードがありました。</p>
-<div class="highlight"><pre><span></span>...(snip)...
-    def _fetch(self, url, data=None, username=None, method=None,
-               skip_auth=False, on_error_response=None, headers=None):
-...(snip)...
-        if not skip_auth:
-            kwargs[&quot;auth&quot;] = (self.login, self.token)
-...(snip)...
-        try:
-            response = requests.request(
-                method=method.upper(),
-                url=url,
-                **kwargs
-            )
-...(snip)...
+<div class="highlight"><pre><span></span>...<span class="ss">(</span><span class="nv">snip</span><span class="ss">)</span>...
+    <span class="nv">def</span> <span class="nv">_fetch</span><span class="ss">(</span><span class="nv">self</span>, <span class="nv">url</span>, <span class="nv">data</span><span class="o">=</span><span class="nv">None</span>, <span class="nv">username</span><span class="o">=</span><span class="nv">None</span>, <span class="nv">method</span><span class="o">=</span><span class="nv">None</span>,
+               <span class="nv">skip_auth</span><span class="o">=</span><span class="nv">False</span>, <span class="nv">on_error_response</span><span class="o">=</span><span class="nv">None</span>, <span class="nv">headers</span><span class="o">=</span><span class="nv">None</span><span class="ss">)</span>:
+...<span class="ss">(</span><span class="nv">snip</span><span class="ss">)</span>...
+        <span class="k">if</span> <span class="nv">not</span> <span class="nv">skip_auth</span>:
+            <span class="nv">kwargs</span>[<span class="s2">&quot;</span><span class="s">auth</span><span class="s2">&quot;</span>] <span class="o">=</span> <span class="ss">(</span><span class="nv">self</span>.<span class="nv">login</span>, <span class="nv">self</span>.<span class="nv">token</span><span class="ss">)</span>
+...<span class="ss">(</span><span class="nv">snip</span><span class="ss">)</span>...
+        <span class="nv">try</span>:
+            <span class="nv">response</span> <span class="o">=</span> <span class="nv">requests</span>.<span class="nv">request</span><span class="ss">(</span>
+                <span class="nv">method</span><span class="o">=</span><span class="nv">method</span>.<span class="nv">upper</span><span class="ss">()</span>,
+                <span class="nv">url</span><span class="o">=</span><span class="nv">url</span>,
+                <span class="o">**</span><span class="nv">kwargs</span>
+            <span class="ss">)</span>
+...<span class="ss">(</span><span class="nv">snip</span><span class="ss">)</span>...
 </pre></div>
 
 
 <p><a href="http://docs.python-requests.org/en/latest/">PythonのRequestsライブラリ</a>の<a href="http://docs.python-requests.org/en/latest/user/authentication/#basic-authentication">Basic Authentication</a>のドキュメントを見ると、上記のコードは <code>self.login</code> の値をユーザ名、 <code>self.token</code> の値をパスワードとしてBASIC認証していることがわかりました。</p>
 <h2>APIの呼び出し例</h2>
 <p><a href="https://github.com/hnakamur/nginx-rpm/">hnakamur/nginx-rpm</a>の<a href="https://github.com/hnakamur/nginx-rpm/blob/358d646a22c9c516a9247595e296b256d61a86f6/scripts/build.sh#L72-L95">scripts/build.sh</a>のコードで説明します。</p>
-<div class="highlight"><pre><span></span>build_rpm_on_copr() {
-  build_srpm
+<div class="highlight"><pre><span></span><span class="nv">build_rpm_on_copr</span><span class="ss">()</span> {
+  <span class="nv">build_srpm</span>
 
-  # Check the project is already created on copr.
-  status=`curl -s -o /dev/null -w &quot;%{http_code}&quot; https://copr.fedoraproject.org/api/coprs/<span class="cp">${</span><span class="n">COPR_USERNAME</span><span class="cp">}</span>/<span class="cp">${</span><span class="n">copr_project_name</span><span class="cp">}</span>/detail/`
-  if [ <span class="nv">$status</span> = &quot;404&quot; ]; then
-    # Create the project on copr.
-    # We call copr APIs with curl to work around the InsecurePlatformWarning problem
-    # since system python in CentOS 7 is old.
-    # I read the source code of https://pypi.python.org/pypi/copr/1.62.1
-    # since the API document at https://copr.fedoraproject.org/api/ is old.
-    curl -s -X POST -u &quot;<span class="cp">${</span><span class="n">COPR_LOGIN</span><span class="cp">}</span>:<span class="cp">${</span><span class="n">COPR_TOKEN</span><span class="cp">}</span>&quot; \
-      --data-urlencode &quot;name=<span class="cp">${</span><span class="n">copr_project_name</span><span class="cp">}</span>&quot; \
-      --data-urlencode &quot;<span class="cp">${</span><span class="n">mock_chroot</span><span class="cp">}</span>=y&quot; \
-      --data-urlencode &quot;description=<span class="nv">$copr_project_description</span>&quot; \
-      --data-urlencode &quot;instructions=<span class="nv">$copr_project_instructions</span>&quot; \
-      https://copr.fedoraproject.org/api/coprs/<span class="cp">${</span><span class="n">COPR_USERNAME</span><span class="cp">}</span>/new/
-  fi
-  # Add a new build on copr with uploading a srpm file.
-  curl -s -X POST -u &quot;<span class="cp">${</span><span class="n">COPR_LOGIN</span><span class="cp">}</span>:<span class="cp">${</span><span class="n">COPR_TOKEN</span><span class="cp">}</span>&quot; \
-    -F &quot;<span class="cp">${</span><span class="n">mock_chroot</span><span class="cp">}</span>=y&quot; \
-    -F &quot;pkgs=@<span class="cp">${</span><span class="n">topdir</span><span class="cp">}</span>/SRPMS/<span class="cp">${</span><span class="n">srpm_file</span><span class="cp">}</span>;type=application/x-rpm&quot; \
-    https://copr.fedoraproject.org/api/coprs/<span class="cp">${</span><span class="n">COPR_USERNAME</span><span class="cp">}</span>/<span class="cp">${</span><span class="n">copr_project_name</span><span class="cp">}</span>/new_build_upload/
+  # <span class="nv">Check</span> <span class="nv">the</span> <span class="nv">project</span> <span class="nv">is</span> <span class="nv">already</span> <span class="nv">created</span> <span class="nv">on</span> <span class="nv">copr</span>.
+  <span class="nv">status</span><span class="o">=</span>`<span class="nv">curl</span> <span class="o">-</span><span class="nv">s</span> <span class="o">-</span><span class="nv">o</span> <span class="o">/</span><span class="nv">dev</span><span class="o">/</span><span class="nv">null</span> <span class="o">-</span><span class="nv">w</span> <span class="s2">&quot;</span><span class="s">%{http_code}</span><span class="s2">&quot;</span> <span class="nv">https</span>:<span class="o">//</span><span class="nv">copr</span>.<span class="nv">fedoraproject</span>.<span class="nv">org</span><span class="o">/</span><span class="nv">api</span><span class="o">/</span><span class="nv">coprs</span><span class="o">/</span>${<span class="nv">COPR_USERNAME</span>}<span class="o">/</span>${<span class="nv">copr_project_name</span>}<span class="o">/</span><span class="nv">detail</span><span class="o">/</span>`
+  <span class="k">if</span> [ $<span class="nv">status</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="s">404</span><span class="s2">&quot;</span> ]<span class="c1">; then</span>
+    # <span class="nv">Create</span> <span class="nv">the</span> <span class="nv">project</span> <span class="nv">on</span> <span class="nv">copr</span>.
+    # <span class="nv">We</span> <span class="k">call</span> <span class="nl">copr</span> <span class="nv">APIs</span> <span class="nv">with</span> <span class="nv">curl</span> <span class="nv">to</span> <span class="nv">work</span> <span class="nv">around</span> <span class="nv">the</span> <span class="nv">InsecurePlatformWarning</span> <span class="nv">problem</span>
+    # <span class="nv">since</span> <span class="nv">system</span> <span class="nv">python</span> <span class="nv">in</span> <span class="nv">CentOS</span> <span class="mi">7</span> <span class="nv">is</span> <span class="nv">old</span>.
+    # <span class="nv">I</span> <span class="nv">read</span> <span class="nv">the</span> <span class="nv">source</span> <span class="nv">code</span> <span class="nv">of</span> <span class="nv">https</span>:<span class="o">//</span><span class="nv">pypi</span>.<span class="nv">python</span>.<span class="nv">org</span><span class="o">/</span><span class="nv">pypi</span><span class="o">/</span><span class="nv">copr</span><span class="o">/</span><span class="mi">1</span>.<span class="mi">62</span>.<span class="mi">1</span>
+    # <span class="nv">since</span> <span class="nv">the</span> <span class="nv">API</span> <span class="nv">document</span> <span class="nv">at</span> <span class="nv">https</span>:<span class="o">//</span><span class="nv">copr</span>.<span class="nv">fedoraproject</span>.<span class="nv">org</span><span class="o">/</span><span class="nv">api</span><span class="o">/</span> <span class="nv">is</span> <span class="nv">old</span>.
+    <span class="nv">curl</span> <span class="o">-</span><span class="nv">s</span> <span class="o">-</span><span class="nv">X</span> <span class="nv">POST</span> <span class="o">-</span><span class="nv">u</span> <span class="s2">&quot;</span><span class="s">${COPR_LOGIN}:${COPR_TOKEN}</span><span class="s2">&quot;</span> \
+      <span class="o">--</span><span class="nv">data</span><span class="o">-</span><span class="nv">urlencode</span> <span class="s2">&quot;</span><span class="s">name=${copr_project_name}</span><span class="s2">&quot;</span> \
+      <span class="o">--</span><span class="nv">data</span><span class="o">-</span><span class="nv">urlencode</span> <span class="s2">&quot;</span><span class="s">${mock_chroot}=y</span><span class="s2">&quot;</span> \
+      <span class="o">--</span><span class="nv">data</span><span class="o">-</span><span class="nv">urlencode</span> <span class="s2">&quot;</span><span class="s">description=$copr_project_description</span><span class="s2">&quot;</span> \
+      <span class="o">--</span><span class="nv">data</span><span class="o">-</span><span class="nv">urlencode</span> <span class="s2">&quot;</span><span class="s">instructions=$copr_project_instructions</span><span class="s2">&quot;</span> \
+      <span class="nv">https</span>:<span class="o">//</span><span class="nv">copr</span>.<span class="nv">fedoraproject</span>.<span class="nv">org</span><span class="o">/</span><span class="nv">api</span><span class="o">/</span><span class="nv">coprs</span><span class="o">/</span>${<span class="nv">COPR_USERNAME</span>}<span class="o">/</span><span class="nv">new</span><span class="o">/</span>
+  <span class="nv">fi</span>
+  # <span class="nv">Add</span> <span class="nv">a</span> <span class="nv">new</span> <span class="nv">build</span> <span class="nv">on</span> <span class="nv">copr</span> <span class="nv">with</span> <span class="nv">uploading</span> <span class="nv">a</span> <span class="nv">srpm</span> <span class="nv">file</span>.
+  <span class="nv">curl</span> <span class="o">-</span><span class="nv">s</span> <span class="o">-</span><span class="nv">X</span> <span class="nv">POST</span> <span class="o">-</span><span class="nv">u</span> <span class="s2">&quot;</span><span class="s">${COPR_LOGIN}:${COPR_TOKEN}</span><span class="s2">&quot;</span> \
+    <span class="o">-</span><span class="nv">F</span> <span class="s2">&quot;</span><span class="s">${mock_chroot}=y</span><span class="s2">&quot;</span> \
+    <span class="o">-</span><span class="nv">F</span> <span class="s2">&quot;</span><span class="s">pkgs=@${topdir}/SRPMS/${srpm_file};type=application/x-rpm</span><span class="s2">&quot;</span> \
+    <span class="nv">https</span>:<span class="o">//</span><span class="nv">copr</span>.<span class="nv">fedoraproject</span>.<span class="nv">org</span><span class="o">/</span><span class="nv">api</span><span class="o">/</span><span class="nv">coprs</span><span class="o">/</span>${<span class="nv">COPR_USERNAME</span>}<span class="o">/</span>${<span class="nv">copr_project_name</span>}<span class="o">/</span><span class="nv">new_build_upload</span><span class="o">/</span>
 }
 </pre></div>
 
@@ -114,26 +114,26 @@ softwarecollection.orgの<a href="https://www.softwarecollections.org/repos/rhsc
 <p>最初の <code>https://copr.fedoraproject.org/api/coprs/${COPR_USERNAME}/${copr_project_name}/detail/</code> はプロジェクトの詳細情報取得です。これはログイン不要です。</p>
 <p>次の <code>https://copr.fedoraproject.org/api/coprs/${COPR_USERNAME}/new/</code> にPOSTしているのがプロジェクト作成です。</p>
 <p>最後の <code>https://copr.fedoraproject.org/api/coprs/${COPR_USERNAME}/${copr_project_name}/new_build_upload/</code> がsrpmをアップロードしてビルド開始のAPIです。<a href="https://copr.fedoraproject.org/api/">API for Copr</a>には <code>/new_build/</code> は記載がありますが、 <code>/new_build_upload/</code> は記載が無いです。python-coprのcopr/client/client.pyのソースで見つけました。</p>
-<div class="highlight"><pre><span></span>...(snip)...
-    def create_new_build(self, projectname, pkgs, username=None,
-                         timeout=None, memory=None, chroots=None,
-                         progress_callback=None):
-...(snip)...
-        if urlparse(pkgs[0]).scheme != &quot;&quot;:
-            api_endpoint = &quot;new_build&quot;
-            data[&quot;pkgs&quot;] = &quot; &quot;.join(pkgs)
-        else:
-            try:
-                api_endpoint = &quot;new_build_upload&quot;
-                f = open(pkgs[0], &quot;rb&quot;)
-                data[&quot;pkgs&quot;] = (os.path.basename(f.name), f, &quot;application/x-rpm&quot;)
-            except IOError as e:
-                raise CoprRequestException(e)
+<div class="highlight"><pre><span></span>...<span class="ss">(</span><span class="nv">snip</span><span class="ss">)</span>...
+    <span class="nv">def</span> <span class="nv">create_new_build</span><span class="ss">(</span><span class="nv">self</span>, <span class="nv">projectname</span>, <span class="nv">pkgs</span>, <span class="nv">username</span><span class="o">=</span><span class="nv">None</span>,
+                         <span class="nb">timeout</span><span class="o">=</span><span class="nv">None</span>, <span class="nv">memory</span><span class="o">=</span><span class="nv">None</span>, <span class="nv">chroots</span><span class="o">=</span><span class="nv">None</span>,
+                         <span class="nv">progress_callback</span><span class="o">=</span><span class="nv">None</span><span class="ss">)</span>:
+...<span class="ss">(</span><span class="nv">snip</span><span class="ss">)</span>...
+        <span class="k">if</span> <span class="nv">urlparse</span><span class="ss">(</span><span class="nv">pkgs</span>[<span class="mi">0</span>]<span class="ss">)</span>.<span class="nv">scheme</span> <span class="o">!=</span> <span class="s2">&quot;&quot;</span>:
+            <span class="nv">api_endpoint</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="s">new_build</span><span class="s2">&quot;</span>
+            <span class="nv">data</span>[<span class="s2">&quot;</span><span class="s">pkgs</span><span class="s2">&quot;</span>] <span class="o">=</span> <span class="s2">&quot;</span><span class="s"> </span><span class="s2">&quot;</span>.<span class="nv">join</span><span class="ss">(</span><span class="nv">pkgs</span><span class="ss">)</span>
+        <span class="k">else</span>:
+            <span class="nv">try</span>:
+                <span class="nv">api_endpoint</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="s">new_build_upload</span><span class="s2">&quot;</span>
+                <span class="nv">f</span> <span class="o">=</span> <span class="nv">open</span><span class="ss">(</span><span class="nv">pkgs</span>[<span class="mi">0</span>], <span class="s2">&quot;</span><span class="s">rb</span><span class="s2">&quot;</span><span class="ss">)</span>
+                <span class="nv">data</span>[<span class="s2">&quot;</span><span class="s">pkgs</span><span class="s2">&quot;</span>] <span class="o">=</span> <span class="ss">(</span><span class="nv">os</span>.<span class="nv">path</span>.<span class="k">basename</span><span class="ss">(</span><span class="nv">f</span>.<span class="nv">name</span><span class="ss">)</span>, <span class="nv">f</span>, <span class="s2">&quot;</span><span class="s">application/x-rpm</span><span class="s2">&quot;</span><span class="ss">)</span>
+            <span class="nv">except</span> <span class="nv">IOError</span> <span class="nv">as</span> <span class="nv">e</span>:
+                <span class="nv">raise</span> <span class="nv">CoprRequestException</span><span class="ss">(</span><span class="nv">e</span><span class="ss">)</span>
 
-        url = &quot;{0}/coprs/{1}/{2}/{3}/&quot;.format(
-            self.api_url, username, projectname, api_endpoint
-        )
-...(snip)...
+        <span class="nv">url</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="s">{0}/coprs/{1}/{2}/{3}/</span><span class="s2">&quot;</span>.<span class="nv">format</span><span class="ss">(</span>
+            <span class="nv">self</span>.<span class="nv">api_url</span>, <span class="nv">username</span>, <span class="nv">projectname</span>, <span class="nv">api_endpoint</span>
+        <span class="ss">)</span>
+...<span class="ss">(</span><span class="nv">snip</span><span class="ss">)</span>...
 </pre></div>
 
 

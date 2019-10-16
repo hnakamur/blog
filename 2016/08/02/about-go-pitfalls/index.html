@@ -64,7 +64,7 @@
 
 
 <p>jsonやfmt関連のエラーは何言ってるのかよくわからないで無視するとして</p>
-<div class="highlight"><pre><span></span>main.go:14:16:warning: error return value not checked (json.Unmarshal([]byte(&quot;not json&quot;), d)) (errcheck)
+<div class="highlight"><pre><span></span><span class="nv">main</span>.<span class="nv">go</span>:<span class="mi">14</span>:<span class="mi">16</span>:<span class="nv">warning</span>: <span class="nv">error</span> <span class="k">return</span> <span class="nv">value</span> <span class="nv">not</span> <span class="nv">checked</span> <span class="ss">(</span><span class="nv">json</span>.<span class="nv">Unmarshal</span><span class="ss">(</span>[]<span class="nv">byte</span><span class="ss">(</span><span class="s2">&quot;</span><span class="s">not json</span><span class="s2">&quot;</span><span class="ss">)</span>, <span class="nv">d</span><span class="ss">))</span> <span class="ss">(</span><span class="nv">errcheck</span><span class="ss">)</span>
 </pre></div>
 
 
@@ -108,8 +108,8 @@ https://github.com/davecheney/high-performance-go-workshop/blob/ee2e7a82092a72d7
 <p>yieldみたいなことはせずに、goroutineを複数動かしてchannelでデータをやり取りするか、変数を sync.Mutex などで排他制御してデータをやり取りするのがGo流だと思います。あるいは簡単なイテレータなら関数を返すような関数で実現可能だと思います。</p>
 <h2>例外が(推奨され)ない</h2>
 <p>Java, Python, Rubyなどを書いていた私としても例外がないのは不便なのではと最初は思いましたが、今では err が戻り値で毎回</p>
-<div class="highlight"><pre><span></span>if err != nil {
-   return err
+<div class="highlight"><pre><span></span><span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
+   <span class="k">return</span> <span class="nv">err</span>
 }
 </pre></div>
 
@@ -126,8 +126,8 @@ https://github.com/davecheney/high-performance-go-workshop/blob/ee2e7a82092a72d7
 <p>ひとつ前の「例外が(推奨され)ない」にまとめて書きました。
 個人的には同じパターンで繰り返すほうが、ケースバイケースで書き方が違うより、読みやすいです。</p>
 <h2>return nil, err → このerrorどこで発生したの？</h2>
-<div class="highlight"><pre><span></span>if err != nil {
-  return nil, fmt.Errorf(&quot;Some context: %v&quot;, err)
+<div class="highlight"><pre><span></span><span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
+  <span class="k">return</span> <span class="nv">nil</span>, <span class="nv">fmt</span>.<span class="nv">Errorf</span><span class="ss">(</span><span class="s2">&quot;</span><span class="s">Some context: %v</span><span class="s2">&quot;</span>, <span class="nv">err</span><span class="ss">)</span>
 }
 </pre></div>
 
@@ -137,50 +137,50 @@ https://github.com/davecheney/high-performance-go-workshop/blob/ee2e7a82092a72d7
 <a href="https://godoc.org/github.com/hnakamur/ltsvlog#LTSVLogger.ErrorWithStack">func (l *LTSVLogger) ErrorWithStack(lv ...LV)</a> というメソッドを用意して、エラーが起きた箇所でメッセージと変数の値とスタックトレースを出力するようにしています。</p>
 <h2>関数より狭いスコープで defer</h2>
 <p>わかりやすい名前がつけられるケースならprivateの関数に切り出してそちらでdeferするようにします。</p>
-<div class="highlight"><pre><span></span>func myFuncHelper(filename string) (*dataType, error) {
-  r, err := os.Open(filename)
-  if err != nil {
-    return err
+<div class="highlight"><pre><span></span><span class="nv">func</span> <span class="nv">myFuncHelper</span><span class="ss">(</span><span class="nv">filename</span> <span class="nv">string</span><span class="ss">)</span> <span class="ss">(</span><span class="o">*</span><span class="nv">dataType</span>, <span class="nv">error</span><span class="ss">)</span> {
+  <span class="nv">r</span>, <span class="nv">err</span> :<span class="o">=</span> <span class="nv">os</span>.<span class="nv">Open</span><span class="ss">(</span><span class="nv">filename</span><span class="ss">)</span>
+  <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
+    <span class="k">return</span> <span class="nv">err</span>
   }
-  defer r.Close()
-  data, err := readDataFromReader(r)  // 実際にはもう少し複雑な処理
-  if err != nil {
-    return nil, err
+  <span class="nv">defer</span> <span class="nv">r</span>.<span class="nv">Close</span><span class="ss">()</span>
+  <span class="nv">data</span>, <span class="nv">err</span> :<span class="o">=</span> <span class="nv">readDataFromReader</span><span class="ss">(</span><span class="nv">r</span><span class="ss">)</span>  <span class="o">//</span> 実際にはもう少し複雑な処理
+  <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
+    <span class="k">return</span> <span class="nv">nil</span>, <span class="nv">err</span>
   }
-  return data, nil
+  <span class="k">return</span> <span class="nv">data</span>, <span class="nv">nil</span>
 }
 
-func myFunc() error {
-  data, err := myFunHelper(filename)
-  if err != nil {
-    return err
+<span class="nv">func</span> <span class="nv">myFunc</span><span class="ss">()</span> <span class="nv">error</span> {
+  <span class="nv">data</span>, <span class="nv">err</span> :<span class="o">=</span> <span class="nv">myFunHelper</span><span class="ss">(</span><span class="nv">filename</span><span class="ss">)</span>
+  <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
+    <span class="k">return</span> <span class="nv">err</span>
   }
-  // その後の他の処理
+  <span class="o">//</span> その後の他の処理
 }
 </pre></div>
 
 
 <p>あとエラーで抜けるケースが少なければdeferを使わずに <code>Close()</code> を呼べば良いと思います。</p>
-<div class="highlight"><pre><span></span>func myFunc() error {
-  // ...
-  r, err := os.Open(filename)
-  if err != nil {
-    return err
+<div class="highlight"><pre><span></span><span class="nv">func</span> <span class="nv">myFunc</span><span class="ss">()</span> <span class="nv">error</span> {
+  <span class="o">//</span> ...
+  <span class="nv">r</span>, <span class="nv">err</span> :<span class="o">=</span> <span class="nv">os</span>.<span class="nv">Open</span><span class="ss">(</span><span class="nv">filename</span><span class="ss">)</span>
+  <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
+    <span class="k">return</span> <span class="nv">err</span>
   }
-  data, err := readDataFromReader(r)  // 実際にはもう少し複雑な処理
-  if err != nil {
-    r.Close()
-    return err
+  <span class="nv">data</span>, <span class="nv">err</span> :<span class="o">=</span> <span class="nv">readDataFromReader</span><span class="ss">(</span><span class="nv">r</span><span class="ss">)</span>  <span class="o">//</span> 実際にはもう少し複雑な処理
+  <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
+    <span class="nv">r</span>.<span class="nv">Close</span><span class="ss">()</span>
+    <span class="k">return</span> <span class="nv">err</span>
   }
-  r.Close()
+  <span class="nv">r</span>.<span class="nv">Close</span><span class="ss">()</span>
 }
 </pre></div>
 
 
 <p>「実際にはもう少し複雑な処理」と書いているので、</p>
-<div class="highlight"><pre><span></span>  if err != nil {
-    r.Close()
-    return err
+<div class="highlight"><pre><span></span>  <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
+    <span class="nv">r</span>.<span class="nv">Close</span><span class="ss">()</span>
+    <span class="k">return</span> <span class="nv">err</span>
   }
 </pre></div>
 
@@ -203,7 +203,7 @@ func myFunc() error {
 <p><a href="https://blog.golang.org/gos-declaration-syntax">Go's Declaration Syntax - The Go Blog</a> で理由が説明されています。</p>
 <h2>1.0 が浮動小数点型にならない(時がある)</h2>
 <p>これは知りませんでした。</p>
-<div class="highlight"><pre><span></span>e := float64(a / 3.0)
+<div class="highlight"><pre><span></span><span class="n">e</span> <span class="p">:</span><span class="o">=</span> <span class="n">float64</span><span class="p">(</span><span class="n">a</span> <span class="o">/</span> <span class="mi">3</span><span class="p">.</span><span class="mi">0</span><span class="p">)</span>
 </pre></div>
 
 
