@@ -46,23 +46,23 @@ CockroachDBにデバッグ用のコマンドが用意されていたので、そ
 <p>RocksDBはC++で書かれているので、Goから呼び出すためcgoでラッピングしているレイヤがあります。 <a href="https://github.com/cockroachdb/cockroach/tree/master/storage/engine/rocksdb">cockroach/storage/engine/rocksdb</a> にC++で書かれたファイルがいくつかあります。 <a href="https://github.com/cockroachdb/cockroach/tree/master/storage/engine">cockroach/storage/engine</a> パッケージのドキュメント <a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine">engine - GoDoc</a> にこのパッケージで低レベルのストレージを提供しているという説明があります。</p>
 <p><a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#Engine">Engine</a> はRocksDBなどのストレージバックエンドとやり取りするためのインターフェースです。 Engineは <a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#ReadWriter">ReadWriter</a> インタフェースをエンベッドしていて、それがさらに <a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#Reader">Reader</a> と <a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#Writer">Writer</a> インタフェースをエンベッドしています。</p>
 <p>Reader や Writer インタフェースのメソッドを見るとキーバリューストアのキーは <a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#MVCCKey">MVCCKey</a> という型になっています。</p>
-<div class="highlight"><pre><span></span>type MVCCKey struct {
-    Key       roachpb.Key
-    Timestamp hlc.Timestamp
-}
+<div class="highlight"><pre><span></span><span class="k">type</span> <span class="n">MVCCKey</span> <span class="n">struct</span> <span class="err">{</span>
+    <span class="k">Key</span>       <span class="n">roachpb</span><span class="p">.</span><span class="k">Key</span>
+    <span class="k">Timestamp</span> <span class="n">hlc</span><span class="p">.</span><span class="k">Timestamp</span>
+<span class="err">}</span>
 </pre></div>
 
 
 <p><a href="https://godoc.org/github.com/cockroachdb/cockroach/roachpb#Key">roachpb.Key</a> は <code>[]byte</code> と定義されており、 <a href="https://godoc.org/github.com/cockroachdb/cockroach/util/hlc#Timestamp">hlc.Timestamp</a> は以下のように定義されています。</p>
-<div class="highlight"><pre><span></span>type Timestamp struct {
-    // Holds a wall time, typically a unix epoch time
-    // expressed in nanoseconds.
-    WallTime int64 `protobuf:&quot;varint,1,opt,name=wall_time,json=wallTime&quot; json:&quot;wall_time&quot;`
-    // The logical component captures causality for events whose wall
-    // times are equal. It is effectively bounded by (maximum clock
-    // skew)/(minimal ns between events) and nearly impossible to
-    // overflow.
-    Logical int32 `protobuf:&quot;varint,2,opt,name=logical&quot; json:&quot;logical&quot;`
+<div class="highlight"><pre><span></span><span class="nv">type</span> <span class="nv">Timestamp</span> <span class="nv">struct</span> {
+    <span class="o">//</span> <span class="nv">Holds</span> <span class="nv">a</span> <span class="nv">wall</span> <span class="nv">time</span>, <span class="nv">typically</span> <span class="nv">a</span> <span class="nv">unix</span> <span class="nv">epoch</span> <span class="nv">time</span>
+    <span class="o">//</span> <span class="nv">expressed</span> <span class="nv">in</span> <span class="nv">nanoseconds</span>.
+    <span class="nv">WallTime</span> <span class="nv">int64</span> `<span class="nv">protobuf</span>:<span class="s2">&quot;</span><span class="s">varint,1,opt,name=wall_time,json=wallTime</span><span class="s2">&quot;</span> <span class="nv">json</span>:<span class="s2">&quot;</span><span class="s">wall_time</span><span class="s2">&quot;</span>`
+    <span class="o">//</span> <span class="nv">The</span> <span class="nv">logical</span> <span class="nv">component</span> <span class="nv">captures</span> <span class="nv">causality</span> <span class="k">for</span> <span class="nv">events</span> <span class="nv">whose</span> <span class="nv">wall</span>
+    <span class="o">//</span> <span class="nv">times</span> <span class="nv">are</span> <span class="nv">equal</span>. <span class="nv">It</span> <span class="nv">is</span> <span class="nv">effectively</span> <span class="nv">bounded</span> <span class="nv">by</span> <span class="ss">(</span><span class="nv">maximum</span> <span class="nv">clock</span>
+    <span class="o">//</span> <span class="nv">skew</span><span class="ss">)</span><span class="o">/</span><span class="ss">(</span><span class="nv">minimal</span> <span class="nv">ns</span> <span class="nv">between</span> <span class="nv">events</span><span class="ss">)</span> <span class="nv">and</span> <span class="nv">nearly</span> <span class="nv">impossible</span> <span class="nv">to</span>
+    <span class="o">//</span> <span class="nv">overflow</span>.
+    <span class="nv">Logical</span> <span class="nv">int32</span> `<span class="nv">protobuf</span>:<span class="s2">&quot;</span><span class="s">varint,2,opt,name=logical</span><span class="s2">&quot;</span> <span class="nv">json</span>:<span class="s2">&quot;</span><span class="s">logical</span><span class="s2">&quot;</span>`
 }
 </pre></div>
 
@@ -86,17 +86,17 @@ CockroachDBにデバッグ用のコマンドが用意されていたので、そ
 <h2>デバッグ用サブコマンドを試してみた</h2>
 <p>前提条件としてLXDの3つのコンテナroach1, roach2, roach3で以下のようにCockroachDBを起動している状態とします。</p>
 <p>roach1</p>
-<div class="highlight"><pre><span></span>/usr/local/sbin/cockroach start --host 192.168.0.13 --insecure
+<div class="highlight"><pre><span></span><span class="o">/</span><span class="n">usr</span><span class="o">/</span><span class="k">local</span><span class="o">/</span><span class="n">sbin</span><span class="o">/</span><span class="n">cockroach</span> <span class="k">start</span> <span class="c1">--host 192.168.0.13 --insecure</span>
 </pre></div>
 
 
 <p>roach2</p>
-<div class="highlight"><pre><span></span>/usr/local/sbin/cockroach start --join 192.168.0.13:26257 --insecure --host 192.168.0.14
+<div class="highlight"><pre><span></span><span class="o">/</span><span class="n">usr</span><span class="o">/</span><span class="k">local</span><span class="o">/</span><span class="n">sbin</span><span class="o">/</span><span class="n">cockroach</span> <span class="k">start</span> <span class="c1">--join 192.168.0.13:26257 --insecure --host 192.168.0.14</span>
 </pre></div>
 
 
 <p>roach3</p>
-<div class="highlight"><pre><span></span>/usr/local/sbin/cockroach start --join 192.168.0.13:26257 --insecure --host 192.168.0.15
+<div class="highlight"><pre><span></span><span class="o">/</span><span class="n">usr</span><span class="o">/</span><span class="k">local</span><span class="o">/</span><span class="n">sbin</span><span class="o">/</span><span class="n">cockroach</span> <span class="k">start</span> <span class="c1">--join 192.168.0.13:26257 --insecure --host 192.168.0.15</span>
 </pre></div>
 
 
@@ -104,95 +104,95 @@ CockroachDBにデバッグ用のコマンドが用意されていたので、そ
 <h3>debug kv コマンドを試してみた</h3>
 <p>debug kvコマンドで、キー・バリュー・ストアに値を設定したり取得したり出来ます。</p>
 <p>コンテナroach1で値をセットして取得してみました。</p>
-<div class="highlight"><pre><span></span>root@roach1:~# cockroach debug kv scan --host 192.168.0.13
-0 result(s)
-root@roach1:~# cockroach debug kv put --host 192.168.0.13 foo bar
-root@roach1:~# cockroach debug kv get --host 192.168.0.13 foo
-&quot;bar&quot;
-root@roach1:~# cockroach debug kv scan --host 192.168.0.13
-&quot;foo&quot;   &quot;bar&quot;
-1 result(s)
+<div class="highlight"><pre><span></span><span class="n">root</span><span class="nv">@roach1</span><span class="err">:</span><span class="o">~</span><span class="err">#</span><span class="w"> </span><span class="n">cockroach</span><span class="w"> </span><span class="n">debug</span><span class="w"> </span><span class="n">kv</span><span class="w"> </span><span class="n">scan</span><span class="w"> </span><span class="c1">--host 192.168.0.13</span>
+<span class="mi">0</span><span class="w"> </span><span class="k">result</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="w"></span>
+<span class="n">root</span><span class="nv">@roach1</span><span class="err">:</span><span class="o">~</span><span class="err">#</span><span class="w"> </span><span class="n">cockroach</span><span class="w"> </span><span class="n">debug</span><span class="w"> </span><span class="n">kv</span><span class="w"> </span><span class="n">put</span><span class="w"> </span><span class="c1">--host 192.168.0.13 foo bar</span>
+<span class="n">root</span><span class="nv">@roach1</span><span class="err">:</span><span class="o">~</span><span class="err">#</span><span class="w"> </span><span class="n">cockroach</span><span class="w"> </span><span class="n">debug</span><span class="w"> </span><span class="n">kv</span><span class="w"> </span><span class="k">get</span><span class="w"> </span><span class="c1">--host 192.168.0.13 foo</span>
+<span class="ss">&quot;bar&quot;</span><span class="w"></span>
+<span class="n">root</span><span class="nv">@roach1</span><span class="err">:</span><span class="o">~</span><span class="err">#</span><span class="w"> </span><span class="n">cockroach</span><span class="w"> </span><span class="n">debug</span><span class="w"> </span><span class="n">kv</span><span class="w"> </span><span class="n">scan</span><span class="w"> </span><span class="c1">--host 192.168.0.13</span>
+<span class="ss">&quot;foo&quot;</span><span class="w">   </span><span class="ss">&quot;bar&quot;</span><span class="w"></span>
+<span class="mi">1</span><span class="w"> </span><span class="k">result</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="w"></span>
 </pre></div>
 
 
 <p>上記で設定した値がコンテナroach2でも取得できました。</p>
-<div class="highlight"><pre><span></span>root@roach2:~# cockroach debug kv scan --host 192.168.0.14
-&quot;foo&quot;   &quot;bar&quot;
-1 result(s)
+<div class="highlight"><pre><span></span><span class="n">root</span><span class="nv">@roach2</span><span class="err">:</span><span class="o">~</span><span class="err">#</span><span class="w"> </span><span class="n">cockroach</span><span class="w"> </span><span class="n">debug</span><span class="w"> </span><span class="n">kv</span><span class="w"> </span><span class="n">scan</span><span class="w"> </span><span class="c1">--host 192.168.0.14</span>
+<span class="ss">&quot;foo&quot;</span><span class="w">   </span><span class="ss">&quot;bar&quot;</span><span class="w"></span>
+<span class="mi">1</span><span class="w"> </span><span class="k">result</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="w"></span>
 </pre></div>
 
 
 <p>コンテナroach2からroach1上の値を変更も出来ます。</p>
-<div class="highlight"><pre><span></span>root@roach2:~# cockroach debug kv put --host 192.168.0.13 foo &#39;Hello, key value store in CockroachDB&#39;
+<div class="highlight"><pre><span></span><span class="n">root</span><span class="nv">@roach2</span><span class="err">:</span><span class="o">~</span><span class="err">#</span><span class="w"> </span><span class="n">cockroach</span><span class="w"> </span><span class="n">debug</span><span class="w"> </span><span class="n">kv</span><span class="w"> </span><span class="n">put</span><span class="w"> </span><span class="c1">--host 192.168.0.13 foo &#39;Hello, key value store in CockroachDB&#39;</span>
 </pre></div>
 
 
 <p>コンテナroach1上の値一覧を取得して更新されていることを確認しました。</p>
-<div class="highlight"><pre><span></span>root@roach1:~# cockroach debug kv scan --host 192.168.0.13
-&quot;foo&quot;   &quot;Hello, key value store in CockroachDB&quot;
-1 result(s)
+<div class="highlight"><pre><span></span><span class="n">root</span><span class="nv">@roach1</span><span class="err">:</span><span class="o">~</span><span class="err">#</span><span class="w"> </span><span class="n">cockroach</span><span class="w"> </span><span class="n">debug</span><span class="w"> </span><span class="n">kv</span><span class="w"> </span><span class="n">scan</span><span class="w"> </span><span class="c1">--host 192.168.0.13</span>
+<span class="ss">&quot;foo&quot;</span><span class="w">   </span><span class="ss">&quot;Hello, key value store in CockroachDB&quot;</span><span class="w"></span>
+<span class="mi">1</span><span class="w"> </span><span class="k">result</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="w"></span>
 </pre></div>
 
 
 <h3>debug keys コマンドを試してみた</h3>
 <p>debug keysコマンドで、キー・バリュー・ストアの内部構造をダンプして見ることが出来ます。このコマンドはサーバを停止した状態でデータのディレクトリを指定して実行するようになっています。</p>
 <p>サーバが起動したまま実行すると以下のようにロックが取得できないというエラーになります。</p>
-<div class="highlight"><pre><span></span>root@roach2:~# cockroach debug keys ./cockroach-data
-Error: storage/engine/rocksdb.go:158: could not open rocksdb instance: IO error: lock ./cockroach-data/LOCK: Resource temporarily unavailable
-Usage:
-  cockroach debug keys [directory] [flags]
+<div class="highlight"><pre><span></span><span class="n">root</span><span class="nv">@roach2</span><span class="err">:</span><span class="o">~</span><span class="err">#</span><span class="w"> </span><span class="n">cockroach</span><span class="w"> </span><span class="n">debug</span><span class="w"> </span><span class="n">keys</span><span class="w"> </span><span class="p">.</span><span class="o">/</span><span class="n">cockroach</span><span class="o">-</span><span class="k">data</span><span class="w"></span>
+<span class="nl">Error</span><span class="p">:</span><span class="w"> </span><span class="n">storage</span><span class="o">/</span><span class="n">engine</span><span class="o">/</span><span class="n">rocksdb</span><span class="p">.</span><span class="k">go</span><span class="err">:</span><span class="mi">158</span><span class="err">:</span><span class="w"> </span><span class="n">could</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="k">open</span><span class="w"> </span><span class="n">rocksdb</span><span class="w"> </span><span class="nl">instance</span><span class="p">:</span><span class="w"> </span><span class="n">IO</span><span class="w"> </span><span class="nl">error</span><span class="p">:</span><span class="w"> </span><span class="n">lock</span><span class="w"> </span><span class="p">.</span><span class="o">/</span><span class="n">cockroach</span><span class="o">-</span><span class="k">data</span><span class="o">/</span><span class="nl">LOCK</span><span class="p">:</span><span class="w"> </span><span class="n">Resource</span><span class="w"> </span><span class="n">temporarily</span><span class="w"> </span><span class="n">unavailable</span><span class="w"></span>
+<span class="k">Usage</span><span class="err">:</span><span class="w"></span>
+<span class="w">  </span><span class="n">cockroach</span><span class="w"> </span><span class="n">debug</span><span class="w"> </span><span class="n">keys</span><span class="w"> </span><span class="o">[</span><span class="n">directory</span><span class="o">]</span><span class="w"> </span><span class="o">[</span><span class="n">flags</span><span class="o">]</span><span class="w"></span>
 
-Flags:
-      --from string
-        Start key in pretty-printed format. See also --raw.
+<span class="nl">Flags</span><span class="p">:</span><span class="w"></span>
+<span class="w">      </span><span class="c1">--from string</span>
+<span class="w">        </span><span class="k">Start</span><span class="w"> </span><span class="k">key</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">pretty</span><span class="o">-</span><span class="n">printed</span><span class="w"> </span><span class="nf">format</span><span class="p">.</span><span class="w"> </span><span class="n">See</span><span class="w"> </span><span class="n">also</span><span class="w"> </span><span class="c1">--raw.</span>
 
-      --raw
-        Interpret keys as raw bytes.
+<span class="w">      </span><span class="c1">--raw</span>
+<span class="w">        </span><span class="n">Interpret</span><span class="w"> </span><span class="n">keys</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">raw</span><span class="w"> </span><span class="n">bytes</span><span class="p">.</span><span class="w"></span>
 
-      --to string
-        Exclusive end key in pretty-printed format. See also --raw.
+<span class="w">      </span><span class="c1">--to string</span>
+<span class="w">        </span><span class="n">Exclusive</span><span class="w"> </span><span class="k">end</span><span class="w"> </span><span class="k">key</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">pretty</span><span class="o">-</span><span class="n">printed</span><span class="w"> </span><span class="nf">format</span><span class="p">.</span><span class="w"> </span><span class="n">See</span><span class="w"> </span><span class="n">also</span><span class="w"> </span><span class="c1">--raw.</span>
 
-      --values
-        Print values along with their associated key.
+<span class="w">      </span><span class="c1">--values</span>
+<span class="w">        </span><span class="k">Print</span><span class="w"> </span><span class="k">values</span><span class="w"> </span><span class="n">along</span><span class="w"> </span><span class="k">with</span><span class="w"> </span><span class="n">their</span><span class="w"> </span><span class="n">associated</span><span class="w"> </span><span class="k">key</span><span class="p">.</span><span class="w"></span>
 
-Global Flags:
-      --alsologtostderr value[=INFO]   logs at or above this threshold go to stderr (default NONE)
-      --log-backtrace-at value         when logging hits line file:N, emit a stack trace (default :0)
-      --log-dir value                  if non-empty, write log files in this directory
-      --logtostderr                    log to standard error instead of files
-      --no-color value                 disable standard error log colorization
-      --verbosity value                log level for V logs
-      --vmodule value                  comma-separated list of pattern=N settings for file-filtered logging
+<span class="k">Global</span><span class="w"> </span><span class="nl">Flags</span><span class="p">:</span><span class="w"></span>
+<span class="w">      </span><span class="c1">--alsologtostderr value[=INFO]   logs at or above this threshold go to stderr (default NONE)</span>
+<span class="w">      </span><span class="c1">--log-backtrace-at value         when logging hits line file:N, emit a stack trace (default :0)</span>
+<span class="w">      </span><span class="c1">--log-dir value                  if non-empty, write log files in this directory</span>
+<span class="w">      </span><span class="c1">--logtostderr                    log to standard error instead of files</span>
+<span class="w">      </span><span class="c1">--no-color value                 disable standard error log colorization</span>
+<span class="w">      </span><span class="c1">--verbosity value                log level for V logs</span>
+<span class="w">      </span><span class="c1">--vmodule value                  comma-separated list of pattern=N settings for file-filtered logging</span>
 
-Failed running &quot;debug&quot;
+<span class="n">Failed</span><span class="w"> </span><span class="n">running</span><span class="w"> </span><span class="ss">&quot;debug&quot;</span><span class="w"></span>
 </pre></div>
 
 
 <p>そこでコンテナroach2のサーバを停止してみます。</p>
-<div class="highlight"><pre><span></span>root@roach2:~# cockroach quit --host 192.168.0.14
+<div class="highlight"><pre><span></span><span class="n">root</span><span class="nv">@roach2</span><span class="err">:</span><span class="o">~</span><span class="err">#</span><span class="w"> </span><span class="n">cockroach</span><span class="w"> </span><span class="n">quit</span><span class="w"> </span><span class="c1">--host 192.168.0.14</span>
 </pre></div>
 
 
 <p>サーバを停止したらキーの一覧を表示してみます。以下の例では <code>foo</code> の前後5行を表示しています。
 fooという文字列の後にタイムスタンプがついているのがわかります。</p>
-<div class="highlight"><pre><span></span>root@roach2:~# cockroach debug keys ./cockroach-data | grep -A 5 -B 5 foo
-&quot;/System/\&quot;update-cluster\&quot;/1466351519.447511853,0&quot;
-&quot;/System/\&quot;update-cluster\&quot;/1466265107.436191749,0&quot;
-&quot;/System/\&quot;update-cluster\&quot;/1466265097.406397710,0&quot;
-&quot;/System/\&quot;update-cluster\&quot;/1466178687.396782782,0&quot;
-&quot;/System/\&quot;update-cluster\&quot;/1466178677.619687555,85&quot;
-&quot;\&quot;foo\&quot;/1467234744.564568969,0&quot;
-&quot;\&quot;foo\&quot;/1467221373.376922221,0&quot;
-&quot;/Table/2/1/0/\&quot;bank\&quot;/3/1/1466178749.722011447,0&quot;
-&quot;/Table/2/1/0/\&quot;system\&quot;/3/1/1466178677.367397368,0&quot;
-&quot;/Table/2/1/1/\&quot;descriptor\&quot;/3/1/1466178677.367397368,0&quot;
-&quot;/Table/2/1/1/\&quot;eventlog\&quot;/3/1/1466178677.367397368,0&quot;
-&quot;/Table/2/1/1/\&quot;lease\&quot;/3/1/1466178677.367397368,0&quot;
+<div class="highlight"><pre><span></span><span class="n">root</span><span class="nv">@roach2</span><span class="err">:</span><span class="o">~</span><span class="err">#</span><span class="w"> </span><span class="n">cockroach</span><span class="w"> </span><span class="n">debug</span><span class="w"> </span><span class="n">keys</span><span class="w"> </span><span class="p">.</span><span class="o">/</span><span class="n">cockroach</span><span class="o">-</span><span class="k">data</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">grep</span><span class="w"> </span><span class="o">-</span><span class="n">A</span><span class="w"> </span><span class="mi">5</span><span class="w"> </span><span class="o">-</span><span class="n">B</span><span class="w"> </span><span class="mi">5</span><span class="w"> </span><span class="n">foo</span><span class="w"></span>
+<span class="ss">&quot;/System/\&quot;</span><span class="k">update</span><span class="o">-</span><span class="n">cluster</span><span class="err">\</span><span class="ss">&quot;/1466351519.447511853,0&quot;</span><span class="w"></span>
+<span class="ss">&quot;/System/\&quot;</span><span class="k">update</span><span class="o">-</span><span class="n">cluster</span><span class="err">\</span><span class="ss">&quot;/1466265107.436191749,0&quot;</span><span class="w"></span>
+<span class="ss">&quot;/System/\&quot;</span><span class="k">update</span><span class="o">-</span><span class="n">cluster</span><span class="err">\</span><span class="ss">&quot;/1466265097.406397710,0&quot;</span><span class="w"></span>
+<span class="ss">&quot;/System/\&quot;</span><span class="k">update</span><span class="o">-</span><span class="n">cluster</span><span class="err">\</span><span class="ss">&quot;/1466178687.396782782,0&quot;</span><span class="w"></span>
+<span class="ss">&quot;/System/\&quot;</span><span class="k">update</span><span class="o">-</span><span class="n">cluster</span><span class="err">\</span><span class="ss">&quot;/1466178677.619687555,85&quot;</span><span class="w"></span>
+<span class="ss">&quot;\&quot;</span><span class="n">foo</span><span class="err">\</span><span class="ss">&quot;/1467234744.564568969,0&quot;</span><span class="w"></span>
+<span class="ss">&quot;\&quot;</span><span class="n">foo</span><span class="err">\</span><span class="ss">&quot;/1467221373.376922221,0&quot;</span><span class="w"></span>
+<span class="ss">&quot;/Table/2/1/0/\&quot;</span><span class="n">bank</span><span class="err">\</span><span class="ss">&quot;/3/1/1466178749.722011447,0&quot;</span><span class="w"></span>
+<span class="ss">&quot;/Table/2/1/0/\&quot;</span><span class="k">system</span><span class="err">\</span><span class="ss">&quot;/3/1/1466178677.367397368,0&quot;</span><span class="w"></span>
+<span class="ss">&quot;/Table/2/1/1/\&quot;</span><span class="k">descriptor</span><span class="err">\</span><span class="ss">&quot;/3/1/1466178677.367397368,0&quot;</span><span class="w"></span>
+<span class="ss">&quot;/Table/2/1/1/\&quot;</span><span class="n">eventlog</span><span class="err">\</span><span class="ss">&quot;/3/1/1466178677.367397368,0&quot;</span><span class="w"></span>
+<span class="ss">&quot;/Table/2/1/1/\&quot;</span><span class="n">lease</span><span class="err">\</span><span class="ss">&quot;/3/1/1466178677.367397368,0&quot;</span><span class="w"></span>
 </pre></div>
 
 
 <p><code>--values</code> オプションも追加すると、キーだけではなく値も表示されます。</p>
-<div class="highlight"><pre><span></span>cockroach debug keys --values cockroach-data/ | less
+<div class="highlight"><pre><span></span><span class="n">cockroach</span> <span class="n">debug</span> <span class="n">keys</span> <span class="c1">--values cockroach-data/ | less</span>
 </pre></div>
 
 

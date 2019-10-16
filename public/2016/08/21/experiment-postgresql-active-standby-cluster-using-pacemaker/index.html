@@ -63,44 +63,44 @@
 <p>LXD をセットアップ済みの Ubuntu 16.04 上で試しました。</p>
 <h2>セットアップの事前準備</h2>
 <p>上記のplaybookを取得します。</p>
-<div class="highlight"><pre><span></span>git clone https://github.com/hnakamur/postgresql-pacemaker-example-playbook
-cd postgresql-pacemaker-example-playbook
+<div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">clone</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="p">.</span><span class="n">com</span><span class="o">/</span><span class="n">hnakamur</span><span class="o">/</span><span class="n">postgresql</span><span class="o">-</span><span class="n">pacemaker</span><span class="o">-</span><span class="n">example</span><span class="o">-</span><span class="n">playbook</span>
+<span class="n">cd</span> <span class="n">postgresql</span><span class="o">-</span><span class="n">pacemaker</span><span class="o">-</span><span class="n">example</span><span class="o">-</span><span class="n">playbook</span>
 </pre></div>
 
 
 <p>Ansibleの <code>lxd_container</code> モジュールを使うので、virtualenvで仮想環境を作ってAnsibleのmaster版をインストールします。</p>
-<div class="highlight"><pre><span></span>virtualenv venv
-source venv/bin/activate
-pip install git+https://github.com/ansible/ansible
+<div class="highlight"><pre><span></span><span class="n">virtualenv</span> <span class="n">venv</span>
+<span class="k">source</span> <span class="n">venv</span><span class="o">/</span><span class="n">bin</span><span class="o">/</span><span class="n">activate</span>
+<span class="n">pip</span> <span class="n">install</span> <span class="n">git</span><span class="o">+</span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="p">.</span><span class="n">com</span><span class="o">/</span><span class="n">ansible</span><span class="o">/</span><span class="n">ansible</span>
 </pre></div>
 
 
 <p>今回はコンテナのIPアドレスをDHCPではなく静的アドレスを使うようにしてみました。</p>
 <p><code>/etc/default/lxd-bridge</code> の <code>LXD_IPV4_DHCP_RANGE</code> に DHCP のアドレス範囲が設定されているので、ファイルを編集して範囲を狭めます。私の環境では以下のようにしました。</p>
-<div class="highlight"><pre><span></span>## IPv4 network (e.g. 10.0.8.0/24)
-LXD_IPV4_NETWORK=&quot;10.155.92.1/24&quot;
+<div class="highlight"><pre><span></span><span class="o">##</span> <span class="n">IPv4</span> <span class="n">network</span> <span class="p">(</span><span class="n">e</span><span class="p">.</span><span class="k">g</span><span class="p">.</span> <span class="mi">10</span><span class="p">.</span><span class="mi">0</span><span class="p">.</span><span class="mi">8</span><span class="p">.</span><span class="mi">0</span><span class="o">/</span><span class="mi">24</span><span class="p">)</span>
+<span class="n">LXD_IPV4_NETWORK</span><span class="o">=</span><span class="ss">&quot;10.155.92.1/24&quot;</span>
 
-## IPv4 DHCP range (e.g. 10.0.8.2,10.0.8.254)
-LXD_IPV4_DHCP_RANGE=&quot;10.155.92.200,10.155.92.254&quot;
+<span class="o">##</span> <span class="n">IPv4</span> <span class="n">DHCP</span> <span class="n">range</span> <span class="p">(</span><span class="n">e</span><span class="p">.</span><span class="k">g</span><span class="p">.</span> <span class="mi">10</span><span class="p">.</span><span class="mi">0</span><span class="p">.</span><span class="mi">8</span><span class="p">.</span><span class="mi">2</span><span class="p">,</span><span class="mi">10</span><span class="p">.</span><span class="mi">0</span><span class="p">.</span><span class="mi">8</span><span class="p">.</span><span class="mi">254</span><span class="p">)</span>
+<span class="n">LXD_IPV4_DHCP_RANGE</span><span class="o">=</span><span class="ss">&quot;10.155.92.200,10.155.92.254&quot;</span>
 </pre></div>
 
 
 <p>LXDをインストールしたときに <code>LXD_IPV4_NETWORK</code> はランダムなアドレスになるかあるいは自分で指定しますので、それに応じた値に適宜変更してください。</p>
 <p>変更したら <code>lxd-bridge</code> を再起動して変更を反映します。</p>
-<div class="highlight"><pre><span></span>sudo systemctl restart lxd-bridge
+<div class="highlight"><pre><span></span><span class="n">sudo</span> <span class="n">systemctl</span> <span class="k">restart</span> <span class="n">lxd</span><span class="o">-</span><span class="n">bridge</span>
 </pre></div>
 
 
 <p><code>group_vars/development/vars.yml</code> ファイル内のIPアドレスも適宜変更します。</p>
 <p>また、 <code>group_vars/development/secrets.yml</code> 内にパスワードやsshの鍵ペアなどが含まれています。これを違う値に変更したい場合は以下のようにします。</p>
 <p>まず、以下のコマンドを実行して一旦復号化します。</p>
-<div class="highlight"><pre><span></span>ansible-vault decrypt group_vars/development/secrets.yml
+<div class="highlight"><pre><span></span><span class="n">ansible</span><span class="o">-</span><span class="n">vault</span> <span class="n">decrypt</span> <span class="n">group_vars</span><span class="o">/</span><span class="n">development</span><span class="o">/</span><span class="n">secrets</span><span class="p">.</span><span class="n">yml</span>
 </pre></div>
 
 
 <p>vaultのパスワードを聞かれますので入力します。この例では <code>password</code> としています。これはあくまで例なのでこういう弱いパスワードにしていますが、実際の案件で使うときは、もっと強いパスワードを指定してください。</p>
 <p><code>group_vars/development/secrets.yml</code> 内の変数を適宜変更したら、以下のコマンドを実行して暗号化します。</p>
-<div class="highlight"><pre><span></span>ansible-vault encrypt group_vars/development/secrets.yml
+<div class="highlight"><pre><span></span><span class="n">ansible</span><span class="o">-</span><span class="n">vault</span> <span class="n">encrypt</span> <span class="n">group_vars</span><span class="o">/</span><span class="n">development</span><span class="o">/</span><span class="n">secrets</span><span class="p">.</span><span class="n">yml</span>
 </pre></div>
 
 
@@ -126,7 +126,7 @@ Sun Aug <span class="m">21</span> <span class="m">13</span>:51:21 UTC <span clas
 
 
 <p>以下のコマンドを実行して <code>node2</code> コンテナに入ります。</p>
-<div class="highlight"><pre><span></span>$ lxc <span class="nb">exec</span> node2 bash
+<div class="highlight"><pre><span></span>$ <span class="nv">lxc</span> <span class="k">exec</span> <span class="nv">node2</span> <span class="nv">bash</span>
 </pre></div>
 
 
@@ -172,28 +172,28 @@ Sun Aug <span class="m">21</span> <span class="m">13</span>:52:57 UTC <span clas
 
 
 <p>しばらくすると　<code>crm_mon -fA</code> の出力が以下のようになります。</p>
-<div class="highlight"><pre><span></span>Last updated: Sun Aug 21 13:53:11 2016          Last change: Sun Aug 21 13:53:05 2016 by root via crm_attribute on node2
-Stack: corosync
-Current DC: node2 (version 1.1.13-10.el7_2.4-44eb2dd) - partition with quorum
-2 nodes and 3 resources configured
+<div class="highlight"><pre><span></span><span class="k">Last</span><span class="w"> </span><span class="nl">updated</span><span class="p">:</span><span class="w"> </span><span class="n">Sun</span><span class="w"> </span><span class="n">Aug</span><span class="w"> </span><span class="mi">21</span><span class="w"> </span><span class="mi">13</span><span class="err">:</span><span class="mi">53</span><span class="err">:</span><span class="mi">11</span><span class="w"> </span><span class="mi">2016</span><span class="w">          </span><span class="k">Last</span><span class="w"> </span><span class="nl">change</span><span class="p">:</span><span class="w"> </span><span class="n">Sun</span><span class="w"> </span><span class="n">Aug</span><span class="w"> </span><span class="mi">21</span><span class="w"> </span><span class="mi">13</span><span class="err">:</span><span class="mi">53</span><span class="err">:</span><span class="mi">05</span><span class="w"> </span><span class="mi">2016</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">root</span><span class="w"> </span><span class="n">via</span><span class="w"> </span><span class="n">crm_attribute</span><span class="w"> </span><span class="k">on</span><span class="w"> </span><span class="n">node2</span><span class="w"></span>
+<span class="nl">Stack</span><span class="p">:</span><span class="w"> </span><span class="n">corosync</span><span class="w"></span>
+<span class="k">Current</span><span class="w"> </span><span class="nl">DC</span><span class="p">:</span><span class="w"> </span><span class="n">node2</span><span class="w"> </span><span class="p">(</span><span class="n">version</span><span class="w"> </span><span class="mf">1.1.13</span><span class="o">-</span><span class="mf">10.</span><span class="n">el7_2</span><span class="mf">.4</span><span class="o">-</span><span class="mi">44</span><span class="n">eb2dd</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="k">partition</span><span class="w"> </span><span class="k">with</span><span class="w"> </span><span class="n">quorum</span><span class="w"></span>
+<span class="mi">2</span><span class="w"> </span><span class="n">nodes</span><span class="w"> </span><span class="ow">and</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="n">resources</span><span class="w"> </span><span class="n">configured</span><span class="w"></span>
 
-Online: [ node2 ]
-OFFLINE: [ node1 ]
+<span class="nl">Online</span><span class="p">:</span><span class="w"> </span><span class="o">[</span><span class="n"> node2 </span><span class="o">]</span><span class="w"></span>
+<span class="nl">OFFLINE</span><span class="p">:</span><span class="w"> </span><span class="o">[</span><span class="n"> node1 </span><span class="o">]</span><span class="w"></span>
 
- Master/Slave Set: pgsql-master [pgsql]
-     Masters: [ node2 ]
-master-ip       (ocf::heartbeat:IPaddr2):       Started node2
+<span class="w"> </span><span class="n">Master</span><span class="o">/</span><span class="n">Slave</span><span class="w"> </span><span class="k">Set</span><span class="err">:</span><span class="w"> </span><span class="n">pgsql</span><span class="o">-</span><span class="n">master</span><span class="w"> </span><span class="o">[</span><span class="n">pgsql</span><span class="o">]</span><span class="w"></span>
+<span class="w">     </span><span class="nl">Masters</span><span class="p">:</span><span class="w"> </span><span class="o">[</span><span class="n"> node2 </span><span class="o">]</span><span class="w"></span>
+<span class="n">master</span><span class="o">-</span><span class="n">ip</span><span class="w">       </span><span class="p">(</span><span class="nl">ocf</span><span class="p">:</span><span class="err">:</span><span class="nl">heartbeat</span><span class="p">:</span><span class="n">IPaddr2</span><span class="p">)</span><span class="err">:</span><span class="w">       </span><span class="n">Started</span><span class="w"> </span><span class="n">node2</span><span class="w"></span>
 
-Node Attributes:
-* Node node2:
-    + master-pgsql                      : 1000
-    + pgsql-data-status                 : LATEST
-    + pgsql-master-baseline             : 00000000030001A8
-    + pgsql-status                      : PRI
-    + pgsql-xlog-loc                    : 0000000003000000
+<span class="n">Node</span><span class="w"> </span><span class="nl">Attributes</span><span class="p">:</span><span class="w"></span>
+<span class="o">*</span><span class="w"> </span><span class="n">Node</span><span class="w"> </span><span class="nl">node2</span><span class="p">:</span><span class="w"></span>
+<span class="w">    </span><span class="o">+</span><span class="w"> </span><span class="n">master</span><span class="o">-</span><span class="n">pgsql</span><span class="w">                      </span><span class="err">:</span><span class="w"> </span><span class="mi">1000</span><span class="w"></span>
+<span class="w">    </span><span class="o">+</span><span class="w"> </span><span class="n">pgsql</span><span class="o">-</span><span class="k">data</span><span class="o">-</span><span class="n">status</span><span class="w">                 </span><span class="err">:</span><span class="w"> </span><span class="n">LATEST</span><span class="w"></span>
+<span class="w">    </span><span class="o">+</span><span class="w"> </span><span class="n">pgsql</span><span class="o">-</span><span class="n">master</span><span class="o">-</span><span class="n">baseline</span><span class="w">             </span><span class="err">:</span><span class="w"> </span><span class="mi">00000000030001</span><span class="n">A8</span><span class="w"></span>
+<span class="w">    </span><span class="o">+</span><span class="w"> </span><span class="n">pgsql</span><span class="o">-</span><span class="n">status</span><span class="w">                      </span><span class="err">:</span><span class="w"> </span><span class="n">PRI</span><span class="w"></span>
+<span class="w">    </span><span class="o">+</span><span class="w"> </span><span class="n">pgsql</span><span class="o">-</span><span class="n">xlog</span><span class="o">-</span><span class="n">loc</span><span class="w">                    </span><span class="err">:</span><span class="w"> </span><span class="mi">0000000003000000</span><span class="w"></span>
 
-Migration Summary:
-* Node node2:
+<span class="n">Migration</span><span class="w"> </span><span class="nl">Summary</span><span class="p">:</span><span class="w"></span>
+<span class="o">*</span><span class="w"> </span><span class="n">Node</span><span class="w"> </span><span class="nl">node2</span><span class="p">:</span><span class="w"></span>
 </pre></div>
 
 
@@ -205,24 +205,24 @@ Sun Aug <span class="m">21</span> <span class="m">13</span>:53:58 UTC <span clas
 
 <p>起動後しばらくしても <code>node1</code> はオフラインのままですが、これは意図した挙動です。実際のケースではディスク障害などが起きているかもしれないので、マシンの状況を確認してから手動でクラスタに復帰させることになるためです。</p>
 <p>以下のコマンドで <code>node1</code> コンテナに入ります。</p>
-<div class="highlight"><pre><span></span>$ lxc <span class="nb">exec</span> node1 bash
+<div class="highlight"><pre><span></span>$ <span class="nv">lxc</span> <span class="k">exec</span> <span class="nv">node1</span> <span class="nv">bash</span>
 </pre></div>
 
 
 <p>PacemakerがPostgreSQLのロックファイルを作っているのでそれを削除します。</p>
-<div class="highlight"><pre><span></span>[root@node1 ~]# ll /var/run/postgresql/
-total 4
--rw-r----- 1 root     root      0 Aug 21 13:52 PGSQL.lock
--rw-r----- 1 postgres postgres 36 Aug 21 13:52 rep_mode.conf
-[root@node1 ~]# rm /var/run/postgresql/PGSQL.lock
-rm: remove regular empty file &#39;/var/run/postgresql/PGSQL.lock&#39;? y
+<div class="highlight"><pre><span></span><span class="o">[</span><span class="n">root@node1 ~</span><span class="o">]</span><span class="err">#</span><span class="w"> </span><span class="n">ll</span><span class="w"> </span><span class="o">/</span><span class="nf">var</span><span class="o">/</span><span class="n">run</span><span class="o">/</span><span class="n">postgresql</span><span class="o">/</span><span class="w"></span>
+<span class="n">total</span><span class="w"> </span><span class="mi">4</span><span class="w"></span>
+<span class="o">-</span><span class="n">rw</span><span class="o">-</span><span class="n">r</span><span class="c1">----- 1 root     root      0 Aug 21 13:52 PGSQL.lock</span>
+<span class="o">-</span><span class="n">rw</span><span class="o">-</span><span class="n">r</span><span class="c1">----- 1 postgres postgres 36 Aug 21 13:52 rep_mode.conf</span>
+<span class="o">[</span><span class="n">root@node1 ~</span><span class="o">]</span><span class="err">#</span><span class="w"> </span><span class="n">rm</span><span class="w"> </span><span class="o">/</span><span class="nf">var</span><span class="o">/</span><span class="n">run</span><span class="o">/</span><span class="n">postgresql</span><span class="o">/</span><span class="n">PGSQL</span><span class="p">.</span><span class="n">lock</span><span class="w"></span>
+<span class="nl">rm</span><span class="p">:</span><span class="w"> </span><span class="n">remove</span><span class="w"> </span><span class="n">regular</span><span class="w"> </span><span class="n">empty</span><span class="w"> </span><span class="k">file</span><span class="w"> </span><span class="s1">&#39;/var/run/postgresql/PGSQL.lock&#39;</span><span class="vm">?</span><span class="w"> </span><span class="n">y</span><span class="w"></span>
 </pre></div>
 
 
 <p>以下のコマンドで <code>node1</code> をクラスタに復帰させ、時刻を記録します。</p>
-<div class="highlight"><pre><span></span>[root@node1 ~]# pcs cluster start node1; date -u
-node1: Starting Cluster...
-Sun Aug 21 13:55:30 UTC 2016
+<div class="highlight"><pre><span></span><span class="o">[</span><span class="n">root@node1 ~</span><span class="o">]</span><span class="err">#</span><span class="w"> </span><span class="n">pcs</span><span class="w"> </span><span class="n">cluster</span><span class="w"> </span><span class="k">start</span><span class="w"> </span><span class="n">node1</span><span class="p">;</span><span class="w"> </span><span class="nc">date</span><span class="w"> </span><span class="o">-</span><span class="n">u</span><span class="w"></span>
+<span class="nl">node1</span><span class="p">:</span><span class="w"> </span><span class="n">Starting</span><span class="w"> </span><span class="n">Cluster</span><span class="p">...</span><span class="w"></span>
+<span class="n">Sun</span><span class="w"> </span><span class="n">Aug</span><span class="w"> </span><span class="mi">21</span><span class="w"> </span><span class="mi">13</span><span class="err">:</span><span class="mi">55</span><span class="err">:</span><span class="mi">30</span><span class="w"> </span><span class="n">UTC</span><span class="w"> </span><span class="mi">2016</span><span class="w"></span>
 </pre></div>
 
 
@@ -261,7 +261,7 @@ Sun Aug 21 13:55:30 UTC 2016
 <h2>PostgreSQLのプロセスを強制終了してフェールオーバのテスト</h2>
 <p>今度は <code>node2</code> の PostgreSQL のプロセスを強制終了してフェールオーバしてみます。</p>
 <p>経過を見るために <code>node1</code> で以下のコマンドを実行して、その端末を開いたままにしておきます。</p>
-<div class="highlight"><pre><span></span>[root@node1 ~]# crm_mon -fA
+<div class="highlight"><pre><span></span><span class="o">[</span><span class="n">root@node1 ~</span><span class="o">]</span><span class="err">#</span><span class="w"> </span><span class="n">crm_mon</span><span class="w"> </span><span class="o">-</span><span class="n">fA</span><span class="w"></span>
 </pre></div>
 
 
@@ -297,8 +297,8 @@ Sun Aug 21 13:55:30 UTC 2016
 
 
 <p><code>node2</code> で以下のコマンドを実行して PostgreSQL のプロセスを強制終了し、時刻を記録します。</p>
-<div class="highlight"><pre><span></span>[root@node2 ~]# kill -KILL `head -1 /var/lib/pgsql/9.5/data/postmaster.pid`; date -u
-Sun Aug 21 13:58:20 UTC 2016
+<div class="highlight"><pre><span></span><span class="o">[</span><span class="n">root@node2 ~</span><span class="o">]</span><span class="err">#</span><span class="w"> </span><span class="k">kill</span><span class="w"> </span><span class="o">-</span><span class="k">KILL</span><span class="w"> </span><span class="err">`</span><span class="n">head</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="w"> </span><span class="o">/</span><span class="nf">var</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">pgsql</span><span class="o">/</span><span class="mf">9.5</span><span class="o">/</span><span class="k">data</span><span class="o">/</span><span class="n">postmaster</span><span class="p">.</span><span class="n">pid</span><span class="err">`</span><span class="p">;</span><span class="w"> </span><span class="nc">date</span><span class="w"> </span><span class="o">-</span><span class="n">u</span><span class="w"></span>
+<span class="n">Sun</span><span class="w"> </span><span class="n">Aug</span><span class="w"> </span><span class="mi">21</span><span class="w"> </span><span class="mi">13</span><span class="err">:</span><span class="mi">58</span><span class="err">:</span><span class="mi">20</span><span class="w"> </span><span class="n">UTC</span><span class="w"> </span><span class="mi">2016</span><span class="w"></span>
 </pre></div>
 
 
@@ -339,17 +339,17 @@ Sun Aug 21 13:58:20 UTC 2016
 
 <p>次に、 <code>node2</code> の PostgreSQL を再び稼働してスタンバイにさせてみます。</p>
 <p>まず Pacemaker が作成した PostgreSQL のロックファイル <code>/var/run/postgresql/PGSQL.lock</code> を削除します。</p>
-<div class="highlight"><pre><span></span>[root@node2 ~]# ll /var/run/postgresql/
-total 4
--rw-r----- 1 root     root      0 Aug 21 13:53 PGSQL.lock
--rw-r----- 1 postgres postgres 31 Aug 21 13:58 rep_mode.conf
-[root@node2 ~]# \rm /var/run/postgresql/PGSQL.lock
+<div class="highlight"><pre><span></span><span class="o">[</span><span class="n">root@node2 ~</span><span class="o">]</span><span class="err">#</span><span class="w"> </span><span class="n">ll</span><span class="w"> </span><span class="o">/</span><span class="nf">var</span><span class="o">/</span><span class="n">run</span><span class="o">/</span><span class="n">postgresql</span><span class="o">/</span><span class="w"></span>
+<span class="n">total</span><span class="w"> </span><span class="mi">4</span><span class="w"></span>
+<span class="o">-</span><span class="n">rw</span><span class="o">-</span><span class="n">r</span><span class="c1">----- 1 root     root      0 Aug 21 13:53 PGSQL.lock</span>
+<span class="o">-</span><span class="n">rw</span><span class="o">-</span><span class="n">r</span><span class="c1">----- 1 postgres postgres 31 Aug 21 13:58 rep_mode.conf</span>
+<span class="o">[</span><span class="n">root@node2 ~</span><span class="o">]</span><span class="err">#</span><span class="w"> </span><span class="err">\</span><span class="n">rm</span><span class="w"> </span><span class="o">/</span><span class="nf">var</span><span class="o">/</span><span class="n">run</span><span class="o">/</span><span class="n">postgresql</span><span class="o">/</span><span class="n">PGSQL</span><span class="p">.</span><span class="n">lock</span><span class="w"></span>
 </pre></div>
 
 
 <p>次に以下のコマンドを実行して <code>node2</code> のPostgreSQL の failcount をリセットし、時刻を記録します。</p>
-<div class="highlight"><pre><span></span>[root@node2 ~]# pcs resource failcount reset pgsql node2; date -u
-Sun Aug 21 14:00:04 UTC 2016
+<div class="highlight"><pre><span></span><span class="o">[</span><span class="n">root@node2 ~</span><span class="o">]</span><span class="err">#</span><span class="w"> </span><span class="n">pcs</span><span class="w"> </span><span class="n">resource</span><span class="w"> </span><span class="n">failcount</span><span class="w"> </span><span class="n">reset</span><span class="w"> </span><span class="n">pgsql</span><span class="w"> </span><span class="n">node2</span><span class="p">;</span><span class="w"> </span><span class="nc">date</span><span class="w"> </span><span class="o">-</span><span class="n">u</span><span class="w"></span>
+<span class="n">Sun</span><span class="w"> </span><span class="n">Aug</span><span class="w"> </span><span class="mi">21</span><span class="w"> </span><span class="mi">14</span><span class="err">:</span><span class="mi">00</span><span class="err">:</span><span class="mi">04</span><span class="w"> </span><span class="n">UTC</span><span class="w"> </span><span class="mi">2016</span><span class="w"></span>
 </pre></div>
 
 
