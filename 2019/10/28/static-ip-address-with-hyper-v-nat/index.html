@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+        <meta charset="utf-8" />
+        <title>Hyper-VのWindows NAT機能を使ってVMのIPアドレスを固定</title>
+        <link rel="stylesheet" href="../../../../theme/css/main.css" />
+
+        <!--[if IE]>
+            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+        <![endif]-->
+</head>
+
+<body id="index" class="home">
+        <header id="banner" class="body">
+                <h1><a href="../../../../">hnakamur's blog at github </a></h1>
+                <nav><ul>
+                    <li class="active"><a href="../../../../category/blog.html">blog</a></li>
+                </ul></nav>
+        </header><!-- /#banner -->
+<section id="content" class="body">
+  <article>
+    <header>
+      <h1 class="entry-title">
+        <a href="../../../../2019/10/28/static-ip-address-with-hyper-v-nat/" rel="bookmark"
+           title="Permalink to Hyper-VのWindows NAT機能を使ってVMのIPアドレスを固定">Hyper-VのWindows NAT機能を使ってVMのIPアドレスを固定</a></h1>
+    </header>
+
+    <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2019-10-29T12:00:00+09:00">
+                Published: 2019-10-29
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
+        </address>
+<p>In <a href="../../../../category/blog.html">blog</a>.</p>
+<p>tags: <a href="../../../../tag/multipass.html">multipass</a> <a href="../../../../tag/virtualization.html">virtualization</a> <a href="../../../../tag/hyper-v.html">hyper-v</a> <a href="../../../../tag/network.html">network</a> </p>
+</footer><!-- /.post-info -->      <div class="section" id="id1">
+<h2>はじめに</h2>
+<p>multipassでVMを作成すると vEthernet (Default Switch) という仮想イーサネットアダプタが使用されますが、Windowsの再起動のたびにIPアドレスが変わるという問題があります。このため hosts ファイルのVMのアドレスを Windows を再起動するたびに書き換えなければなりません。これは面倒です。</p>
+<p><a class="reference external" href="https://www.atmarkit.co.jp/ait/articles/1612/16/news039.html">Windows 10／Windows Server 2016のHyper-VでNAT（ネットワークアドレス変換）機能を利用する：Tech TIPS - ＠IT</a>
+で紹介されているHyper-Vの「Windows NAT（以下WinNATと呼ぶ）」機能を使えば、VMのIPアドレスを固定することができます。ただし、multipass 0.8.0 は非対応なのでWinNATに切り替えるのは手作業で行う必要があります。さらに切り替え後のVMはmultipassでは操作できないのでHyper-Vマネージャで起動・停止を行う必要があります。multipass の管理からは外れることになりますが、IPアドレスが固定されるメリットのほうが大きいと判断しこの設定で使うことにしてみました。</p>
+<p>以下に WinNAT のネットワークインタフェースのアドレスを <code>192.168.254.1/24</code> 、VMのIPアドレスを <code>192.168.254.2/24</code> に設定するという例の設定手順をメモしておきます。</p>
+</div>
+<div class="section" id="vmmultipass">
+<h2>VMのmultipassユーザにパスワードを設定</h2>
+<p>まずVMのmultipassユーザにパスワードを設定しておきます。これはネットワーク設定を間違えた場合にHyper-VマネージャからVMのコンソールを開いてログインできるようにするためです。</p>
+<p><code>multiapss shell</code> あるいは <code>ssh wa-pdev-vm</code> でVMにmultipassユーザでログインした状態で以下のコマンドを実行してパスワードを設定します。</p>
+<div class="highlight"><pre><span></span><span class="go">sudo passwd multipass</span>
+</pre></div>
+<p>パスワードはお好みで設定してください。</p>
+</div>
+<div class="section" id="winnat">
+<h2>WinNAT用のネットワークインタフェースを作成</h2>
+<p>PowerShellを管理者権限で開いて <a class="reference external" href="https://docs.microsoft.com/en-us/powershell/module/hyper-v/New-VMSwitch?view=win10-ps">New-VMSwitch</a> コマンドを使って以下のように実行します。</p>
+<div class="highlight"><pre><span></span><span class="nb">New-VMSwitch</span> <span class="n">-SwitchName</span> <span class="n">WinNAT</span> <span class="n">-SwitchType</span> <span class="n">Internal</span>
+</pre></div>
+<p><a class="reference external" href="https://docs.microsoft.com/en-us/powershell/module/netadapter/Get-NetAdapter?view=win10-ps">Get-NetAdapter</a> コマンドを実行してネットワークインタフェース一覧を表示します。</p>
+<div class="highlight"><pre><span></span><span class="nb">Get-NetAdapter</span>
+</pre></div>
+<p>実行例。</p>
+<div class="highlight"><pre><span></span><span class="go">PS C:\WINDOWS\system32&gt; Get-NetAdapter</span>
+
+<span class="go">Name                      InterfaceDescription                    ifIndex Status       MacAddress             LinkSpeed</span>
+<span class="go">----                      --------------------                    ------- ------       ----------             ---------</span>
+<span class="go">…(略)…</span>
+<span class="go">vEthernet (Default Swi... Hyper-V Virtual Ethernet Adapter             35 Up           00-15-5D-D3-29-0A        10 Gbps</span>
+<span class="go">vEthernet (WinNAT)        Hyper-V Virtual Ethernet Adapter #2           5 Up           00-15-5D-DF-51-0F        10 Gbps</span>
+</pre></div>
+<p>上記で作成した vEthernet (WinNAT) インタフェースの ifIndex 列の値を確認しておきます。上記の例では 5 です。</p>
+<p><a class="reference external" href="https://docs.microsoft.com/en-us/powershell/module/nettcpip/new-netipaddress?view=win10-ps">New-NetIPAddress</a> コマンドを使い、
+vEthernet (WinNAT) インタフェースに 192.168.254.1/24 のアドレスを設定します。 <code>-ifIndex</code> の値は適宜変更してください。</p>
+<div class="highlight"><pre><span></span><span class="nb">New-NetIPAddress</span> <span class="n">-IPAddress</span> <span class="n">192</span><span class="p">.</span><span class="n">168</span><span class="p">.</span><span class="n">254</span><span class="p">.</span><span class="n">1</span> <span class="n">-PrefixLength</span> <span class="n">24</span> <span class="n">-ifIndex</span> <span class="n">5</span>
+</pre></div>
+<p><a class="reference external" href="https://docs.microsoft.com/en-us/powershell/module/nettcpip/new-netipaddress?view=win10-ps">New-NetIPAddress</a> のドキュメントを見ると
+<code>-ifIndex</code> オプションでインデクスを指定する代わりに <code>-InterfaceAlias</code> でインタフェース名を指定してIPアドレスを設定することもできるようです。</p>
+<div class="highlight"><pre><span></span><span class="nb">New-NetIPAddress</span> <span class="n">-IPAddress</span> <span class="n">192</span><span class="p">.</span><span class="n">168</span><span class="p">.</span><span class="n">254</span><span class="p">.</span><span class="n">1</span> <span class="n">-PrefixLength</span> <span class="n">24</span> <span class="n">-InterfaceAlias</span> <span class="s2">&quot;vEthernet (WinNAT)&quot;</span>
+</pre></div>
+<p><a class="reference external" href="https://docs.microsoft.com/en-us/powershell/module/nettcpip/get-netipaddress?view=win10-ps">Get-NetIPAddress</a> でIPアドレスを確認できます。</p>
+<div class="highlight"><pre><span></span><span class="go">PS C:\WINDOWS\system32&gt; Get-NetIPAddress -InterfaceAlias &quot;vEthernet (WinNAT)&quot;</span>
+
+
+<span class="go">IPAddress         : fe80::xxxx:xxxx:xxxx:xxxx%5</span>
+<span class="go">InterfaceIndex    : 5</span>
+<span class="go">InterfaceAlias    : vEthernet (WinNAT)</span>
+<span class="go">AddressFamily     : IPv6</span>
+<span class="go">Type              : Unicast</span>
+<span class="go">PrefixLength      : 64</span>
+<span class="go">PrefixOrigin      : WellKnown</span>
+<span class="go">SuffixOrigin      : Link</span>
+<span class="go">AddressState      : Preferred</span>
+<span class="go">ValidLifetime     : Infinite ([TimeSpan]::MaxValue)</span>
+<span class="go">PreferredLifetime : Infinite ([TimeSpan]::MaxValue)</span>
+<span class="go">SkipAsSource      : False</span>
+<span class="go">PolicyStore       : ActiveStore</span>
+
+<span class="go">IPAddress         : 192.168.254.1</span>
+<span class="go">InterfaceIndex    : 5</span>
+<span class="go">InterfaceAlias    : vEthernet (WinNAT)</span>
+<span class="go">AddressFamily     : IPv4</span>
+<span class="go">Type              : Unicast</span>
+</pre></div>
+</div>
+<div class="section" id="id3">
+<h2>WinNATの設定</h2>
+<p><a class="reference external" href="https://docs.microsoft.com/en-us/powershell/module/netnat/New-NetNat?view=win10-ps">New-NetNat</a> コマンドを実行して作成します。</p>
+<div class="highlight"><pre><span></span><span class="nb">New-NetNat</span> <span class="n">-Name</span> <span class="n">WinNAT</span> <span class="n">-InternalIPInterfaceAddressPrefix</span> <span class="n">192</span><span class="p">.</span><span class="n">168</span><span class="p">.</span><span class="n">254</span><span class="p">.</span><span class="n">0</span><span class="p">/</span><span class="n">24</span>
+</pre></div>
+<p>作成後の状態は <a class="reference external" href="https://docs.microsoft.com/en-us/powershell/module/netnat/Get-NetNat?view=win10-ps">Get-NetNat</a> コマンドで確認できます。</p>
+<div class="highlight"><pre><span></span><span class="go">PS C:\WINDOWS\system32&gt; Get-NetNat</span>
+
+
+<span class="go">Name                             : WinNAT</span>
+<span class="go">ExternalIPInterfaceAddressPrefix :</span>
+<span class="go">InternalIPInterfaceAddressPrefix : 192.168.254.0/24</span>
+<span class="go">IcmpQueryTimeout                 : 30</span>
+<span class="go">TcpEstablishedConnectionTimeout  : 1800</span>
+<span class="go">TcpTransientConnectionTimeout    : 120</span>
+<span class="go">TcpFilteringBehavior             : AddressDependentFiltering</span>
+<span class="go">UdpFilteringBehavior             : AddressDependentFiltering</span>
+<span class="go">UdpIdleSessionTimeout            : 120</span>
+<span class="go">UdpInboundRefresh                : False</span>
+<span class="go">Store                            : Local</span>
+<span class="go">Active                           : True</span>
+</pre></div>
+</div>
+<div class="section" id="vmip">
+<h2>VM側のネットワーク設定を固定IPアドレスに変更</h2>
+<p>VMにログインした状態で以下のコマンドを実行して <code>/etc/netplan/50-cloud-init.yaml</code> を編集します。</p>
+<div class="highlight"><pre><span></span><span class="go">sudo vim /etc/netplan/50-cloud-init.yaml</span>
+</pre></div>
+<p>変更前（macaddressの値はVM毎に異なるはずなのでコピペしないよう注意）</p>
+<div class="highlight"><pre><span></span><span class="c1"># This file is generated from information provided by</span>
+<span class="c1"># the datasource.  Changes to it will not persist across an instance.</span>
+<span class="c1"># To disable cloud-init&#39;s network configuration capabilities, write a file</span>
+<span class="c1"># /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg with the following:</span>
+<span class="c1"># network: {config: disabled}</span>
+<span class="nt">network</span><span class="p">:</span>
+    <span class="nt">ethernets</span><span class="p">:</span>
+        <span class="nt">eth0</span><span class="p">:</span>
+            <span class="nt">dhcp4</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">true</span>
+            <span class="nt">match</span><span class="p">:</span>
+                <span class="nt">macaddress</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">00:15:5d:df:51:0e</span>
+            <span class="nt">set-name</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">eth0</span>
+    <span class="nt">version</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">2</span>
+</pre></div>
+<p>変更後</p>
+<div class="highlight"><pre><span></span><span class="c1"># This file is generated from information provided by</span>
+<span class="c1"># the datasource.  Changes to it will not persist across an instance.</span>
+<span class="c1"># To disable cloud-init&#39;s network configuration capabilities, write a file</span>
+<span class="c1"># /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg with the following:</span>
+<span class="c1"># network: {config: disabled}</span>
+<span class="nt">network</span><span class="p">:</span>
+    <span class="nt">ethernets</span><span class="p">:</span>
+        <span class="nt">eth0</span><span class="p">:</span>
+            <span class="nt">dhcp4</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">false</span>
+            <span class="nt">addresses</span><span class="p">:</span>
+                <span class="p p-Indicator">-</span> <span class="l l-Scalar l-Scalar-Plain">192.168.254.2/24</span>
+            <span class="nt">gateway4</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">192.168.254.1</span>
+            <span class="nt">match</span><span class="p">:</span>
+                <span class="nt">macaddress</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">00:15:5d:df:51:0e</span>
+            <span class="nt">set-name</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">eth0</span>
+    <span class="nt">version</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">2</span>
+</pre></div>
+</div>
+<div class="section" id="hyper-vvmwinnat">
+<h2>Hyper-VマネージャでVMのネットワークアダプタをWinNATに変更</h2>
+<ul class="simple">
+<li>Hyper-Vマネージャでmultipassで作成したVMを選択して[操作]/[シャットダウン]メニューを選んでVMをシャットダウンします。</li>
+<li>[ファイル]/[設定]メニューで設定を開き、設定ダイアログの左のツリーで[ネットワークアダプター]を選択します。</li>
+<li>画面右の仮想スイッチのドロップダウンを開きDefault SwitchからWinNATに変更して[OK]ボタンを押します。</li>
+</ul>
+</div>
+<div class="section" id="oshostsvm">
+<h2>ホストOSのhostsファイルのVMのアドレスを変更する</h2>
+<p>Windows 上のブラウザや Windows Subsystem for Linux の ssh や curl で VMにアクセスできるように VM のIPアドレスを hosts ファイルに書いている場合は変更します。</p>
+<p>Windows の <code>C:\Windows\System32\drivers\etc\hosts</code> と Windows Subsystem for Linux の <code>/etc/hosts</code> でVMのアドレスを <code>192.168.254.2</code> に変更します。</p>
+</div>
+<div class="section" id="vm">
+<h2>VMの起動と接続</h2>
+<p>Hyper-V マネージャから VM を起動してください。</p>
+<p>WinNAT に切り替え後は multipass のサービスが起動できなくなり、 multipass start や multipass shell は一切使えなくなります。</p>
+<p>VMへの接続は ssh を使ってください。</p>
+</div>
+
+    </div><!-- /.entry-content -->
+
+  </article>
+</section>
+        <section id="extras" class="body">
+        </section><!-- /#extras -->
+
+        <footer id="contentinfo" class="body">
+                <address id="about" class="vcard body">
+                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
+                </address><!-- /#about -->
+
+                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
+        </footer><!-- /#contentinfo -->
+
+    <script type="text/javascript">
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-53263855-1', 'auto');
+    ga('send', 'pageview');
+    </script>
+</body>
+</html>
