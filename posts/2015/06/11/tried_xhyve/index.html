@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>xhyveを試してみました &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>xhyveを試してみました</h1>
+  <time datetime=2015-06-11T00:45:38&#43;0900 class="post-date">2015-06-11</time>
+  <p><a href="http://www.pagetable.com/?p=831">xhyve – Lightweight Virtualization on OS X Based on bhyve | pagetable.com</a>に沿って試してみました。</p>
+<h2 id="heading">確認した環境</h2>
+<ul>
+<li>MacBook Pro (Retina, Mid 2012)</li>
+<li>OS X Yosemite 10.10.3</li>
+</ul>
+<h2 id="heading-1">ソースからビルド</h2>
+<pre><code>cd お好みの作業ディレクトリ
+git clone https://github.com/mist64/xhyve
+cd xhyve
+make
+</code></pre><h2 id="tiny-core-linux">Tiny Core Linuxを起動</h2>
+<pre><code>./xhyverun.sh
+</code></pre><p>起動メッセージが流れた後、画面がクリアされて以下のように表示されたら起動完了です。ここまで3〜4秒です。速い！</p>
+<pre><code>(�-
+ //\   Core is distributed with ABSOLUTELY NO WARRANTY.
+ v_/_           www.tinycorelinux.com
+
+tc@box:~$ Switched to clocksource tsc
+</code></pre><p>プロンプトにかぶってメッセージが出ていますが、enterを押せばプロンプトが出ます。</p>
+<pre><code>tc@box:~$
+</code></pre><p>シャットダウンするには以下のコマンドを実行します。</p>
+<pre><code>sudo halt
+</code></pre><h2 id="ubuntu-server-14042">Ubuntu Server 14.04.2のディスクイメージ作成</h2>
+<p>Ubuntu ServerのISOイメージをダウンロードして、ディスクイメージを作成するための準備を行います。元記事によると、OS Xがハイブリッドファイルシステムを認識しないので、Linux kernelとinitrdを取り出しているそうです。</p>
+<pre><code>mkdir ubuntu
+cd ubuntu
+curl -O ftp://ftp.kddilabs.jp/Linux/packages/ubuntu/releases-cd/14.04.2/ubuntu-14.04.2-server-amd64.iso
+dd if=/dev/zero bs=2k count=1 of=/tmp/tmp.iso
+dd if=ubuntu-14.04.2-server-amd64.iso bs=2k skip=1 &gt;&gt; /tmp/tmp.iso
+hdiutil attach /tmp/tmp.iso
+cp /Volumes/Ubuntu-Server\ 14/install/vmlinuz .
+cp /Volumes/Ubuntu-Server\ 14/install/initrd.gz .
+</code></pre><p>以下のコマンドでディスクイメージを作成します。ここでは <code>bs=1g count=8</code> でディスクサイズを8GBとしていますが、お好みで調整してください。</p>
+<pre><code>dd if=/dev/zero of=hdd.img bs=1g count=8
+</code></pre><p>xhyve/ubuntuディレクトリではなくxhyveディレクトリにディスクイメージ作成用のスクリプトを作ります。</p>
+<pre><code>cd ..
+cat &lt;&lt;'EOF' &gt; xhyverun_ubuntu_install.sh
+#!/bin/sh
+
+KERNEL=&quot;ubuntu/vmlinuz&quot;
+INITRD=&quot;ubuntu/initrd.gz&quot;
+CMDLINE=&quot;earlyprintk=serial console=ttyS0 acpi=off&quot;
+
+MEM=&quot;-m 1G&quot;
+#SMP=&quot;-c 2&quot;
+NET=&quot;-s 2:0,virtio-net&quot;
+IMG_CD=&quot;-s 3,ahci-cd,ubuntu/ubuntu-14.04.2-server-amd64.iso&quot;
+IMG_HDD=&quot;-s 4,virtio-blk,ubuntu/hdd.img&quot;
+PCI_DEV=&quot;-s 0:0,hostbridge -s 31,lpc&quot;
+LPC_DEV=&quot;-l com1,stdio&quot;
+
+build/xhyve $MEM $SMP $PCI_DEV $LPC_DEV $NET $IMG_CD $IMG_HDD -f kexec,$KERNEL,$INITRD,&quot;$CMDLINE&quot;
+EOF
+</code></pre><p>スクリプトに実行パーミションをつけてsudo付きで実行します。</p>
+<pre><code>chmod +x xhyverun_ubuntu_install.sh
+sudo ./xhyverun_ubuntu_install.sh
+</code></pre><p>テキストインストーラが起動しますので、以下のように選択してインストールしました。</p>
+<ul>
+<li>Select a language: English</li>
+<li>Select your location: other -&gt; Asia -&gt; Japan</li>
+<li>Configure locales: United Status - en_US.UTF-8</li>
+<li>Hostname: お好みの名前</li>
+<li>Set up users and passwords: お好みのIDとパスワードで作成</li>
+<li>time zone: Asia/Tokyo</li>
+<li>Partition disks: Guided - use entire disk</li>
+<li>HTTP proxy: 無し</li>
+<li>manage upgrades: No automatic updates</li>
+<li>Software selection:
+<ul>
+<li>Basic Ubuntu Server</li>
+<li>OpenSSH server</li>
+</ul>
+</li>
+<li>Install GRUB to the master boot record: Yes</li>
+<li>Is the system clock set to UTC: No</li>
+<li>Installation complete: Go Back -&gt; Execute a shell</li>
+</ul>
+<p>Installation completeのところでContinueではなくGo Backでメニューに戻りExecute a shellを選んで進み、シェルが起動したら以下のコマンドを実行します。</p>
+<pre><code>cd /target
+sbin/ifconfig
+tar c boot | nc -l -p 1234
+</code></pre><p>上記のコマンド実行のうちsbin/ifconfigで表示されたIPアドレスをメモしておきます。</p>
+<pre><code>/target # sbin/ifconfig
+eth0      Link encap:Ethernet  HWaddr e6:0d:f2:6b:cf:32
+          inet addr:192.168.64.3  Bcast:192.168.64.255  Mask:255.255.255.0
+          inet6 addr: fe80::e40d:f2ff:fe6b:cf32/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:25405 errors:0 dropped:0 overruns:0 frame:85
+          TX packets:13601 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000
+          RX bytes:38179647 (38.1 MB)  TX bytes:931189 (931.1 KB)
+
+lo        Link encap:Local Loopback
+          inet addr:127.0.0.1  Mask:255.0.0.0
+          inet6 addr: ::1/128 Scope:Host
+          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0
+          RX bytes:0 (0.0 B)  TX bytes:0 (0.0 B)
+</code></pre><p>Mac側では以下のコマンドを実行します。IPアドレスはifconfigで表示されたものに置き換えて実行してください。</p>
+<pre><code>cd ubuntu
+nc 192.168.64.3 1234 | tar x
+</code></pre><p>VMのシェルのプロンプトで以下のように入力してシェルを終了します。</p>
+<pre><code>exit
+</code></pre><p>メニューに戻ったら <code>Finish the installation</code> を選びます。</p>
+<ul>
+<li>Is the system clock set to UTC?: No</li>
+<li>Installation complete: Continue</li>
+</ul>
+<h2 id="ubuntu-server-14042-1">Ubuntu Server 14.04.2の起動</h2>
+<p>Macでxhyve/ubuntuではなくxhyveのディレクトリで起動用のスクリプトを作成します。</p>
+<pre><code>cat &lt;&lt;'EOF' &gt; ./xhyverun_ubuntu.sh
+#!/bin/sh
+
+KERNEL=&quot;ubuntu/boot/vmlinuz-3.16.0-30-generic&quot;
+INITRD=&quot;ubuntu/boot/initrd.img-3.16.0-30-generic&quot;
+CMDLINE=&quot;earlyprintk=serial console=ttyS0 acpi=off root=/dev/vda1 ro&quot;
+
+MEM=&quot;-m 1G&quot;
+#SMP=&quot;-c 2&quot;
+NET=&quot;-s 2:0,virtio-net&quot;
+IMG_HDD=&quot;-s 4,virtio-blk,ubuntu/hdd.img&quot;
+PCI_DEV=&quot;-s 0:0,hostbridge -s 31,lpc&quot;
+LPC_DEV=&quot;-l com1,stdio&quot;
+
+build/xhyve $MEM $SMP $PCI_DEV $LPC_DEV $NET $IMG_CD $IMG_HDD -f kexec,$KERNEL,$INITRD,&quot;$CMDLINE&quot;
+EOF
+</code></pre><p>スクリプトに実行パーミションをつけてsudo付きで実行してUbuntuを起動します。</p>
+<pre><code>chmod +x ./xhyverun_ubuntu.sh
+sudo ./xhyverun_ubuntu.sh
+</code></pre><p>起動してログインプロンプトが出たらインストール時に作成したユーザでログインします。IPアドレスはDHCPで取得する設定にしたのですが、確認してみると、ディスクイメージ作成時とは違う値になっていました。</p>
+<pre><code>$ ip a s eth0
+2: eth0: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt; mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 62:ca:c1:25:cf:32 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.64.4/24 brd 192.168.64.255 scope global eth0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::60ca:c1ff:fe25:cf32/64 scope link
+       valid_lft forever preferred_lft forever
+</code></pre><p>Macからsshでログインも出来ました。</p>
+<pre><code>ssh ubuntu@192.168.64.4
+</code></pre><p>sshでログインすると初回だけ表示が24行に限定され、リターンを押しても24行の範囲でスクロールされるようになってしまいました。Mac側ではiTermで65行にしていました。と、この説明を書くためにiTermのウィンドウで高さを変えて行数を変えて戻してとやっていたら、次のsshログインからはiTermの行数で表示されるようになりました。</p>
+<p>Ubuntuを停止するにはVM内で以下のコマンドを実行します。</p>
+<pre><code>sudo shutdown -h now
+</code></pre><h2 id="ubuntu">Ubuntuの起動に必要なファイル</h2>
+<p>ubuntuフォルダにはビルドに使用したファイルも含まれていますが、起動スクリプトで参照されているファイル以外のファイルを別ディレクトリに移動して起動してみたら起動出来ました。ということで、起動には以下の4つのファイルだけあればOKです。</p>
+<pre><code>./xhyverun_ubuntu.sh
+ubuntu/boot/initrd.img-3.16.0-30-generic
+ubuntu/boot/vmlinuz-3.16.0-30-generic
+ubuntu/hdd.img
+</code></pre><h1 id="heading-2">まとめ</h1>
+<p>xhyveをソースからビルドして、Tiny Core LinuxとUbuntu Server 14.04.2を動かしてみました。<a href="https://github.com/mist64/xhyve#todo">TODO</a>によると、まだいろいろ対応予定の項目があるようです。今後が楽しみです！</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

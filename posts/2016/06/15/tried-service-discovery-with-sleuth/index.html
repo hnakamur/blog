@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>sleuthというGoのライブラリでサービスディスカバリを試してみた &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>sleuthというGoのライブラリでサービスディスカバリを試してみた</h1>
+  <time datetime=2016-06-15T06:56:10&#43;0900 class="post-date">2016-06-15</time>
+  <h2 id="heading">はじめに</h2>
+<p><a href="http://darian.af/post/master-less-peer-to-peer-micro-service-autodiscovery-in-golang-with-sleuth/">Service autodiscovery in Go with sleuth - darian.af</a>という記事を見かけて試してみたのでメモです。</p>
+<h2 id="githubcomursiformsleuth">github.com/ursiform/sleuthのセットアップ</h2>
+<p><a href="https://github.com/ursiform/sleuth#installation">Installation</a>を見ながらセットアップします。</p>
+<p>いきなりgo getでインストールしてみるとZeroMQ version 4が必要というエラーメッセージが出ました。</p>
+<pre><code>$ go get -u github.com/ursiform/sleuth
+# github.com/pebbe/zmq4
+In file included from ../../../pebbe/zmq4/ctxoptions_unix.go:7:0:
+zmq4.h:2:2: error: #error &quot;You need ZeroMQ version 4 to build this&quot;
+ #error &quot;You need ZeroMQ version 4 to build this&quot;
+  ^
+</code></pre><p>Ubuntu 16.04では</p>
+<pre><code>sudo apt install -y libzmq3-dev
+</code></pre><p>CentOS 7では</p>
+<pre><code>sudo yum install -y zeromq-devel
+</code></pre><p>でZeroMQ 4.xのライブラリとヘッダファイルがインストールできます。</p>
+<p>このあとで go get でsleuthをインストールすると今度は大丈夫でした。</p>
+<pre><code>$ go get -u github.com/ursiform/sleuth
+</code></pre><h2 id="heading-1">動作確認のためエコーバックのサービスの例を試す</h2>
+<p><a href="https://github.com/ursiform/sleuth#examples">Examples</a>のExample (1)にエコーバックのサーバとクライアントがあるのでそれを試します。</p>
+<p>コードをコピペするのが面倒な人は</p>
+<pre><code>go get -d github.com/hnakamur/sleuth-echo-example
+</code></pre><p>で取得できます。</p>
+<p>以下のコマンドでプロジェクトのディレクトリに移動します。</p>
+<pre><code>cd $GOPATH/src/github.com/hnakamur/sleuth-echo-example
+</code></pre><p>以下のコマンドでエコーバックのサーバを起動します。</p>
+<pre><code>(cd echo-server &amp;&amp; go run main.go &amp;)
+</code></pre><p>起動すると以下のようなログが出力されます。</p>
+<pre><code>2016/06/15 06:54:06 [**warning**] sleuth: config.Interface not defined [801]
+2016/06/15 06:54:06 [ listening ] sleuth: [SLEUTH-v0:5670][echo-service E13055]
+</code></pre><p>以下のコマンドでクライアントを実行し、&ldquo;It works.&rdquo; と表示されれば成功です。</p>
+<pre><code>$ (cd echo-client &amp;&amp; go run main.go)
+It works.
+</code></pre><p>curlでも試してみます。</p>
+<pre><code>$ curl -s -d Hello 127.0.0.1:9873/echo-service/
+Hello
+</code></pre><h2 id="heading-2">サービスディスカバリの例を試す</h2>
+<pre><code>go get -u github.com/afshin/sleuth-example/...
+</code></pre><p>でサンプルのコードと依存するライブラリを取得し</p>
+<pre><code>cd $GOPATH/src/github.com/afshin/sleuth-example
+</code></pre><p>でプロジェクトのディレクトリに移動します。</p>
+<p>この例にはarticle-serviceとcomment-serviceという2つのサービスが含まれています。</p>
+<p>まずは article-service を起動します。article-serviceはポート9872で起動されます。</p>
+<pre><code>$ (cd article-service &amp;&amp; go run main.go)
+2016/06/14 22:38:08 [**warning**] sleuth: config.Interface not defined [801]
+2016/06/14 22:38:08 [ listening ] sleuth: [SLEUTH-v0:5670][client-only EC740A]
+2016/06/14 22:38:08 [**blocked**] sleuth: waiting for client to find [comment-service]
+</code></pre><p>ログに書かれているようにcomment-serviceが見つからなくて待っている状態です。</p>
+<p>別の端末を開いて以下のコマンドを実行してcomment-serviceを起動します。comment-serviceはポート9871で起動されます。</p>
+<pre><code>$ (cd comment-service &amp;&amp; go run main.go)
+2016/06/15 07:47:42 [**warning**] sleuth: config.Interface not defined [801]
+2016/06/15 07:47:42 [ listening ] sleuth: [SLEUTH-v0:5670][comment-service 0DBE04]
+ready...
+</code></pre><p>comment-serviceを起動するとarticle-serviceの端末には以下のログが追加で出力されます。</p>
+<pre><code>2016/06/15 07:47:43 [*unblocked*] sleuth: client found [comment-service]
+ready...
+</code></pre><p>つまりarticle-serviceがcomment-serviceを発見（サービスディカバリ）出来たということです。</p>
+<p>別の端末を開いて以下のコマンドを実行してcurlでarticle-serviceから記事のデータを1件取得してみます。</p>
+<pre><code>$ curl -s localhost:9872/articles/049cd8fc-a66b-4a3d-956b-7c2ab5fb9c5d | jq .
+{
+  &quot;success&quot;: true,
+  &quot;data&quot;: {
+    &quot;guid&quot;: &quot;049cd8fc-a66b-4a3d-956b-7c2ab5fb9c5d&quot;,
+    &quot;byline&quot;: &quot;Kristen Rasmussen&quot;,
+    &quot;headline&quot;: &quot;Wanting the Unwanted: Why Eat Weeds&quot;,
+    &quot;url&quot;: &quot;http://www.rootedfood.com/musings/2015/4/1/a-foraged-affair&quot;,
+    &quot;time&quot;: 1428168580
+  }
+}
+</code></pre><p>comment-serviceからコメントのデータを1件取得します。</p>
+<pre><code>$ curl -s localhost:9871/comments/06500da3-f9b0-4731-b0fa-fbc6cbe8c155 | jq .
+{
+  &quot;success&quot;: true,
+  &quot;data&quot;: [
+    {
+      &quot;guid&quot;: &quot;d7041752-6854-4b2c-ad6d-1b48d898668d&quot;,
+      &quot;article&quot;: &quot;06500da3-f9b0-4731-b0fa-fbc6cbe8c155&quot;,
+      &quot;text&quot;: &quot;Star Trek, on the other hand, consistently presents an optimistic view of our capacity for civilization. I love science-fiction, even when it&amp;#x27;s dystopian. But why does so much of it have to be dystopian?&quot;,
+      &quot;time&quot;: 1452738329
+    }
+  ]
+}
+</code></pre><p>次に2つのサービスを連携させた使い方として、以下のコマンドで1件の記事とそれに紐づくコメントを取得します。</p>
+<pre><code>$ curl -s localhost:9872/articles/049cd8fc-a66b-4a3d-956b-7c2ab5fb9c5d?includecomments=true | jq .
+{
+  &quot;success&quot;: true,
+  &quot;data&quot;: {
+    &quot;guid&quot;: &quot;049cd8fc-a66b-4a3d-956b-7c2ab5fb9c5d&quot;,
+    &quot;byline&quot;: &quot;Kristen Rasmussen&quot;,
+    &quot;comments&quot;: [
+      {
+        &quot;guid&quot;: &quot;1b1e937b-8521-4c88-a13c-105d421ea030&quot;,
+        &quot;article&quot;: &quot;049cd8fc-a66b-4a3d-956b-7c2ab5fb9c5d&quot;,
+        &quot;text&quot;: &quot;I believe the premise to be false, while it is true that you can eat many different &amp;quot;weeds&amp;quot; I cannot find any methodology or theory where that doing so increases the efficiency of land use. There are some key things like nutrients in == nutrie
+nts out and digestibility in humans which is not a given.&lt;p&gt;That said, there were some interesting recipes for what are nominally weeds in the Foxfire[1], and Euell Gibbons books[2] which were certainly edible although nothing I&amp;#x27;ve tried really struck me as excepti
+onal. As Boy Scouts we got a merit badge for creating a meal out of locally harvested plants, that was fun.&lt;p&gt;[1] &lt;a href=\&quot;http:&amp;#x2F;&amp;#x2F;www.foxfire.org&amp;#x2F;thefoxfirebooks.aspx\&quot; rel=\&quot;nofollow\&quot;&gt;http:&amp;#x2F;&amp;#x2F;www.foxfire.org&amp;#x2F;thefoxfirebooks.aspx&lt;/a&gt;&lt;p&gt;[2]
+ &lt;a href=\&quot;http:&amp;#x2F;&amp;#x2F;www.amazon.com&amp;#x2F;Euell-Gibbons-Handbook-Edible-Plants&amp;#x2F;dp&amp;#x2F;0915442787\&quot; rel=\&quot;nofollow\&quot;&gt;http:&amp;#x2F;&amp;#x2F;www.amazon.com&amp;#x2F;Euell-Gibbons-Handbook-Edible-Plants&amp;#x2F;d...&lt;/a&gt;&quot;,
+        &quot;time&quot;: 1428172888
+      },
+      {
+        &quot;guid&quot;: &quot;1ffa59ea-1b62-41fe-87c3-98ec6901d768&quot;,
+        &quot;article&quot;: &quot;049cd8fc-a66b-4a3d-956b-7c2ab5fb9c5d&quot;,
+        &quot;text&quot;: &quot;Something to keep in mind here is that once a viable market is found then the product will be fully commercialised and mass-produced.  No longer will poor conditions be good enough when compared to the yield you get from ideal conditions.&lt;p&gt;Then we will
+ start fertilising them, then tweaking the seeds etc etc etc. And before long it will be just like anything else grown on the land.&quot;,
+        &quot;time&quot;: 1428188859
+      },
+…(略)…
+        &quot;guid&quot;: &quot;587b528f-f4fe-4620-959e-f0d087c97348&quot;,
+        &quot;article&quot;: &quot;049cd8fc-a66b-4a3d-956b-7c2ab5fb9c5d&quot;,
+        &quot;text&quot;: &quot;The premise that weeds are a suitable food for humans is wrong. Most of these plants are loaded with toxins. You can&amp;#x27;t eat them in any quantity for calories without getting poisoned.&lt;p&gt;Cows and goats and sheep can eat these things, though, because 
+they have more advanced digestive systems. The udder provides an added toxin filtration system.&lt;p&gt;In theory you might be able to design an efficient system to detoxify wild plants such as grass and weeds directly into a high quality human food. At this moment cheese is 
+already an incredibly effective way to use wild forage to make human food.&quot;,
+        &quot;time&quot;: 1428192718
+      }
+    ],
+    &quot;headline&quot;: &quot;Wanting the Unwanted: Why Eat Weeds&quot;,
+    &quot;url&quot;: &quot;http://www.rootedfood.com/musings/2015/4/1/a-foraged-affair&quot;,
+    &quot;time&quot;: 1428168580
+  }
+}
+</code></pre><h2 id="sleuthq--a">sleuthのQ &amp; Aを見てみる</h2>
+<p><a href="https://github.com/ursiform/sleuth#q--a">Q &amp; A</a>を見ると、sleuthのメッセージプロトコルはJSONをgzipしてHTTPで通信しているとのことです。Protocol Buffersなどの他のライブラリに依存するのを避けたいという意図で、マイクロサービスのAPIレスポンスのほとんどは小さいのでJSONをgzipする方式で十分だし、そのほうがGo以外の言語でも利用しやすいので良いだろうということです。</p>
+<p>sleuthは熊のグループの集合名詞とのことです。</p>
+<h2 id="heading-3">おわりに</h2>
+<p>sleuthはzeromqとGoさえあれば使えるということでセットアップが簡単です。</p>
+<p>サービスの実装<a href="https://github.com/afshin/sleuth-example/blob/master/article-service/main.go">sleuth-example/main.go</a>と<a href="https://github.com/afshin/sleuth-example/blob/master/comment-service/main.go">sleuth-example/main.go</a>も、Goで普通にウェブサービスを実装したところに、sleuthを使うためのコードを少し足すだけでいいのでお手軽でいいですね。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

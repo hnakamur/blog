@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>macOS High SierraとUbuntu 18.04でVeraCryptを使う &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>macOS High SierraとUbuntu 18.04でVeraCryptを使う</h1>
+  <time datetime=2018-05-02T21:00:00&#43;0900 class="post-date">2018-05-02</time>
+  <h2 id="heading">はじめに</h2>
+<p><a href="/blog/2018/04/22/use-VeraCrypt-for-data-partition/">VeraCryptでデータパーティションを暗号化してみた</a> ではWindows 10とUbuntu 17.10のデュアルブート環境でデータ用パーティションをマウントするというのを試しましたが、今回はmacOS High SierraとUbuntu 18.04のデュアルブート環境で試しました。前回と違うところだけメモしておきます。</p>
+<h2 id="exfat">データ用パーティションのフォーマットはexFATにした</h2>
+<p><a href="https://github.com/gerard/ext4fuse">gerard/ext4fuse: EXT4 implementation for FUSE</a>
+というのを見つけたのですが現状は読み取り専用とのことなので見送りました。</p>
+<p>FAT32よりはexFATのほうがファイルサイズの制限などもマシなのでそちらを使うことにしました。</p>
+<h2 id="macosveracrypt">macOSにVeraCryptをインストール</h2>
+<p><a href="https://www.veracrypt.fr/en/Downloads.html">VeraCrypt のダウンロードページ</a> からmacOS用のインストーラをダウンロードしてインストールするのですが、そこに書いてあるように先に <a href="https://osxfuse.github.io/">FUSE for macOS</a> をインストールしてからにします。</p>
+<h4 id="macos">macOSログイン時にお気に入りを自動マウント</h4>
+<p>自動マウント用のスクリプトを書いてシステム環境設定の「ユーザとグループ」にある「ログイン項目」に設定しようかと思ったのですが、 <a href="https://apple.stackexchange.com/questions/310495/can-login-items-be-added-via-the-command-line-in-high-sierra">terminal - Can Login Items be added via the command line in High Sierra? - Ask Different</a> とそこからリンクされている <a href="https://discussions.apple.com/thread/8086931">Can't remove &lsquo;unknown login items&rsquo;? - Apple Community</a> を見るとHigh Sierraでは挙動がおかしいらしいです。</p>
+<p>また <a href="https://developer.apple.com/library/content/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CustomLogin.html#//apple_ref/doc/uid/10000172i-SW10-BAJCGEGG">Customizing Login and Logout</a> というのも見つけたのですがdeprecatedらしいです。</p>
+<p>ということで、そこからリンクされている <a href="https://developer.apple.com/library/content/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html#//apple_ref/doc/uid/10000172i-SW7-BCIEDDBJ">Creating Launch Daemons and Agents</a> のLaunch Agentsで対応することにしました。</p>
+<p>以下の内容で <code>~/Library/LaunchAgents/veracrypt.auto-mount-favorites.plist</code> というファイルを作成します。</p>
+<div class="highlight"><pre class="chroma"><code class="language-xml" data-lang="xml"><span class="cp">&lt;?xml version=&#34;1.0&#34; encoding=&#34;UTF-8&#34;?&gt;</span>
+<span class="cp">&lt;!DOCTYPE plist PUBLIC &#34;-//Apple//DTD PLIST 1.0//EN&#34; &#34;http://www.apple.com/DTDs/PropertyList-1.0.dtd&#34;&gt;</span>
+<span class="nt">&lt;plist</span> <span class="na">version=</span><span class="s">&#34;1.0&#34;</span><span class="nt">&gt;</span>
+<span class="nt">&lt;dict</span><span class="nt">&gt;</span>
+    <span class="nt">&lt;key</span><span class="nt">&gt;</span>Label<span class="nt">&lt;/key&gt;</span>
+    <span class="nt">&lt;string</span><span class="nt">&gt;</span>veracrypt.auto-mount-favorites<span class="nt">&lt;/string&gt;</span>
+    <span class="nt">&lt;key</span><span class="nt">&gt;</span>ProgramArguments<span class="nt">&lt;/key&gt;</span>
+    <span class="nt">&lt;array</span><span class="nt">&gt;</span>
+        <span class="nt">&lt;string</span><span class="nt">&gt;</span>/Applications/VeraCrypt.app/Contents/MacOS/VeraCrypt<span class="nt">&lt;/string&gt;</span>
+        <span class="nt">&lt;string</span><span class="nt">&gt;</span>--auto-mount=favorites<span class="nt">&lt;/string&gt;</span>
+    <span class="nt">&lt;/array&gt;</span>
+    <span class="nt">&lt;key</span><span class="nt">&gt;</span>RunAtLoad<span class="nt">&lt;/key&gt;</span>
+    <span class="nt">&lt;true</span><span class="nt">/&gt;</span>
+<span class="nt">&lt;/dict&gt;</span>
+<span class="nt">&lt;/plist&gt;</span>
+</code></pre></div><p>以下のコマンドを実行して設定を反映します。</p>
+<pre><code class="language-console" data-lang="console">launchctl load ~/Library/LaunchAgents/veracrypt.auto-mount-favorites.plist
+</code></pre><p>これでログイン時にダイアログが表示されて、お気に入りを自動マウント出来ます。
+ダイアログは2つ表示されます。1つめは管理者権限になるために自分のユーザのパスワードを入力し、2つめはVeraCryptでパーティションを暗号化した時に設定したパスワードを入力します。</p>
+<h2 id="ubuntu-1804veracrypt">Ubuntu 18.04にVeraCryptをインストール</h2>
+<p>前回同様 <a href="https://launchpad.net/~unit193/+archive/ubuntu/encryption">Encryption software : Unit 193</a> のPPAを見て見るとUbuntu 18.04用のパッケージも提供されていたのでこちらを使わせて頂きました。</p>
+<pre><code class="language-console" data-lang="console">sudo add-apt-repository ppa:unit193/encryption
+sudo apt update
+sudo apt install veracrypt
+</code></pre><p>インストールして使っていると libcanberra-gtk-module というモジュールが見つからないという警告が出ていたので追加でインストールしました
+。</p>
+<pre><code class="language-console" data-lang="console">sudo apt install libcanberra-gtk-module
+</code></pre>
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

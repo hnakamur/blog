@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>MySQL APT repositoryからMySQL 5.7.xをインストールするスクリプト &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>MySQL APT repositoryからMySQL 5.7.xをインストールするスクリプト</h1>
+  <time datetime=2015-09-22T22:35:21&#43;0900 class="post-date">2015-09-22</time>
+  <p>Ubuntu 14.04 (Trusty)に<a href="http://dev.mysql.com/downloads/repo/apt/">MySQL APT Repository</a>からMySQL 5.7 (Development Release)を
+インストールするスクリプトを書きました。</p>
+<p>Vagrantfileと共に<a href="https://github.com/hnakamur/noninteractive_install_mysql_from_apt_repository_to_ubuntu_trusty">hnakamur/noninteractive_install_mysql_from_apt_repository_to_ubuntu_trusty</a>に置いてあります。</p>
+<h2 id="heading">使い方</h2>
+<p><a href="http://dev.mysql.com/downloads/repo/apt/">MySQL :: Download MySQL APT Repository</a>をブラウザで見てmysql-apt-config_x.x.x-1ubuntu14.04_all.debのファイルのバージョンを確認し、スクリプト内の <a href="https://github.com/hnakamur/noninteractive_install_mysql_from_apt_repository_to_ubuntu_trusty/blob/3d7392a1d99dbfc3eb26eecef75dee5549a2cca7/provision.sh#L4">mysql_apt_deb_file</a>変数の値をを適宜修正してください。</p>
+<p>スクリプト内の<a href="https://github.com/hnakamur/noninteractive_install_mysql_from_apt_repository_to_ubuntu_trusty/blob/3d7392a1d99dbfc3eb26eecef75dee5549a2cca7/provision.sh#L8">mysql_root_password</a>変数の値を設定したいMySQLのrootユーザのパスワードに変更してください。</p>
+<p>あとはスクリプトを実行すればOKです。</p>
+<h2 id="heading-1">スクリプトの実装メモ</h2>
+<h3 id="noninteractivemysql-apt-config">noninteractiveなmysql-apt-configのインストール</h3>
+<p>単に <code>sudo dpkg -i mysql-apt-config_0.3.7-1ubuntu14.04_all.deb</code> のように実行すると、途中でCUIのダイアログが開いてMySQLサーバのバージョンなどを聞かれてしまいます。自動インストール用のスクリプトではインタラクティブに聞かれてほしくないので <code>export DEBIAN_FRONTEND=noninteractive</code> を指定する必要があります。
+<a href="http://manpages.ubuntu.com/manpages/trusty/man7/debconf.7.html">Ubuntu Manpage: debconf - Debian package configuration system</a>に説明があります。</p>
+<p>またその後 <code>sudo dpkg ...</code> だと環境変数を引き継がないので <code>sudo -E dpkg ...</code> のように <code>-E</code> オプションを指定しています。<a href="http://stackoverflow.com/questions/7739645/install-mysql-on-ubuntu-without-password-prompt#comment37966911_7740393">bash - install mysql on ubuntu without password prompt - Stack Overflow</a>で知りました。</p>
+<p>実行するのが1回だけなら <code>sudo DEBIAN_FRONTEND=noninteractive dpkg ...</code> のほうがシンプルで良いと思います。が、今回は後でmysql-community-serverをインストールするときにも必要なので上記の方式にしました。</p>
+<p><code>export DEBIAN_FRONTEND=noninteractive</code> だけで良い場合もありますが、ダイアログで選ぶ値を予め設定しておく必要がある場合もあります。
+<a href="http://unix.stackexchange.com/questions/158052/how-to-configure-the-mysql-apt-repo-on-ubuntu-on-a-non-interactive-shell?newreg=31ba47900d6f4e01ba1625f43da05f82">dpkg - How to configure the MySQL APT repo on Ubuntu, on a non-interactive shell? - Unix &amp; Linux Stack Exchange</a>で mysql-apt-config のインストールには <code>echo mysql-apt-config mysql-apt-config/enable-repo select mysql-5.7-dmr | sudo debconf-set-selections</code> としておけば良いらしいという情報を得ました。</p>
+<p>ですが、調査のために mysql-apt-config を手動インストールしてその前後で</p>
+<pre><code>sudo debconf-get-selections | grep mysql
+</code></pre><p>して設定される項目を見てみると違う名前になっていました。スクリプトでは<a href="https://github.com/hnakamur/noninteractive_install_mysql_from_apt_repository_to_ubuntu_trusty/blob/3d7392a1d99dbfc3eb26eecef75dee5549a2cca7/provision.sh#L16-L21">手動インストールで設定される項目に合わせて設定するようにしました。</a></p>
+<h3 id="noninteractivemysql-community-server">noninteractiveなmysql-community-serverのインストール</h3>
+<p>こちらも同様に <code>export DEBIAN_FRONTEND=noninteractive</code> のあと <code>sudo -E apt-get -y install ...</code> でインストールしています。設定値は
+<a href="http://stackoverflow.com/questions/7739645/install-mysql-on-ubuntu-without-password-prompt/20037235#20037235">bash - install mysql on ubuntu without password prompt - Stack Overflow</a>を参考にしつつ、まず手動インストールして <code>sudo debconf-get-selections | grep mysql</code> で設定値を確認し、<a href="https://github.com/hnakamur/noninteractive_install_mysql_from_apt_repository_to_ubuntu_trusty/blob/3d7392a1d99dbfc3eb26eecef75dee5549a2cca7/provision.sh#L28-L29">それに合わせて設定するようにしました。</a></p>
+<h3 id="noninteractivemysql-secure-installation">noninteractiveなmysql_secure_installationの実行</h3>
+<p><a href="http://labs.cybridge.jp/cybridge/development/1312.html">コードで実行！ mysql_secure_installation プロビジョニング | サイブリッジラボブログ</a>にも書かれていますが、MySQL 5.5の頃はインタラクティブな入力を要求するシェルスクリプトだったので、中身を読んで等価な処理をすることができました。私も以前<a href="https://github.com/hnakamur/ansible-playbooks/blob/490b782d57ed93442c981dab5612ff396027ba98/roles/mysql/server/files/mysql_secure_installation.sh">等価なスクリプト</a>を書いていました。</p>
+<p>しかし、5.7ではmysql_secure_installationはバイナリになってしまいました。 <code>man mysql_secure_installation</code> で確認したところ、<code>--password</code> もしくは <code>-p</code> オプションはあるが無視して必ずパスワードプロンプトを出すと書いてありました。自動インストール用スクリプトでは困るのですが、</p>
+<p><a href="https://github.com/hnakamur/noninteractive_install_mysql_from_apt_repository_to_ubuntu_trusty/blob/3d7392a1d99dbfc3eb26eecef75dee5549a2cca7/provision.sh#L34-L35">./.mysql_root_password.cnf</a></p>
+<pre><code>[client]
+password=${mysql_root_password}
+</code></pre><p>といった内容のファイルを作って <code>--defaults-extra-file</code> オプションで指定すれば回避できました。</p>
+<p>プロンプトが出て入力する部分は<a href="https://github.com/hnakamur/noninteractive_install_mysql_from_apt_repository_to_ubuntu_trusty/blob/3d7392a1d99dbfc3eb26eecef75dee5549a2cca7/provision.sh#L38-L45">標準入力にリダイレクトで流し込めば</a> OKでした。ただし、MySQLのrootユーザのパスワードを変えるパターンは試してないです。</p>
+<p><a href="https://github.com/hnakamur/noninteractive_install_mysql_from_apt_repository_to_ubuntu_trusty/blob/3d7392a1d99dbfc3eb26eecef75dee5549a2cca7/provision.sh#L51-L101">上記の入力に対する出力結果</a>をコメントとして残しています。</p>
+<ul>
+<li>MySQLのrootユーザのパスワードは変えない</li>
+<li>パスワードの強度チェッカーはインストールしない</li>
+<li>anonymousユーザは削除する</li>
+<li>リモートからのrootユーザのログインは許可しない</li>
+<li>testデータベースは削除</li>
+<li>権限をリロード</li>
+</ul>
+<p>という設定となっています。</p>
+<p>標準入力に流し込むのではなく <code>--use-default</code> オプションを使うという手もあります。
+<a href="https://github.com/hnakamur/noninteractive_install_mysql_from_apt_repository_to_ubuntu_trusty/blob/3d7392a1d99dbfc3eb26eecef75dee5549a2cca7/provision.sh#L109-L163">&ndash;use-defaultの場合の出力結果</a>もコメントとして残しています。 この場合の設定内容は以下の通りです。</p>
+<ul>
+<li>MySQLのrootユーザのパスワードは変えない</li>
+<li>パスワードの強度チェッカーをSTRONGの強度に設定する</li>
+<li>anonymousユーザは削除する</li>
+<li>リモートからのrootユーザのログインは許可しない</li>
+<li>testデータベースは削除</li>
+<li>権限をリロード</li>
+</ul>
+<p><a href="https://github.com/hnakamur/noninteractive_install_mysql_from_apt_repository_to_ubuntu_trusty/blob/3d7392a1d99dbfc3eb26eecef75dee5549a2cca7/provision.sh#L123">パスワードチェッカーのSTRONGの強度の説明</a>によると、8文字以上で、文字種は数値、英字大文字、英字小文字、記号を全て含める必要があり、辞書に登録されている単語は弾くようです。実際には試してないので違うかもしれません。</p>
+<h3 id="-debconf-set-selections-">参考: debconf-set-selections で設定した項目の削除方法</h3>
+<p><code>debconf-set-selections</code> で設定した項目は <code>debconf-get-selections</code> で確認できますが、削除はどうするのかとググってみたら <a href="http://serverfault.com/questions/332459/how-do-i-delete-values-from-the-debconf-database/332490#332490">debian - How do I delete values from the debconf database? - Server Fault</a> に説明を見つけました。</p>
+<pre><code>echo PURGE | debconf-communicate パッケージ名
+</code></pre><p>のようにすると「パッケージ名」に対する全ての設定を削除できました (スクリプトでは使っていませんが、試行錯誤中に試しました)。
+<a href="https://www.debian.org/doc/packaging-manuals/debconf_specification.html#AEN106">Configuration management</a> にPURGEと他のコマンドについて説明があるとのことです。</p>
+<h2 id="heading-2">おわりに</h2>
+<p>というわけで何とか自動化出来ました。個人的にはインストール用のコマンドはコマンドラインオプションか環境変数を設定したらノンインタラクティブで実行できるように作っておいて欲しいなあと思います。インタラクティブにしたい場合もインタラクティブモードで起動するようなコマンドラインオプションをつけて、ダイアログで選択が終わったらそれに対応するコマンドラインオプションを指定して起動したかのように処理をするような作りにすればいいのではないでしょうか。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

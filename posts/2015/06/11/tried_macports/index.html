@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Homebrewを辞めてMacPorts 2.3.3を入れてpkgngをビルドしてみた &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Homebrewを辞めてMacPorts 2.3.3を入れてpkgngをビルドしてみた</h1>
+  <time datetime=2015-06-11T01:09:08&#43;0900 class="post-date">2015-06-11</time>
+  <h1 id="heading">はじめに</h1>
+<p><a href="https://twitter.com/shibu_jp/status/598332736638582785">https://twitter.com/shibu_jp/status/598332736638582785</a> と <a href="http://gihyo.jp/admin/serial/01/bsd-yomoyama/0002">第2回　パッケージ管理システム「pkg 1.5」と基本的な使い方：BSD界隈四方山話｜gihyo.jp … 技術評論社</a>で、実験段階ですがOS Xもサポート対象となったという話を見て <code>pkg</code> と <code>MacPorts</code> をシームレスに組み合わせて使えるかが気になっていました。</p>
+<p>FreeBSDではpkgコマンドでバイナリパッケージをインストールし、Ports Collectionでソースからビルドというのが簡単にできるようになっているのですが、上記の記事によるとpkgとPorts Collectionがシームレスに連動しているそうです。</p>
+<p>なので、OS X上では <code>pkg</code> と <code>MacPorts</code> が連動するのかな、するといいなあ、と思って、まずは <code>MacPorts</code> を試してみます。</p>
+<p>私はだいぶ前に MacPorts から Homebrew に切り替えていたので、MacPortsは久々に試します。</p>
+<h2 id="heading-1">確認した環境</h2>
+<ul>
+<li>MacBook Pro (Retina, Mid 2012)</li>
+<li>OS X Yosemite 10.10.3</li>
+</ul>
+<h1 id="homebrew">Homebrewのアンインストール</h1>
+<p><a href="http://qiita.com/UmedaTakefumi/items/dc52f008586cbf06582f">Homebrewをアンインストールするには - Qiita</a>を参考にといいつつ、いきなりバッサリ消すとなにかあったときに戻れないので、アンインストールはせずにHomebrewでインストールしたパッケージのサービスを停止して、/usr/localディレクトリを/usr/local.bakに退避しておくことにします。移行が無事完了したらアンインストールするということで。</p>
+<p>以下のコマンドを実行して~/Library/LaunchAgents/にシンボリックリンクを張ったサービスを停止・解除します。</p>
+<pre><code>for f in ~/Library/LaunchAgents/homebrew.*; do launchctl unload $f; done
+</code></pre><p>/usr/localを/usr/local.bakに退避します。</p>
+<pre><code>sudo mv /usr/local /usr/local.bak
+</code></pre><h1 id="macports">MacPortsのインストール</h1>
+<p>MacPortsのバイナリパッケージをダウンロードしてインストールします。MacPorts-2.3.3-10.10-Yosemite.pkgをFinderでダブルクリックしてもいいのですが、将来スクリプトで自動化することを見据えて、OS Xの <code>installer</code> コマンドでインストールしてみます。</p>
+<pre><code>cd ~/Downloads
+curl -O https://distfiles.macports.org/MacPorts/MacPorts-2.3.3-10.10-Yosemite.pkg
+sudo installer -pkg MacPorts-2.3.3-10.10-Yosemite.pkg -target /
+</code></pre><p><a href="https://guide.macports.org/#installing.shell">2.5.1. The Postflight Script</a>の説明に従って、環境変数PATHとMANPATHの設定を追加します。以下はシェルはbashを使っていて~/.bash_profileに追加する場合の例です。</p>
+<pre><code>cat &lt;&lt;'EOF' &gt;&gt; ~/.bash_profile
+export PATH=/opt/local/bin:/opt/local/sbin:$PATH
+export MANPATH=/opt/local/share/man:$MANPATH
+EOF
+</code></pre><p>以下のコマンドを実行して、上で追加した設定を有効にします。</p>
+<pre><code>exec $SHELL -l
+</code></pre><p>portコマンドにPATHが通ったことを確認します。</p>
+<pre><code>$ which port
+/opt/local/bin/port
+</code></pre><p><a href="https://www.macports.org/install.php#pkg">Mac OS X Package (.pkg) Installer</a>の説明に従って、MacPorts自体のアップデートを行います。</p>
+<pre><code>sudo port -v selfupdate
+</code></pre><p>出力の最後に以下のように表示されたので、既に最新版になっていたそうです。</p>
+<pre><code>---&gt;  MacPorts base is already the latest version
+
+The ports tree has been updated. To upgrade your installed ports, you should run
+  port upgrade outdated
+</code></pre><p>上記の説明によるとインストールしたportsをアップグレードするときは <code>ports upgrade outdated</code> と実行すればよいそうです。</p>
+<h1 id="pkgng">pkgngをソースからビルド</h1>
+<p>FreeBSDのpkgはpkgngと呼ばれることもあります。<a href="https://wiki.freebsd.org/pkgng">pkgng - FreeBSD Wiki</a>によるとngはNext Generationの略のようです。</p>
+<p>githubにソースレポジトリ <a href="https://github.com/freebsd/pkg">freebsd/pkg</a>があったので、ソースからビルドして入れてみます。</p>
+<p>ホームディレクトリ直下にpkgディレクトリを作るようにして入れてみました。</p>
+<pre><code>cd
+git clone https://github.com/freebsd/pkg
+cd pkg
+</code></pre><p><code>git tag</code> で確認すると最新のリリースは 1.5.3 でしたので、それにしてみます。</p>
+<pre><code>git checkout 1.5.3
+git checkout -b 1.5.3
+</code></pre><p><a href="https://github.com/freebsd/pkg#building-pkg-using-sources-from-git">freebsd/pkg</a>を参考にやってみました。この手順ではビルドに必要なパッケージをFreeBSDにインストール済みの古いバージョンの <code>pkg</code> コマンドで入れていますが、OS Xの場合は無いのでMacPortsで入れます。</p>
+<p>また <code>pkgconf</code> はMacPortsでは <code>pkgconfig</code> という名前なのでそこも変えています。</p>
+<pre><code>sudo port install autoconf automake libtool pkgconfig
+</code></pre><pre><code>./autogen.sh
+./configure
+</code></pre><p><code>./configure</code> が以下のようにエラーになってしまいました。</p>
+<pre><code>…(略)…
+checking for library containing archive_read_open... -larchive
+checking archive.h usability... no
+checking archive.h presence... no
+checking for archive.h... no
+configure: error: Unable to find the libarchive headers
+</code></pre><p>そこでlibarchiveをMacPortsでインストールしました。</p>
+<pre><code>sudo port install libarchive
+</code></pre><p>MacPortsでインストールしたパッケージを見つけてもらうため、<a href="http://blog.francoismaillet.com/compile-against-libraries-installed-with-macports/">Compile against libraries installed with MacPorts | Blog de François Maillet</a>を参考に以下のようにオプションをつけて <code>./configure</code> を再度実行しました。pkgのsrcディレクトリを見ると、pkgはC++ではなくCで実装されていますので、 <code>configure</code> の引数もCPPFLAGSではなくCFLAGSにしています。
+今度は <code>configure</code> が成功しました。</p>
+<pre><code>./configure CFLAGS=&quot;-I/opt/local/include&quot; LDFLAGS=&quot;-L/opt/local/lib&quot;
+</code></pre><p><code>configure</code> の次は <code>make</code> を実行します。</p>
+<pre><code>make
+</code></pre><p>1つ警告が出ました。</p>
+<pre><code>…(略)…
+  CCLD     pkg-static
+libtool: warning: complete static linking is impossible in this configuration
+  CCLD     pkg
+…(略)…
+</code></pre><p><code>./configure --help</code> してみると</p>
+<pre><code>  --with-staticonly       Only build the static version (default is no)
+</code></pre><p>というオプションがあり、デフォルトではスタティックリンクするバージョンとしないバージョンの両方を作るようになっているようです。</p>
+<p>とりあえずスタティックリンクしないバージョンはビルドできているのでとりあえず先に進みます。</p>
+<p>以下のコマンドを実行してインストールします。</p>
+<pre><code>sudo make install
+</code></pre><p>/usr/localに以下のようなファイルとディレクトリが作られました。</p>
+<pre><code>$ find /usr/local
+/usr/local
+/usr/local/etc
+/usr/local/etc/bash_completion.d
+/usr/local/etc/bash_completion.d/_pkg.bash
+/usr/local/etc/periodic
+/usr/local/etc/periodic/daily
+/usr/local/etc/periodic/daily/411.pkg-backup
+/usr/local/etc/periodic/daily/490.status-pkg-changes
+/usr/local/etc/periodic/security
+/usr/local/etc/periodic/security/410.pkg-audit
+/usr/local/etc/periodic/security/460.pkg-checksum
+/usr/local/etc/periodic/weekly
+/usr/local/etc/periodic/weekly/400.status-pkg
+/usr/local/etc/pkg.conf.sample
+/usr/local/include
+/usr/local/include/pkg.h
+/usr/local/lib
+/usr/local/lib/libpkg.3.dylib
+/usr/local/lib/libpkg.dylib
+/usr/local/lib/libpkg.la
+/usr/local/lib/libpkg_static.a
+/usr/local/lib/libpkg_static.la
+/usr/local/libdata
+/usr/local/libdata/pkgconfig
+/usr/local/libdata/pkgconfig/pkg.pc
+/usr/local/man
+/usr/local/man/man3
+/usr/local/man/man3/pkg_printf.3
+/usr/local/man/man3/pkg_repos.3
+/usr/local/man/man5
+/usr/local/man/man5/pkg-repository.5
+/usr/local/man/man5/pkg.conf.5
+/usr/local/man/man8
+/usr/local/man/man8/pkg-add.8
+/usr/local/man/man8/pkg-alias.8
+/usr/local/man/man8/pkg-annotate.8
+/usr/local/man/man8/pkg-audit.8
+/usr/local/man/man8/pkg-autoremove.8
+/usr/local/man/man8/pkg-backup.8
+/usr/local/man/man8/pkg-check.8
+/usr/local/man/man8/pkg-clean.8
+/usr/local/man/man8/pkg-config.8
+/usr/local/man/man8/pkg-convert.8
+/usr/local/man/man8/pkg-create.8
+/usr/local/man/man8/pkg-delete.8
+/usr/local/man/man8/pkg-fetch.8
+/usr/local/man/man8/pkg-info.8
+/usr/local/man/man8/pkg-install.8
+/usr/local/man/man8/pkg-lock.8
+/usr/local/man/man8/pkg-query.8
+/usr/local/man/man8/pkg-register.8
+/usr/local/man/man8/pkg-remove.8
+/usr/local/man/man8/pkg-repo.8
+/usr/local/man/man8/pkg-rquery.8
+/usr/local/man/man8/pkg-search.8
+/usr/local/man/man8/pkg-set.8
+/usr/local/man/man8/pkg-shell.8
+/usr/local/man/man8/pkg-shlib.8
+/usr/local/man/man8/pkg-ssh.8
+/usr/local/man/man8/pkg-static.8
+/usr/local/man/man8/pkg-stats.8
+/usr/local/man/man8/pkg-unlock.8
+/usr/local/man/man8/pkg-update.8
+/usr/local/man/man8/pkg-updating.8
+/usr/local/man/man8/pkg-upgrade.8
+/usr/local/man/man8/pkg-version.8
+/usr/local/man/man8/pkg-which.8
+/usr/local/man/man8/pkg.8
+/usr/local/sbin
+/usr/local/sbin/pkg
+/usr/local/sbin/pkg-static
+/usr/local/sbin/pkg2ng
+/usr/local/share
+/usr/local/share/zsh
+/usr/local/share/zsh/site-functions
+/usr/local/share/zsh/site-functions/_pkg
+</code></pre><p>pkgコマンドとpkg-staticコマンドは/usr/local/sbinにインストールされていました。
+<code>otool -L</code> で確認すると両方ともダイナミックリンクになっていました。</p>
+<pre><code>$ otool -L /usr/local/sbin/pkg
+/usr/local/sbin/pkg:
+        /usr/local/lib/libpkg.3.dylib (compatibility version 4.0.0, current version 4.0.0)
+        /opt/local/lib/libssl.1.0.0.dylib (compatibility version 1.0.0, current version 1.0.0)
+        /usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1213.0.0)
+        /usr/lib/libutil.dylib (compatibility version 1.0.0, current version 1.0.0)
+        /opt/local/lib/libcrypto.1.0.0.dylib (compatibility version 1.0.0, current version 1.0.0)
+        /usr/lib/libresolv.9.dylib (compatibility version 1.0.0, current version 1.0.0)
+        /opt/local/lib/libarchive.13.dylib (compatibility version 15.0.0, current version 15.2.0)
+        /opt/local/lib/libz.1.dylib (compatibility version 1.0.0, current version 1.2.8)
+        /opt/local/lib/libbz2.1.0.dylib (compatibility version 1.0.0, current version 1.0.6)
+        /opt/local/lib/liblzma.5.dylib (compatibility version 8.0.0, current version 8.1.0)
+$ otool -L /usr/local/sbin/pkg-static
+/usr/local/sbin/pkg-static:
+        /usr/lib/libutil.dylib (compatibility version 1.0.0, current version 1.0.0)
+        /opt/local/lib/libssl.1.0.0.dylib (compatibility version 1.0.0, current version 1.0.0)
+        /opt/local/lib/libcrypto.1.0.0.dylib (compatibility version 1.0.0, current version 1.0.0)
+        /usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1213.0.0)
+        /usr/lib/libresolv.9.dylib (compatibility version 1.0.0, current version 1.0.0)
+        /opt/local/lib/libarchive.13.dylib (compatibility version 15.0.0, current version 15.2.0)
+        /opt/local/lib/libz.1.dylib (compatibility version 1.0.0, current version 1.2.8)
+        /opt/local/lib/libbz2.1.0.dylib (compatibility version 1.0.0, current version 1.0.6)
+        /opt/local/lib/liblzma.5.dylib (compatibility version 8.0.0, current version 8.1.0)
+</code></pre><p>/usr/local/sbinにはPATHが通っていなかったので、設定を変更して有効にしました。</p>
+<pre><code>echo 'export PATH=/usr/local/sbin:$PATH' &gt;&gt; ~/.bash_profile
+exec $SHELL -l
+</code></pre><pre><code>$ which pkg
+/usr/local/sbin/pkg
+$ pkg --version
+1.5.3-cfa5423
+</code></pre><p>というわけでビルドは出来ました。が OS X用のバイナリパッケージレポジトリの情報は見つけられず。</p>
+<p>pkgコマンドの使い方については<a href="https://github.com/freebsd/pkg#a-quick-usage-introduction-to-pkg">freebsd/pkg</a>のREADMEに<a href="https://github.com/freebsd/pkg#a-quick-usage-introduction-to-pkg">A quick usage introduction to pkg</a>というセクションがありました。</p>
+<h1 id="heading-2">情報収集中</h1>
+<p><a href="https://news.ycombinator.com/item?id=8828866">Baseline Mac OS X Support merged into FreeBSD package manager | Hacker News</a>にいくつか有用な情報がありました。</p>
+<ul>
+<li><a href="https://news.ycombinator.com/item?id=8829040">This change was written by Landon Fuller, one of the founders of MacPorts. There&hellip; | Hacker News</a>
+<ul>
+<li>pkgngをOS X対応にするプルリクエスト <a href="https://github.com/freebsd/pkg/pull/1113">Baseline Mac OS X Support by landonf · Pull Request #1113 · freebsd/pkg</a>はMacPorts創始者の1人によるもので、<a href="https://github.com/freebsd/pkg/pull/1113#issuecomment-68063964">Baseline Mac OS X Support by landonf · Pull Request #1113 · freebsd/pkg</a>のコメントによるとMacPortsのtclで書いている部分をlibpkgを使って書き直すことが出来るかを模索するつもりらしいです。</li>
+</ul>
+</li>
+<li><a href="https://news.ycombinator.com/item?id=8829179">You can already have that with pkgsrc for osx - joyent maintains the osx binary &hellip; | Hacker News</a>
+<ul>
+<li>このスレッドによるとpkgngがOS X対応する前から<a href="http://pkgsrc.joyent.com/">pkgsrc</a>というパッケージ管理システムがあるそうです。Node.jsのJoyent, Inc.が作ってるんですね。</li>
+<li><a href="http://www.saveosx.org/">saveosx</a>にYosemite 64bit用のバイナリパッケージがあるようです。</li>
+</ul>
+</li>
+</ul>
+<p>ということで、今後どうなっていくか要注目です。</p>
+<h1 id="2015-06-13-pkgsrc">2015-06-13追記 pkgsrcについて訂正</h1>
+<p><a href="https://www.pkgsrc.org/">pkgsrc</a>自体はFreeBSDのportsからフォークしてNetBSDで開発されているもので、Joyent, Inc.が提供しているのはSmartOS/illumos, Mac OS X, and Linux用のバイナリバッケージでした。</p>
+<ul>
+<li><a href="http://pkgsrc.joyent.com/">pkgsrc</a></li>
+<li><a href="https://en.wikipedia.org/wiki/Pkgsrc">pkgsrc - Wikipedia, the free encyclopedia</a></li>
+</ul>
+<p>また <a href="http://www.saveosx.org/">saveosx</a>は<a href="https://github.com/cmacrae/saveosx">cmacrae/saveosx</a>を見るとOS X用のpkgsrcをインストールするためのスクリプトでした。パッケージ自体はJoyentが提供しているそうです。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

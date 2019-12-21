@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Cybozu Garoon APIのファイル管理の部分だけのgoライブラリを書いた &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Cybozu Garoon APIのファイル管理の部分だけのgoライブラリを書いた</h1>
+  <time datetime=2015-06-15T20:24:16&#43;0900 class="post-date">2015-06-15</time>
+  <h1 id="heading">はじめに</h1>
+<p>Cybozu <a href="https://cybozudev.zendesk.com/hc/ja/categories/200157760-Garoon-API">Garoon API</a>のファイル管理のうち、フォルダ一覧取得、フォルダ内のファイル一覧取得、ファイルダウンロードのAPIを呼び出すライブラリをGoで書いてみました。</p>
+<p>ただし、汎用的なライブラリではなく、自分が必要な機能のみを実装しています。レスポンスの中の項目も自分が必要な部分だけ取り出して残りは破棄しています。
+<a href="http://blog.sigbus.info/2015/01/p1.html">sigbus.info: コードを書くことは無限の可能性を捨てて一つのやり方を選ぶということ</a>を読んでから、汎用性をあまり気にせず自分の用途に合わせて書くようになって楽で良いです。</p>
+<h1 id="heading-1">実装方法についてのメモ</h1>
+<p>まず、Garoon APIの手動での呼び出し方は<a href="http://qiita.com/yamasaki-masahide/items/fff1c84e65043ac4caf7">garoon - Cybozu ガルーン API を使ってみる - Qiita</a>を参考にして試してみました。</p>
+<h2 id="xml">リクエストのXML組み立て</h2>
+<p>Garoon APIはSOAPなので、リクエストやレスポンスはXMLになります。</p>
+<p>リクエストを送るところは<a href="http://qiita.com/yamasaki-masahide/items/03dfa6cd70ff20607b58">Cybozu ガルーン API を golang で叩いてみる - Qiita</a>を見たのですが、<a href="http://qiita.com/ono_matope/items/70080cc33b75152c5c2a">Goのencoding/xmlを使いこなす - Qiita</a>を参考にMarshalXMLを実装する方式にしてみました。</p>
+<p><a href="http://golang.org/pkg/encoding/xml/#Marshaler">xml.Marshaler</a>の <code>MarshalXML(e *Encoder, start StartElement) error</code> は <code>start</code> をエンコードするのが本来の使い方だとは思うのですが、下記の例のように <code>CabinetGetFolderInfo</code> といったリクエスト本体を渡すと <code>soap:Envelope</code> でラップしてエンコードしてくれる方が使うときに楽なので、 <code>MarshalXML</code> 内でデータ構造を組み立ててエンコードするようにしてみました。</p>
+<pre><code>&lt;soap:Envelope xmlns:soap=&quot;http://www.w3.org/2003/05/soap-envelope&quot;&gt;
+  &lt;soap:Header&gt;
+    &lt;Action&gt;CabinetGetFolderInfo&lt;/Action&gt;
+    &lt;Security&gt;
+      &lt;UsernameToken&gt;
+        &lt;Username&gt;foo&lt;/Username&gt;
+        &lt;Password&gt;password&lt;/Password&gt;
+      &lt;/UsernameToken&gt;
+    &lt;/Security&gt;
+    &lt;Timestamp&gt;
+      &lt;Created&gt;2010-08-12T14:45:00Z&lt;/Created&gt;
+      &lt;Expires&gt;2037-08-12T14:45:00Z&lt;/Expires&gt;
+    &lt;/Timestamp&gt;
+    &lt;Locale&gt;jp&lt;/Locale&gt;
+  &lt;/soap:Header&gt;
+  &lt;soap:Body&gt;
+    &lt;CabinetGetFolderInfo&gt;
+      &lt;parameters&gt;&lt;/parameters&gt;
+    &lt;/CabinetGetFolderInfo&gt;
+  &lt;/soap:Body&gt;
+&lt;/soap:Envelope&gt;
+</code></pre><p><code>soap:Envelope</code> でラップした構造を作るところは、</p>
+<p><a href="https://github.com/hnakamur/garoonclient/blob/d8aceb8ae09c6094dd65a1623fc99ca89a1ccebd/request.go#L44-L62">https://github.com/hnakamur/garoonclient/blob/d8aceb8ae09c6094dd65a1623fc99ca89a1ccebd/request.go#L44-L62</a></p>
+<pre><code>
+func buildRequestStruct(h RequestHeader, apiName string, parameters interface{}) envelope {
+	return envelope{
+		Xmlns: &quot;http://www.w3.org/2003/05/soap-envelope&quot;,
+		Header: header{
+			Action:   apiName,
+			Username: h.Username,
+			Password: h.Password,
+			Created:  h.Created,
+			Expires:  h.Expires,
+			Locale:   h.Locale,
+		},
+		Body: body{
+			Content: bodyContent{
+				XMLName:    xml.Name{Local: apiName},
+				Parameters: parameters,
+			},
+		},
+	}
+}
+</code></pre><p>で共通処理として実装し、各API用のリクエストの構造体では</p>
+<p><a href="https://github.com/hnakamur/garoonclient/blob/d8aceb8ae09c6094dd65a1623fc99ca89a1ccebd/cabinet.go#L16-L26">https://github.com/hnakamur/garoonclient/blob/d8aceb8ae09c6094dd65a1623fc99ca89a1ccebd/cabinet.go#L16-L26</a></p>
+<pre><code>type CabinetGetFolderInfoRequest struct {
+	Header RequestHeader
+}
+
+func (r CabinetGetFolderInfoRequest) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	return e.Encode(buildRequestStruct(
+		r.Header,
+		&quot;CabinetGetFolderInfo&quot;,
+		struct{}{},
+	))
+}
+</code></pre><p>のようにして呼び出しています。</p>
+<p>また、日時の項目は構造体側では <code>time.Time</code> にしたいところですが、<a href="https://code.google.com/p/go/issues/detail?id=2771#c2">Issue 2771 - go - encoding/xml: MarshalXML interface is not good enough - The Go Programming Language - Google Project Hosting</a>の<a href="https://code.google.com/p/go/issues/detail?id=2771#c2">コメント#2</a>を読んで <code>string</code> にしました。</p>
+<h2 id="heading-2">レスポンスのパース処理</h2>
+<p>レスポンスのパースは<a href="http://qiita.com/yamasaki-masahide/items/f20a2ca4700e00777303">Cybozu ガルーン API のレスポンスのXMLを golang でパースする - Qiita</a>を見たのですが、<a href="http://blog.davidsingleton.org/parsing-huge-xml-files-with-go/">Parsing huge XML files with Go - david singleton</a>の方法のほうが楽なのでこちらを参考にしました。</p>
+<p>共通のユーテリティ関数としては
+<a href="https://github.com/hnakamur/garoonclient/blob/d8aceb8ae09c6094dd65a1623fc99ca89a1ccebd/response.go">https://github.com/hnakamur/garoonclient/blob/d8aceb8ae09c6094dd65a1623fc99ca89a1ccebd/response.go</a></p>
+<pre><code>var ResponseTagNotFoundError = errors.New(&quot;response tag not found&quot;)
+
+func parseResponse(r io.Reader, localName string, v interface{}) error {
+	decoder := xml.NewDecoder(r)
+	for {
+		t, _ := decoder.Token()
+		if t == nil {
+			break
+		}
+		switch se := t.(type) {
+		case xml.StartElement:
+			if se.Name.Local == localName {
+				return decoder.DecodeElement(v, &amp;se)
+			}
+		}
+	}
+	return ResponseTagNotFoundError
+}
+</code></pre><p>のように定義して、</p>
+<p><a href="https://github.com/hnakamur/garoonclient/blob/d8aceb8ae09c6094dd65a1623fc99ca89a1ccebd/cabinet.go#L115-L127">https://github.com/hnakamur/garoonclient/blob/d8aceb8ae09c6094dd65a1623fc99ca89a1ccebd/cabinet.go#L115-L127</a></p>
+<pre><code>func parseCabinetGetFolderInfoResponse(r io.Reader) (*CabinetGetFolderInfoResponse, error) {
+	exclude := NewExclude(func(b byte) bool {
+		return b == 0x08 || b == 0x0B
+	})
+	r2 := transform.NewReader(r, exclude)
+	var resp CabinetGetFolderInfoResponse
+	err := parseResponse(r2, &quot;CabinetGetFolderInfoResponse&quot;, &amp;resp)
+	if err != nil {
+		return nil, err
+	}
+	resp.fillPath()
+	return &amp;resp, err
+}
+</code></pre><p>という感じで呼び出しています。</p>
+<h2 id="u0008">レスポンスからU+0008などの制御文字を除去</h2>
+<p>あと、レスポンスのXMLをそのまま<a href="http://golang.org/pkg/encoding/xml/#Decoder">xml.Decoder</a>に渡すとUTF-8の不正なバイト列といったエラーが出ました。U+0008やU+000Bというデータが入っていたので、これを除去するようにしました。</p>
+<p>日本語の文字コード変換用のライブラリ<a href="https://godoc.org/golang.org/x/text/encoding/japanese">golang.org/x/text/encoding/japanese</a>で使っているインターフェース<a href="https://godoc.org/golang.org/x/text/transform#Transformer">golang.org/x/text/transform/Transformer</a>に合わせて実装しました。</p>
+<p><a href="https://github.com/hnakamur/garoonclient/blob/d8aceb8ae09c6094dd65a1623fc99ca89a1ccebd/cabinet.go#L28-L50">https://github.com/hnakamur/garoonclient/blob/d8aceb8ae09c6094dd65a1623fc99ca89a1ccebd/cabinet.go#L28-L50</a></p>
+<pre><code>type exclude struct {
+	transform.NopResetter
+	excluder func(byte) bool
+}
+
+func NewExclude(excluder func(byte) bool) transform.Transformer {
+	return exclude{excluder: excluder}
+}
+
+func (e exclude) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err error) {
+	for nSrc = 0; nSrc &lt; len(src); nSrc++ {
+		b := src[nSrc]
+		if !e.excluder(b) {
+			if nDst &gt;= len(dst) {
+				err = transform.ErrShortDst
+				return
+			}
+			dst[nDst] = b
+			nDst++
+		}
+	}
+	return
+}
+</code></pre><p>利用するときは<a href="https://godoc.org/golang.org/x/text/transform#NewReader">golang.org/x/text/transform/NewReader</a>を使います。</p>
+<h1 id="heading-3">まとめ</h1>
+<p>Cybozu Garoon APIの一部のクライアントライブラリをGoで実装しました。</p>
+<ul>
+<li>MarshalXMLを実装することで、構造体とXMLの構造がかなり違う場合でも、XMLに合わせて一々構造体を定義することなく楽に対応出来ました。</li>
+<li><a href="http://golang.org/pkg/encoding/xml/#Decoder.Token">xml.DecoderのToken</a>を使うことでXMLの一部だけをパースしました。</li>
+<li>制御文字除去の処理を<a href="https://godoc.org/golang.org/x/text/transform#Transformer">golang.org/x/text/transform/Transformer</a>インタフェースに合わせて実装しました。</li>
+</ul>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

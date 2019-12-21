@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>github.com/facebookgo/graceパッケージでグレースフルリスタートを試してみた &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>github.com/facebookgo/graceパッケージでグレースフルリスタートを試してみた</h1>
+  <time datetime=2017-04-13T07:10:00&#43;0900 class="post-date">2017-04-13</time>
+  <h2 id="heading">はじめに</h2>
+<p><a href="/blog/2017/04/13/built-go-carbon-and-carbonapi-rpm/">go, go-carbon, carbonapiのrpmをfedora coprでビルドしてみた</a> でcarbonapiが
+<a href="https://github.com/facebookgo/grace/">facebookgo/grace: Graceful restart &amp; zero downtime deploy for Go servers.</a>
+を使っていることに気づいたので、それでグレースフルリスタートを試してみました。ということでメモです。</p>
+<h2 id="facebookgograce">facebookgo/grace</h2>
+<p>goのグレースフルリスタートについては
+<a href="https://shogo82148.github.io/blog/2015/05/03/golang-graceful-restart/">Go言語でGraceful Restartをする - Shogo's Blog</a>
+の記事にお世話になっていました。</p>
+<p>この記事を読んで自分で書いたサーバプログラムでは facebookgo/grace ではなく
+<a href="https://github.com/lestrrat/go-server-starter">lestrrat/go-server-starter: Go port of start_server utility (Server::Starter)</a>
+を利用させていただいています。</p>
+<p>一方、carbonapiではfacebookgo/graceを利用しています。コードはこれだけ。簡単ですね。</p>
+<p><a href="https://github.com/go-graphite/carbonapi/blob/1ac234b878f90ba657f6ed332452bd808e7ccb6c/main.go#L1181-L1184">main.go#L1181-L1184</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">err</span> <span class="p">=</span> <span class="nx">gracehttp</span><span class="p">.</span><span class="nf">Serve</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">http</span><span class="p">.</span><span class="nx">Server</span><span class="p">{</span>
+    <span class="nx">Addr</span><span class="p">:</span>    <span class="nx">Config</span><span class="p">.</span><span class="nx">Listen</span><span class="p">,</span>
+    <span class="nx">Handler</span><span class="p">:</span> <span class="nx">handler</span><span class="p">,</span>
+<span class="p">}</span><span class="p">)</span>
+</code></pre></div><h2 id="systemdpidfileok">systemdならPIDFileを書くだけでOK</h2>
+<p><a href="https://www.freedesktop.org/software/systemd/man/systemd.service.html#PIDFile=">systemd.service</a> の <code>PIDFile</code> の説明を読むと <code>Type=forking</code> の場合には <code>PIDFile</code> を設定するのがお勧めとあります。</p>
+<p><code>Type=simle</code> でも機能するのかなと思って試してみるとうまく行きました！</p>
+<p>実際のservice定義ファイルは
+<a href="https://github.com/hnakamur/carbonapi-rpm/blob/84659a13ce235f33a9c699f93cfe6d2864850b9e/SOURCES/carbonapi.service">carbonapi-rpm/carbonapi.service</a>
+です。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">[Unit]
+Description=carbonapi server
+Documentation=https://github.com/go-graphite/carbonapi
+Wants=network-online.target go-carbon.service
+After=network-online.target go-carbon.service
+
+[Service]
+User=carbon
+Group=carbon
+Type=simple
+Restart=on-failure
+EnvironmentFile=/etc/sysconfig/carbonapi
+ExecStart=/usr/sbin/carbonapi -z $ZIPPER_URL -pid /var/run/carbonapi/carbonapi.pid -graphite $GRAPHITEADDR -p $PORT -i $INTERVAL -cpus $CPUS -cache $CACHE_TYPE -memsize $MEMSIZE -l $CONCURRENCY_LIMIT -idleconns $IDLECONNS -logdir $LOGDIR
+ExecReload=/bin/pkill -USR2 --pidfile /var/run/carbonapi/carbonapi.pid
+PIDFile=/var/run/carbonapi/carbonapi.pid
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+</code></pre></div><p>これで <code>systemctl reload carbonapi</code> でグレースフルリスタートがかかります。
+その後 <code>systemctl status carbonapi</code> で確認するとacitveになっていて、表示されているpidも <code>/var/run/carbonapi/carbonapi.pid</code> の内容に一致していました。</p>
+<p>横でリクエストを打ち続けて取りこぼしがないかとかはまだ試していません。</p>
+<p>なお、上のservice定義ファイルでは <code>EnvironmentFile</code> を使っているので
+pidファイルのパスも出来れば環境変数で設定・参照したいところです。
+<a href="http://qiita.com/kobanyan/items/f8e8a3bd5406e1d290fb">systemd の Environment / EnvironmentFile では変数展開できません - Qiita</a>
+を読んで試行錯誤したのですが、うまくいかなかったので諦めました。</p>
+<h2 id="heading-1">おわりに</h2>
+<p>systemdを使うのであれば github.com/facebookgo/grace でのグレースフルリスタートはお手軽でよさそうです。ということで今後使っていきたいと思います。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

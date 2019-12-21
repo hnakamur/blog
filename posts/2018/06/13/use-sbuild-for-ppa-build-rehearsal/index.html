@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>PPAでのビルドの予行演習にsbuildを使う &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>PPAでのビルドの予行演習にsbuildを使う</h1>
+  <time datetime=2018-06-13T18:00:00&#43;0900 class="post-date">2018-06-13</time>
+  <h1 id="heading">はじめに</h1>
+<p>PPAでビルドする前に手元でビルドが通ることを確認したくてpbuilderを使っていましたが、pbuilderではビルドが通るのにPPAでは通らないケースが何度か起きたのでsbuildを使い始めました。使い方がある程度わかってきたのでメモです。</p>
+<p>sbuildのセットアップ手順は
+<a href="https://hnakamur.github.io/blog/2018/06/07/setup-sbuild-on-ubuntu-18.04-lts/">Ubuntu 18.04 LTSでsbuildをセットアップ</a>
+に書きました。</p>
+<h1 id="ppa">PPAでビルド時に設定されている環境変数の例</h1>
+<p>例えば以前 universal-ctags をPPAでビルドしたときの <a href="https://launchpadlibrarian.net/373686872/buildlog_ubuntu-bionic-amd64.universal-ctags_0+SNAPSHOT20180608-1ubuntu1ppa2~ubuntu18.04.1_BUILDING.txt.gz">ログ</a> を見ると以下のように環境変数が設定されていました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">User Environment
+----------------
+
+APT_CONFIG=/var/lib/sbuild/apt.conf
+DEB_BUILD_OPTIONS=parallel=4
+HOME=/sbuild-nonexistent
+LANG=C.UTF-8
+LC_ALL=C.UTF-8
+LOGNAME=buildd
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games
+SCHROOT_ALIAS_NAME=build-PACKAGEBUILD-14993824
+SCHROOT_CHROOT_NAME=build-PACKAGEBUILD-14993824
+SCHROOT_COMMAND=env
+SCHROOT_GID=2501
+SCHROOT_GROUP=buildd
+SCHROOT_SESSION_ID=build-PACKAGEBUILD-14993824
+SCHROOT_UID=2001
+SCHROOT_USER=buildd
+SHELL=/bin/sh
+TERM=unknown
+USER=buildd
+V=1
+</code></pre></div><p>ちなみに、ビルドログへは以下の手順でたどり着きました。</p>
+<ol>
+<li><a href="https://launchpad.net/~hnakamur/+archive/ubuntu/universal-ctags">universal-ctags : Hiroaki Nakamura</a> で &ldquo;View package details&rdquo; をクリック。</li>
+<li>Packagesの表の &ldquo;universal-ctags - 0+SNAPSHOT20180608-1ubuntu1ppa2~ubuntu18.04.1&rdquo; をクリック。</li>
+<li>展開された中の Builds の amd64 をクリック。</li>
+<li>切り替わったページ内の Build Status の buildlog をクリック。</li>
+</ol>
+<h1 id="ppasbuild">PPAでの環境変数に似せて手元のsbuildでビルドする手順</h1>
+<p><code>TERM</code> や <code>V</code> などの環境変数を外から設定できるようにするため <code>~/.sbuildrc</code> に以下の設定を追加します。 <code>environment_filter</code> の説明とデフォルト値については
+<a href="http://manpages.ubuntu.com/manpages/bionic/en/man5/sbuild.conf.5.html">man sbuild.conf</a>
+を参照してください。</p>
+<div class="highlight"><pre class="chroma"><code class="language-perl" data-lang="perl"><span class="nv">$</span><span class="nv">environment_filter</span> <span class="o">=</span> <span class="p">[</span>
+                        <span class="s">&#39;^AR$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^ARFLAGS$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^AS$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^AWK$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^CC$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^CFLAGS$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^CPP$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^CPPFLAGS$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^CXX$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^CXXFLAGS$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^DEB_BUILD_OPTIONS$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^DEB_BUILD_PROFILES$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^DEB_VENDOR$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^DPKG_ADMINDIR$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^DPKG_DATADIR$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^DPKG_GENSYMBOLS_CHECK_LEVEL$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^DPKG_ORIGINS_DIR$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^DPKG_ROOT$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^FC$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^FFLAGS$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^GCJFLAGS$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^LANG$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^LC_ADDRESS$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^LC_ALL$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^LC_COLLATE$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^LC_CTYPE$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^LC_IDENTIFICATION$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^LC_MEASUREMENT$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^LC_MESSAGES$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^LC_MONETARY$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^LC_NAME$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^LC_NUMERIC$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^LC_PAPER$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^LC_TELEPHONE$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^LC_TIME$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^LD$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^LDFLAGS$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^LD_LIBRARY_PATH$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^LEX$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^M2C$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^MAKE$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^MAKEFLAGS$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^OBJC$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^OBJCFLAGS$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^OBJCXX$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^OBJCXXFLAGS$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^PC$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^RANLIB$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^SOURCE_DATE_EPOCH$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^TERM$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^V$&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;^YACC$&#39;</span>
+                      <span class="p">]</span><span class="p">;</span>
+</code></pre></div><p><code>~/.sbuildrc</code> はPerlのスクリプトになっていて、ファイル末尾に以下のような行があるので、それよりは上に上記の設定を書きます。</p>
+<div class="highlight"><pre class="chroma"><code class="language-perl" data-lang="perl"><span class="c1"># don&#39;t remove this, Perl needs it:</span>
+<span class="mi">1</span><span class="p">;</span>
+</code></pre></div><p>この設定を入れた上で、以下のコマンドでビルドするようにしました。</p>
+<pre><code class="language-console" data-lang="console">TERM=unknown DEB_BUILD_OPTIONS=parallel=2 V=1 sbuild --sbuild-mode=buildd
+</code></pre><p><code>DEB_BUILD_OPTIONS</code> の値は上記のPPAのログでは <code>parallel=4</code> でしたが、自宅サーバはコア数が2なので2にしています。</p>
+<p><code>--sbuild-mode</code> オプションは
+<a href="http://manpages.ubuntu.com/manpages/bionic/en/man1/sbuild.1.html">man sbuild</a> と
+<a href="http://manpages.ubuntu.com/manpages/bionic/en/man5/sbuild.conf.5.html">man sbuild.conf</a>
+を見ると <code>user</code> と <code>buildd</code> という選択肢があってデフォルトは <code>user</code> でした。</p>
+<p>PPAのビルドログをみると launchpad-buildd というツールを使っているようなので <code>buildd</code> にしました。</p>
+<h1 id="chroot">ビルド失敗したchroot環境に入る</h1>
+<p><a href="https://hnakamur.github.io/blog/2018/06/07/setup-sbuild-on-ubuntu-18.04-lts/">Ubuntu 18.04 LTSでsbuildをセットアップ</a>
+で <code>~/.sbuildrc</code> に以下の設定を入れているので、ビルド失敗時にはchroot環境のセッションが削除されずに残ります。</p>
+<div class="highlight"><pre class="chroma"><code class="language-perl" data-lang="perl"><span class="nv">$</span><span class="nv">purge_build_directory</span> <span class="o">=</span> <span class="s">&#39;successful&#39;</span><span class="p">;</span>
+<span class="nv">$</span><span class="nv">purge_session</span> <span class="o">=</span> <span class="s">&#39;successful&#39;</span><span class="p">;</span>
+<span class="nv">$</span><span class="nv">purge_build_deps</span> <span class="o">=</span> <span class="s">&#39;successful&#39;</span><span class="p">;</span>
+</code></pre></div><p>ビルドログに以下のようにビルドセッションのIDが出力されます。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">+------------------------------------------------------------------------------+
+| Cleanup                                                                      |
++------------------------------------------------------------------------------+
+
+Not cleaning session: cloned chroot in use
+Keeping session: bionic-amd64-sbuild-ec0f01f1-fc92-4ac0-940f-15acf7a9346c
+E: Build failure (dpkg-buildpackage died)
+</code></pre></div><p>ちなみにビルド成功時は以下のように出力されビルドセッションは削除されます。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">+------------------------------------------------------------------------------+
+| Cleanup                                                                      |
++------------------------------------------------------------------------------+
+
+Purging /&lt;&lt;BUILDDIR&gt;&gt;
+Not cleaning session: cloned chroot in use
+</code></pre></div><p><code>schroot -l --all-sessions</code> と実行するとセッションの一覧を確認できます。</p>
+<pre><code class="language-console" data-lang="console">$ schroot -l --all-sessions
+session:bionic-amd64-sbuild-06716ae7-5bfd-4845-80bc-fa6df4f9a2f9
+session:bionic-amd64-sbuild-119e026d-45df-45c6-b1a3-f2f750c0be86
+session:bionic-amd64-sbuild-1fa47574-b8e4-4bf3-b4b4-d2d247882bad
+session:bionic-amd64-sbuild-2298d959-a0c0-4b34-84b6-da0cf55b4e69
+session:bionic-amd64-sbuild-2d8e08f5-0f6d-4586-b73e-6fbe32d25a00
+session:bionic-amd64-sbuild-578bd0b0-e053-4ba1-80bd-eedc63b786f0
+session:bionic-amd64-sbuild-6778cf73-a495-4568-b75e-575955204012
+session:bionic-amd64-sbuild-903e3529-eb26-4d6c-a1de-b6271f899ee2
+session:bionic-amd64-sbuild-db7a2953-5321-420b-b14d-bda5c9c8845b
+session:bionic-amd64-sbuild-ec0f01f1-fc92-4ac0-940f-15acf7a9346c
+</code></pre><p>ちなみにchroot環境の一覧は <code>schroot -l</code> で確認できます。</p>
+<pre><code class="language-console" data-lang="console">$ schroot -l
+chroot:bionic-amd64
+chroot:bionic-amd64-sbuild
+source:bionic-amd64
+source:bionic-amd64-sbuild
+</code></pre><p>特定のセッションにユーザと実行ディレクトリを指定して入るのは以下のようにします（セッションIDとユーザIDとディレクトリは適宜変更してください）。</p>
+<pre><code class="language-console" data-lang="console">schroot -r -c bionic-amd64-sbuild-ec0f01f1-fc92-4ac0-940f-15acf7a9346c -u root -d /root
+</code></pre><h1 id="chroot-1">chrootのセッションを削除</h1>
+<p>特定のセッションを終了して削除するには <code>schroot -e -c セッションID</code> と実行します。
+その後 <code>schroot -l --all-sessions</code> 指定したセッションがなくなっていることを確認します。</p>
+<p>全てのセッションを終了するには <code>schroot -e --all-sessions</code> とします。
+<a href="https://wiki.ubuntu.com/SimpleSbuild">SimpleSbuild - Ubuntu Wiki</a> の Expiring active schroot sessions に書いていました。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

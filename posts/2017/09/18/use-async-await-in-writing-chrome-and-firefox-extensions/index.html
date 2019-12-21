@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>ChromeとFirefoxの拡張機能を書くのにasync/awaitを使ってみた &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>ChromeとFirefoxの拡張機能を書くのにasync/awaitを使ってみた</h1>
+  <time datetime=2017-09-18T12:35:00&#43;0900 class="post-date">2017-09-18</time>
+  <h2 id="heading">はじめに</h2>
+<p>私はChromeとFirefox用に以下の拡張機能を書いて使っています。</p>
+<ul>
+<li><a href="https://github.com/hnakamur/FormatLink-Chrome">FormatLink-Chrome</a></li>
+<li><a href="https://github.com/hnakamur/FormatLink-Firefox">FormatLink-Firefox</a></li>
+</ul>
+<p>今回UIを改変する際についでに async と await を使って書くように変更してみたのでメモです。</p>
+<h2 id="asyncawait--firefox--chrome-">async/await が使える Firefox と Chrome のバージョン</h2>
+<p><a href="https://caniuse.com/#feat=async-functions">Can I use&hellip; Support tables for HTML5, CSS3, etc</a>
+で &ldquo;Showing all&rdquo; をクリックして確認すると Chrome はバージョン 55 、 Firefox はバージョン 52 から async/await をサポートしているとのことです。</p>
+<h2 id="promise--api--asyncawait-">Promise を返す API を async/await で呼び出す</h2>
+<p><a href="https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Statements/async_function">async function - JavaScript | MDN</a> に分かりやすい説明と例がありました。</p>
+<h2 id="firefox-asyncawait">Firefox の拡張機能を書くのにasync/awaitを使う</h2>
+<p><a href="https://developer.mozilla.org/ja/Add-ons/WebExtensions/What_are_WebExtensions">WebExtensions とは何か？ - Mozilla | MDN</a> で説明されていますが、以前は Firefox の拡張は XUL などの技術を使っていましたが、今後は WebExtensions のみが利用可能となります。</p>
+<p><a href="https://developer.mozilla.org/ja/Add-ons/WebExtensions">WebExtensions - Mozilla | MDN</a>
+のページ右の「JavaScript API 群」はほとんどは Promise を返すようになっています。</p>
+<p>例えば自分の拡張機能のコンテキストメニューを全て消す API
+<a href="https://developer.mozilla.org/en-US/Add-ons/WebExtensions/API/menus/removeAll">menus.removeAll()</a>
+の syntax は</p>
+<div class="highlight"><pre class="chroma"><code class="language-javascript" data-lang="javascript"><span class="kd">var</span> <span class="nx">removing</span> <span class="o">=</span> <span class="nx">browser</span><span class="p">.</span><span class="nx">menus</span><span class="p">.</span><span class="nx">removeAll</span><span class="p">(</span><span class="p">)</span>
+</code></pre></div><p>のように Promise を返します。</p>
+<p>これらの API は上記の方法で async/await で呼び出すことが可能です。</p>
+<p>一方で、コンテキストメニューを作成する API
+<a href="https://developer.mozilla.org/en-US/Add-ons/WebExtensions/API/menus/create">menus.create() - Mozilla | MDN</a>
+の syntax は</p>
+<div class="highlight"><pre class="chroma"><code class="language-javascript" data-lang="javascript"><span class="nx">browser</span><span class="p">.</span><span class="nx">menus</span><span class="p">.</span><span class="nx">create</span><span class="p">(</span>
+  <span class="nx">createProperties</span><span class="p">,</span> <span class="c1">// object
+</span><span class="c1"></span>  <span class="kd">function</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span><span class="p">...</span><span class="p">}</span>  <span class="c1">// optional function
+</span><span class="c1"></span><span class="p">)</span>
+</code></pre></div><p>のようにコールバック関数をオプショナルで受け取るようになっています。</p>
+<p>そこでまず <code>browser.menus.create</code> を Promise でラップした関数を作ります。</p>
+<p><a href="https://github.com/hnakamur/FormatLink-Firefox/blob/0e5d21c5ab4d87b758ef2da4f671406bc64a940b/common.js#L50-L61">https://github.com/hnakamur/FormatLink-Firefox/blob/0e5d21c5ab4d87b758ef2da4f671406bc64a940b/common.js#L50-L61</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-javascript" data-lang="javascript"><span class="kd">function</span> <span class="nx">creatingContextMenuItem</span><span class="p">(</span><span class="nx">props</span><span class="p">)</span> <span class="p">{</span>
+  <span class="k">return</span> <span class="k">new</span> <span class="nb">Promise</span><span class="p">(</span><span class="p">(</span><span class="nx">resolve</span><span class="p">,</span> <span class="nx">reject</span><span class="p">)</span> <span class="p">=&gt;</span> <span class="p">{</span>
+    <span class="nx">browser</span><span class="p">.</span><span class="nx">contextMenus</span><span class="p">.</span><span class="nx">create</span><span class="p">(</span><span class="nx">props</span><span class="p">,</span> <span class="p">(</span><span class="p">)</span> <span class="p">=&gt;</span> <span class="p">{</span>
+      <span class="kd">var</span> <span class="nx">err</span> <span class="o">=</span> <span class="nx">browser</span><span class="p">.</span><span class="nx">runtime</span><span class="p">.</span><span class="nx">lastError</span><span class="p">;</span>
+      <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">reject</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span><span class="p">;</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="nx">resolve</span><span class="p">(</span><span class="p">)</span><span class="p">;</span>
+      <span class="p">}</span>
+    <span class="p">}</span><span class="p">)</span><span class="p">;</span>
+  <span class="p">}</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><p>あとは同様に async/await で呼び出せば OK です。</p>
+<p><a href="https://github.com/hnakamur/FormatLink-Firefox/blob/0e5d21c5ab4d87b758ef2da4f671406bc64a940b/common.js#L63-L83">https://github.com/hnakamur/FormatLink-Firefox/blob/0e5d21c5ab4d87b758ef2da4f671406bc64a940b/common.js#L63-L83</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-javascript" data-lang="javascript"><span class="nx">async</span> <span class="kd">function</span> <span class="nx">createContextMenus</span><span class="p">(</span><span class="nx">options</span><span class="p">)</span> <span class="p">{</span>
+  <span class="nx">await</span> <span class="nx">browser</span><span class="p">.</span><span class="nx">contextMenus</span><span class="p">.</span><span class="nx">removeAll</span><span class="p">(</span><span class="p">)</span><span class="p">;</span>
+  <span class="k">if</span> <span class="p">(</span><span class="nx">options</span><span class="p">.</span><span class="nx">createSubmenus</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">count</span> <span class="o">=</span> <span class="nx">getFormatCount</span><span class="p">(</span><span class="nx">options</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">for</span> <span class="p">(</span><span class="kd">var</span> <span class="nx">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="o">&lt;</span> <span class="nx">count</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+      <span class="kd">var</span> <span class="nx">format</span> <span class="o">=</span> <span class="nx">options</span><span class="p">[</span><span class="s1">&#39;title&#39;</span> <span class="o">+</span> <span class="p">(</span><span class="nx">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span><span class="p">]</span><span class="p">;</span>
+      <span class="nx">await</span> <span class="nx">creatingContextMenuItem</span><span class="p">(</span><span class="p">{</span>
+        <span class="nx">id</span><span class="o">:</span> <span class="s2">&#34;format-link-format&#34;</span> <span class="o">+</span> <span class="p">(</span><span class="nx">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span><span class="p">,</span>
+        <span class="nx">title</span><span class="o">:</span> <span class="s2">&#34;as &#34;</span> <span class="o">+</span> <span class="nx">format</span><span class="p">,</span>
+        <span class="nx">contexts</span><span class="o">:</span> <span class="p">[</span><span class="s2">&#34;link&#34;</span><span class="p">,</span> <span class="s2">&#34;selection&#34;</span><span class="p">,</span> <span class="s2">&#34;page&#34;</span><span class="p">]</span>
+      <span class="p">}</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">defaultFormat</span> <span class="o">=</span> <span class="nx">options</span><span class="p">[</span><span class="s1">&#39;title&#39;</span> <span class="o">+</span> <span class="nx">options</span><span class="p">[</span><span class="s1">&#39;defaultFormat&#39;</span><span class="p">]</span><span class="p">]</span><span class="p">;</span>
+    <span class="nx">await</span> <span class="nx">creatingContextMenuItem</span><span class="p">(</span><span class="p">{</span>
+      <span class="nx">id</span><span class="o">:</span> <span class="s2">&#34;format-link-format-default&#34;</span><span class="p">,</span>
+      <span class="nx">title</span><span class="o">:</span> <span class="s2">&#34;Format Link as &#34;</span> <span class="o">+</span> <span class="nx">defaultFormat</span><span class="p">,</span>
+      <span class="nx">contexts</span><span class="o">:</span> <span class="p">[</span><span class="s2">&#34;link&#34;</span><span class="p">,</span> <span class="s2">&#34;selection&#34;</span><span class="p">,</span> <span class="s2">&#34;page&#34;</span><span class="p">]</span>
+    <span class="p">}</span><span class="p">)</span><span class="p">;</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div><h2 id="chrome--asyncawait-">Chrome の拡張機能を書くのに async/await を使う</h2>
+<p>Chrome の拡張機能用の API
+<a href="https://developer.chrome.com/extensions/api_index">JavaScript APIs - Google Chrome</a>
+は Promise を返す方式ではなく、コールバック関数を引数にとる方式になっています。</p>
+<p>例えばコンテキストメニューを作成するAPI
+<a href="https://developer.chrome.com/extensions/contextMenus#method-create">chrome.contextMenus.create</a></p>
+<p>のシグネチャは</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">integer or string chrome.contextMenus.create(object createProperties, function callback)
+</code></pre></div><p>となっています。</p>
+<p>ということでまず Promise を返すラッパー関数を書く必要があるのですが、
+<a href="https://github.com/KeithHenry/chromeExtensionAsync">KeithHenry/chromeExtensionAsync: Promise wrapper for the Chrome extension API so that it can be used with async/await rather than callbacks</a>
+という便利なライブラリがありました。
+これを使えば元の API の関数名のまま呼び出せば Promise を返すようになります。</p>
+<h2 id="chrome--for--await--promiseall-">Chrome で for ループ内で await を呼んでハマったが Promise.all で解決</h2>
+<p>自作の拡張 Format Link では初期化時と設定ページで設定を保存したときに、コンテキストメニューを一旦全部消して作り直すようにしています。</p>
+<p>Firefox 用の拡張では上記の <code>createContextMenus</code> のように <code>for</code> ループ内で <code>await creatingContextMenuItem</code> で正常に作成できていました。</p>
+<p>ですが、 Chrome では同様なコードだと、初期化時は問題ないのですが、設定ページで &ldquo;Create submenus&rdquo; をオンにして設定を保存したときに 4 つのサブメニューが作られるべきところが最初の 2 つしか作られないという現象が発生しました。</p>
+<p>とりあえずの回避策として <code>await</code> を使わずに
+<a href="https://github.com/hnakamur/FormatLink-Chrome/blob/4828a677776b81ef3ca66132fea366c60ccd7d4f/common.js#L55-L77">https://github.com/hnakamur/FormatLink-Chrome/blob/4828a677776b81ef3ca66132fea366c60ccd7d4f/common.js#L55-L77</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-javascript" data-lang="javascript"><span class="nx">async</span> <span class="kd">function</span> <span class="nx">createContextMenus</span><span class="p">(</span><span class="nx">options</span><span class="p">)</span> <span class="p">{</span>
+  <span class="nx">await</span> <span class="nx">chrome</span><span class="p">.</span><span class="nx">contextMenus</span><span class="p">.</span><span class="nx">removeAll</span><span class="p">(</span><span class="p">)</span><span class="p">;</span>
+  <span class="k">if</span> <span class="p">(</span><span class="nx">options</span><span class="p">.</span><span class="nx">createSubmenus</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">count</span> <span class="o">=</span> <span class="nx">getFormatCount</span><span class="p">(</span><span class="nx">options</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">for</span> <span class="p">(</span><span class="kd">var</span> <span class="nx">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="o">&lt;</span> <span class="nx">count</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+      <span class="kd">var</span> <span class="nx">format</span> <span class="o">=</span> <span class="nx">options</span><span class="p">[</span><span class="s1">&#39;title&#39;</span> <span class="o">+</span> <span class="p">(</span><span class="nx">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span><span class="p">]</span><span class="p">;</span>
+      <span class="c1">// NOTE: Some of menu items weren&#39;t created when I added &#39;await&#39; here.
+</span><span class="c1"></span>      <span class="c1">// So I deleted &#39;await&#39; as a workaround.
+</span><span class="c1"></span>      <span class="nx">chrome</span><span class="p">.</span><span class="nx">contextMenus</span><span class="p">.</span><span class="nx">create</span><span class="p">(</span><span class="p">{</span>
+        <span class="nx">id</span><span class="o">:</span> <span class="s2">&#34;format-link-format&#34;</span> <span class="o">+</span> <span class="p">(</span><span class="nx">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span><span class="p">,</span>
+        <span class="nx">title</span><span class="o">:</span> <span class="s2">&#34;as &#34;</span> <span class="o">+</span> <span class="nx">format</span><span class="p">,</span>
+        <span class="nx">contexts</span><span class="o">:</span> <span class="p">[</span><span class="s2">&#34;link&#34;</span><span class="p">,</span> <span class="s2">&#34;selection&#34;</span><span class="p">,</span> <span class="s2">&#34;page&#34;</span><span class="p">]</span>
+      <span class="p">}</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">defaultFormat</span> <span class="o">=</span> <span class="nx">options</span><span class="p">[</span><span class="s1">&#39;title&#39;</span> <span class="o">+</span> <span class="nx">options</span><span class="p">[</span><span class="s1">&#39;defaultFormat&#39;</span><span class="p">]</span><span class="p">]</span><span class="p">;</span>
+    <span class="nx">await</span> <span class="nx">chrome</span><span class="p">.</span><span class="nx">contextMenus</span><span class="p">.</span><span class="nx">create</span><span class="p">(</span><span class="p">{</span>
+      <span class="nx">id</span><span class="o">:</span> <span class="s2">&#34;format-link-format-default&#34;</span><span class="p">,</span>
+      <span class="nx">title</span><span class="o">:</span> <span class="s2">&#34;Format Link as &#34;</span> <span class="o">+</span> <span class="nx">defaultFormat</span><span class="p">,</span>
+      <span class="nx">contexts</span><span class="o">:</span> <span class="p">[</span><span class="s2">&#34;link&#34;</span><span class="p">,</span> <span class="s2">&#34;selection&#34;</span><span class="p">,</span> <span class="s2">&#34;page&#34;</span><span class="p">]</span>
+    <span class="p">}</span><span class="p">)</span><span class="p">;</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div><p>としたら、とりあえず期待通りの動きになりました。
+が、これだと完了を待てないので、この後さらに処理をつなげたいときには困ります。</p>
+<p>その後 <a href="https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Global_Objects/Promise/all">Promise.all() - JavaScript | MDN</a> というのを見つけて、以下のように書き換えました。</p>
+<p><a href="https://github.com/hnakamur/FormatLink-Chrome/blob/6445fd5f8a2df38c54706f3415f732e6a654140d/common.js#L55-L77">https://github.com/hnakamur/FormatLink-Chrome/blob/6445fd5f8a2df38c54706f3415f732e6a654140d/common.js#L55-L77</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-javascript" data-lang="javascript"><span class="nx">async</span> <span class="kd">function</span> <span class="nx">createContextMenus</span><span class="p">(</span><span class="nx">options</span><span class="p">)</span> <span class="p">{</span>
+  <span class="nx">await</span> <span class="nx">chrome</span><span class="p">.</span><span class="nx">contextMenus</span><span class="p">.</span><span class="nx">removeAll</span><span class="p">(</span><span class="p">)</span><span class="p">;</span>
+  <span class="k">if</span> <span class="p">(</span><span class="nx">options</span><span class="p">.</span><span class="nx">createSubmenus</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">promises</span> <span class="o">=</span> <span class="p">[</span><span class="p">]</span><span class="p">;</span>
+    <span class="kd">var</span> <span class="nx">count</span> <span class="o">=</span> <span class="nx">getFormatCount</span><span class="p">(</span><span class="nx">options</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">for</span> <span class="p">(</span><span class="kd">var</span> <span class="nx">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="o">&lt;</span> <span class="nx">count</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+      <span class="kd">var</span> <span class="nx">format</span> <span class="o">=</span> <span class="nx">options</span><span class="p">[</span><span class="s1">&#39;title&#39;</span> <span class="o">+</span> <span class="p">(</span><span class="nx">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span><span class="p">]</span><span class="p">;</span>
+      <span class="nx">promises</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span> <span class="o">=</span> <span class="nx">chrome</span><span class="p">.</span><span class="nx">contextMenus</span><span class="p">.</span><span class="nx">create</span><span class="p">(</span><span class="p">{</span>
+        <span class="nx">id</span><span class="o">:</span> <span class="s2">&#34;format-link-format&#34;</span> <span class="o">+</span> <span class="p">(</span><span class="nx">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span><span class="p">,</span>
+        <span class="nx">title</span><span class="o">:</span> <span class="s2">&#34;as &#34;</span> <span class="o">+</span> <span class="nx">format</span><span class="p">,</span>
+        <span class="nx">contexts</span><span class="o">:</span> <span class="p">[</span><span class="s2">&#34;link&#34;</span><span class="p">,</span> <span class="s2">&#34;selection&#34;</span><span class="p">,</span> <span class="s2">&#34;page&#34;</span><span class="p">]</span>
+      <span class="p">}</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="nx">await</span> <span class="nb">Promise</span><span class="p">.</span><span class="nx">all</span><span class="p">(</span><span class="nx">promises</span><span class="p">)</span><span class="p">;</span>
+  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">defaultFormat</span> <span class="o">=</span> <span class="nx">options</span><span class="p">[</span><span class="s1">&#39;title&#39;</span> <span class="o">+</span> <span class="nx">options</span><span class="p">[</span><span class="s1">&#39;defaultFormat&#39;</span><span class="p">]</span><span class="p">]</span><span class="p">;</span>
+    <span class="nx">await</span> <span class="nx">chrome</span><span class="p">.</span><span class="nx">contextMenus</span><span class="p">.</span><span class="nx">create</span><span class="p">(</span><span class="p">{</span>
+      <span class="nx">id</span><span class="o">:</span> <span class="s2">&#34;format-link-format-default&#34;</span><span class="p">,</span>
+      <span class="nx">title</span><span class="o">:</span> <span class="s2">&#34;Format Link as &#34;</span> <span class="o">+</span> <span class="nx">defaultFormat</span><span class="p">,</span>
+      <span class="nx">contexts</span><span class="o">:</span> <span class="p">[</span><span class="s2">&#34;link&#34;</span><span class="p">,</span> <span class="s2">&#34;selection&#34;</span><span class="p">,</span> <span class="s2">&#34;page&#34;</span><span class="p">]</span>
+    <span class="p">}</span><span class="p">)</span><span class="p">;</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div><h2 id="heading-1">おわりに</h2>
+<p>例によって雰囲気で書いてますが、 Firefox でも Chrome でも拡張機能を書くのに async/await が使えることが分かったのでとりあえずよかったです。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

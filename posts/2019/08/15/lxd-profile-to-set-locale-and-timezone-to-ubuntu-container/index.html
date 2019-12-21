@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>LXDでUbuntuコンテナにロケールとタイムゾーンを設定するプロファイル &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>LXDでUbuntuコンテナにロケールとタイムゾーンを設定するプロファイル</h1>
+  <time datetime=2019-08-15T12:45:00&#43;0900 class="post-date">2019-08-15</time>
+  <h1 id="heading">はじめに</h1>
+<p><a href="https://blog.simos.info/how-to-preconfigure-lxd-containers-with-cloud-init/">How to preconfigure LXD containers with cloud-init – Mi blog lah!</a> に cloud-init を使って Ubuntu コンテナの初期化時にロケールとタイムゾーンを設定する方法が紹介されていたのでメモしておきます。</p>
+<h1 id="ubuntu-">Ubuntu 用のプロファイル作成</h1>
+<p><a href="/blog/2019/08/15/lxd-container-templates/">LXDでコンテナの初期化に使われるテンプレート</a> に書いたように CentOS 7 コンテナは cloud-init 非対応ですので、 Ubuntu 用のプロファイルを作成して、そこにロケールとタイムゾーンの設定を入れることにします。</p>
+<p><code>default</code> プロファイルは</p>
+<p>まず以下のコマンドで Ubuntu 用のプロファイルを作成します。</p>
+<pre><code class="language-console" data-lang="console">lxc profile create ubuntu
+</code></pre><p>次に今作成したプロファイルを編集します。</p>
+<pre><code class="language-console" data-lang="console">lxc profile edit ubuntu
+</code></pre><p><code>config:</code> と <code>description:</code> の部分を以下のように書き換えます。</p>
+<div class="highlight"><pre class="chroma"><code class="language-yaml" data-lang="yaml">config<span class="p">:</span><span class="w">
+</span><span class="w">  </span>environment.LANG<span class="p">:</span><span class="w"> </span>en_US.UTF<span class="m">-8</span><span class="w">
+</span><span class="w">  </span>user.user-data<span class="p">:</span><span class="w"> </span><span class="sd">|
+</span><span class="sd">   </span><span class="sd"> </span><span class="sd">#cloud-config</span><span class="w">
+</span><span class="w">    </span>locale<span class="p">:</span><span class="w"> </span>ja_JP.UTF<span class="m">-8</span><span class="w">
+</span><span class="w">    </span>timezone<span class="p">:</span><span class="w"> </span>Asia/Tokyo<span class="w">
+</span><span class="w"></span>description<span class="p">:</span><span class="w"> </span>Additional<span class="w"> </span>settings<span class="w"> </span>for<span class="w"> </span>Ubuntu<span class="w">
+</span></code></pre></div><h1 id="ubuntu--1">Ubuntu コンテナの作成と起動</h1>
+<p><code>default</code> プロファイルと上記で作成した <code>ubuntu</code> プロファイルを使用して
+<code>c1</code> という Ubuntu 18.04 LTS のコンテナを作成・起動するには以下のようにします。</p>
+<pre><code class="language-console" data-lang="console">lxc launch -p default -p ubuntu ubuntu:18.04 c1
+</code></pre><h2 id="heading-1">タイムゾーンの確認</h2>
+<p>私の環境だと cloud-init が完了するまで 10 秒程度かかるため、 起動直後に <code>/etc/timezone</code> の中身を確認し、 <code>date</code> コマンドを実行すると UTC になっています。
+10 秒ほどしてから再度実行するとタイムゾーンとロケールが指定通りになっていました。</p>
+<pre><code class="language-console" data-lang="console">$ lxc exec c1 -- sh -c 'cat /etc/timezone; date'
+Etc/UTC
+Thu Aug 15 03:00:12 UTC 2019
+$ lxc exec c1 -- sh -c 'cat /etc/timezone; date'
+Asia/Tokyo
+Thu Aug 15 12:00:21 JST 2019
+</code></pre><p>cloud-init の初期化が完了すると <code>/run/cloud-init/result.json</code> というファイルが作られるので、以下のようにすれば完了を待つことができます。</p>
+<pre><code class="language-console" data-lang="console">$ lxc launch -p default -p ubuntu ubuntu:18.04 c2 \
+  &amp;&amp; lxc exec c2 -- sh -c 'while ! [ -f /run/cloud-init/result.json ]; do sleep 1; done' \
+  &amp;&amp; lxc exec c2 -- sh -c 'cat /etc/timezone; date'
+Creating c2
+Starting c2
+Asia/Tokyo
+Thu Aug 15 12:06:42 JST 2019
+</code></pre><p>シェルスクリプトで自動化するときにこの手が使えます。</p>
+<p>とは言っても、 Ubuntu コンテナの場合は cloud-init の <a href="https://cloudinit.readthedocs.io/en/latest/topics/modules.html">Modules</a> でパッケージのインストールやコマンドの実行を行うことができます。</p>
+<p>パッケージのインストールやコマンド実行は <a href="https://blog.simos.info/how-to-preconfigure-lxd-containers-with-cloud-init/">How to preconfigure LXD containers with cloud-init – Mi blog lah!</a> にあるように profile の config に以下のように設定すればできるそうです。</p>
+<div class="highlight"><pre class="chroma"><code class="language-yaml" data-lang="yaml">config<span class="p">:</span><span class="w">
+</span><span class="w">  </span>user.user-data<span class="p">:</span><span class="w"> </span><span class="sd">|
+</span><span class="sd">   </span><span class="sd"> </span><span class="sd">#cloud-config</span><span class="w">
+</span><span class="w">    </span>package_upgrade<span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w">
+</span><span class="w">    </span>packages<span class="p">:</span><span class="w">
+</span><span class="w">      </span>-<span class="w"> </span>build-essential<span class="w">
+</span><span class="w">    </span>locale<span class="p">:</span><span class="w"> </span>es_ES.UTF<span class="m">-8</span><span class="w">
+</span><span class="w">    </span>timezone<span class="p">:</span><span class="w"> </span>Europe/Madrid<span class="w">
+</span><span class="w">    </span>runcmd<span class="p">:</span><span class="w">
+</span><span class="w">      </span>-<span class="w"> </span><span class="p">[</span>touch<span class="p">,</span><span class="w"> </span>/tmp/simos_was_here<span class="p">]</span><span class="w">
+</span></code></pre></div><p>これらの処理を cloud-init で行ってそれの完了を待つには、上記の通り <code>/run/cloud-init/result.json</code> というファイルが作られるのを待てば OK です。</p>
+<h2 id="heading-2">ロケールの確認</h2>
+<p>システムのロケールは指定通り <code>ja_JP.UTF-8</code> になっています。</p>
+<pre><code class="language-console" data-lang="console">$ lxc exec c2 -- localectl
+   System Locale: LANG=ja_JP.UTF-8
+       VC Keymap: n/a
+      X11 Layout: us
+       X11 Model: pc105
+</code></pre><p><code>LANG</code> 環境変数は指定通り <code>en_US.UTF-8</code> になっているので <code>ls -l</code> の日付は英語で出力されます。</p>
+<pre><code class="language-console" data-lang="console">$ lxc exec c2 -- sh -c 'echo $LANG'
+en_US.UTF-8
+$ lxc exec c2 -- ls -ld /
+drwxr-xr-x 22 root root 4096 Aug 14 01:34 /
+</code></pre><p><code>LANG</code> 環境変数を <code>ja_JP.UTF-8</code> にすれば日本語で出力されます。</p>
+<pre><code class="language-console" data-lang="console">$ lxc exec c2 -- sh -c 'LANG=ja_JP.UTF-8 ls -ld /'
+drwxr-xr-x 22 root root 4096  8月 14 01:34 /
+</code></pre><h1 id="default-">default プロファイルを書き換えるのもありかも</h1>
+<p>私が作るのはほぼ Ubuntu コンテナで、たまに CentOS 7 という感じなので <code>default</code> プロファイルを書き換えるのもありかもと思いました。</p>
+<p><code>lxc profile show default</code> で <code>default</code> プロファイルの内容を確認すると以下のようになっていました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-yaml" data-lang="yaml">config<span class="p">:</span><span class="w">
+</span><span class="w">  </span>environment.LANG<span class="p">:</span><span class="w"> </span>en_US.utf8<span class="w">
+</span><span class="w"></span>description<span class="p">:</span><span class="w"> </span>Default<span class="w"> </span>LXD<span class="w"> </span>profile<span class="w">
+</span><span class="w"></span>devices<span class="p">:</span><span class="w">
+</span><span class="w">  </span>eth0<span class="p">:</span><span class="w">
+</span><span class="w">    </span>nictype<span class="p">:</span><span class="w"> </span>bridged<span class="w">
+</span><span class="w">    </span>parent<span class="p">:</span><span class="w"> </span>lxdbr0<span class="w">
+</span><span class="w">    </span>type<span class="p">:</span><span class="w"> </span>nic<span class="w">
+</span><span class="w">  </span>root<span class="p">:</span><span class="w">
+</span><span class="w">    </span>path<span class="p">:</span><span class="w"> </span>/<span class="w">
+</span><span class="w">    </span>pool<span class="p">:</span><span class="w"> </span>default<span class="w">
+</span><span class="w">    </span>type<span class="p">:</span><span class="w"> </span>disk<span class="w">
+</span><span class="w"></span>name<span class="p">:</span><span class="w"> </span>default<span class="w">
+</span><span class="w"></span>used_by<span class="p">:</span><span class="w">
+</span><span class="w"></span>-<span class="w"> </span>/<span class="m">1.0</span>/containers/c2<span class="w">
+</span><span class="w"></span>-<span class="w"> </span>…(略)…<span class="w">
+</span></code></pre></div><p>これをコピーして <code>centos</code> 用のプロファイルを作ります。</p>
+<pre><code class="language-console" data-lang="console">$ lxc profile copy default centos
+</code></pre><p>で <code>lxc profile edit default</code> を実行して上記のように Ubuntu 用の設定を追加します。</p>
+<p>すると Ubuntu のコンテナの作成・起動は以下のコマンドになり</p>
+<pre><code class="language-console" data-lang="console">$ lxc launch ubuntu:18.04 ubuntu1
+</code></pre><p>CentOS 7 のコンテナの作成・起動は以下のコマンドになります。</p>
+<pre><code class="language-console" data-lang="console">$ lxc launch -p centos images:centos/7 cent1
+</code></pre><p>プロファイルの <code>devices:</code> の設定が <code>default</code> と <code>centos</code> のプロファイルの2箇所に重複することになるので、変更の際は両方変える必要があるのが欠点です。</p>
+<p>が、普段のコンテナ作成・起動はこちらのほうが楽で良さそうです。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

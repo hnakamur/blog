@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>LXDでコンテナの初期化に使われるテンプレート &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>LXDでコンテナの初期化に使われるテンプレート</h1>
+  <time datetime=2019-08-15T11:00:00&#43;0900 class="post-date">2019-08-15</time>
+  <h1 id="heading">はじめに</h1>
+<p><a href="https://cloudinit.readthedocs.io/en/latest/topics/dir_layout.html">Custom network configuration with cloud-init - LXD - system container manager</a> に説明がありますが、LXDのコンテナイメージにはいくつかのテンプレートファイルがメタデータとして含まれていて、コンテナの初期化の際に使用されます。</p>
+<p>CentOS 7 のコンテナは cloud-init 非対応ですが、 Ubuntu のほうは cloud-init に対応していますので、 cloud-init を利用して初期化時に様々な設定が可能です。</p>
+<p>今後の参照用にテンプレートの内容を以下にメモしておきます。</p>
+<h1 id="heading-1">ローカルにダウンロードされたイメージ</h1>
+<p><code>lxc launch ubuntu:18.04 コンテナ名</code> で Ubuntu 18.04 LTS のコンテナを作成し、
+<code>lxc launch images:centos/7 コンテナ名</code> で CentOS 7 のコンテナを作成した後、
+ローカルにダウンロードされたイメージを確認すると以下のようになっていました
+（イメージの fingerprint はイメージのバージョンによって異なります）。</p>
+<pre><code class="language-console" data-lang="console">$ lxc image list
++-------+--------------+--------+-----------------------------------------------+--------+----------+-------------------------------+
+| ALIAS | FINGERPRINT  | PUBLIC |                  DESCRIPTION                  |  ARCH  |   SIZE   |          UPLOAD DATE          |
++-------+--------------+--------+-----------------------------------------------+--------+----------+-------------------------------+
+|       | 2dd611e2689a | no     | ubuntu 18.04 LTS amd64 (release) (20190813.1) | x86_64 | 177.60MB | Aug 14, 2019 at 11:07pm (UTC) |
++-------+--------------+--------+-----------------------------------------------+--------+----------+-------------------------------+
+|       | a0f13708a581 | no     | Centos 7 amd64 (20190814_07:08)               | x86_64 | 84.07MB  | Aug 15, 2019 at 1:29am (UTC)  |
++-------+--------------+--------+-----------------------------------------------+--------+----------+-------------------------------+
+</code></pre><p>私は LXD を snap でインストールしているのでローカルにダウンロードされたイメージは <code>/var/snap/lxd/common/lxd/images/</code> にあります。</p>
+<p>file コマンドで確認すると fingerprint と同じ名前のファイルと <code>.rootfs</code> の拡張子がついたファイルがあり、前者は xz で圧縮されたデータ、後者は squashfs のファイルシステム形式であることがわかります。前者は実際は .tar.xz 形式になっています。</p>
+<pre><code class="language-console" data-lang="console">$ sudo sh -c 'file /var/snap/lxd/common/lxd/images/*'
+/var/snap/lxd/common/lxd/images/2dd611e2689a8efc45807bd2a86933cf2da0ffc768f57814724a73b5db499eac:        XZ compressed data
+/var/snap/lxd/common/lxd/images/2dd611e2689a8efc45807bd2a86933cf2da0ffc768f57814724a73b5db499eac.rootfs: Squashfs filesystem, little endian, version 4.0, 186228545 bytes, 35653 inodes, blocksize: 131072 bytes, created: Tue Aug 13 16:35:42 2019
+/var/snap/lxd/common/lxd/images/a0f13708a581b3d73de64a785559ae1c5ce773e4b7eb009eedb032563c851994:        XZ compressed data
+/var/snap/lxd/common/lxd/images/a0f13708a581b3d73de64a785559ae1c5ce773e4b7eb009eedb032563c851994.rootfs: Squashfs filesystem, little endian, version 4.0, 88156577 bytes, 14110 inodes, blocksize: 1048576 bytes, created: Wed Aug 14 07:22:52 2019
+</code></pre><h1 id="ubuntu-1804-lts-">Ubuntu 18.04 LTS イメージのテンプレート</h1>
+<p>以下のコマンドでテンプレートを展開します。</p>
+<pre><code class="language-console" data-lang="console">$ mkdir /tmp/ubuntu-templates
+$ sudo tar xf /var/snap/lxd/common/lxd/images/2dd611e2689a8efc45807bd2a86933cf2da0ffc768f57814724a73b5db499eac -C /tmp/ubuntu-templates/
+</code></pre><p>ファイル一覧は以下の通りです。</p>
+<pre><code class="language-console" data-lang="console">$ (cd /tmp/ubuntu-templates/; find . -type f | sort)
+./metadata.yaml
+./templates/cloud-init-meta.tpl
+./templates/cloud-init-network.tpl
+./templates/cloud-init-user.tpl
+./templates/cloud-init-vendor.tpl
+./templates/hostname.tpl
+</code></pre><p>metadata.yaml の内容は以下の通りです。上記の <code>*.tpl</code> のテンプレートファイルがどのパスに展開されるかの対応が分かります。</p>
+<div class="highlight"><pre class="chroma"><code class="language-yaml" data-lang="yaml">architecture<span class="p">:</span><span class="w"> </span><span class="s2">&#34;x86_64&#34;</span><span class="w">
+</span><span class="w"></span>creation_date<span class="p">:</span><span class="w"> </span><span class="m">1565716206</span><span class="w">
+</span><span class="w"></span>properties<span class="p">:</span><span class="w">
+</span><span class="w">    </span>architecture<span class="p">:</span><span class="w"> </span><span class="s2">&#34;x86_64&#34;</span><span class="w">
+</span><span class="w">    </span>description<span class="p">:</span><span class="w"> </span><span class="s2">&#34;Ubuntu 18.04 LTS server (20190813.1)&#34;</span><span class="w">
+</span><span class="w">    </span>os<span class="p">:</span><span class="w"> </span><span class="s2">&#34;ubuntu&#34;</span><span class="w">
+</span><span class="w">    </span>release<span class="p">:</span><span class="w"> </span><span class="s2">&#34;bionic&#34;</span><span class="w">
+</span><span class="w"></span>templates<span class="p">:</span><span class="w">
+</span><span class="w">    </span>/etc/hostname<span class="p">:</span><span class="w">
+</span><span class="w">        </span>when<span class="p">:</span><span class="w">
+</span><span class="w">            </span>-<span class="w"> </span>create<span class="w">
+</span><span class="w">            </span>-<span class="w"> </span>copy<span class="w">
+</span><span class="w">        </span>template<span class="p">:</span><span class="w"> </span>hostname.tpl<span class="w">
+</span><span class="w">    </span>/var/lib/cloud/seed/nocloud-net/meta-data<span class="p">:</span><span class="w">
+</span><span class="w">        </span>when<span class="p">:</span><span class="w">
+</span><span class="w">            </span>-<span class="w"> </span>create<span class="w">
+</span><span class="w">            </span>-<span class="w"> </span>copy<span class="w">
+</span><span class="w">        </span>template<span class="p">:</span><span class="w"> </span>cloud-init-meta.tpl<span class="w">
+</span><span class="w">    </span>/var/lib/cloud/seed/nocloud-net/network-config<span class="p">:</span><span class="w">
+</span><span class="w">        </span>when<span class="p">:</span><span class="w">
+</span><span class="w">            </span>-<span class="w"> </span>create<span class="w">
+</span><span class="w">            </span>-<span class="w"> </span>copy<span class="w">
+</span><span class="w">        </span>template<span class="p">:</span><span class="w"> </span>cloud-init-network.tpl<span class="w">
+</span><span class="w">    </span>/var/lib/cloud/seed/nocloud-net/user-data<span class="p">:</span><span class="w">
+</span><span class="w">        </span>when<span class="p">:</span><span class="w">
+</span><span class="w">            </span>-<span class="w"> </span>create<span class="w">
+</span><span class="w">            </span>-<span class="w"> </span>copy<span class="w">
+</span><span class="w">        </span>template<span class="p">:</span><span class="w"> </span>cloud-init-user.tpl<span class="w">
+</span><span class="w">        </span>properties<span class="p">:</span><span class="w">
+</span><span class="w">            </span>default<span class="p">:</span><span class="w"> </span><span class="sd">|
+</span><span class="sd">     	  </span><span class="sd"> </span><span class="sd">#cloud-config</span><span class="w">
+</span><span class="w">     	   </span>{}<span class="w">
+</span><span class="w">    </span>/var/lib/cloud/seed/nocloud-net/vendor-data<span class="p">:</span><span class="w">
+</span><span class="w">        </span>when<span class="p">:</span><span class="w">
+</span><span class="w">            </span>-<span class="w"> </span>create<span class="w">
+</span><span class="w">            </span>-<span class="w"> </span>copy<span class="w">
+</span><span class="w">        </span>template<span class="p">:</span><span class="w"> </span>cloud-init-vendor.tpl<span class="w">
+</span><span class="w">        </span>properties<span class="p">:</span><span class="w">
+</span><span class="w">            </span>default<span class="p">:</span><span class="w"> </span><span class="sd">|
+</span><span class="sd">     	  </span><span class="sd"> </span><span class="sd">#cloud-config</span><span class="w">
+</span><span class="w">     	   </span>{}<span class="w">
+</span></code></pre></div><p>templates/cloud-init-meta.tpl の内容は以下の通りです。</p>
+<div class="highlight"><pre class="chroma"><code class="language-yaml" data-lang="yaml">instance-id<span class="p">:</span><span class="w"> </span>{{<span class="w"> </span>container.name<span class="w"> </span>}}<span class="w">
+</span><span class="w"></span>local-hostname<span class="p">:</span><span class="w"> </span>{{<span class="w"> </span>container.name<span class="w"> </span>}}<span class="w">
+</span><span class="w"></span>{{<span class="w"> </span>config_get(<span class="s2">&#34;user.meta-data&#34;</span><span class="p">,</span><span class="w"> </span><span class="s2">&#34;&#34;</span>)<span class="w"> </span>}}<span class="w">
+</span></code></pre></div><p>templates/cloud-init-network.tpl の内容は以下の通りです。</p>
+<div class="highlight"><pre class="chroma"><code class="language-yaml" data-lang="yaml">{%<span class="w"> </span>if<span class="w"> </span>config_get(<span class="s2">&#34;user.network-config&#34;</span><span class="p">,</span><span class="w"> </span><span class="s2">&#34;&#34;</span>)<span class="w"> </span>==<span class="w"> </span><span class="s2">&#34;&#34;</span><span class="w"> </span>%}version<span class="p">:</span><span class="w"> </span><span class="m">1</span><span class="w">
+</span><span class="w"></span>config<span class="p">:</span><span class="w">
+</span><span class="w">    </span>-<span class="w"> </span>type<span class="p">:</span><span class="w"> </span>physical<span class="w">
+</span><span class="w">      </span>name<span class="p">:</span><span class="w"> </span>eth0<span class="w">
+</span><span class="w">      </span>subnets<span class="p">:</span><span class="w">
+</span><span class="w">          </span>-<span class="w"> </span>type<span class="p">:</span><span class="w"> </span>{%<span class="w"> </span>if<span class="w"> </span>config_get(<span class="s2">&#34;user.network_mode&#34;</span><span class="p">,</span><span class="w"> </span><span class="s2">&#34;&#34;</span>)<span class="w"> </span>==<span class="w"> </span><span class="s2">&#34;link-local&#34;</span><span class="w"> </span>%}manual{%<span class="w"> </span>else<span class="w"> </span>%}dhcp{%<span class="w"> </span>endif<span class="w"> </span>%}<span class="w">
+</span><span class="w">            </span>control<span class="p">:</span><span class="w"> </span>auto{%<span class="w"> </span>else<span class="w"> </span>%}{{<span class="w"> </span>config_get(<span class="s2">&#34;user.network-config&#34;</span><span class="p">,</span><span class="w"> </span><span class="s2">&#34;&#34;</span>)<span class="w"> </span>}}{%<span class="w"> </span>endif<span class="w"> </span>%}<span class="w">
+</span></code></pre></div><p>templates/cloud-init-user.tpl の内容は以下の通りです。</p>
+<div class="highlight"><pre class="chroma"><code class="language-yaml" data-lang="yaml">{{<span class="w"> </span>config_get(<span class="s2">&#34;user.user-data&#34;</span><span class="p">,</span><span class="w"> </span>properties.default)<span class="w"> </span>}}<span class="w">
+</span></code></pre></div><p>templates/cloud-init-vendor.tpl の内容は以下の通りです。</p>
+<div class="highlight"><pre class="chroma"><code class="language-yaml" data-lang="yaml">{{<span class="w"> </span>config_get(<span class="s2">&#34;user.vendor-data&#34;</span><span class="p">,</span><span class="w"> </span>properties.default)<span class="w"> </span>}}<span class="w">
+</span></code></pre></div><p>templates/hostname.tpl の内容は以下の通りです。</p>
+<div class="highlight"><pre class="chroma"><code class="language-yaml" data-lang="yaml">{{<span class="w"> </span>container.name<span class="w"> </span>}}<span class="w">
+</span></code></pre></div><h1 id="centos-7-">CentOS 7 イメージのテンプレート</h1>
+<p>以下のコマンドでテンプレートを展開します。</p>
+<pre><code class="language-console" data-lang="console">$ mkdir /tmp/centos7-templates
+$ sudo tar xf /var/snap/lxd/common/lxd/images/a0f13708a581b3d73de64a785559ae1c5ce773e4b7eb009eedb032563c851994 -C /tmp/centos7-templates
+</code></pre><p>ファイル一覧は以下の通りです。</p>
+<pre><code class="language-console" data-lang="console">$ (cd /tmp/centos7-templates/; find . -type f | sort)
+./metadata.yaml
+./templates/hosts.tpl
+./templates/ifcfg-eth0.lxd.tpl
+./templates/network.lxd.tpl
+</code></pre><p>metadata.yaml の内容は以下の通りです。上記の <code>*.tpl</code> のテンプレートファイルがどのパスに展開されるかの対応が分かります。</p>
+<pre><code class="language-console" data-lang="console">architecture: x86_64
+creation_date: 1565767338
+expiry_date: 1568359338
+properties:
+  architecture: x86_64
+  description: Centos 7 x86_64 (20190814_07:08)
+  name: centos-7-x86_64-default-20190814_07:08
+  os: centos
+  release: &quot;7&quot;
+  serial: &quot;20190814_07:08&quot;
+  variant: default
+templates:
+  /etc/hosts:
+    when:
+    - create
+    - copy
+    create_only: false
+    template: hosts.tpl
+    properties: {}
+  /etc/sysconfig/network:
+    when:
+    - create
+    - copy
+    create_only: false
+    template: network.lxd.tpl
+    properties: {}
+  /etc/sysconfig/network-scripts/ifcfg-eth0:
+    when:
+    - create
+    - copy
+    create_only: false
+    template: ifcfg-eth0.lxd.tpl
+    properties: {}
+</code></pre><p>templates/hosts.tpl の内容は以下の通りです。</p>
+<pre><code class="language-console" data-lang="console">127.0.1.1	{{ container.name }}
+127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+</code></pre><p>templates/ifcfg-eth0.lxd.tpl の内容は以下の通りです。</p>
+<pre><code class="language-console" data-lang="console">DEVICE=eth0
+BOOTPROTO=dhcp
+ONBOOT=yes
+HOSTNAME={{ container.name }}
+NM_CONTROLLED=no
+TYPE=Ethernet
+MTU=
+DHCP_HOSTNAME=`hostname`
+</code></pre><p>templates/network.lxd.tpl の内容は以下の通りです。</p>
+<pre><code class="language-console" data-lang="console">NETWORKING=yes
+HOSTNAME={{ container.name }}
+</code></pre>
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

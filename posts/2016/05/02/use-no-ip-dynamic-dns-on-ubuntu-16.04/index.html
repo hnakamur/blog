@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Ubuntu 16.04でNo-IPのダイナミックDNSサービスを使ってみた &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Ubuntu 16.04でNo-IPのダイナミックDNSサービスを使ってみた</h1>
+  <time datetime=2016-05-02T09:39:31&#43;0900 class="post-date">2016-05-02</time>
+  <h2 id="heading">背景</h2>
+<p><a href="/blog/2016/05/01/install_ubuntu_xenial_with_pxe_boot/">MacをPXEサーバにしてExpress5800/S70タイプRBにUbuntu16.04をインストールしてみた · hnakamur's blog at github</a>で自宅サーバを起動したのですが、固定グローバルIPアドレスは持っていないので、ダイナミックDNS (DDNS) サービスを使うことにしました。</p>
+<p><a href="http://viral-community.com/other-it/ddns-praise-service-2065/">DDNSの無料サービスでオススメな３つの「ieServer」「mydns」「No-IP」の特徴と利用手順をまとめてみた</a>を参考に「No-IP」を使ってみました。</p>
+<h2 id="heading-1">アカウント登録</h2>
+<p><a href="https://www.noip.com/">https://www.noip.com/</a> でメールアドレス、ユーザ名、パスワードを入力してサインアップし、確認のHTMLメールが届いたら[Activate Account]ボタンをクリックすればOKです。</p>
+<h2 id="heading-2">ホストの登録</h2>
+<p><a href="https://www.noip.com/">https://www.noip.com/</a> の右上の[Sign In]を押し、ユーザ名かメールアドレスとパスワードを入力してサインインします。サインイン後は <a href="https://my.noip.com/">https://my.noip.com/</a> に遷移します。</p>
+<p>ホストの登録は新サイトの画面左の[Dashboard]を選んで、画面中央の[Quick Add]で[Hostname]を希望のホスト名を入力、[Doman]で使いたいドメインを選択して[Add Hostname]ボタンを押せばOKです。</p>
+<p>あるいは画面左の[Dynamic DNS]の[Hostnames]メニューを選び、[Add Hostname]ボタンを押す方法でもOKです。この場合は[Add Hostname]というタイトルのポップアップが開きます。</p>
+<p>[Hostname]に希望のホスト名を入力し、[Domain]は使いたいドメインを選びます。
+[Record Type]はAのままでOKで、[IPv4 Address]にも自動で現在のグローバルIPアドレスが入力されているのでそのままでOKです。[Add Hostname]ボタンを押すと追加完了です。</p>
+<p>なお、試していませんが、[Record Type]の[More Records]ボタンを押すと、以下の4つのラジオボタンが表示されました。</p>
+<ul>
+<li>DNS Host (A)</li>
+<li>DNS Alias (CNAME)</li>
+<li>Web Redirect</li>
+<li>AAAA (IPv6)</li>
+</ul>
+<p>また、その下には &ldquo;Manage your Round Robin, TXT, SRV and DKIM records.&rdquo; という文が書かれており、 &ldquo;Manage&rdquo; の部分がリンクになっていました。これを押すと <a href="https://www.noip.com/members/dns/">https://www.noip.com/members/dns/</a> のManage Hostsページに遷移しました。 no-ip は管理画面をリニューアル中で、こちらは旧画面のようです。 <a href="https://my.noip.com/#">https://my.noip.com/#</a>!/ の画面上部にある [Use Old Site] というリンクでも旧サイトのManage Hostsページが開きました。</p>
+<p>新サイトの[Dynamic DNS]の[Hostnames]メニューで画面右に &ldquo;Free Hostnames expire every 30 days. Enhanced Hostnames never expire. Upgrade to Enhanced&rdquo; と書いてあるのですが、 <a href="http://www.noip.com/support/faq/frequently-asked-questions/why-did-my-free-hostname-expire-or-get-deleted/">Why did my free hostname expire or get deleted? | Support | No-IP</a> の説明によれば無料サービスでも30日毎に更新していれば消えないようです。</p>
+<h2 id="ipnoip2">IPアドレス自動更新用のクライアントnoip2をセットアップ</h2>
+<p><a href="http://www.noip.com/">http://www.noip.com/</a> の画面上部の [Download] リンクをクリックすると、アクセスしているブラウザからOSを自動判定して、そのOS用のクライアントのダウンロードページが開きます。私の場合は Dynamic DNS Update Client (DUC) for Mac のページが開きました。</p>
+<p>下の方にスクロールして [Other Downloads] の [Linux] をクリックして <a href="https://www.noip.com/download?page=linux">Dynamic DNS Update Client (DUC) for Linux - No-IP</a> を開きます。</p>
+<p>Installation のセクションに &ldquo;UBUNTU USERS: You may install this with the apt-get command, see this guide&rdquo; という文があり guide のリンクをクリックすると <a href="http://www.noip.com/support/knowledgebase/installing-the-linux-dynamic-update-client-on-ubuntu/">How to Install the Linux Dynamic Update Client on Ubuntu</a> に遷移しました。このページの手順に従ってセットアップすればOKでした。</p>
+<pre><code>sudo -s
+</code></pre><p>でパスワードを入力してrootになって以下のコマンドを実行します。</p>
+<pre><code>cd /usr/local/src
+wget http://www.no-ip.com/client/linux/noip-duc-linux.tar.gz
+tar xf noip-duc-linux.tar.gz
+cd noip-2.1.9-1/
+make install
+</code></pre><p>noip-2.1.9-1 のディレクトリ内を見るとソースファイルは noip2.c の1つでした。中を見てみるとライセンスはGPLv2 or laterです。ざっと見た感じでは不正な通信はしてなさそうでした。</p>
+<p>インストール後以下のコマンドを実行して設定ファイルを作成します。以下のコマンドは全てrootで実行しています。</p>
+<pre><code>/usr/local/bin/noip2 -C
+</code></pre><p>プロンプトが表示されたらNo-IPのユーザ名、パスワードと登録したホスト名を入力します。すると /usr/local/etc/no-ip2.conf に設定ファイルが作られます。viで中を見てみると一部テキスト、一部バイナリのファイルでした。</p>
+<p>あとは <code>/usr/local/bin/noip2</code> でデーモンが起動するのですが、systemdのサービスとして登録したいので、unitファイルを作りました。</p>
+<p>ソースのディレクトリにdebian, gentoo, redhat用のinit.d用のスクリプトとmac用の自動起動スクリプトがありました。 <code>redhat.noip.sh</code> を見ると、起動は <code>/usr/local/bin/noip2</code> で、終了は <code>killproc noip2 -TERM</code> で行っていました。</p>
+<p>Ubuntuで試したら <code>killproc</code> は無かったので <code>killall</code> で代用しました。</p>
+<p>以下のコマンドでunitファイルを作成します。</p>
+<pre><code>cat &lt;&lt;'EOF' &gt; /etc/systemd/system/noip2.service
+[Unit]
+Description=No-IP.com DDNS client
+After=network.target auditd.service
+
+[Service]
+ExecStart=/usr/local/bin/noip2
+ExecStop=/usr/bin/killall -TERM /usr/local/bin/noip2
+Restart=on-failure
+Type=forking
+
+[Install]
+WantedBy=multi-user.target
+EOF
+</code></pre><p>作成したファイルをsystemdに読み込ませます。</p>
+<pre><code>systemctl daemon-reload
+</code></pre><p>以下のコマンドでサービスの起動とOS起動時の自動起動設定を行います。</p>
+<pre><code>systemctl start noip2
+systemctl enable noip2
+</code></pre><p>ちなみに、 <code>mac.osx.startup</code> では <code>noip2 -S</code> の出力からpidを取得して <code>noip -K $pid</code> で停止していました。こんな感じです。</p>
+<pre><code>    for i in `noip2 -S 2&gt;&amp;1 | grep Process | awk '{print $2}' | tr -d ','`
+      do
+        noip2 -K $i
+      done
+</code></pre><p>journalctlでログを見てみると以下のようなログが出ていました。</p>
+<pre><code>$ sudo journalctl | grep noip2
+ 5月 02 10:54:07 express noip2[1082]: v2.1.9 daemon started with NAT enabled
+ 5月 02 10:54:07 express noip2[1082]: xxxx.ddns.net was already set to xx.xx.xx.xx.
+</code></pre><p>実際はxxxx.ddns.net はNo-IPで登録したホスト名と選択したドメインでxx.xx.xx.xxは自宅サーバのグローバルIPアドレスが出力されていましたが、セキュリティ上伏せています。</p>
+<h2 id="heading-3">ポートフォワーディング設定</h2>
+<h3 id="ubuntuip">Ubuntuサーバを固定IPに設定</h3>
+<p>変更前の <code>/etc/network/interfaces</code> は以下のようになっていました。</p>
+<pre><code># This file describes the network interfaces available on your system
+# and how to activate them. For more information, see interfaces(5).
+
+source /etc/network/interfaces.d/*
+
+# The loopback network interface
+auto lo
+iface lo inet loopback
+
+# The primary network interface
+auto enp0s25
+iface enp0s25 inet dhcp
+</code></pre><p><code>enp0s25</code> の設定を <a href="https://help.ubuntu.com/lts/serverguide/network-configuration.html#static-ip-addressing">Static IP Address Assignment</a> を参考に固定IPにしました。</p>
+<pre><code># This file describes the network interfaces available on your system
+# and how to activate them. For more information, see interfaces(5).
+
+source /etc/network/interfaces.d/*
+
+# The loopback network interface
+auto lo
+iface lo inet loopback
+
+# The primary network interface
+auto enp0s25
+iface enp0s25 inet static
+    address 192.168.0.201
+    netmask 255.255.255.0
+    gateway 192.168.0.1
+    dns-nameservers 192.168.0.1
+</code></pre><pre><code>systemctl restart networking
+</code></pre><p>で反映しました。</p>
+<p><code>ip a</code> で確認すると、変更前にDHCPで発行されたIPアドレス <code>192.168.0.9</code> と上記で設定した固定アドレス <code>192.168.0.201</code> の両方が表示されました。</p>
+<p>sshで作業していたのですが、以下のコマンドで消そうとしたらハマりました。</p>
+<pre><code>root@express:/etc/network# ip a del 192.168.0.9 dev enp0s25
+Warning: Executing wildcard deletion to stay compatible with old scripts.
+         Explicitly specify the prefix length (192.168.0.9/32) to avoid this warning.
+         This special behaviour is likely to disappear in further releases,
+         fix your scripts!
+packet_write_wait: Connection to 192.168.0.9: Broken pipe
+</code></pre><p>コンソールからログインして <code>ip a</code> で確認すると <code>enp0s25</code> の <code>inet</code> の行は両方共消えていました。</p>
+<pre><code>sudo systemctl restart networking
+</code></pre><p>でネットワークを再起動して <code>ip a</code> を実行すると <code>inet</code> の行は固定IPの1行になりました。</p>
+<p>上で表示されたWarningによると、正しくは以下のようにするべきだったようです。</p>
+<pre><code>ip a del 192.168.0.9/32 dev enp0s25
+</code></pre><h3 id="airmac">AirMacユーティリティでポートフォワーディング設定</h3>
+<p>Finderで「アプリケーション/ユーティリティ/AirMac ユーティリティ」を起動し、
+Time Capsuleをクリックして開くポップアップの「編集」ボタンを押します。</p>
+<p>「ネットワーク」タブで「ルーターモード」を「DHCPとNAX」にしておきます。
+先程固定IPを <code>192.168.0.201</code> にしたのは「DHCPの範囲」が <code>192.168.0.2〜192.168.0.200</code> なので範囲外の値を選んだからです。なお、この範囲は「ネットワークオプション…」ボタンを押して変更可能です。</p>
+<p>ポート設定の下の「+」ボタンを押すとポップアップが開くのでポートフォワーディングの設定を追加します。
+ファイアウォール・エントリー・タイプは「IPv4ポートマッピング」固定で、ドロップダウンが disabled の状態になっていました。</p>
+<p>プライベートIPアドレスは上記で設定したExpress5800の固定IPを入力します。</p>
+<p>パブリックUDPポート、パブリックTCPポート、プライベートUDPポート、プライベートTCPポートにはフォワーデング元と先のポートを転送したい内容に応じて設定します。今回はTCPでsshのポートを指定しました。
+なお、この記事では書いてないですが、パスワードアタック攻撃を回避するため事前にsshdは鍵認証のみ許可しパスワード認証は許可しない設定に変更しています。</p>
+<p>ちなみに<a href="https://support.apple.com/kb/TA24799?locale=ja_JP&amp;viewlocale=ja_JP">ポートの範囲を指定して転送できるように AirMac Extreme (802.11n) ベースステーションを設定する</a>によるとポートの入力欄は空白を開けずに <code>XXX-YYY</code> のように書けば範囲も指定できるそうです。</p>
+<p>設定を追加したら「保存」ボタンを押してポップアップを閉じ、「アップデート」ボタンで反映します。</p>
+<h2 id="heading-4">おわりに</h2>
+<p>これでインターネットから自宅サーバにsshでログイン出来るようになって便利になりました。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

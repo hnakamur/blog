@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>MacBook Pro上のUbuntu 18.04でサスペンドが動くようにする &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>MacBook Pro上のUbuntu 18.04でサスペンドが動くようにする</h1>
+  <time datetime=2018-05-06T09:45:00&#43;0900 class="post-date">2018-05-06</time>
+  <h1 id="heading">はじめに</h1>
+<p>MacBook Pro 15-inch, Mid 2012 (機種ID: MacBookPro10,1)にUbuntu 18.04をインストールしてみたのですが、動かしたまま画面を閉じるとAppleマークのライトは消えるのですがファンは回り続け、その後画面を開いても復帰しない状態でした。</p>
+<p>検索してみると <a href="https://joshtronic.com/2017/03/13/getting-suspend-in-linux-working-on-a-macbook-pro/">Getting suspend in Linux working on a MacBook Pro</a> という記事があったので、これを参考に設定してみました。</p>
+<h2 id="heading-1">設定方法</h2>
+<p>ちょうど良さそうなので
+<a href="http://manpages.ubuntu.com/manpages/bionic/en/man5/systemd.service.5.html">systemd.service (5)</a>
+の <code>type=oneshot</code> を使ってみました。</p>
+<pre><code class="language-console" data-lang="console">cat &lt;&lt;EOF | sudo tee /etc/systemd/system/workaround-for-suspend.service &gt; /dev/null
+[Unit]
+Description=A workaround to get suspend work properly when lid are closed
+# https://joshtronic.com/2017/03/13/getting-suspend-in-linux-working-on-a-macbook-pro/
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'echo XHC1 &gt; /proc/acpi/wakeup &amp;&amp; echo LID0 &gt; /proc/acpi/wakeup'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload
+sudo systemctl start workaround-for-suspend
+sudo systemctl enable workaround-for-suspend
+</code></pre><p>今回知ったのですが、ずっと稼働し続けるようなサービスではなくて、実行して終了するようなプログラムを指定する場合は <code>RemainAfterExit=yes</code> を指定しておけば、サービスの状態確認では <code>active</code> と表示されます。意図通り正常に実行されているというのがわかりやすいのでつけてみました。</p>
+<pre><code class="language-console" data-lang="console">$ sudo systemctl status workaround-for-suspend
+● workaround-for-suspend.service - A workaround to get suspend work properly when lid are closed
+   Loaded: loaded (/etc/systemd/system/workaround-for-suspend.service; enabled; vendor preset: enabled)
+   Active: active (exited) since Sun 2018-05-06 09:39:59 JST; 14min ago
+ Main PID: 2976 (code=exited, status=0/SUCCESS)
+    Tasks: 0 (limit: 4915)
+   CGroup: /system.slice/workaround-for-suspend.service
+
+ 5月 06 09:39:59 sunshine7 systemd[1]: Starting A workaround to get suspend work properly when lid are closed...
+ 5月 06 09:39:59 sunshine7 systemd[1]: Started A workaround to get suspend work properly when lid are closed.
+</code></pre><h2 id="-etcrclocaltypeforking">(参考) /etc/rc.localはType=forkingを使っていた</h2>
+<p><code>/etc/rc.local</code> について調べていたら、これもsystemdのサービスとして実装されていました。</p>
+<pre><code class="language-console" data-lang="console">$ LC_ALL=C ls -l /lib/systemd/system/rc?local.service
+-rw-r--r-- 1 root root 716 Apr 21 01:55 /lib/systemd/system/rc-local.service
+lrwxrwxrwx 1 root root  16 Apr 29 00:52 /lib/systemd/system/rc.local.service -&gt; rc-local.service
+</code></pre><p>脱線しますが、上のコマンドで <code>LC_ALL=C</code> のところを最初は <code>LANG=C</code> にして試したら日付が日本語で出てしまいました。検索してみると
+<a href="https://deginzabi163.wordpress.com/2014/01/05/%E8%A6%9A%E6%9B%B8langc%E3%81%97%E3%81%A6%E3%82%82%E5%87%BA%E5%8A%9B%E3%81%8C%E6%97%A5%E6%9C%AC%E8%AA%9E%E3%81%AE%E3%81%BE%E3%81%BE%EF%BC%81%EF%BC%81%EF%BC%81%E3%81%A8%E5%AF%BE%E7%AD%96/">[覚書]ざけんな。”LANG=C” “LANGUAGE=C”で日本語！！英語にならない！！の怒りの対策。”LC_ALL＝C”？”LANG=POSIX”?、suでdpkg-reconfigure locales情けないぞ！ | Deginzabi163's Blog</a> という記事がありました。</p>
+<p>Ansibleのモジュール内でコマンドを実行するときも <code>LANG=C</code> を使っている箇所があるのでこれは困るなーと思うのですが、なぜこんなことになっていたのか。</p>
+<p>話を戻して <code>/lib/systemd/system/rc-local.service</code> の中身は以下のようになっていました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">#  SPDX-License-Identifier: LGPL-2.1+
+#
+#  This file is part of systemd.
+#
+#  systemd is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU Lesser General Public License as published by
+#  the Free Software Foundation; either version 2.1 of the License, or
+#  (at your option) any later version.
+
+# This unit gets pulled automatically into multi-user.target by
+# systemd-rc-local-generator if /etc/rc.local is executable.
+[Unit]
+Description=/etc/rc.local Compatibility
+Documentation=man:systemd-rc-local-generator(8)
+ConditionFileIsExecutable=/etc/rc.local
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/etc/rc.local start
+TimeoutSec=0
+RemainAfterExit=yes
+GuessMainPID=no
+</code></pre></div><p>Typeはoneshotではなくforkingを使っています。理由はわからないです。
+ここでも <code>RemainAfterExit=yes</code> を使っています。というより、実はこれを見て知りました。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

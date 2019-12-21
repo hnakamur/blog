@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>EdgeRouter LiteでDuckDNSとCloudFlareでダイナミックDNSを試してみた &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>EdgeRouter LiteでDuckDNSとCloudFlareでダイナミックDNSを試してみた</h1>
+  <time datetime=2018-03-19T17:26:00&#43;0900 class="post-date">2018-03-19</time>
+  <p><a href="https://yabe.jp/gadgets/edgerouter-x-05-ddns/">EdgeRouter X - 5. ダイナミック DNS の設定 ( DDNS ) | yabe.jp</a>
+という素晴らしい記事を見つけて、試してみたメモです。</p>
+<p>私の環境では設定対象のネットワークインターフェースは <code>pppoe0</code> です。</p>
+<h1 id="duckdns">DuckDNSを使う設定</h1>
+<p><a href="https://www.duckdns.org/">Duck DNS</a> で <code>duckdns.org</code> のサブドメインとして
+希望する名前を登録し、以下の設定の <code>host-name</code> のところに設定します。
+<code>password</code> は Duck DNS でサブドメインを登録すると表示される token の値を設定します。</p>
+<pre><code class="language-console" data-lang="console">set service dns dynamic interface pppoe0 service custom-duckdns host-name *****
+set service dns dynamic interface pppoe0 service custom-duckdns login nouser
+set service dns dynamic interface pppoe0 service custom-duckdns password **********
+set service dns dynamic interface pppoe0 service custom-duckdns protocol dyndns2
+set service dns dynamic interface pppoe0 service custom-duckdns server www.duckdns.org
+</code></pre><p>端折って設定項目のみ書いていますが、実際には
+<a href="https://hnakamur.github.io/blog/2017/05/13/understanding-edge-os-config-hierarchy-structure/">EdgeOSの設定項目の階層構造を理解する</a>
+の「設定の流れ」の手順に沿って設定変更します。</p>
+<h1 id="cloudflare">Cloudflareを使う設定</h1>
+<p>最初 Cloudflare でサイト追加する際に自分が所有しているドメインのサブドメインを追加しようとしたのですが、
+ルートドメインである必要がある旨のエラーメッセージが出たので諦めてルートドメインで試しました。
+以下の設定の例では <code>example.net</code> としています。</p>
+<p>で、そのサブドメインで希望の名前を付けて Cloudflare の管理画面から一旦ダミーのIPアドレスのAレコードを
+追加します。 &ldquo;Add Record&rdquo; ボタンを押す前に左のアイコンをクリックしてグレーの状態にすることを忘れずに。
+グレーだとツールチップが &ldquo;Traffic to this hostname will not go through Cloudflare.&rdquo; となります。</p>
+<pre><code class="language-console" data-lang="console">set service dns dynamic interface pppoe0 service custom-cloudflare host-name *****.example.net
+set service dns dynamic interface pppoe0 service custom-cloudflare login ********@*****.***
+set service dns dynamic interface pppoe0 service custom-cloudflare options zone=example.net
+set service dns dynamic interface pppoe0 service custom-cloudflare password **********
+set service dns dynamic interface pppoe0 service custom-cloudflare protocol cloudflare
+set service dns dynamic interface pppoe0 service custom-cloudflare server www.cloudflare.com
+</code></pre><p>login は Cloudflare に登録したログインIDです。 password には Global API Key を設定します。
+管理画面の右上のログインIDのドロップダウンから My Profile のページを開きAPI Keyのセクションで確認できます。</p>
+<p>コマンドで protocol を cloudflare に設定していますが、 EdgeRouter のウェブ管理画面の Services タブの DNS タブで設定後の状態を確認すると cloudflare のほうは Protocol が <code>-</code> (ハイフン) になっていました。Duck DNSのほうは <code>dyndns2</code> とコマンドで設定した通りに表示されていました。
+Protocolのドロップダウンの選択肢に <code>cloudflare</code> が無いので表示上の問題のようです。</p>
+<h1 id="dns">ダイナミックDNSの登録状態の確認</h1>
+<p>元記事からリンクされていた <a href="https://help.ubnt.com/hc/en-us/articles/204976324-EdgeMAX-Custom-Dynamic-DNS-with-Cloudflare">EdgeRouter - Custom Dynamic DNS – Ubiquiti Networks Support and Help Center</a> に確認用のコマンドが書かれていました。 <code>show dns dynamic status</code> です。</p>
+<p>実行例はこんな感じです。</p>
+<pre><code class="language-console" data-lang="console">admin@ubnt:~$ show dns dynamic status 
+interface    : eth0
+ip address   : &lt;PublicIP&gt;
+host-name    : &lt;hostname&gt;
+last update  : Thu Mar 30 13:29:42 2017
+update-status: good
+</code></pre><p>複数設定していると全て表示されます。
+設定してすぐの時は <code>update-status</code> が空になっていましたが、しばらくしてから実行すると上記のような表示になりました。</p>
+<p>ちなみに、以前行っていた no-ip.com 用の設定は <code>update-status</code> が <code>bad</code> になっていました。
+実は更新がうまく行ってないのは知っていて約30日ごとにもうすぐ切れるという通知メールが来るのでそこから更新していました。
+このコマンドで状態を確認できたんですね。</p>
+<p>Duck DNS と Cloudflare の2か所でダイナミックDNSが使えるようになったので、 no-ip.com の設定は消しておきました。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

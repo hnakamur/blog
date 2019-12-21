@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Ubuntu 18.04 LTSでsbuildをセットアップ &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Ubuntu 18.04 LTSでsbuildをセットアップ</h1>
+  <time datetime=2018-06-07T21:10:00&#43;0900 class="post-date">2018-06-07</time>
+  <h1 id="heading">はじめに</h1>
+<p>手元でpbuilderでdebパッケージのビルドが通ってからPPAでビルドしたらテストの1つがエラーになるという問題が起きてしまい、ビルドログを見てみると以下のような行があって <code>sbuild</code> を使っていることに気づきました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">Buildd toolchain package versions: launchpad-buildd_161 python-lpbuildd_161 sbuild_0.67.0-2ubuntu7.1 bzr-builder_0.7.3+bzr174~ppa13~ubuntu14.10.1 bzr_2.7.0-2ubuntu3.1 git-build-recipe_0.3.4~git201611291343.dcee459~ubuntu16.04.1 git_1:2.7.4-0ubuntu1.4 dpkg-dev_1.18.4ubuntu1.4 python-debian_0.1.27ubuntu2.
+</code></pre></div><p>そこで <a href="https://wiki.ubuntu.com/SimpleSbuild">SimpleSbuild - Ubuntu Wiki</a> を参考に <code>sbuild</code> をセットアップしてみたのでメモです。</p>
+<h1 id="sbuild">sbuildのセットアップ手順</h1>
+<p>必要なパッケージをインストールし、自分のユーザを <code>sbuild</code> グループに追加します。追加後一旦ログアウトして再ログインしておきます。</p>
+<pre><code class="language-console" data-lang="console">sudo apt install sbuild debhelper ubuntu-dev-tools piuparts
+sudo adduser $USER sbuild
+</code></pre><p><code>$HOME/ubuntu/scratch</code> ディレクトリを作成し、 chroot環境から <code>/scratch</code> でマウントするように設定します。</p>
+<pre><code class="language-console" data-lang="console">mkdir -p $HOME/ubuntu/scratch
+echo &quot;/home/$USER/ubuntu/scratch  /scratch          none  rw,bind  0  0&quot; | sudo tee -a /etc/schroot/sbuild/fstab
+</code></pre><p><code>~/.buildrc</code> ファイルを作成します。
+<code>$maintainer_name</code> の名前とメールアドレスは適宜変更してください。</p>
+<pre><code class="language-console" data-lang="console">cat &lt;&lt;'EOF' &gt; ~/.sbuildrc
+# Name to use as override in .changes files for the Maintainer: field
+# (mandatory, no default!).
+$maintainer_name='Your Name &lt;your_name@example.com&gt;';
+
+# Default distribution to build.
+$distribution = &quot;bionic&quot;;
+# Build arch-all by default.
+$build_arch_all = 1;
+
+# When to purge the build directory afterwards; possible values are &quot;never&quot;,
+# &quot;successful&quot;, and &quot;always&quot;.  &quot;always&quot; is the default. It can be helpful
+# to preserve failing builds for debugging purposes.  Switch these comments
+# if you want to preserve even successful builds, and then use
+# &quot;schroot -e --all-sessions&quot; to clean them up manually.
+$purge_build_directory = 'successful';
+$purge_session = 'successful';
+$purge_build_deps = 'successful';
+# $purge_build_directory = 'never';
+# $purge_session = 'never';
+# $purge_build_deps = 'never';
+
+# Directory for writing build logs to
+$log_dir=$ENV{HOME}.&quot;/ubuntu/logs&quot;;
+
+# don't remove this, Perl needs it:
+1;
+EOF
+</code></pre><p><code>$HOME/ubuntu/build</code> と <code>$HOME/ubuntu/logs</code> ディレクトリを作成します。</p>
+<pre><code class="language-console" data-lang="console">mkdir -p $HOME/ubuntu/{build,logs}
+</code></pre><p><code>~/.mk-sbuild.rc</code> を作成します。</p>
+<pre><code class="language-console" data-lang="console">cat &lt;&lt;'EOF' &gt; ~/.mk-sbuild.rc
+SCHROOT_CONF_SUFFIX=&quot;source-root-users=root,sbuild,admin
+source-root-groups=root,sbuild,admin
+preserve-environment=true&quot;
+# you will want to undo the below for stable releases, read `man mk-sbuild` for details
+# during the development cycle, these pockets are not used, but will contain important
+# updates after each release of Ubuntu
+SKIP_UPDATES=&quot;1&quot;
+SKIP_PROPOSED=&quot;1&quot;
+# if you have e.g. apt-cacher-ng around
+# DEBOOTSTRAP_PROXY=http://127.0.0.1:3142/
+EOF
+</code></pre><p><code>sbuild</code> グループに切り替えます。</p>
+<pre><code class="language-console" data-lang="console">sg sbuild
+</code></pre><p><code>sbuild</code> で使うGPG鍵ペアを生成します。</p>
+<pre><code class="language-console" data-lang="console">sbuild-update --keygen
+</code></pre><p>Ubuntu 18.04 LTSのchroot環境をビルドします。</p>
+<pre><code class="language-console" data-lang="console">mk-sbuild bionic
+</code></pre><p>ビルドが完了すると以下のようなメッセージが表示されます。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">Done building bionic-amd64.
+
+ To CHANGE the golden image: sudo schroot -c source:bionic-amd64 -u root
+ To ENTER an image snapshot: schroot -c bionic-amd64
+ To BUILD within a snapshot: sbuild -A -d bionic-amd64 PACKAGE*.dsc
+ To BUILD for : sbuild -A -d bionic-amd64 --host  PACKAGE*.dsc
+</code></pre></div><h1 id="sbuilddeb">sbuildでのdebパッケージビルド例</h1>
+<p>ここでは例として universal-ctags のdebパッケージをビルドしてみました。</p>
+<p>試行錯誤したのでもっと良いやり方があるかもしれません。最初は上のメッセージのように引数で <code>.dsc</code> のファイルパスを指定する方法を試したのですが <code>../build-area/universal-ctags_0+SNAPSHOT20180606-1ubuntu1ppa3~ubuntu18.04.1.dsc</code> のように相対パスで指定するとログディレクトリを作るところでおかしくなってしまいました。一方で、カレントディレクトリに <code>debian</code> ディレクトリがある状態で実行する必要があるようです。</p>
+<p><code>gbp-buildpackage buildpackage</code> でビルドしたソースパッケージを <code>~/ubuntu/scratch</code> ディレクトリにコピーします。コピー後の状態は以下のような感じです。</p>
+<pre><code class="language-console" data-lang="console">hnakamur@primergy:~/ubuntu/scratch$ ls universal-ctags_0*
+universal-ctags_0+SNAPSHOT20180606-1ubuntu1ppa3~ubuntu18.04.1.debian.tar.xz
+universal-ctags_0+SNAPSHOT20180606-1ubuntu1ppa3~ubuntu18.04.1.dsc
+universal-ctags_0+SNAPSHOT20180606-1ubuntu1ppa3~ubuntu18.04.1_source.build
+universal-ctags_0+SNAPSHOT20180606-1ubuntu1ppa3~ubuntu18.04.1_source.buildinfo
+universal-ctags_0+SNAPSHOT20180606-1ubuntu1ppa3~ubuntu18.04.1_source.changes
+universal-ctags_0+SNAPSHOT20180606.orig.tar.gz
+</code></pre><p>ビルド用のディレクトリ <code>~/ubuntu/scratch/universal-ctags</code> を作って <code>debian</code> ディレクトリのファイルを展開します。</p>
+<pre><code class="language-console" data-lang="console">mkdir universal-ctags
+tar xf universal-ctags_0+SNAPSHOT20180606-1ubuntu1ppa3~ubuntu18.04.1.debian.tar.xz -C universal-ctags
+</code></pre><p>ビルド用のディレクトリ <code>~/ubuntu/scratch/universal-ctags</code> に移動して引数なしで <code>sbuild</code> コマンドを実行してパッケージをビルドします。</p>
+<pre><code class="language-console" data-lang="console">cd universal-ctags
+sbuild
+</code></pre>
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>VagrantでUbuntu 18.04 LTSとLXDをインストールする手順 &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>VagrantでUbuntu 18.04 LTSとLXDをインストールする手順</h1>
+  <time datetime=2018-07-05T15:40:00&#43;0900 class="post-date">2018-07-05</time>
+  <h1 id="heading">はじめに</h1>
+<p>私自身は職場でも自宅でも Ubuntu MATE 18.04 LTS を使っていてVagrantはもう使っていません。
+ですが職場の同僚が macOS を使っていてLXDの環境をセットアップするのに少々手間どったのでメモしておきます。</p>
+<p>VirtualBoxとVagrantはインストール済みという前提で、それ以降の手順です。</p>
+<h1 id="ubuntu-1804-lts">Ubuntu 18.04 LTSのボックス追加</h1>
+<p><a href="https://app.vagrantup.com/ubuntu/boxes/bionic64">Vagrant box ubuntu/bionic64 - Vagrant Cloud</a>
+にUbuntu 18.04 LTSのボックスがあったので、これを使いました。</p>
+<p>が、Vagrantのバージョンが1.9.6と古いせいか (2018-07-05時点での最新版は2.1.2)、上記のページのようにVagrantfileを作成して <code>vagrant up</code> を実行しても404 Not Foundのエラーが出てしまいました。</p>
+<p>作成済みのVMであれば
+<a href="https://blog.n-z.jp/blog/2018-03-09-vagrant-box-404.html">vagrant box の 404 エラーに対処した - @znz blog</a>
+の手順で対応可能なようですが、新規にVMを作成する場合はどうすれば良いのかと、さらに検索してみると
+<a href="https://gist.github.com/firmanelhakim/77b6ee7fb50883155eeefc9e0dc10b9b">How to Download Vagrant Box Manually</a> というページを見つけました。</p>
+<p>これを参考にして
+<a href="https://app.vagrantup.com/ubuntu/boxes/bionic64">Vagrant box ubuntu/bionic64 - Vagrant Cloud</a>
+のこの記事執筆時点での最新版は v20180630.0.0 だったので以下のようにしてボックスのイメージをダウンロードしました。</p>
+<pre><code class="language-console" data-lang="console">curl -Lo ubuntu-18.04.box https://app.vagrantup.com/ubuntu/boxes/bionic64/versions/20180630.0.0/providers/virtualbox.box
+</code></pre><p>後は以下のようにしてボックスを登録します。</p>
+<pre><code class="language-console" data-lang="console">vagrant box add ubuntu/bionic64 ubuntu-18.04.box
+</code></pre><p>これで無事 <code>vagrant up</code> でVMが作れるようになりました。</p>
+<h1 id="lxd">LXDのセットアップ</h1>
+<p>以下の手順は <code>vagrant ssh</code> してVMにログインした状態で実行してください。</p>
+<p><a href="https://linuxcontainers.org/ja/lxd/getting-started-cli/#snap-archlinux-debian-fedora-opensuse-ubuntu">Snap パッケージ (ArchLinux, Debian, Fedora, OpenSUSE, Ubuntu)</a>
+の手順でsnapパッケージのLXDをインストールします。</p>
+<pre><code class="language-console" data-lang="console">sudo snap install lxd
+</code></pre><p><a href="https://linuxcontainers.org/ja/lxd/getting-started-cli/#_5">初期設定</a>
+の手順でLXDの初期化を行います。</p>
+<pre><code class="language-console" data-lang="console">sudo lxd init
+</code></pre><p>いくつか質問されますが、ほぼデフォルトで良いです。ストレージエンジンは開発環境なのでシンプルな構成で十分ということで <code>dir</code> にしました。</p>
+<p><a href="https://linuxcontainers.org/ja/lxd/getting-started-cli/#_6">アクセスコントール</a>
+の説明に従って、今のユーザ <code>vagrant</code> を <code>lxd</code> グループに追加します。</p>
+<pre><code class="language-console" data-lang="console">sudo usermod -a -G lxd $USER
+</code></pre><p><code>exit</code> で一旦 VM から抜けて、再度 <code>vagrant ssh</code> でVMに入ればlxdが使える状態になります。</p>
+<p>以下のコマンドを実行してコンテナ一覧を表示し、空の一覧が表示されればOKです。</p>
+<pre><code class="language-console" data-lang="console">lxc list
+</code></pre>
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

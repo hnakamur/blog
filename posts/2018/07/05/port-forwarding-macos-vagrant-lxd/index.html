@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>macOS→VagrantのUbuntu→LXDコンテナへのポートフォワーディング &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>macOS→VagrantのUbuntu→LXDコンテナへのポートフォワーディング</h1>
+  <time datetime=2018-07-05T16:20:00&#43;0900 class="post-date">2018-07-05</time>
+  <h1 id="heading">はじめに</h1>
+<p><a href="/blog/content/post/2018/07/05/install-lxd-on-ubuntu-18.04-lts-on-vagrant/">VagrantでUbuntu 18.04 LTSとLXDをインストールする手順</a> で構築したLXDの環境で、macOS→VagrantのUbuntu→LXDコンテナへのポートフォワーディングをしたのでメモです。</p>
+<p>今回はhttpsの443番ポートで試しました。</p>
+<h1 id="macosvagrant">macOSからVagrantへのポートフォワーディング</h1>
+<p>基本的にはVagrantの公式ドキュメント
+<a href="https://www.vagrantup.com/docs/networking/forwarded_ports.html">Forwarded Ports - Networking - Vagrant by HashiCorp</a>
+のように <code>forwarded_port</code> という設定をVagrantfileに追加すればOKです。</p>
+<p>ただし、ホストでバインドするポートをhttpの80番やhttpsの443番のように1024番以下にするときは、すんなりとは行きません。上記のページの Options Reference の host の説明によると rootで <code>vagrant up</code> を実行すれば可能ですが、推奨されないとのことです。</p>
+<p>ということで guestは443、hostは8443 と指定しました。</p>
+<p><a href="https://qiita.com/hidekuro/items/a94025956a6fa5d5494f">OSX における Vagrant 80番ポートフォワーディング - Qiita</a> ではvagrant-triggersというプラグインを使ってVMの起動・停止時にmacOSの <code>pfctl</code> コマンドを実行して、ホストのローカルホストでポートフォワーディングすると良いらしいです。</p>
+<p>今回はちょっと試すだけだったのでvagrant-triggersは使わず、手動で <code>pfctl</code> を実行しました。</p>
+<p><a href="https://salferrarello.com/mac-pfctl-port-forwarding/">Mac pfctl Port Forwarding | Sal Ferrarello</a>
+も参考にして macOS で以下のコマンドを実行して 443から8443 へのポートフォワードを行いました。</p>
+<pre><code class="language-console" data-lang="console">echo &quot;
+rdr pass inet proto tcp from any to any port 443 -&gt; 127.0.0.1 port 8443
+&quot; | sudo pfctl -ef -
+</code></pre><p>ポートフォワードの設定確認は以下のコマンドで行います。</p>
+<pre><code class="language-console" data-lang="console">sudo pfctl -s nat
+</code></pre><p>ポートフォワードの削除は以下のコマンドで行います。</p>
+<pre><code class="language-console" data-lang="console">sudo pfctl -F all -f /etc/pf.conf
+</code></pre><p><code>pfctl</code> とVagrantのforwarded_portの合わせ技で macOS のローカルホストの443番ポートからVagrant上のUbuntuの443番ポートへのポートフォワードができるようになりました。</p>
+<h1 id="ubuntu443">Ubuntuのファイアウォールで443番ポートを許可</h1>
+<p>Ubuntuには <code>ufw</code> というファイアウォールの管理用コマンドがあります。が、慣れているということで今回は iptables を使うことにしました。</p>
+<p>まず ufw の状態を確認してみると無効になっていました。</p>
+<pre><code class="language-console" data-lang="console">$ sudo ufw status
+Status: inactive
+</code></pre><p>以下のコマンドで <code>iptables-persistent</code> をインストールします。</p>
+<pre><code class="language-console" data-lang="console">sudo apt install iptables-persistent
+</code></pre><p>CUIのダイアログでIPv4とIPv6のファイアウォールの現在の設定を保存するか聞かれるのではいと答えます。
+するとそれぞれ <code>/etc/iptables/rules.v4</code> と <code>/etc/iptables/rules.v6</code> に保存されます。</p>
+<p>このうち前者を編集します。</p>
+<pre><code class="language-console" data-lang="console">sudo vim /etc/iptables/rules.v4
+</code></pre><p><code>*filter</code> セクションの <code>-A INPUT</code> の行が複数ありますが最後の後に以下の行を追加します。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">-A INPUT -i lxdbr0 -p tcp -m tcp --dport 443 -j ACCEPT
+</code></pre></div><p>保存してvimを抜けた後、以下のコマンドを実行して反映します。</p>
+<pre><code class="language-console" data-lang="console">sudo apt iptables-restore &lt; /etc/iptables/rules.v4
+</code></pre><p>以下のコマンドを実行して指定通り反映されたかを確認します。</p>
+<pre><code class="language-console" data-lang="console">sudo apt iptables-save
+</code></pre><h1 id="ubuntulxd">UbuntuからLXDコンテナへのポートフォワーディング</h1>
+<p><a href="/blog/content/post/2018/07/05/port-forwarding-using-lxd-proxy/">LXDのproxyを使ってポートフォワーディング</a> の手順で設定してください。</p>
+<h1 id="heading-1">動作確認</h1>
+<p>これでmacOS上のブラウザで https://localhost にアクセスするとLXDコンテナの443番ポートにアクセスできるようになりました。
+まとめると macOS 443→ macOS 8443→ Vagrant 443→LXD 443 という4段フォワードとなっています。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

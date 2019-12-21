@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>gpgで秘密鍵を作成する &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>gpgで秘密鍵を作成する</h1>
+  <time datetime=2017-07-01T17:40:00&#43;0900 class="post-date">2017-07-01</time>
+  <h2 id="heading">はじめに</h2>
+<p>gpgの秘密鍵はdebパッケージを署名するために以前作成していたのですが、ググって適当に済ませていたので手順をメモしておきます。</p>
+<p><a href="http://irtfweb.ifa.hawaii.edu/~lockhart/gpg/">GPG Cheat Sheet</a> のチートシートが便利です。他にも参考にしていたページがあったかもしれませんが忘れました。</p>
+<h2 id="lxd">検証用のLXDコンテナとユーザ作成</h2>
+<p>Ubuntu 16.04 xenialの自宅サーバで既に秘密鍵を作成済みでそちらは触りたくないので、LXDのコンテナでxenialの環境を作って試しました。</p>
+<pre><code class="language-console" data-lang="console">lxc launch images:ubuntu/xenial debuild
+lxc exec debuild bash
+</code></pre><p>コンテナ内では以下のコマンドで <code>build</code> というユーザを作ってそれで試しました。</p>
+<pre><code class="language-console" data-lang="console">root@debuild:~# useradd -m build
+</code></pre><p><code>-m</code> はホームディレクトリを作成するオプションです。
+<code>adduser</code> コマンドだとオプション無しでホームディレクトリも作ってくれますが、こちらは対話式でパスワードの設定も求められます。</p>
+<p>以下のコマンドでユーザを切り替えます。</p>
+<pre><code class="language-console" data-lang="console">root@debuild:~# su - build
+</code></pre><h2 id="gpg">gpgで秘密鍵の作成</h2>
+<p>gpgはインストール済みなので、あとは <code>gpg --gen-key</code> コマンドを実行するだけです。
+RSAの4096bitにして有効期限は1年にします。</p>
+<p><a href="https://www.lambdanote.com/products/tls">プロフェッショナルSSL/TLS（紙書籍＋電子書籍） – 技術書出版と販売のラムダノート</a> を読んでからは秘密鍵の有効期限を3年とか無期限とかは止めたほうが良いと思うようになったので1年にしています。</p>
+<pre><code class="language-console" data-lang="console">build@debuild:~$ gpg --gen-key
+gpg (GnuPG) 1.4.20; Copyright (C) 2015 Free Software Foundation, Inc.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
+gpg: directory `/home/build/.gnupg' created
+gpg: new configuration file `/home/build/.gnupg/gpg.conf' created
+gpg: WARNING: options in `/home/build/.gnupg/gpg.conf' are not yet active during this run
+gpg: keyring `/home/build/.gnupg/secring.gpg' created
+gpg: keyring `/home/build/.gnupg/pubring.gpg' created
+Please select what kind of key you want:
+   (1) RSA and RSA (default)
+   (2) DSA and Elgamal
+   (3) DSA (sign only)
+   (4) RSA (sign only)
+Your selection? 1 ←入力
+RSA keys may be between 1024 and 4096 bits long.
+What keysize do you want? (2048) 4096 ←入力
+Requested keysize is 4096 bits
+Please specify how long the key should be valid.
+         0 = key does not expire
+      &lt;n&gt;  = key expires in n days
+      &lt;n&gt;w = key expires in n weeks
+      &lt;n&gt;m = key expires in n months
+      &lt;n&gt;y = key expires in n years
+Key is valid for? (0) 1y # ←入力
+Key expires at Sun 01 Jul 2018 05:14:28 AM UTC
+Is this correct? (y/N) y ←入力
+
+You need a user ID to identify your key; the software constructs the user ID
+from the Real Name, Comment and Email Address in this form:
+    &quot;Heinrich Heine (Der Dichter) &lt;heinrichh@duesseldorf.de&gt;&quot;
+
+Real name: Hiroaki Nakamura ←入力
+Email address: hnakamur@gmail.com ←入力
+Comment: ←適宜入力
+You selected this USER-ID:
+    &quot;Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;&quot;
+
+Change (N)ame, (C)omment, (E)mail or (O)kay/(Q)uit? O ←入力
+You need a Passphrase to protect your secret key.
+
+Enter passphrase: 設定したいパスフレーズを入力
+Repeat passphrase: パスフレーズを再入力
+
+We need to generate a lot of random bytes. It is a good idea to perform
+some other action (type on the keyboard, move the mouse, utilize the
+disks) during the prime generation; this gives the random number
+generator a better chance to gain enough entropy.
+
+Not enough random bytes available.  Please do some other work to give
+the OS a chance to collect more entropy! (Need 233 more bytes)
+.+++++
+.........+++++
+We need to generate a lot of random bytes. It is a good idea to perform
+some other action (type on the keyboard, move the mouse, utilize the
+disks) during the prime generation; this gives the random number
+generator a better chance to gain enough entropy.
+...+++++
+................+++++
+gpg: /home/build/.gnupg/trustdb.gpg: trustdb created
+gpg: key DCD07C7F marked as ultimately trusted
+public and secret key created and signed.
+
+gpg: checking the trustdb
+gpg: 3 marginal(s) needed, 1 complete(s) needed, PGP trust model
+gpg: depth: 0  valid:   1  signed:   0  trust: 0-, 0q, 0n, 0m, 0f, 1u
+gpg: next trustdb check due at 2018-07-01
+pub   4096R/DCD07C7F 2017-07-01 [expires: 2018-07-01]
+      Key fingerprint = 7114 B54F 36B5 4D85 1872  86B7 189B BBB3 DCD0 7C7F
+uid                  Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+sub   4096R/D2DA0362 2017-07-01 [expires: 2018-07-01]
+</code></pre><p>途中で <code>Not enough random bytes available.</code> と言われて止まったので、調べてみると
+<a href="https://serverfault.com/questions/214605/gpg-does-not-have-enough-entropy/214618#214618">linux - GPG does not have enough entropy - Server Fault</a> という方法が紹介されていました。</p>
+<pre><code class="language-console" data-lang="console">sudo apt install rng-tools
+sudo rngd -r /dev/urandom
+</code></pre><p>試してみたのですが、コンテナの中で実行しても相変わらず止まったままで、コンテナの親ホストで実行すると、コンテナの <code>gpg --gen-key</code> のほうで <code>.+++++</code> と出力されて進むようになりました。</p>
+<h2 id="heading-1">秘密鍵のエクスポート</h2>
+<p>他の環境に秘密鍵をコピーしたり、秘密鍵をバックアップするためにエクスポートしておきます。</p>
+<pre><code class="language-console" data-lang="console">build@debuild:~$ gpg --export-secret-key -a 'Hiroaki Nakamura' &gt; gpg-hnakamur-secret.key.pem
+</code></pre><p>生成されたPEMファイルの先頭と終端はこんな感じでした。</p>
+<pre><code class="language-console" data-lang="console">build@debuild:~$ head -4 gpg-hnakamur-secret.key.pem
+-----BEGIN PGP PRIVATE KEY BLOCK-----
+Version: GnuPG v1
+
+lQdGBFlXL+kBEACmCvShw49DAEGD/hdZ3aAOYK3aYyOJ61uinvih1VyjndxDefLJ
+</code></pre><p>.. code-block:: console</p>
+<pre><code>build@debuild:~$ tail -4 gpg-hnakamur-secret.key.pem
+Ej4RU9NnoFQBvSRS+lwRZNp09igV6myNK6/lajF8oHkzH2Nvlz6bYf6OX1m27Cqk
+zVo=
+=6LVK
+-----END PGP PRIVATE KEY BLOCK-----
+</code></pre>
+<h2 id="heading-2">秘密鍵のインポート</h2>
+<p>別のコンテナ <code>debuild2</code> とその中にユーザを作り、そちらに上記の秘密鍵をコピーしてインポートも試してみました。</p>
+<p>冒頭のチートシートでは <code>--allow-secret-key-import</code> オプションを指定しているけど obsolete と言われるとあったので、そちらは指定せずに <code>--import</code> オプションのみ指定してみたら無事インポートできました。</p>
+<pre><code class="language-console" data-lang="console">build@debuild2:~$ gpg --import gpg-hnakamur-secret.key.pem
+gpg: directory `/home/build/.gnupg' created
+gpg: new configuration file `/home/build/.gnupg/gpg.conf' created
+gpg: WARNING: options in `/home/build/.gnupg/gpg.conf' are not yet active during this run
+gpg: keyring `/home/build/.gnupg/secring.gpg' created
+gpg: keyring `/home/build/.gnupg/pubring.gpg' created
+gpg: key DCD07C7F: secret key imported
+gpg: /home/build/.gnupg/trustdb.gpg: trustdb created
+gpg: key DCD07C7F: public key &quot;Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;&quot; imported
+gpg: Total number processed: 1
+gpg:               imported: 1  (RSA: 1)
+gpg:       secret keys read: 1
+gpg:   secret keys imported: 1
+</code></pre><p>一覧を確認してみるとインポートした鍵が一覧に出ていました。</p>
+<pre><code class="language-console" data-lang="console">build@debuild2:~$ gpg --list-key
+/home/build/.gnupg/pubring.gpg
+------------------------------
+pub   4096R/DCD07C7F 2017-07-01 [expires: 2018-07-01]
+uid                  Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+sub   4096R/D2DA0362 2017-07-01 [expires: 2018-07-01]
+</code></pre>
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

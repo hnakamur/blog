@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Ubuntu 16.04をルーター化 &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Ubuntu 16.04をルーター化</h1>
+  <time datetime=2018-04-23T00:30:00&#43;0900 class="post-date">2018-04-23</time>
+  <h2 id="heading">はじめに</h2>
+<p>LANポートが2つついているFUJITSU PRIMERGY TX1310 M1でUbuntu 16.04をルーター化したメモです。</p>
+<p><a href="https://qiita.com/koshilife/items/2fa1436248f1d4938861">Ubuntu 14.04のルーター化 - Qiita</a> を参考にしました。</p>
+<h2 id="heading-1">ネットワークインターフェースの定義</h2>
+<ul>
+<li>enp0s25: 外に繋がっているインタフェース</li>
+<li>enp2s0: 新規で切るセグメント</li>
+</ul>
+<p><code>/etc/network/interfaces</code> で以下のように設定しました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">auto enp0s25
+iface enp0s25 inet static
+    address 192.168.2.200
+    netmask 255.255.255.0
+    gateway 192.168.2.1
+    dns-nameservers 192.168.2.1
+iface enp0s25 inet6 auto
+
+auto enp2s0
+iface enp2s0 inet static
+    address 192.168.3.1
+    netmask 255.255.255.0
+    gateway 192.168.2.1
+iface enp2s0 inet6 auto
+</code></pre></div><h2 id="ip">IPフォワードはすでに有効でした</h2>
+<p><code>/etc/sysctl.conf</code> では <code>net.ipv4.ip_forward</code> の設定はコメントアウトされていました。</p>
+<pre><code class="language-console" data-lang="console">$ grep net.ipv4.ip_forward /etc/sysctl.conf
+#net.ipv4.ip_forward=1
+</code></pre><p>ですが設定自体は有効になっていました。</p>
+<pre><code class="language-console" data-lang="console">$ sysctl net.ipv4.ip_forward
+net.ipv4.ip_forward = 1
+</code></pre><p>以前に <a href="https://linuxcontainers.org/lxd/getting-started-cli/#snap-package-archlinux-debian-fedora-opensuse-and-ubuntu">Linux Containers - LXD - Getting started - command line</a> の手順でsnapパッケージでLXDをインストールしていたので、そのときに自動で設定されたのかどこかで設定したのかもしれません。</p>
+<h2 id="ip-1">IPマスカレードの設定</h2>
+<p><code>sudo iptables-save</code> で現状を確認するとlxd用の設定は <code>-m comment --comment</code> で設定にコメントが
+ついていたので、真似してコメント付きで設定してみました。</p>
+<pre><code class="language-console" data-lang="console">sudo /sbin/iptables -t nat -A POSTROUTING -s 192.168.3.0/255.255.255.0 \
+  -m comment --comment &quot;Route back from outer network to enp2s0&quot; -j MASQUERADE
+</code></pre><p>実行したら <code>sudo iptables-save</code> で結果を確認します。</p>
+<p>設定を間違えていたなどで削除する場合は、追加時の <code>-A</code> オプションを <code>-D</code> に変えて
+以下のようにします。</p>
+<pre><code class="language-console" data-lang="console">sudo /sbin/iptables -t nat -D POSTROUTING -s 192.168.3.0/255.255.255.0 \
+  -m comment --comment &quot;Route back from outer network to enp2s0&quot; -j MASQUERADE
+</code></pre><h2 id="iptables-persistent">iptables-persistentのインストールと設定保存</h2>
+<p>iptablesのルールを保存しておいて起動時に読み込むために iptables-persistent というパッケージが用意されているのでそれをインストールします。</p>
+<pre><code class="language-console" data-lang="console">sudo apt install iptables-persistent
+</code></pre><p><code>dpkg -L iptables-persistent</code> でファイルリストを確認すると以下の2つのファイルが含まれていました。</p>
+<ul>
+<li>/usr/share/netfilter-persistent/plugins.d/15-ip4tables</li>
+<li>/usr/share/netfilter-persistent/plugins.d/25-ip6tables</li>
+</ul>
+<p>中身を確認するとシェルスクリプトになっていて、それぞれ <code>/etc/iptables/rules.v4</code> , <code>/etc/iptables/rues.v6</code> を読み込むようになっていました。</p>
+<p>以下のコマンドで IPv4 の設定を保存しました。</p>
+<pre><code class="language-console" data-lang="console">sudo iptables-save -c | sudo tee /etc/iptables/rules.v4
+</code></pre>
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

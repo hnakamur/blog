@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>freightでプライベートdebレポジトリ作成 &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>freightでプライベートdebレポジトリ作成</h1>
+  <time datetime=2017-08-05T17:40:00&#43;0900 class="post-date">2017-08-05</time>
+  <h2 id="heading">はじめに</h2>
+<p>CentOS だとカスタムrpmを作って <code>yum install rpmファイル名</code> で依存パッケージとともにインストールできますが、Ubuntuだと <code>dpkg -i debファイル名</code> でインストールは出来ますが依存パッケージは入りません。</p>
+<p><a href="https://askubuntu.com/questions/40011/how-to-let-dpkg-i-install-dependencies-for-me">How to let `dpkg -i` install dependencies for me? - Ask Ubuntu</a> によると <code>dpkg -i</code> の後に <code>apt -f install</code> するか、 <code>gdebi-core</code> パッケージを入れておいて <code>sudo gdebi debファイル名</code> という手はあるようです。</p>
+<p>とはいえ、PPAにアップロードする前に <code>apt install</code> で動作確認したいとか、PPAで公開しないdebパッケージを <code>apt</code> コマンドでインストールしたいというケースはあるので、プライベートdebレポジトリを作りたいところです。</p>
+<p><a href="https://wiki.debian.org/DebianRepository/Setup">DebianRepository/Setup - Debian Wiki</a> に多くのツールが紹介されていますが、
+<a href="https://askubuntu.com/questions/84788/create-deb-repository-with-several-versions-of-the-same-package#comment1444951_668791">Create deb repository with several versions of the same package - Ask Ubuntu</a> で紹介されていた <a href="https://github.com/freight-team/freight">https://github.com/freight-team/freight</a> を使ってみたところ、私のニーズに丁度良い感じでした。ということでメモです。</p>
+<p>手順の作成で試行錯誤したのですが
+<a href="http://blog.valouille.fr/2014/03/creer-un-depot-debian-signe-avec-freight/">Créer un repository Debian signé avec Freight | VaLouille</a>
+をGoogle翻訳で英訳して読んで動かせるようになりました。先人の記事に感謝です。</p>
+<h2 id="freight">freightのインストール手順</h2>
+<p><a href="https://github.com/freight-team/freight#from-a-debian-archive">From a Debian archive</a>
+の手順を少し変えて以下のようにインストールしました。</p>
+<pre><code class="language-console" data-lang="console">sudo apt update
+sudo apt -y install curl
+curl -k https://swupdate.openvpn.net/repos/repo-public.gpg | sudo apt-key add -
+echo &quot;deb http://build.openvpn.net/debian/freight_team $(lsb_release -sc) main&quot; | sudo tee /etc/apt/sources.list.d/freight.list
+sudo apt update
+sudo apt -y install freight
+</code></pre><p>私はdebをビルドしたサーバとは別にLXDのコンテナを作ってその中で root ユーザで実行していたので <code>sudo</code> は不要なのですが、そうでない環境でセットアップすることも想定して <code>sudo</code> は付けておきます。</p>
+<p><code>curl</code> に <code>-k</code> オプションを指定しないと以下のエラーが出たので、上の手順では <code>-k</code> を指定しています。</p>
+<pre><code class="language-console" data-lang="console">$ curl https://swupdate.openvpn.net/repos/repo-public.gpg
+curl: (77) Problem with the SSL CA cert (path? access rights?)
+</code></pre><h2 id="gpg">gpgの秘密鍵のインポート</h2>
+<p>debをビルドしたサーバで
+<a href="https://hnakamur.github.io/blog/2017/07/01/generate-secret-key-with-gpg/">gpgで秘密鍵を作成する</a> の「秘密鍵をエクスポートする」の手順を実行して <code>lxc file push</code> コマンドを使ってLXDコンテナに秘密鍵を転送し、以下のコマンドでインポートしました。</p>
+<pre><code class="language-console" data-lang="console">gpg --import gpg-hnakamur-secret.key.pem
+</code></pre><h2 id="heading-1">レポジトリの初期化</h2>
+<p>以下の手順でレポジトリのディレクトリを作成して初期化します。ディレクトリや各引数は適宜調整してください。今回は xenial 上で golang-1.9 用のレポジトリを作るので <code>--suite</code> は <code>xenial-golang-1.9</code> としましたが、特にレポジトリを分ける必要がなければ <code>xenial</code> だけで良いです。</p>
+<pre><code class="language-console" data-lang="console">mkdir -p /var/www/freight
+cd /var/www/freight
+freight-init --gpg=hnakamur@gmail.com --libdir=/var/www/freight/lib \
+    --cachedir=/var/www/freight/cache --archs=&quot;amd64 all&quot; \
+    --origin=&quot;My Internal Repository&quot; --label=&quot;My Internal Reposiroty&quot; \
+    --suite=&quot;xenial-golang-1.9&quot;
+</code></pre><h2 id="deb">レポジトリにdebパッケージを追加</h2>
+<p>debをビルドしたサーバで <code>lxc file push</code> コマンドを使って作成した deb パッケージをLXDコンテナの <code>/root/</code> ディレクトリに転送しておいて、LXDコンテナで以下のコマンドを実行しdebファイルをレポジトリに追加します。</p>
+<pre><code class="language-console" data-lang="console">freight add /root/*.deb apt/xenial-golang-1.9
+freight cache apt/xenial-golang-1.9
+</code></pre><p>gpgのパスフレーズを求めるプロンプトが表示されますので、パスフレーズを入力してください。</p>
+<h2 id="heading-2">ローカルレポジトリを使うための設定</h2>
+<p>ローカルレポジトリを使うには以下のように <code>.list</code> ファイルを作ればOKです。
+<code>xenial-golang-1.9</code> の部分は <code>fright-init</code> の <code>--suite</code> の引数に指定した値に合わせます。ディレクトリや <code>.list</code> のファイル名も適宜調整してください。</p>
+<pre><code class="language-console" data-lang="console">echo &quot;deb file:/var/www/freight/cache xenial-golang-1.9 main&quot; | sudo tee /etc/apt/sources.list.d/local-golang-1.9.list
+</code></pre><h2 id="apt-key">ローカルレポジトリの公開鍵をapt-keyに追加</h2>
+<p>以下のコマンドでローカルレポジトリの公開鍵を追加します。</p>
+<pre><code class="language-console" data-lang="console">apt-key add /var/www/freight/cache/pubkey.gpg
+</code></pre><h2 id="heading-3">パッケージのインストール</h2>
+<p>これでローカルパッケージが使えるようになりました。あとは <code>apt update</code> して <code>apt install</code> するだけです。今回は golang-go パッケージを作ったので以下のようになります。</p>
+<pre><code class="language-console" data-lang="console">sudo apt update
+sudo apt -y install golang-go
+</code></pre><p>これで依存するパッケージとともにインストールされました。素晴らしい！</p>
+<h2 id="heading-4">おわりに</h2>
+<p>今回は試していませんが、 <code>/var/www/freight/cache</code> を nginx などのウェブサーバで公開して、 <code>.list</code> ファイルの <code>deb</code> の後の <code>file:/var/www/freight/cache</code> の部分を公開したURLに変えればリモートのマシンでインストールも出来ると思います。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>私のgoのrpmとdebをビルドする手順 &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>私のgoのrpmとdebをビルドする手順</h1>
+  <time datetime=2018-04-05T11:21:00&#43;0900 class="post-date">2018-04-05</time>
+  <h1 id="heading">はじめに</h1>
+<p>golangの非公式rpmとdebをビルドし始めてから結構経っていますが、自分のブログ記事に散らばっている
+手順をピックアップしながら毎度ビルドしているのは良くないので、自分用にまとめておきます。
+なおこの手順は私の手元の環境と自作コマンドに依存しているので、他の環境でコピペしても動きません。</p>
+<p>以下ではバージョン1.10.1の例をメモします。</p>
+<h1 id="tarball">tarballのダウンロード</h1>
+<pre><code class="language-console" data-lang="console">cd ~/golang-deb-work
+</code></pre><pre><code>    curl -LO https://dl.google.com/go/go1.10.1.src.tar.gz
+</code></pre>
+<h1 id="golangrpm">golangのrpmをビルド</h1>
+<h2 id="srpm">srpmを作成</h2>
+<p>rpmビルドの作業用gitレポジトリで新しいバージョン用にトピックブランチ作成。</p>
+<pre><code class="language-console" data-lang="console">cd ~/.ghq/github.com/hnakamur/golang-1.10-rpm
+g co -b 1_10_1
+</code></pre><p>新しいtarballをSOURCESディレクトリに追加し、古いtarballはgitレポジトリから削除。</p>
+<pre><code class="language-console" data-lang="console">cp ~/go-deb-work/go1.10.1.src.tar.gz SOURCES/
+g rm SOURCES/go1.10.src.tar.gz
+</code></pre><p>rpmのスペックファイルを更新。</p>
+<pre><code class="language-console" data-lang="console">vi SPECS/golang.spec
+</code></pre><ul>
+<li><code>%global go_version 1.10.1</code> の行を更新。</li>
+<li>nginxのバージョンの行 <code>Version: 1.10.1</code> を更新。</li>
+<li><code>%changelog</code> セクションの先頭にエントリ追加。</li>
+</ul>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">%changelog
+* Thu Apr  5 2018 Hiroaki Nakamura &lt;hnakamur@gmail.com&gt; - 1.10.1-1
+- bump to 1.10.1
+</code></pre></div><p>rpmビルドの作業用gitレポジトリに変更内容をコミット。</p>
+<pre><code class="language-console" data-lang="console">g a .
+g ci -m 'Update to 1.10.1'
+</code></pre><p>srpmを作成。</p>
+<pre><code class="language-console" data-lang="console">mkdir ~/rpmbuild/SOURCES/golang-1.10.1-1
+ln -s $PWD/SOURCES/* !$
+rpmbuild -bs SPECS/golang.spec
+</code></pre><h2 id="mock">mockコマンドを使ってローカルでビルド</h2>
+<p>mockコマンドを使ってローカルでビルド。</p>
+<pre><code class="language-console" data-lang="console">/usr/bin/mock -r epel-7-x86_64 --resultdir=~hnakamur/mockresult-golang-1.10.1-1 --rebuild ~/rpmbuild/SRPMS/golang-1.10.1-1.src.rpm
+</code></pre><p>うまくビルドできたときは <code>~/mockresult-golang-1.10.1-1/</code> 以下に生成された <code>*.rpm</code> をCentOS7の環境にコピーして <code>yum install -y golang*.x86_64.rpm</code> でインストールして動作確認します。
+ビルド失敗した場合はこのディレクトリの <code>build.log</code> を見てエラーの内容を確認します。</p>
+<pre><code class="language-console" data-lang="console">hnakamur@express:~/.ghq/github.com/hnakamur/golang-1.10-rpm$ ls -lt ~/mockresult-golang-1.10.1-1
+total 136048
+-rw-rw-r-- 1 hnakamur hnakamur    81122 Apr  5 11:48 root.log
+-rw-rw-r-- 1 hnakamur hnakamur     1586 Apr  5 11:48 state.log
+-rw-rw-r-- 1 hnakamur hnakamur  1768912 Apr  5 11:48 build.log
+-rw-rw-r-- 1 hnakamur mock      8735608 Apr  5 11:48 golang-race-1.10.1-1.el7.centos.x86_64.rpm
+-rw-rw-r-- 1 hnakamur mock     15588632 Apr  5 11:48 golang-shared-1.10.1-1.el7.centos.x86_64.rpm
+-rw-rw-r-- 1 hnakamur mock     75041160 Apr  5 11:48 golang-bin-1.10.1-1.el7.centos.x86_64.rpm
+-rw-rw-r-- 1 hnakamur mock      5686740 Apr  5 11:46 golang-src-1.10.1-1.el7.centos.noarch.rpm
+-rw-rw-r-- 1 hnakamur mock      6831176 Apr  5 11:46 golang-tests-1.10.1-1.el7.centos.noarch.rpm
+-rw-rw-r-- 1 hnakamur mock       716016 Apr  5 11:46 golang-misc-1.10.1-1.el7.centos.noarch.rpm
+-rw-rw-r-- 1 hnakamur mock      2494336 Apr  5 11:46 golang-docs-1.10.1-1.el7.centos.noarch.rpm
+-rw-rw-r-- 1 hnakamur mock      1315652 Apr  5 11:46 golang-1.10.1-1.el7.centos.x86_64.rpm
+-rw-rw-r-- 1 hnakamur mock         9707 Apr  5 11:33 installed_pkgs
+-rw-rw-r-- 1 hnakamur mock     18221830 Apr  5 11:32 golang-1.10.1-1.el7.centos.src.rpm
+-rw-rw-r-- 1 root     root      2793543 Apr  5 11:32 available_pkgs
+</code></pre><p>テスト環境でインストールしたgoのバージョン確認。</p>
+<pre><code class="language-console" data-lang="console">[root@centos7 ~]# go version
+go version go1.10.1 linux/amd64
+</code></pre><p>dataraceチェッカー付きで実行可能なことを確認。</p>
+<pre><code class="language-console" data-lang="console">[root@centos7 ~]# mkdir -p ~/go/src/github.com/hnakamur/hello-go
+[root@centos7 ~]# cd !$
+[root@centos7 ~]# vi main.go
+</code></pre><p>以下の内容で <code>main.go</code> を作成。</p>
+<div class="highlight"><pre class="chroma"><code class="language-golang" data-lang="golang"><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="kn">import</span> <span class="p">(</span>
+        <span class="s">&#34;fmt&#34;</span>
+        <span class="s">&#34;runtime&#34;</span>
+<span class="p">)</span>
+
+<span class="kd">func</span> <span class="nf">main</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">fmt</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;Hello, %s!\n&#34;</span><span class="p">,</span> <span class="nx">runtime</span><span class="p">.</span><span class="nf">Version</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div><p>以下のように動作確認。</p>
+<div class="highlight"><pre class="chroma"><code class="language-golang" data-lang="golang"><span class="p">[</span><span class="nx">root</span><span class="err">@</span><span class="nx">centos7</span> <span class="nx">hello</span><span class="o">-</span><span class="k">go</span><span class="p">]</span><span class="err">#</span> <span class="k">go</span> <span class="nx">run</span> <span class="o">-</span><span class="nx">race</span> <span class="nx">main</span><span class="p">.</span><span class="k">go</span>
+<span class="nx">Hello</span><span class="p">,</span> <span class="nx">go1</span><span class="mf">.10</span><span class="mf">.1</span><span class="p">!</span>
+</code></pre></div><h2 id="copr">coprでビルド</h2>
+<pre><code class="language-console" data-lang="console">copr-cli build hnakamur/golang-1.10 ~/mockresult-golang-1.10.1-1/golang-1.10.1-1.el7.centos.src.rpm
+</code></pre><p>ビルドが完了したら
+<a href="https://copr.fedorainfracloud.org/coprs/hnakamur/golang-1.10/">hnakamur/nginx Copr</a> のレポジトリを追加しているテスト環境にてgolangを更新して動作確認します。</p>
+<h2 id="rpmgit">rpmのgitレポジトリの更新とリリース作成</h2>
+<p>今回のトピックブランチをgithubにプッシュ。</p>
+<pre><code class="language-console" data-lang="console">g push origin 1_10_1
+</code></pre><p><a href="https://github.com/hnakamur/nginx-rpm">hnakamur/nginx-rpm</a> でプルリクエストを作成してマージ。</p>
+<p>ローカルのmasterブランチを更新してトピックブランチを削除。</p>
+<pre><code class="language-console" data-lang="console">g f
+g co master
+g me origin/master --ff
+g delete-merged-branches
+</code></pre><p>タグを作成してプッシュ。</p>
+<pre><code class="language-console" data-lang="console">g tag 1.10.1-1
+g push origin !$
+</code></pre><p>coprでビルドされたrpmをダウンロードし、githubレポジトリにリリースを作成してアップロード。</p>
+<pre><code class="language-console" data-lang="console">copr-files-downloader -user hnakamur -repo golang-1.10 -dest ./tmp
+cd ./tmp
+github-release release --user hnakamur --repo golang-1.10-rpm --tag 1.10.1-1
+for i in $(ls); do github-release upload --user hnakamur --repo golang-1.10-rpm --tag 1.10.1-1 --name $i --file $i; done
+cd ..
+rm -r ./tmp
+</code></pre><h1 id="nginxdeb">nginxのdebをビルド</h1>
+<h2 id="deb">debのソースパッケージ作成</h2>
+<p>debビルドの作業用gitレポジトリで新しいtarballを取り込む。 <code>gbp import-orig</code> の <code>--pristine-tar</code> オプションを忘れないこと。これを忘れると後でソースパッケージをビルドする時にoriginのtarballがgitレポジトリから再構築され、後ほどPPAでビルドする時になってoriginのtarballが既に他のレポジトリでアップロードされていると同じファイル名で中身が一致しなくてエラーになってしまう。</p>
+<pre><code class="language-console" data-lang="console">cd ~/.ghq/github.com/hnakamur/golang-deb
+gbp import-orig --pristine-tar -u 1.10.1 ~/go-deb-work/go1.10.1.src.tar.gz
+</code></pre><p>golang-debの場合は <code>upstream-1.10</code> ブランチにオリジンのtarballを取り込んだ後 <code>ubuntu-1.10</code> ブランチにマージするところまでやってくれます。</p>
+<p><code>debian/changelog</code> の先頭にエントリを追加します。
+以下のコマンドを実行すると前バージョンのタグ以降のコミットのコミットメッセージを並べて自動的にコミットメッセージを入力した状態で <code>debian/changelog</code> を開いてくれます。</p>
+<pre><code class="language-console" data-lang="console">gbp dch -R
+</code></pre><p>今回の例では <code>debian/changelog</code> の先頭に以下のようにエントリが追加された状態で vim で開かれました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">golang-1.10 (1.10.1-1) xenial; urgency=medium
+
+  * Imported Upstream version 1.10.1
+
+ -- Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;  Thu, 05 Apr 2018 11:41:04 +0900
+</code></pre></div><p>これを以下のように変更します。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">golang-1.10 (1.10.1-1ubuntu1ppa1~ubuntu16.04.1) xenial; urgency=medium
+
+  * Imported Upstream version 1.10.1
+
+ -- Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;  Thu, 05 Apr 2018 11:41:04 +0900
+</code></pre></div><p><code>debian/changelog</code> の変更をコミットしてタグを打ちます。</p>
+<pre><code class="language-console" data-lang="console">g ci . -m 'Release 1.10.1-1ubuntu1ppa1~ubuntu16.04.1'
+g tag debian/1.10.1-1ubuntu1ppa1-ubuntu16.04.1
+</code></pre><h2 id="pbuilderdeb">pbuilderを使ってローカルでdebパッケージをビルド</h2>
+<p>debのソースパッケージをビルドします。</p>
+<pre><code class="language-console" data-lang="console">gbp buildpackage --git-export-dir=../build-area -p/home/hnakamur/bin/gpg-passphrase -S -sa
+</code></pre><p><code>pbuilder</code> を使ってdebパッケージをビルドします。</p>
+<pre><code class="language-console" data-lang="console">sudo pbuilder build ../build-area/golang-1.10_1.10.1-1ubuntu1ppa1~ubuntu16.04.1.dsc
+</code></pre><p>無事にビルドが終わったら <code>/var/cache/pbuilder/result/golang*1.10.1*</code> にdebパッケージが作られます。</p>
+<pre><code class="language-console" data-lang="console">hnakamur@express:~/.ghq/github.com/hnakamur/golang-deb$ ls -lt /var/cache/pbuilder/result/golang*1.10.1*
+-rw-r--r-- 1 hnakamur hnakamur     4179 Apr  5 12:03 /var/cache/pbuilder/result/golang-1.10_1.10.1-1ubuntu1ppa1~ubuntu16.04.1_amd64.changes
+-rw-r--r-- 1 hnakamur hnakamur  6600814 Apr  5 12:03 /var/cache/pbuilder/result/golang-1.10-go-shared-dev_1.10.1-1ubuntu1ppa1~ubuntu16.04.1_amd64.deb
+-rw-r--r-- 1 hnakamur hnakamur    30042 Apr  5 12:03 /var/cache/pbuilder/result/golang-1.10_1.10.1-1ubuntu1ppa1~ubuntu16.04.1_all.deb
+-rw-r--r-- 1 hnakamur hnakamur  2436718 Apr  5 12:03 /var/cache/pbuilder/result/golang-1.10-doc_1.10.1-1ubuntu1ppa1~ubuntu16.04.1_all.deb
+-rw-r--r-- 1 hnakamur hnakamur 10182508 Apr  5 12:03 /var/cache/pbuilder/result/golang-1.10-src_1.10.1-1ubuntu1ppa1~ubuntu16.04.1_amd64.deb
+-rw-r--r-- 1 hnakamur hnakamur 99426882 Apr  5 12:02 /var/cache/pbuilder/result/golang-1.10-go_1.10.1-1ubuntu1ppa1~ubuntu16.04.1_amd64.deb
+-rw-r--r-- 1 hnakamur hnakamur     1996 Apr  5 11:46 /var/cache/pbuilder/result/golang-1.10_1.10.1-1ubuntu1ppa1~ubuntu16.04.1.dsc
+-rw-r--r-- 1 hnakamur hnakamur    32972 Apr  5 11:46 /var/cache/pbuilder/result/golang-1.10_1.10.1-1ubuntu1ppa1~ubuntu16.04.1.debian.tar.xz
+-rw-r--r-- 1 hnakamur hnakamur 18305765 Apr  5 11:43 /var/cache/pbuilder/result/golang-1.10_1.10.1.orig.tar.gz
+</code></pre><p>作られたdebパッケージをfreightのローカルdebレポジトリに追加します。</p>
+<pre><code class="language-console" data-lang="console">pushd /var/www/html/my-debs
+sudo freight add /var/cache/pbuilder/result/golang*1.10.1*.deb apt/xenial
+sudo freight cache -p /home/hnakamur/.gpg-passphrase apt/xenial
+popd
+</code></pre><p>テスト用のUbuntu環境にてfreightのdebレポジトリからgoのパッケージを更新します。</p>
+<pre><code class="language-console" data-lang="console">sudo apt update
+sudo apt upgrade -y golang-1.10-go golang-1.10-doc golang-1.10-src
+</code></pre><p>rpmの場合と同様に <code>go version</code> と <code>go run -race main.go</code> で動作確認。</p>
+<h2 id="ppadeb">PPAでdebパッケージをビルド</h2>
+<p>動作確認して問題なければPPAでdebパッケージをビルドします。</p>
+<pre><code class="language-console" data-lang="console">dput ppa:hnakamur/golang-1.10 ../build-area/golang-1.10_1.10.1-1ubuntu1ppa1~ubuntu16.04.1_source.changes
+</code></pre><p><a href="https://launchpad.net/~hnakamur/+archive/ubuntu/golang-1.10/+packages">Packages in “golang 1.10” : golang 1.10 : Hiroaki Nakamura</a> でこのバージョンのBuild Statusの列が緑のチェックマークになるまで待ちます（時計や緑の歯車のときはまだです）。</p>
+<p>なかなかビルドが始まらない場合は <a href="https://launchpad.net/builders">https://launchpad.net/builders</a> で状況を確認します。といっても結局待つしか無いです。</p>
+<p>無事ビルドが完了したら <a href="https://launchpad.net/~hnakamur/+archive/ubuntu/golang-1.10">golang 1.10 : Hiroaki Nakamura</a> のレポジトリを追加してあるテスト環境にてgoのパッケージを更新して動作確認します。</p>
+<pre><code class="language-console" data-lang="console">sudo apt update
+sudo apt upgrade -y golang-1.10-go golang-1.10-doc golang-1.10-src
+</code></pre><p>動作確認はrpmの場合と同様に <code>go version</code> と <code>go run -race main.go</code> です。</p>
+<h2 id="debgit">debのgitレポジトリの更新とリリース作成</h2>
+<p>ローカルのgitレポジトリでの変更をgithubに反映します。</p>
+<p>一旦以下のコマンドでプッシュを試みます。</p>
+<pre><code class="language-console" data-lang="console">g push origin --all
+</code></pre><p><code>patch-queue</code> ブランチがconflictする場合は、乱暴ですが <code>-f</code> つきで再度プッシュします。まあ、 <code>patch-queue</code> は一時的な作業用ブランチなのとこのgitレポジトリはチームではなく一人作業用なのでよしということで。</p>
+<pre><code class="language-console" data-lang="console">g push origin --all -f
+</code></pre><p>タグもプッシュします。</p>
+<pre><code class="language-console" data-lang="console">g push origin --tags
+</code></pre><p>PPAでビルドされたrpmをダウンロードし、githubレポジトリにリリースを作成してアップロード。</p>
+<pre><code class="language-console" data-lang="console">ppa-files-downloader -user hnakamur -repo golang-1.10 -pkg golang-1.10 -dest ./tmp
+cd ./tmp
+github-release release --user hnakamur --repo golang-deb --tag debian/1.10.1-1ubuntu1ppa1-ubuntu16.04.1
+for i in $(ls); do github-release upload --user hnakamur --repo golang-deb --tag debian/1.10.1-1ubuntu1ppa1-ubuntu16.04.1 --name $i --file $i; done
+cd ..
+rm -r ./tmp
+</code></pre>
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

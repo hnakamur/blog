@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Ubuntu 16.04 LTSでLXD 2.0をセットアップして使ってみる &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Ubuntu 16.04 LTSでLXD 2.0をセットアップして使ってみる</h1>
+  <time datetime=2016-05-07T14:12:49&#43;0900 class="post-date">2016-05-07</time>
+  <h2 id="heading">参考記事</h2>
+<p>公式ドキュメントの<a href="https://linuxcontainers.org/ja/lxd/getting-started-cli/">Linux Containers - LXD - はじめに - コマンドライン</a>によくまとまっているのですが、より詳細には <a href="http://insights.ubuntu.com/2016/03/14/the-lxd-2-0-story-prologue/">The LXD 2.0 Story (Prologue) | Ubuntu Insights</a> にリストアップされている記事がわかりやすかったです。</p>
+<h3 id="ubuntu-1604-serverlxd">Ubuntu 16.04 serverでのLXDの初期セットアップ</h3>
+<p>Ubuntu 16.04 serverならLXDはインストール済みなので、 <code>apt-get install lxd</code> と <code>newgrp lxd</code> は不要でした。</p>
+<p>LXCではコンテナ一覧表示は <code>lxc-ls</code>、コンテナ作成は <code>lxc-create</code> のように別々のコマンドになっていましたが、 LXDではそれぞれ <code>lxc list</code>, <code>lxc launch</code> と <code>lxc</code> コマンドのサブコマンドになっています。</p>
+<p>また <code>lxd</code> というプログラムもあります。 <code>man lxd</code> と <code>man lxc</code> してみると <code>lxd</code> はコンテナのハイパーバイザのデーモンで、 <code>lxc</code> はコンテナのハイパーバイザのクライアントです。</p>
+<p>まずバージョンを確認してみます。</p>
+<pre><code>$ lxd --version
+2.0.0
+$ lxc --version
+2.0.0
+</code></pre><p>ちなみに、 <code>lxc</code> のほうは <code>lxc version</code> と <code>version</code> サブコマンドも用意されていますが、 <code>lxd version</code> は <code>error: Unknown arguments</code> とエラーになりました。</p>
+<p>コンテナ一覧を表示してみます。まだ1つもコンテナを作っていないので一覧は空です。</p>
+<pre><code>$ lxc list
+Generating a client certificate. This may take a minute...
+If this is your first time using LXD, you should also run: sudo lxd init
+
++------+-------+------+------+------+-----------+
+| NAME | STATE | IPV4 | IPV6 | TYPE | SNAPSHOTS |
++------+-------+------+------+------+-----------+
+</code></pre><p><code>lxc list</code> の出力の1行目にある通り、初回実行時にはクライアント証明書が生成されます。 <code>~/.config/lxc/client.key</code> に秘密鍵、 <code>~/.config/lxc/client.crt</code> に証明書が作られました。</p>
+<p>また、 <code>lxc list</code> の出力の2行目に LXDを初めて使うときは <code>sudo lxd init</code> を実行するようにも書かれていますので、実行します。</p>
+<p>すると、いくつか質問されるので入力していきます。</p>
+<pre><code>$ sudo lxd init
+sudo: unable to resolve host ubuntu-xenial
+Name of the storage backend to use (dir or zfs): dir
+Would you like LXD to be available over the network (yes/no)? no
+Do you want to configure the LXD bridge (yes/no)? yes
+Warning: Stopping lxd.service, but it can still be activated by:
+  lxd.socket
+LXD has been successfully configured.
+</code></pre><p>1つ目はストレージバックアップの選択です。選択肢は <code>dir</code> か <code>zfs</code> ですが、上記では <code>dir</code> にしました。</p>
+<p>2つ目はLXDをネットワーク越しで利用するかどうかです。上記では <code>no</code> にしました。
+すると上記の警告にあるとおり <code>lxd.service</code> が停止されました。 <code>sudo systemctl status lxd</code> で確認すると <code>Active:</code> の右が <code>inactive (dead)</code> になっていました。</p>
+<p>一方で、 <code>lxd.socket</code> は稼働しています。 <code>sudo systemctl status lxd.socket</code> で確認すると <code>Active:</code> の右が <code>active (running)</code> になっていました。</p>
+<p><code>/lib/systemd/system/lxd.socket</code> を見ると <code>/var/lib/lxd/unix.socket</code> というファイル名でUnixドメインソケットが作られていることがわかりました。</p>
+<p>3つ目はLXDのブリッジを設定するかどうかです。上記は <code>yes</code> にしました。すると CUI でダイアログが次々開いて DHCPで発行するIPv4やIPv6のアドレスの範囲などを聞かれるので、順次入力していきます。ランダムなアドレスの範囲が事前入力されているので、特に変更不要な場合はenterキーを連打していけばOKでした。</p>
+<p>再度 <code>lxc list</code> を実行してみると、今度はクライアント証明書を生成したとか、 <code>sudo lxc init</code> を実行せよとかの文言は表示されなくなりました。</p>
+<pre><code>$ lxc list
++------+-------+------+------+------+-----------+
+| NAME | STATE | IPV4 | IPV6 | TYPE | SNAPSHOTS |
++------+-------+------+------+------+-----------+
+</code></pre><h4 id="heading-1">別パターンの初期化の検証</h4>
+<p>このパターンではLXDをネットワーク越しに使うかの質問に <code>yes</code> と答えました。すると、バインドするアドレスとポートを聞かれます。ポートは <code>8443</code> がお勧めと書かれていますが、enterキー空打ちではだめで、ちゃんと値を入力する必要がありました。</p>
+<pre><code>$ sudo lxd init
+sudo: unable to resolve host ubuntu-xenial
+Name of the storage backend to use (dir or zfs): dir
+Would you like LXD to be available over the network (yes/no)? yes
+Address to bind LXD to (not including port): 0.0.0.0
+Port to bind LXD to (8443 recommended):
+Invalid input, try again.
+
+Port to bind LXD to (8443 recommended): 8443
+Trust password for new clients:
+Again:
+Do you want to configure the LXD bridge (yes/no)? no
+LXD has been successfully configured.
+</code></pre><p>この設定の後に <code>sudo systemctl status lxd</code> を実行すると <code>Active:</code> の右は <code>active (running)</code> になっていました。</p>
+<p>また、上記ではLXDブリッジを設定するかの質問に <code>no</code> と答えてみました。この場合は CUIのダイアログは開かれず、すぐに <code>LXD has been successfully configured.</code> が表示されて完了しました。</p>
+<p><code>ip a</code> で確認すると、この場合も <code>lxdbr0</code> というネットワークインターフェース自体は作成されていました。ただし、IPアドレスは設定されていない状態です。</p>
+<pre><code>$ ip a
+...(略)...
+4: lxdbr0: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt; mtu 1500 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/ether 0a:b4:d4:fa:b3:71 brd ff:ff:ff:ff:ff:ff
+    inet6 fe80::8b4:d4ff:fefa:b371/64 scope link
+       valid_lft forever preferred_lft forever
+    inet6 fe80::1/64 scope link
+       valid_lft forever preferred_lft forever
+</code></pre><p>ただ、その後 <code>lxc launch</code> でコンテナを起動した後再度確認すると <code>lxdbr0</code> の左の番号が <code>4:</code> から <code>5:</code> に変わっていて、IPv4アドレスも設定されていました。また <code>lxc.service</code> も起動していました。</p>
+<p><code>sudo ss -antp</code> で確認したところ、LXDをネットワーク越しに使う設定を <code>yes</code> にしたときは <code>lxd</code> のプロセスが指定したポート（上記の例では8443番ポート）をLISTENしていますが、 <code>no</code> にしたときはLISTENしていませんでした。</p>
+<h3 id="heading-2">リモートとローカルのイメージ一覧表示</h3>
+<p><code>lxc image</code> サブコマンドでイメージを取り扱います。 <code>lxc image -h</code> と入力すると使用方法が表示されます。</p>
+<p><code>lxc image list</code> の説明の部分を以下に引用します。 <code>LANG</code> 環境変数が <code>ja_JP.UTF8</code> ならヘルプメッセージは日本語で表示されます。</p>
+<pre><code>lxc image list [remote:] [filter]
+    LXD のイメージストア内のイメージを一覧表示します。プロパティでフィルタ
+    を行う場合は、フィルタは &lt;key&gt;=&lt;value&gt; の形になります。フィルタはイメー
+    ジハッシュの一部やイメージエイリアス名の一部も指定できます。
+</code></pre><p>英語のヘルプメッセージを見たい場合は <code>LANG=C</code> をつけて <code>LANG=C lxc image</code> のように実行すればOKです。 <code>lxc image list</code> の英語ヘルプメッセージを以下に引用します。</p>
+<pre><code>lxc image list [remote:] [filter]
+    List images in the LXD image store. Filters may be of the
+    &lt;key&gt;=&lt;value&gt; form for property based filtering, or part of the image
+    hash or part of the image alias name.
+</code></pre><p>リモートのイメージ一覧は <code>lxc image list images:</code> で表示できます。最後の <code>:</code> はリモートの指定か区別するために必要です。</p>
+<p>ローカルのイメージ一覧は <code>lxc image list</code> で表示できます。1つもコンテナを作っていない時は空になります。</p>
+<p><code>[remote:]</code> の部分に指定可能なリモートの一覧は <code>lxc remote list</code> で確認できます。</p>
+<pre><code>$ lxc remote list
++-----------------+------------------------------------------+---------------+--------+--------+
+|      NAME       |                   URL                    |   PROTOCOL    | PUBLIC | STATIC |
++-----------------+------------------------------------------+---------------+--------+--------+
+| images          | https://images.linuxcontainers.org       | lxd           | YES    | NO     |
++-----------------+------------------------------------------+---------------+--------+--------+
+| local (default) | unix://                                  | lxd           | NO     | YES    |
++-----------------+------------------------------------------+---------------+--------+--------+
+| ubuntu          | https://cloud-images.ubuntu.com/releases | simplestreams | YES    | YES    |
++-----------------+------------------------------------------+---------------+--------+--------+
+| ubuntu-daily    | https://cloud-images.ubuntu.com/daily    | simplestreams | YES    | YES    |
++-----------------+------------------------------------------+---------------+--------+--------+
+</code></pre><p>フィルタを指定してリモートのcentosのイメージ一覧を表示すると以下の3つがヒットしました。</p>
+<pre><code>$ lxc image list images: centos
++-------------------------+--------------+--------+-----------------------------------+--------+---------+-----------------------------+
+|          ALIAS          | FINGERPRINT  | PUBLIC |            DESCRIPTION            |  ARCH  |  SIZE   |         UPLOAD DATE         |
++-------------------------+--------------+--------+-----------------------------------+--------+---------+-----------------------------+
+| centos/6/amd64 (1 more) | 81c42e7d8c4e | yes    | Centos 6 (amd64) (20160507_02:16) | x86_64 | 52.23MB | May 7, 2016 at 3:15am (UTC) |
++-------------------------+--------------+--------+-----------------------------------+--------+---------+-----------------------------+
+| centos/6/i386 (1 more)  | 74c61c775024 | yes    | Centos 6 (i386) (20160507_02:16)  | i686   | 52.16MB | May 7, 2016 at 3:16am (UTC) |
++-------------------------+--------------+--------+-----------------------------------+--------+---------+-----------------------------+
+| centos/7/amd64 (1 more) | 9c8a52ca68e4 | yes    | Centos 7 (amd64) (20160507_02:16) | x86_64 | 62.93MB | May 7, 2016 at 3:16am (UTC) |
++-------------------------+--------------+--------+-----------------------------------+--------+---------+-----------------------------+
+</code></pre><h3 id="centos-7">CentOS 7のコンテナを起動してみる</h3>
+<p>起動に使用するのは <code>lxc launch</code> サブコマンドです。 <code>lxc launch -h</code> でヘルプが見られます。</p>
+<p>ここでは <code>images</code> のリモートの <code>centos/7/amd64</code> のエイリアスのイメージを起動して <code>cent01</code> というコンテナ名を付けてみます。どれぐらい時間がかかるか計測するため <code>time</code> コマンドを付けて実行してみました。</p>
+<pre><code>$ time lxc launch images:centos/7/amd64 cent01
+Creating cent01
+Retrieving image: 100%
+Starting cent01
+
+real    0m58.036s
+user    0m0.056s
+sys     0m0.036s
+</code></pre><p><code>Retrieving image: 100%</code> と表示されているように初回はイメージのダウンロードを行うので少し時間がかかります。私の環境では1分弱でした。</p>
+<p>起動直後に <code>lxc list</code> を実行すると、 IPv6アドレスは付与されていますが、 IPv4アドレスはまだ空です。</p>
+<pre><code>$ lxc list
++--------+---------+------+-----------------------------------------------+------------+-----------+
+|  NAME  |  STATE  | IPV4 |                     IPV6                      |    TYPE    | SNAPSHOTS |
++--------+---------+------+-----------------------------------------------+------------+-----------+
+| cent01 | RUNNING |      | fd36:b946:6537:931e:216:3eff:fec9:2e18 (eth0) | PERSISTENT | 0         |
++--------+---------+------+-----------------------------------------------+------------+-----------+
+</code></pre><p>数秒立ってから再度実行するとIPv4アドレスが付与されていました。</p>
+<pre><code>$ lxc list
++--------+---------+----------------------+-----------------------------------------------+------------+-----------+
+|  NAME  |  STATE  |         IPV4         |                     IPV6                      |    TYPE    | SNAPSHOTS |
++--------+---------+----------------------+-----------------------------------------------+------------+-----------+
+| cent01 | RUNNING | 10.64.177.167 (eth0) | fd36:b946:6537:931e:216:3eff:fec9:2e18 (eth0) | PERSISTENT | 0         |
++--------+---------+----------------------+-----------------------------------------------+------------+-----------+
+</code></pre><p>この時点でローカルのイメージ一覧を表示してみると、CentOS 7のイメージが追加されていました。</p>
+<pre><code>$ lxc image list
++-------+--------------+--------+-----------------------------------+--------+---------+-----------------------------+
+| ALIAS | FINGERPRINT  | PUBLIC |            DESCRIPTION            |  ARCH  |  SIZE   |         UPLOAD DATE         |
++-------+--------------+--------+-----------------------------------+--------+---------+-----------------------------+
+|       | 9c8a52ca68e4 | no     | Centos 7 (amd64) (20160507_02:16) | x86_64 | 62.93MB | May 7, 2016 at 7:13am (UTC) |
++-------+--------------+--------+-----------------------------------+--------+---------+-----------------------------+
+</code></pre><p>同じイメージで2つめのコンテナを起動してみると今度はローカルのイメージを使うので起動時間は短くてすみました。私の環境では約10秒でした。</p>
+<pre><code>$ time lxc launch images:centos/7/amd64 cent02
+Creating cent02
+Starting cent02
+
+real    0m10.189s
+user    0m0.044s
+sys     0m0.008s
+</code></pre><p>起動直後にコンテナ一覧を確認すると、今起動した <code>cent02</code> コンテナのIPv4アドレスはやはり空です。</p>
+<pre><code>$ lxc list
++--------+---------+----------------------+-----------------------------------------------+------------+-----------+
+|  NAME  |  STATE  |         IPV4         |                     IPV6                      |    TYPE    | SNAPSHOTS |
++--------+---------+----------------------+-----------------------------------------------+------------+-----------+
+| cent01 | RUNNING | 10.64.177.167 (eth0) | fd36:b946:6537:931e:216:3eff:fec9:2e18 (eth0) | PERSISTENT | 0         |
++--------+---------+----------------------+-----------------------------------------------+------------+-----------+
+| cent02 | RUNNING |                      | fd36:b946:6537:931e:216:3eff:fe18:680a (eth0) | PERSISTENT | 0         |
++--------+---------+----------------------+-----------------------------------------------+------------+-----------+
+</code></pre><p>数秒立ってから再度確認すると <code>centos02</code> コンテナにもIPv4アドレスが付与されていました。</p>
+<pre><code>$ lxc list
++--------+---------+----------------------+-----------------------------------------------+------------+-----------+
+|  NAME  |  STATE  |         IPV4         |                     IPV6                      |    TYPE    | SNAPSHOTS |
++--------+---------+----------------------+-----------------------------------------------+------------+-----------+
+| cent01 | RUNNING | 10.64.177.167 (eth0) | fd36:b946:6537:931e:216:3eff:fec9:2e18 (eth0) | PERSISTENT | 0         |
++--------+---------+----------------------+-----------------------------------------------+------------+-----------+
+| cent02 | RUNNING | 10.64.177.34 (eth0)  | fd36:b946:6537:931e:216:3eff:fe18:680a (eth0) | PERSISTENT | 0         |
++--------+---------+----------------------+-----------------------------------------------+------------+-----------+
+</code></pre><h3 id="heading-3">コンテナ内でコマンドを実行する</h3>
+<p>例えば <code>cent01</code> コンテナで <code>bash</code> を起動するには <code>lxc exec cent01 bash</code> と実行します。するとコンテナ内で root ユーザになってプロンプトが表示されるので、好きなコマンドを入力して実行します。</p>
+<pre><code>$ lxc exec cent01 bash
+[root@cent01 ~]# ip a
+1: lo: &lt;LOOPBACK,UP,LOWER_UP&gt; mtu 65536 qdisc noqueue state UNKNOWN qlen 1
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host
+       valid_lft forever preferred_lft forever
+37: eth0@if38: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt; mtu 1500 qdisc noqueue state UP qlen 1000
+    link/ether 00:16:3e:5f:01:7e brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 10.155.92.101/24 brd 10.155.92.255 scope global dynamic eth0
+       valid_lft 2508sec preferred_lft 2508sec
+    inet6 fe80::216:3eff:fe5f:17e/64 scope link
+       valid_lft forever preferred_lft forever
+[root@cent01 ~]# ping -c 3 cent02
+PING cent02.lxd (10.64.177.34) 56(84) bytes of data.
+64 bytes from cent02.lxd (10.64.177.34): icmp_seq=1 ttl=64 time=0.034 ms
+64 bytes from cent02.lxd (10.64.177.34): icmp_seq=2 ttl=64 time=0.068 ms
+64 bytes from cent02.lxd (10.64.177.34): icmp_seq=3 ttl=64 time=0.081 ms
+
+--- cent02.lxd ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 1998ms
+rtt min/avg/max/mdev = 0.034/0.061/0.081/0.019 ms
+[root@cent01 ~]# exit
+exit
+</code></pre><p>上記の <code>ping</code> の例でも分かる通り、コンテナ内から別のコンテナの名前を指定して通信可能です。 <code>ping</code> の出力を見ると <code>.lxd</code> というトップレベルドメインがつけられていて、 <code>ping -c 3 cent02.lxd</code> でも大丈夫でした。この <code>.lxd</code> という値は <code>/etc/default/lxd-bridge</code> の <code>LXD_DOMAIN=&quot;lxd&quot;</code> という設定で指定されています。</p>
+<p>Control-Dを押すか、<code>exit</code> に続いてenterキーで <code>bash</code> から抜けます。</p>
+<p>単一のコマンドを実行したい場合は <code>bash</code> の代わりにコマンドを書きます。</p>
+<pre><code>$ lxc exec cent01 ls /
+bin  boot  dev  etc  home  lib  lib64  media  mnt  opt  proc  root  run  sbin  selinux  srv  sys  tmp  usr  var
+</code></pre><p>コマンドにオプションを指定するとエラーになりますが、コマンドの前に <code>--</code> を入れれば大丈夫です。</p>
+<pre><code>$ lxc exec cent01 ls -a /
+error: flag provided but not defined: -a
+$ lxc exec cent01 -- ls -a /
+.  ..  .autorelabel  bin  boot  dev  etc  home  lib  lib64  media  mnt  opt  proc  root  run  sbin  selinux  srv  sys  tmp  usr  var
+</code></pre><h2 id="os">ホストOSを再起動するとコンテナは自動起動されます</h2>
+<p>LXCではホストOS起動時にコンテナを自動起動するには設定ファイルの編集が必要でしたが、LXDは特に設定は不要でした。　
+ホストOSを再起動して <code>lxc list</code> を実行してみると上記で作成した2つのコンテナのSTATEがRUNNINGになっていました。</p>
+<h2 id="heading-4">コンテナの停止と削除</h2>
+<p>停止は <code>lxc stop コンテナ名</code> 、削除は <code>lxc delete コンテナ名</code> で出来ます。が、 CentOS 7 のコンテナを停止するには以下の事前準備が必要でした。</p>
+<h3 id="centos-7-">CentOS 7 のコンテナを停止可能にするための設定</h3>
+<p><code>cent01</code> のところは実際のコンテナ名に置き換えて、各コンテナで実行が必要です。</p>
+<pre><code>lxc exec cent01 -- sh -c 'ln -s /usr/lib/systemd/system/halt.target /etc/systemd/system/sigpwr.target &amp;&amp; systemctl daemon-reload'
+</code></pre><p>この回避方法は <a href="https://lists.linuxcontainers.org/pipermail/lxc-users/2014-February/006304.html">[lxc-users] lxc-stop doesn't stop centos, waits for the timeout</a> で紹介されていました。</p>
+<p><a href="https://lists.linuxcontainers.org/pipermail/lxc-users/2016-May/011602.html">[lxc-users] lxc stop does not stop a CentOS 7 container</a> で <code>images:</code> で公開しているイメージにこの修正を取り込めないか問い合わせ中です。</p>
+<h2 id="heading-5">コンテナやイメージのファイルの在り処</h2>
+<p>コンテナのファイルは <code>/var/lib/lxd/containers/</code> にありました。操作しているユーザのuidとgidは1000なのですが、コンテナのディレクトリは100000と異なっていました。どこかでマッピングを持っているのだと思いますが、未調査です。</p>
+<pre><code>$ sudo ls -l /var/lib/lxd/containers/
+合計 24
+drwxr-xr-x+ 4 100000 100000  4096  5月  6 18:56 cent01
+drwxr-xr-x+ 4 100000 100000  4096  5月  7 03:18 cent02
+-rw-r--r--  1 root   root   10756  5月  7 19:47 lxc-monitord.log
+drwxr-xr-x+ 4 100000 100000  4096  5月  3 20:46 my-ubuntu
+$ sudo ls -l /var/lib/lxd/containers/cent01
+合計 12
+-rw-r--r--  1 root   root    628  1月  1  1970 metadata.yaml
+dr-xr-xr-x 18 100000 100000 4096  5月  6 18:56 rootfs
+drwxr-xr-x  2 root   root   4096  5月  6 18:56 templates
+1$ sudo ls -l /var/lib/lxd/containers/cent01/rootfs/
+合計 64
+lrwxrwxrwx  1 100000 100000    7  5月  6 11:25 bin -&gt; usr/bin
+dr-xr-xr-x  2 100000 100000 4096  8月 12  2015 boot
+drwxr-xr-x  4 100000 100000 4096  5月  6 11:25 dev
+drwxr-xr-x 55 100000 100000 4096  5月  7 12:13 etc
+drwxr-xr-x  2 100000 100000 4096  8月 12  2015 home
+lrwxrwxrwx  1 100000 100000    7  5月  6 11:25 lib -&gt; usr/lib
+lrwxrwxrwx  1 100000 100000    9  5月  6 11:25 lib64 -&gt; usr/lib64
+drwxr-xr-x  2 100000 100000 4096  8月 12  2015 media
+drwxr-xr-x  2 100000 100000 4096  8月 12  2015 mnt
+drwxr-xr-x  2 100000 100000 4096  8月 12  2015 opt
+dr-xr-xr-x  2 100000 100000 4096  8月 12  2015 proc
+dr-xr-x---  3 100000 100000 4096  5月  7 03:42 root
+drwxr-xr-x  7 100000 100000 4096  5月  6 11:25 run
+lrwxrwxrwx  1 100000 100000    8  5月  6 11:25 sbin -&gt; usr/sbin
+drwxr-xr-x  2 100000 100000 4096  5月  6 11:25 selinux
+drwxr-xr-x  2 100000 100000 4096  8月 12  2015 srv
+dr-xr-xr-x  2 100000 100000 4096  8月 12  2015 sys
+drwxrwxrwt  7 100000 100000 4096  5月  7 12:54 tmp
+drwxr-xr-x 13 100000 100000 4096  5月  6 11:25 usr
+drwxr-xr-x 19 100000 100000 4096  5月  6 18:56 var
+</code></pre><p>イメージのファイルは <code>/var/lib/lxd/images/</code> にありました。 <code>lxc image list</code> で表示されるフィンガープリント名のファイルとフィンガープリントに <code>.rootfs</code> を追加した名前のファイルがあります。調べてみるとtar.xz形式のファイルになっていました。</p>
+<pre><code>$ sudo ls -l /var/lib/lxd/images/
+合計 205244
+-rw-r--r-- 1 root root       588  5月  6 18:54 a027d59858d663fb2bc12b5ba767e92196a4aee8dbb2a607db53d718b91eb5d2
+-rw-r--r-- 1 root root  65931516  5月  6 18:55 a027d59858d663fb2bc12b5ba767e92196a4aee8dbb2a607db53d718b91eb5d2.rootfs
+-rw-r--r-- 1 root root       792  5月  3 20:32 f4c4c60a6b752a381288ae72a1689a9da00f8e03b732c8d1b8a8fcd1a8890800
+-rw-r--r-- 1 root root 144223868  5月  3 20:46 f4c4c60a6b752a381288ae72a1689a9da00f8e03b732c8d1b8a8fcd1a8890800.rootfs
+$ sudo file /var/lib/lxd/images/a027d59858d663fb2bc12b5ba767e92196a4aee8dbb2a607db53d718b91eb5d2
+/var/lib/lxd/images/a027d59858d663fb2bc12b5ba767e92196a4aee8dbb2a607db53d718b91eb5d2: XZ compressed data
+$ sudo file /var/lib/lxd/images/a027d59858d663fb2bc12b5ba767e92196a4aee8dbb2a607db53d718b91eb5d2.rootfs
+/var/lib/lxd/images/a027d59858d663fb2bc12b5ba767e92196a4aee8dbb2a607db53d718b91eb5d2.rootfs: XZ compressed data
+$ sudo tar tvf /var/lib/lxd/images/a027d59858d663fb2bc12b5ba767e92196a4aee8dbb2a607db53d718b91eb5d2
+-rw-r--r-- 0/0             239 1970-01-01 09:00 templates/hosts.tpl
+-rw-r--r-- 0/0             628 1970-01-01 09:00 metadata.yaml
+-rw-r--r-- 0/0              21 1970-01-01 09:00 templates/hostname.tpl
+$ sudo tar tvf /var/lib/lxd/images/a027d59858d663fb2bc12b5ba767e92196a4aee8dbb2a607db53d718b91eb5d2.rootfs | head
+dr-xr-xr-x 0/0               0 2016-05-06 11:25 ./
+drwxr-xr-x 0/0               0 2016-05-06 11:25 ./dev/
+crw-rw-rw- 0/0             5,2 2016-05-06 11:25 ./dev/ptmx
+prw------- 0/0               0 2016-05-06 11:25 ./dev/initctl
+crw-rw-rw- 0/0             1,7 2016-05-06 11:25 ./dev/full
+crw------- 0/0             5,1 2016-05-06 11:25 ./dev/console
+crw-rw-rw- 0/0             4,4 2016-05-06 11:25 ./dev/tty4
+crw-rw-rw- 0/0             4,3 2016-05-06 11:25 ./dev/tty3
+crw-rw-rw- 0/0             4,2 2016-05-06 11:25 ./dev/tty2
+crw-rw-rw- 0/0             4,1 2016-05-06 11:25 ./dev/tty1
+</code></pre><p><code>/var/lib/lxd/</code> には他にもディレクトリやファイルが存在しています。</p>
+<pre><code>$ ls -l /var/lib/lxd
+合計 84
+drwx--x--x 5 root root  4096  5月  7 12:54 containers
+drwx--x--x 5 root root  4096  5月  7 12:54 devices
+drwxr-xr-x 2 root root  4096  5月  7 19:41 devlxd
+drwx------ 2 root root  4096  5月  7 06:13 images
+-rw-r--r-- 1 root root 43008  5月  7 19:46 lxd.db
+drwx------ 4 root root  4096  5月  3 20:46 security
+-rw-r--r-- 1 root root  2004  5月  3 20:26 server.crt
+-rw------- 1 root root  3247  5月  3 20:26 server.key
+drwx--x--x 5 root root  4096  5月  7 12:54 shmounts
+drwx------ 2 root root  4096  5月  3 20:26 snapshots
+srw-rw---- 1 root lxd      0  5月  7 12:51 unix.socket
+</code></pre>
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

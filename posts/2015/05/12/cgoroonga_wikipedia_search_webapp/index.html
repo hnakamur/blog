@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>groongaのgoバインディングでWikipedia全文検索のサンプルウェブアプリを作ってみた &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>groongaのgoバインディングでWikipedia全文検索のサンプルウェブアプリを作ってみた</h1>
+  <time datetime=2015-05-12T21:24:11&#43;0900 class="post-date">2015-05-12</time>
+  <p><a href="http://hnakamur.github.io/blog/2015/04/27/cgoroonga/">データ登録用にgroongaのC APIのgoバインディングを書いてみた · hnakamur's blog at github</a>の続きで、APIを追加実装し、Wikipedia全文検索のサンプルウェブアプリを作ってみました。</p>
+<h2 id="heading">ソースコード</h2>
+<p>ウェブアプリのソースは
+<a href="https://github.com/hnakamur/cgoroonga/tree/master/examples/search_wikipedia_webapp">https://github.com/hnakamur/cgoroonga/tree/master/examples/search_wikipedia_webapp</a>
+にあります。</p>
+<p>GroongaのC APIについては<a href="http://groonga.org/ja/docs/reference/api.html">7.20. API — Groonga v5.0.3ドキュメント</a>を見つつ、ドキュメント化されていないものは<a href="https://github.com/groonga/groonga">groongaのソース</a>を見て、goバインディングを作りました。</p>
+<p>goバインディングもウェブアプリもとりあえず全文検索の動作確認ができればいいやということで、ゆるい感じで書いています。</p>
+<p>ウェブアプリのサーバサイドのソースは
+<a href="https://github.com/hnakamur/cgoroonga/blob/master/examples/search_wikipedia_webapp/main.go">https://github.com/hnakamur/cgoroonga/blob/master/examples/search_wikipedia_webapp/main.go</a>
+で、groongaのgoバインディングのソースは
+<a href="https://github.com/hnakamur/cgoroonga">https://github.com/hnakamur/cgoroonga</a>
+の <code>*.go</code> です。</p>
+<h2 id="heading-1">フロントエンドについては別記事で</h2>
+<p>フロントエンドは<a href="http://qiita.com/shibukawa/items/890d24874655439932ec">最速MVCフレームワークMithril.jsの速度の秘密 - Qiita</a>の記事を見て気になっていたので、<a href="https://lhorie.github.io/mithril/">Mithril</a>で書いてみました。こちらについては別記事<a href="/blog/2015/05/12/tried_mithril_js/">mithril.jsを試してみた</a>に書きました。</p>
+<h2 id="heading-2">インデクスの作成</h2>
+<p>groongaコマンドで以下のようにして作成しました。約27分かかりました。</p>
+<pre><code>$ echo 'column_create --table ArticleIndexes --name article_index --flags COLUMN_INDEX|WITH_POSITION|WITH_SECTION --type Articles --source _key,text' | time groonga ~/work/groonga/db/wikipedia.db
+[[0,1431052924.67975,1555.13576507568],true]
+     1660.80 real      1135.40 user       146.29 sys
+</code></pre><p>Wikipediaのページタイトルと本文の両方を対象に検索したいので、 <code>--source</code> には _keyカラム (タイトル) と text カラム (本文) の両方を指定しました。</p>
+<h2 id="80250ms">検索の応答は約80〜250ms程度と満足な早さ</h2>
+<ul>
+<li>動作環境
+<ul>
+<li>マシン: MacBook Pro 15inch (Retina, Mid 2012) SSD</li>
+<li>CPU: Intel Core i7 2.6GHz</li>
+<li>RAM: 16GB 1600MHz DDR3</li>
+</ul>
+</li>
+<li>データサイズ
+<ul>
+<li>データファイルの合計サイズ: 188MB</li>
+<li>データ件数: 約193万件</li>
+</ul>
+</li>
+</ul>
+<pre><code>$ du -sm ~/work/groonga/db
+18848 /Users/hnakamur/work/groonga/db
+$ echo 'select Articles --limit 0' | groonga ~/work/groonga/db/wikipedia.db
+[[0,1431434283.68242,0.00117397308349609],[[[1932736],[[&quot;_id&quot;,&quot;UInt32&quot;],[&quot;_key&quot;,&quot;ShortText&quot;],[&quot;text&quot;,&quot;Text&quot;],[&quot;updated_at&quot;,&quot;Time&quot;]]]]]
+</code></pre><p>JSON形式の検索APIの応答が約80〜250ms程度で、快適に検索できました。
+Groongaすごいですね！</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

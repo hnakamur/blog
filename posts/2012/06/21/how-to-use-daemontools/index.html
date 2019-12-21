@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>daemontoolsの使い方 &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>daemontoolsの使い方</h1>
+  <time datetime=2012-06-21T00:00:00Z class="post-date">2012-06-21</time>
+  <p><a href="http://www.nslabs.jp/daemontools.rhtml">daemontoolsを使う | Netsphere Laboratories</a>を参考にしました。ありがとうございます。</p>
+<h2 id="heading">私的ルール</h2>
+<h3 id="servicedisabled">無効化したサービスは/service/.disabled/に移動</h3>
+<p>/service/以下に.で始まるフォルダ名にすると無視されるということですが、my_service_nameを.my_service_nameと変えるのはタイプが面倒なので、/service/.disabledというフォルダを作って無効化するときはその下に移動することにしました。</p>
+<h3 id="service">作業するときは/serviceに移動</h3>
+<p>svcやsvstatにフルパスを指定しても動くのですが、/service/と/service/.disabled間で移動するときにタイプ量が増えるので、最初にcd /serviceしてから作業することにしました。</p>
+<h2 id="heading-1">手順</h2>
+<h3 id="heading-2">サービス追加</h3>
+<p>node-virtualhost1.example.comという名前でサービスを追加する例。
+exec -cの後はサービスに応じて変更します。</p>
+<pre><code>cd /service
+mkdir -p .disabled/node-virtualhost1.example.com
+cat &lt;&lt;EOF &gt; .disabled/node-virtualhost1.example.com/run
+#!/bin/sh
+exec -c /usr/local/node-v0.6.19/bin/node /var/www/app/virtualhost1.example.com/hello.js
+EOF
+chmod 755 .disabled/node-virtualhost1.example.com/run
+</code></pre><h3 id="heading-3">サービス有効化</h3>
+<pre><code>cd /service
+mv .disabled/node-virtualhost1.example.com .
+</code></pre><h4 id="heading-4">状態確認</h4>
+<pre><code># svstat node-virtualhost1.example.com/
+node-virtualhost1.example.com/: up (pid 1493) 3 seconds
+</code></pre><h3 id="heading-5">サービス無効化</h3>
+<pre><code>cd /service
+mv node-virtualhost1.example.com .disabled/
+svc -tx .disabled/node-virtualhost1.example.com
+</code></pre><h4 id="heading-6">状態確認</h4>
+<pre><code># svstat .disabled/node-virtualhost1.example.com/
+.disabled/node-virtualhost1.example.com/: supervise not running
+</code></pre><h3 id="down">サービス一時停止(Down)</h3>
+<pre><code>cd /service
+svc -d node-virtualhost1.example.com
+</code></pre><h4 id="heading-7">状態確認</h4>
+<pre><code># svstat node-virtualhost1.example.com/
+node-virtualhost1.example.com/: down 1 seconds, normally up
+</code></pre><h3 id="up">サービス一時停止からの再開(Up)</h3>
+<pre><code>cd /service
+svc -u node-virtualhost1.example.com
+</code></pre><h4 id="heading-8">状態確認</h4>
+<pre><code># svstat node-virtualhost1.example.com/
+node-virtualhost1.example.com/: up (pid 1512) 1 seconds
+</code></pre>
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Ubuntuのデスクトップ環境でsshのパスフレーズ入力を1回だけにする &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Ubuntuのデスクトップ環境でsshのパスフレーズ入力を1回だけにする</h1>
+  <time datetime=2018-05-21T16:10:00&#43;0900 class="post-date">2018-05-21</time>
+  <p>Ubuntuのデスクトップ環境でssh-agentを使ってsshのパスフレーズ入力を1回だけで良いようにするための設定メモです。</p>
+<p>といっても、
+<a href="http://www.clear-code.com/blog/2017/11/8.html">Windows 10のWindows Subsystem for Linux（WSL）を日常的に活用する - ククログ(2017-11-08)</a>
+に書かれていたスクリプトをほぼそのまま頂いただけです。</p>
+<p>ただしUbuntuのデスクトップ環境では「自動起動するプログラム」の「SSH鍵エージェント」で
+<code>/usr/bin/gnome-keyring-daemon --start --components=ssh</code> というコマンドでssh-agentが起動されるので、ssh-agentを起動する部分は外して以下のようにしました。</p>
+<p>ssh-add の後のファイル名は適宜変更してください。</p>
+<div class="highlight"><pre class="chroma"><code class="language-sh" data-lang="sh"><span class="nv">SSH_AGENT_FILE</span><span class="o">=</span><span class="nv">$HOME</span>/.ssh-agent
+<span class="nb">test</span> -f <span class="nv">$SSH_AGENT_FILE</span> <span class="o">&amp;&amp;</span> <span class="nb">source</span> <span class="nv">$SSH_AGENT_FILE</span>
+<span class="k">if</span> ! ssh-add -l &gt; /dev/null 2&gt;<span class="p">&amp;</span>1<span class="p">;</span> <span class="k">then</span>
+  ssh-agent &gt; <span class="nv">$SSH_AGENT_FILE</span>
+  <span class="nb">source</span> <span class="nv">$SSH_AGENT_FILE</span>
+  ssh-add <span class="nv">$HOME</span>/.ssh/id_rsa
+<span class="k">fi</span>
+</code></pre></div><p>この内容を <code>~/.bashrc</code> に追加しておけばターミナルを開いたときに一度だけパスフレーズを入力すれば良くなります。</p>
+<p>一時的にsshは不要というときは、パスフレーズのプロンプトでCtrl+Cを押せばスキップできます。その場合端末を開いてbashを起動する度にプロンプトが出てくるので、一度パスフレーズを入力すれば以降は不要になります。</p>
+<p>2018-05-29追記。おもいっきり勘違いしてて「ssh-agentを起動する部分は外して」と書いてるくせに全然外してませんでした。これだとUbuntu Keyringから <code>/usr/bin/ssh-agent /usr/bin/im-launch mate-session</code> として起動しているssh-agentともう一つ別に起動してしまいます。</p>
+<p>ということで、以下のように修正しました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-sh" data-lang="sh"><span class="nv">ssh_private_key_path</span><span class="o">=</span><span class="s2">&#34;</span><span class="nv">$HOME</span><span class="s2">/.ssh/id_rsa</span><span class="s2">&#34;</span>
+<span class="k">if</span> ! ssh-add -l <span class="p">|</span> grep -q <span class="s2">&#34;</span><span class="nv">$ssh_private_key_path</span><span class="s2"> </span><span class="s2">&#34;</span><span class="p">;</span> <span class="k">then</span>
+  ssh-add <span class="s2">&#34;</span><span class="nv">$ssh_private_key_path</span><span class="s2">&#34;</span>
+<span class="k">fi</span>
+</code></pre></div><p>grepで最後に空白を含めているのは <code>$HOME/.ssh/id_rsa.foo</code> のような別の鍵がもしあったときに誤判定しないようにするためです。</p>
+<p><code>ssh-add -l</code> の出力が以下のような感じになっていました（SHA256の後は伏せています）。</p>
+<pre><code class="language-console" data-lang="console">$ ssh-add -l
+2048 SHA256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx /home/hnakamur/.ssh/id_rsa (RSA)
+4096 SHA256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx myapp deploy (RSA)
+2048 SHA256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  (RSA)
+</code></pre><p>また今回は関係ないですが <code>~/.ssh/id_rsa.myapp.deploy</code> と <code>~/.ssh/id_rsa.myapp.deploy.pub</code> のようなパスフレーズ無しの鍵ペアで公開鍵の方にコメントを入れていると、2行目のようにコメントで表示されるようです。</p>
+<p>2019-06-09追記。公開鍵にコメント入れると上のスクリプトでは ssh-add を繰り返してしまうので、以下のように修正しました。fingerprintには <code>+</code> が入ることがあったので grep には <code>-F</code> を指定しています。</p>
+<div class="highlight"><pre class="chroma"><code class="language-sh" data-lang="sh"><span class="nv">ssh_private_key_path</span><span class="o">=</span><span class="s2">&#34;</span><span class="nv">$HOME</span><span class="s2">/.ssh/id_ed25519</span><span class="s2">&#34;</span>
+<span class="nv">ssh_private_key_fingerprint</span><span class="o">=</span><span class="s2">&#34;SHA256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&#34;</span>
+<span class="k">if</span> ! ssh-add -l <span class="p">|</span> grep -q -F <span class="s2">&#34;</span><span class="nv">$ssh_private_key_fingerprint</span><span class="s2"> </span><span class="s2">&#34;</span><span class="p">;</span> <span class="k">then</span>
+  ssh-add <span class="s2">&#34;</span><span class="nv">$ssh_private_key_path</span><span class="s2">&#34;</span>
+<span class="k">fi</span>
+</code></pre></div><p>上記の fingerprint の値は以下のコマンドで調べて指定します。</p>
+<div class="highlight"><pre class="chroma"><code class="language-sh" data-lang="sh">ssh-keygen -l -f ~/.ssh/id_ed25519
+</code></pre></div>
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>
