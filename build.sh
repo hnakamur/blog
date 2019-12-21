@@ -1,1 +1,0 @@
-pelican -o public content
