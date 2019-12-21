@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>データ登録用にgroongaのC APIのgoバインディングを書いてみた &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>データ登録用にgroongaのC APIのgoバインディングを書いてみた</h1>
+  <time datetime=2015-04-27T00:44:23&#43;0900 class="post-date">2015-04-27</time>
+  <h2 id="groonga">groongaで大量のデータを登録する方法を調べてみた</h2>
+<h3 id="1-loadgroonga">方法1: loadコマンドの文字列を組み立ててgroongaコマンドの標準入力に流し込む</h3>
+<p>groongaのデータの登録はチュートリアルの<a href="http://groonga.org/ja/docs/tutorial/introduction.html#load-records">データのロード</a>にあるように<a href="http://groonga.org/ja/docs/reference/commands/load.html">loadコマンド</a>を使えば出来ます。</p>
+<p>外部ファイルから大量のデータを登録するときはどうするのかなと思って調べてみると、 groongaのソースの examples/dictionary/eijiro/ の例では <code>load</code> コマンドの文字列を組み立てて <code>groonga</code> コマンドの標準入力に流し込んでいました。</p>
+<p><a href="https://github.com/groonga/groonga/blob/59ef5d1d26b4ba47d163019a21a20519d349489b/examples/dictionary/eijiro/eijiro-import.sh#L10-L12">https://github.com/groonga/groonga/blob/59ef5d1d26b4ba47d163019a21a20519d349489b/examples/dictionary/eijiro/eijiro-import.sh#L10-L12</a></p>
+<pre><code>if iconv -f UCS2 -t UTF8 $2 | ${base_dir}/eijiro2grn.rb | groonga $1 &gt; /dev/null; then
+  echo &quot;eijiro data loaded.&quot;
+fi
+</code></pre><h3 id="2-groongac-api">方法2: groongaのC APIを使う</h3>
+<p>この方法はお手軽ですが、エラー処理が難しそうと重い、さらに調べてみると、groongaのC APIを使ってデータ登録する例を見つけました。</p>
+<p><a href="http://createfield.com/C%E8%A8%80%E8%AA%9E%E3%81%A7Groonga%E3%81%AEAPI%E3%82%92%E4%BD%BF%E3%81%86%E6%96%B9%E6%B3%95">C言語でGroongaのAPIを使う方法 - CreateField</a></p>
+<h2 id="go">go言語用のライブラリを作ってみました</h2>
+<p>折角なのでCのライブラリのgo言語バインディングを作る練習を兼ねてgo言語用のライブラリを作ってみました。</p>
+<p><a href="https://github.com/hnakamur/cgoroonga">hnakamur/cgoroonga</a></p>
+<h3 id="1">テーブルとカラムを作ってレコードを1件登録するサンプルコード</h3>
+<p><a href="https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/add_record/main.go">https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/add_record/main.go</a></p>
+<p>OSX + homebrewという環境で試しました。</p>
+<pre><code>brew install groonga
+</code></pre><p>でgroongaをインストールして、以下の手順で実行します。</p>
+<pre><code>go get github.com/hnakamur/cgoroonga
+cd $GOPATH/src/github.com/hnakamur/cgoroonga/examples/add_record
+go build
+./add_record
+</code></pre><h3 id="wikipedia">Wikipedia日本語版の記事データを登録するサンプルコード</h3>
+<p><a href="https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/import_wikipedia/main.go">https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/import_wikipedia/main.go</a></p>
+<p>データファイルは
+<a href="http://dumps.wikimedia.org/jawiki/20150422/">jawiki dump progress on 20150422</a>
+から以下の4つのファイルをダウンロードしました。</p>
+<ul>
+<li>jawiki-20150422-pages-articles1.xml.bz2</li>
+<li>jawiki-20150422-pages-articles2.xml.bz2</li>
+<li>jawiki-20150422-pages-articles3.xml.bz2</li>
+<li>jawiki-20150422-pages-articles4.xml.bz2</li>
+</ul>
+<p>Wikipediaのデータファイルはxmlをbzip2で圧縮した形式になっているので、Goの標準ライブラリの<a href="http://golang.org/pkg/compress/bzip2/">bzip2</a>と<a href="http://golang.org/pkg/encoding/xml/">xml</a>パッケージを使って読み込むようにしています。</p>
+<p>サイズの大きいXMLファイルを読み込んで処理するときにおすすめの方法が
+<a href="http://blog.davidsingleton.org/parsing-huge-xml-files-with-go/">Parsing huge XML files with Go - david singleton</a>で紹介されていたので、それを真似しました。ありがとうございます！</p>
+<pre><code>cd $GOPATH/src/github.com/hnakamur/cgoroonga/examples/import_wikipedia
+go build
+./import_wikipedia jawiki-20150422-pages-articles1.xml.bz2
+</code></pre><p>のように実行します。</p>
+<h2 id="cgotips">Cライブラリのgoバインディングを書くときのtips</h2>
+<p>基本的には</p>
+<ul>
+<li><a href="https://golang.org/cmd/cgo/">cgo - The Go Programming Language</a></li>
+<li><a href="https://github.com/golang/go/wiki/cgo">cgo · golang/go Wiki</a></li>
+</ul>
+<p>を読めばOKなのですが、ハマった点をメモしておきます。</p>
+<h3 id="import-c">import &ldquo;C&quot;の上に空行を入れないように注意</h3>
+<p>たとえば
+<a href="https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/column.go#L7">https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/column.go#L7</a>
+で <code>import &quot;C&quot;</code> の上に空行を入れて <code>go build</code> を実行すると以下の様なエラーになります。</p>
+<pre><code>$ go build
+# github.com/hnakamur/cgoroonga
+could not determine kind of name for C.free
+could not determine kind of name for C.grn_column_create
+could not determine kind of name for C.grn_obj_column
+could not determine kind of name for C.grn_obj_flags
+could not determine kind of name for C.strlen
+</code></pre><h3 id="cgoc">Cのマクロはgoから呼べないのでCの関数でラップする</h3>
+<p><a href="https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/cgoroonga.c">https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/cgoroonga.c</a>
+のようにマクロをラップしたCの関数を書いて、それをgoから呼ぶようにします。</p>
+<h3 id="heading">エラーコードが有るエラーと無いエラーを統一的に扱うようにした</h3>
+<p>groongaのC APIはほとんどが<a href="http://groonga.org/ja/docs/reference/api/grn_table.html">7.20.21. grn_table — Groonga v5.0.2ドキュメント</a>の <a href="http://groonga.org/ja/docs/reference/api/grn_table.html#c.grn_table_delete">grn_table_delete</a>  のように <a href="https://github.com/groonga/groonga/blob/v5.0.2/include/groonga/groonga.h#L44-L125">grn_rc</a> を返します。</p>
+<p>が、 <a href="http://groonga.org/ja/docs/reference/api/grn_table.html#c.grn_table_create">grn_table_create</a></p>
+<pre><code>grn_obj *grn_table_create(grn_ctx *ctx, const char *name, unsigned int name_size, const char *path, grn_obj_flags flags, grn_obj *key_type, grn_obj *value_type)
+</code></pre><p>のように <code>grn_rc</code> を返さないAPIもあります。ドキュメントには明記されていませんが、Cの慣例としてエラーのときはおそらく戻り値が <code>NULL</code> になるのだと予想します。</p>
+<p><a href="https://github.com/groonga/groonga/blob/v5.0.2/lib/db.c#L744-L930">https://github.com/groonga/groonga/blob/v5.0.2/lib/db.c#L744-L930</a> を見るとやはりNULLを返すケースが有りました。</p>
+<p>そこで、
+<a href="https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/error.go">https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/error.go</a>
+のようにエラーコードが有るエラーと無いエラーを全てGoの変数として定義するようにしてみました。</p>
+<p>これにより
+<a href="https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/import_wikipedia/main.go#L59-L63">https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/import_wikipedia/main.go#L59-L63</a></p>
+<pre><code>	table, err := ctx.TableOpenOrCreate(&quot;Articles&quot;, &quot;&quot;,
+		grn.OBJ_TABLE_HASH_KEY|grn.OBJ_PERSISTENT, keyType, nil)
+	if err != nil {
+		return
+	}
+</code></pre><p>のようにエラーを常に戻り値で受け取るように統一することができ、見通しのよいコードが実現できました。</p>
+<h2 id="heading-1">まとめ</h2>
+<p>データ登録用にgroongaのC APIのgoバインディングを書きました。
+C APIがエラーコードを返さない場合でもGo側ではエラーを返し <code>if err != nil</code> というのようにエラーチェックの方式を統一することで、エラー処理の漏れに気づきやすくする事が出来ました。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

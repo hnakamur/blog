@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Chef-soloとAnsibleとFabricを試した感想 &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Chef-soloとAnsibleとFabricを試した感想</h1>
+  <time datetime=2013-09-01T00:00:00Z class="post-date">2013-09-01</time>
+  <p>Chef-soloとAnsibleとFabricを試してみたので感想をメモ。どれもそんなに深くは使い込んではいない。</p>
+<p>このメモは自分の脳内の考えを整理するためのもので、人が使うことについてどうこう言うつもりはないです。</p>
+<h2 id="chef-solo">Chef-solo</h2>
+<ul>
+<li>書いてみたcookbookはこちら。<a href="https://github.com/hnakamur/chef-cookbooks">hnakamur/chef-cookbooks</a> <a href="https://github.com/hnakamur/chef-repo">hnakamur/chef-repo</a></li>
+<li>クックブックは手順を書くのではなくて結果を書くというのがどうも本質的に違うと私は思ってしまう。料理のレシピだって手順を書くし。書結果がこうあるべきというのはserverspecが出来た今となってはそちらに任せて、クックブックは本来手順を書くべきものだと思う。</li>
+<li>RubyのDSLだけど結局上から順に評価されるので、実は手続きを書いていることになっている。でもファイル単位でしか再利用できないので、一部だけ使いたいと思ってコピペするしかなくなるのが悲しい。</li>
+<li>Berkshelfでコミュニティクックブックをダウンロードして、ラッパークックブックを書くのがベストプラクティスってのが、無駄な苦行に思えてどうしても受け入れられない。自分のニーズに合わせて一から書くほうが早いしコンパクトで見やすい。これってDSLだからそうなるのかなー。</li>
+<li>もしDSLではなくRubyのクラスとして定義するようになっていて、各タスクをメソッドとして定義するようになっていたら、もっと再利用しやすかったのではないかと思う。それってむしろrakeのほうが近い気がする。<a href="http://rubyhitsquad.com/Vlad_the_Deployer.html">Vlad the Deployer</a>とかVladから切りだされた<a href="http://rubygems.org/gems/rake-remote_task">rake-remote_task | RubyGems.org | your community gem host</a>ベースで組み立てる感じ。なんでVladは人気出なかったのかな～。Capistranoよりいいと思うんだけど。</li>
+</ul>
+<h2 id="ansible">Ansible</h2>
+<ul>
+<li>書いてみたplaybookはこちら。<a href="https://github.com/hnakamur/ansible-playbooks">hnakamur/ansible-playbooks</a></li>
+<li>手続きを記述するのにyamlというのは力不足。基本は順次処理で実行条件で実行するしないの制御ができるだけ。単一のタスクではパラメータでループはできるけど、複数のタスクをまとめてループとかはできない。</li>
+<li>モジュールとして用意されている処理はすっきり書けるが、そうでない場合はshellモジュールでゴリゴリ書くか自前モジュールを作るかになる。自前モジュールを作るのは簡単だが配布の仕組みが確立されていないので、自前でコピーする必要がある。</li>
+<li>やはり手続きはプログラミング言語で記述するほうが自由度は高いと感じた。</li>
+</ul>
+<p>2013-09-02 追記</p>
+<ul>
+<li>訂正です。自作モジュール配布の仕組みは標準で用意されていました。libraryフォルダにモジュールを置いておけば自動で読み込まれます。<a href="http://www.ansibleworks.com/docs/bestpractices.html#bundling-ansible-modules-with-playbooks">Bundling Ansible Modules With Playbooks</a></li>
+<li>それ以外の場所に置きたい場合は環境変数ANSIBLE_LIBRARYを設定するかコマンドラインオプションに&ndash;module-pathを指定すればOKです。 <a href="http://www.ansibleworks.com/docs/moduledev.html#module-development">Module Development | AnsibleWorks</a></li>
+<li><a href="https://twitter.com/r_rudi">しろう</a>さん、<a href="https://twitter.com/r_rudi/status/374375071000702976">ご指摘</a>ありがとうございました！</li>
+</ul>
+<h2 id="fabric">Fabric</h2>
+<ul>
+<li>書いてみたfabfileはこちら。<a href="https://github.com/hnakamur/my-fabfiles">hnakamur/my-fabfiles</a></li>
+<li>Pythonで手続きを書けるので、処理の流れは自由に書けて良い。</li>
+<li>rpmがインストール済みならダウンロードしないといった処理も自然に書ける。chefやansibleだと素直に書くとsha256sumを計算するという処理が毎回走ってしまう。自分で条件判定処理を記述して実行条件をつければ可能だが、ごちゃごちゃして見づらくなる。</li>
+<li>細かく関数に分けておけば必要なところだけの再利用も簡単。</li>
+<li>Ansibleのモジュールのようなものも、ユーティリティ関数を書くだけの話なので、レシピを書くのとなんら変わらない。レシピとモジュールの開発を同じ枠組みでできるのは便利。モジュールつくって本家にpull requestとかしなくてもすぐ使えるし。</li>
+<li>基本的にはコマンドを順次実行するだけという思想なので、冪等性について考慮した設計になってないのは不便。</li>
+<li>vagrantでfabricでprovisionするプラグインも作ってみた。 <a href="https://github.com/hnakamur/vagrant-fabric-provisioner">hnakamur/vagrant-fabric-provisioner</a></li>
+<li>テンプレートからファイル生成も標準では毎回上書きされてしまう。Ansibleと同じようにチェックサムを計算して違う時だけ上書きするような関数を自作してみた。<a href="https://github.com/hnakamur/my-fabfiles/blob/master/fabfile/common/lib/template.py">my-fabfiles/fabfile/common/lib/template.py at master · hnakamur/my-fabfiles</a> 変更したかどうかも戻り値で返すようにした。これによって変更した場合だけサービス再起動とかは可能になった。</li>
+<li>が、本当はchefのnotificationのように、ホスト毎の処理が終わった後にサービス再起動をまとめて実行したいところ。post-processキューみたいな仕組みが必要そう。</li>
+<li>処理をpythonで書けるのはいいのだが、リモートでの処理は基本コマンド実行になるのでpythonで直接ファイルを読み書きとかは出来ない。これがもどかしい感じ。</li>
+<li>今バージョン1.7で2.0でオーバーホールするRoadmapのようだがどうなっていくかまだわからない感じ。</li>
+</ul>
+<h2 id="heading">思いつき</h2>
+<ul>
+<li>ふと思いついたのだが、Goでライブラリを用意してレシピもGoで書くのは面白いかも。</li>
+<li>Goならクロスコンパイルも簡単なので、ターゲットマシン用のバイナリを生成してrsync/scpでコピーしてターゲットマシン上で実行するという手が使える。するとファイルの読み書きもコマンド実行でもGoの関数からでもどちらでも実行できる。</li>
+<li>dockerみたいに一つのバイナリで複数の役割を持てせるようにすれば、デーモンとして実行しておいて、さらにsshからコマンド実行して制御ということも可能かも。あるいはエージェントみたいにして相互通信とかサーバと通信して連携するという道も有り得る。</li>
+<li>よくよく考えたら別にGoでなくても、言語処理系とライブラリとレシピのファイルをrsyncで送り込んで実行すれば同じか。</li>
+<li>でもGoならタスクキューとか作ってgoroutineで並列処理したり、channelで連携制御したりというのが書きやすそうなので夢は広がるな〜。</li>
+</ul>
+<p>まずはローカルでコマンド実行するとか、テンプレートからファイル生成する（但し変更が無い場合は上書きしない）ユーティリティ関数群のライブラリを作ってみようということで今作り中。</p>
+<p>他にもいろいろやることがあるので、ツールとして完成するところまで行くかは期待薄。でも、ツールとしては完成しなくてもユーティリティ関数のライブラリでも有効活用できるしGoの勉強にもなるので、気が向いた時にマイペースでやってみよう。</p>
+<p>2013-09-02 追記その2</p>
+<ul>
+<li><a href="http://qiita.com/hnakamur/items/b20458110777c3ceea3a">Ansibleで自作モジュールを作成してplaybookと一緒に配布 - Qiita [キータ]</a>に書きましたが、Ansibleのモジュール作成は簡単です。一定のルールに従ってスクリプトファイルを作るだけです。</li>
+<li>しかも、今頃気づいたのですが、モジュールはターゲットマシン上で実行されます。なので、例えばPythonで書く場合は直接ターゲットマシン上のファイルを読み書きできるわけです。</li>
+<li>ということで、FabricはPythonだけどターゲットマシン上で実行されないのでもどかしいと思っていた問題はAnsibleのモジュールでは無関係です。</li>
+<li>あとは、処理のフローが複雑な箇所はモジュールとして実装することにすれば、全体の流れはyamlで順次処理というのでも殆どの場合はカバーできるような気がしてきました。</li>
+</ul>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

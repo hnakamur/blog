@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Windows10のパーティションを縮小するために移動できないファイルを消す &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Windows10のパーティションを縮小するために移動できないファイルを消す</h1>
+  <time datetime=2018-04-02T00:16:00&#43;0900 class="post-date">2018-04-02</time>
+  <h1 id="heading">はじめに</h1>
+<p>WindowsとUbuntuでデュアルブートするためにWindowsのパーティションを縮小
+するのですが、前回試したときは移動できないファイルがあるというようなことを
+言われてあまり縮小できませんでした。</p>
+<p>その後調べてみると移動できないファイルを一時的に削除して、もっと縮小できた
+のでメモです。今回試したのはWindows 10 Proです。</p>
+<h1 id="url">参考URL</h1>
+<p>以下のページを参考にしました。有用な情報に感謝です。</p>
+<ul>
+<li><a href="https://superuser.com/questions/1017764/how-to-shrink-a-windows-10-partition">hard drive - How to shrink a Windows 10 partition - Super User</a></li>
+<li><a href="https://freesoft.tvbok.com/tips/pc_windows/del_hiberfil_sys.html">ハイバネーション（hiberfil.sys）を無効にする･削除する - ぼくんちのTV 別館</a></li>
+<li><a href="http://backupchain.com/i/how-to-delete-all-vss-shadows-and-orphaned-shadows">How to Delete All VSS Shadows and Orphaned Shadows</a></li>
+<li><a href="https://www.brandonchecketts.com/archives/how-to-shrink-a-partition-with-unmovable-files-in-windows-7">How to shrink a partition with unmovable files in Windows 7 – Brandon Checketts</a></li>
+</ul>
+<h1 id="heading-1">一時的に削除</h1>
+<p>以下の各操作を実行するため、PowerShellを管理者権限で起動します。</p>
+<p>Windowsキーを押してスタートメニューを開き powershell と入力して検索結果に PowerShell が表示されたら、マウスを右クリックして「管理者として実行」メニューを選ぶのが手軽でした。</p>
+<p><a href="http://www.thewindowsclub.com/check-powershell-version-windows">How to check PowerShell version in Windows 10</a> にPowerShellのバージョンの確認方法が書いてありました。私の環境では以下のようになりました。</p>
+<pre><code class="language-console" data-lang="console">PS C:\WINDOWS\system32&gt; $PSversionTable
+
+Name                           Value
+----                           -----
+PSVersion                      5.1.16299.251
+PSEdition                      Desktop
+PSCompatibleVersions           {1.0, 2.0, 3.0, 4.0...}
+BuildVersion                   10.0.16299.251
+CLRVersion                     4.0.30319.42000
+WSManStackVersion              3.0
+PSRemotingProtocolVersion      2.3
+SerializationVersion           1.1.0.1
+</code></pre><h2 id="heading-2">ページファイルを無効にする</h2>
+<p>管理者権限のPowerShellで以下のように実行します。</p>
+<p>ページファイル使用中であることを確認。</p>
+<pre><code class="language-console" data-lang="console">wmic pagefileset list
+</code></pre><p>ページファイルを無効にする。</p>
+<pre><code class="language-console" data-lang="console">wmic computersystem set AutomaticManagedPagefile=False
+wmic pagefileset delete
+</code></pre><p>参考ページでは <code>wmic pagefileset where name=&quot;C:\\pagefile.sys&quot; delete</code> と条件を指定していましたがエラーになってしまったので上記のようにしました。</p>
+<h2 id="heading-3">ハイバネーションを無効にする</h2>
+<p>管理者権限のPowerShellで以下のように実行します。</p>
+<pre><code class="language-console" data-lang="console">powercfg /h off
+</code></pre><p>以下のコマンドで状態を確認できます。</p>
+<pre><code class="language-console" data-lang="console">powercfg /a
+</code></pre><p>実行例（再起動した後に実行しました）。</p>
+<pre><code class="language-console" data-lang="console">PS C:\WINDOWS\system32&gt; powercfg /a
+以下のスリープ状態がこのシステムで利用可能です:
+    スタンバイ (S3)
+
+以下のスリープ状態はこのシステムでは利用できません:
+    スタンバイ (S1)
+	システム ファームウェアはこのスタンバイ状態をサポートしていません。
+
+    スタンバイ (S2)
+	システム ファームウェアはこのスタンバイ状態をサポートしていません。
+
+    休止状態
+	休止状態は有効にされていません。
+
+    スタンバイ (S0 低電力アイドル)
+	システム ファームウェアはこのスタンバイ状態をサポートしていません。
+
+    ハイブリッド スリープ
+	休止状態は使用できません。
+	ハイパーバイザーはこのスタンバイ状態をサポートしていません。
+
+    高速スタートアップ
+	休止状態は使用できません。
+</code></pre><h2 id="heading-4">システム復元を無効にする</h2>
+<p>管理者権限のPowerShellで以下のように実行します。</p>
+<pre><code class="language-console" data-lang="console">Disable-ComputerRestore -Drive C:
+</code></pre><p>よくわからないままコピペで実行してしまいましたが、私は復元ポイントを作っていなかったので、この操作は不要だったかもしれません。</p>
+<ul>
+<li><a href="https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.management/disable-computerrestore?view=powershell-5.1">Disable-ComputerRestore</a> のドキュメント。</li>
+<li>状態確認には <a href="https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.management/get-computerrestorepoint?view=powershell-5.1">Get-ComputerRestorePoint</a> を使うっぽい。</li>
+</ul>
+<h2 id="heading-5">再起動</h2>
+<p>「ページファイルを無効にする」、「ハイバネーションを無効にする」、「システム復元を無効にする」の3つを行った後、Windowsを再起動しました。</p>
+<h1 id="heading-6">さらに削除</h1>
+<h2 id="heading-7">一時ファイルを削除</h2>
+<p><a href="https://pc-karuma.net/windows-10-delete-temporary-files/">Windows10 - 一時ファイルを削除する方法 - PC設定のカルマ</a> の手順で一時ファイルを削除しました。</p>
+<ol>
+<li>コントロールパネルの設定のストレージを選択し、「PC (C:)」のグラフをクリック。</li>
+<li>ストレージ使用量の下の各種内訳グラフが並ぶ中の「一時ファイル」をクリック。</li>
+<li>「一時ファイル」画面で「一時ファイル」、「ダウンロードフォルダー」、「ごみ箱を空にする」のすべてにチェックして「ファイルの削除」ボタンを押す。</li>
+</ol>
+<h1 id="heading-8">ボリュームの縮小を試すもいまいち</h1>
+<p>「ディスクの管理」を開くのはWindowsキーを押してスタートメニューを開き disk と入力して検索結果に表示された「ハードディスク パーティションの作成とフォーマット」を選ぶのが手軽でした。</p>
+<p>C: ドライブを選んでマウス右クリックでポップアップメニューを開き「ボリュームの縮小」を試しましたが、縮小可能な量はまだいまいちでした。</p>
+<h1 id="vss-shadows-">VSS Shadows を削除</h1>
+<p><a href="https://superuser.com/questions/1017764/how-to-shrink-a-windows-10-partition">hard drive - How to shrink a Windows 10 partition - Super User</a> の
+<a href="https://superuser.com/questions/1017764/how-to-shrink-a-windows-10-partition#comment1760829_1060508">May 10 &lsquo;17 at 2:11</a> にVSS Shadowsを全て消す必要があったいうコメントを見つけました。</p>
+<p>検索してみると <a href="http://backupchain.com/i/how-to-delete-all-vss-shadows-and-orphaned-shadows">How to Delete All VSS Shadows and Orphaned Shadows</a> に削除の手順が書かれていました。</p>
+<h2 id="heading-9">移動不可なファイルの確認</h2>
+<p>また、
+<a href="https://www.brandonchecketts.com/archives/how-to-shrink-a-partition-with-unmovable-files-in-windows-7">How to shrink a partition with unmovable files in Windows 7 – Brandon Checketts</a>
+に移動不可なファイルを確認する手順が書かれていました。</p>
+<ol>
+<li>Windowsキーを押してスタートメニューを開き event と入力し検索結果に表示された「イベント ビューアー」を選んで起動します。</li>
+<li>左のツリーで「Windows ログ」/「Application」を選びます。</li>
+<li>右の「操作」のリストで「現在のログをフィルタ」を選び、ダイアログが開いたら「＜すべてのイベントID＞」のテキスト欄をクリックして「259」と入力しリターンキーを押します。</li>
+<li>画面中央の一覧に検索結果が表示されますので一番上の最新のイベントを選択します。</li>
+<li>「操作」/「コピー」/「詳細をテキストとしてコピー」メニューを選び、お好みのテキストエディタでペーストすればファイルのパスを確認できます。</li>
+</ol>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">ログの名前:         Application
+ソース:           Microsoft-Windows-Defrag
+日付:            2018/04/01 22:04:42
+イベント ID:       259
+タスクのカテゴリ:      なし
+レベル:           情報
+キーワード:         クラシック
+ユーザー:          N/A
+コンピューター:       sunshine7
+説明:
+ボリューム Windows (C:) に対して縮小の分析が開始されました。このイベント ログ エントリでは、再利用可能な最大領域 (バイト) の減少を招く可能性のある、最後に移動できなかったファイルについての詳細を提供します。
+ 
+ 診断の詳細:
+ - 最後に移動できなかったと思われるファイル: \$BitMap::$DATA
+ - このファイルの最後のクラスター: 0xbfbfe
+ - 縮小対象の候補 (LCN アドレス): 0x7ca6b7
+ - NTFS ファイル フラグ: -S--D
+ - 縮小フェーズ: &lt;analysis&gt;
+ 
+ このファイルの詳細については、&#34;fsutil volume querycluster \\?\Volume{6a1301d0-ab28-4b33-98ca-e063ddba90bc} 0xbfbfe&#34; コマンドを使用してください。
+イベント XML:
+&lt;Event xmlns=&#34;http://schemas.microsoft.com/win/2004/08/events/event&#34;&gt;
+  &lt;System&gt;
+    &lt;Provider Name=&#34;Microsoft-Windows-Defrag&#34; /&gt;
+    &lt;EventID Qualifiers=&#34;16384&#34;&gt;259&lt;/EventID&gt;
+    &lt;Level&gt;4&lt;/Level&gt;
+    &lt;Task&gt;0&lt;/Task&gt;
+    &lt;Keywords&gt;0x80000000000000&lt;/Keywords&gt;
+    &lt;TimeCreated SystemTime=&#34;2018-04-01T13:04:42.083123700Z&#34; /&gt;
+    &lt;EventRecordID&gt;25945&lt;/EventRecordID&gt;
+    &lt;Channel&gt;Application&lt;/Channel&gt;
+    &lt;Computer&gt;sunshine7&lt;/Computer&gt;
+    &lt;Security /&gt;
+  &lt;/System&gt;
+  &lt;EventData&gt;
+    &lt;Data&gt;Windows (C:)&lt;/Data&gt;
+    &lt;Data&gt;\\?\Volume{6a1301d0-ab28-4b33-98ca-e063ddba90bc}&lt;/Data&gt;
+    &lt;Data&gt;\$BitMap::$DATA&lt;/Data&gt;
+    &lt;Data&gt;0xbfbfe&lt;/Data&gt;
+    &lt;Data&gt;0x7ca6b7&lt;/Data&gt;
+    &lt;Data&gt;-S--D&lt;/Data&gt;
+    &lt;Data&gt;&amp;lt;analysis&amp;gt;&lt;/Data&gt;
+    &lt;Binary&gt;00000000D7000000BF00000000000000223679625372B2B9637B71360E00000000000000&lt;/Binary&gt;
+  &lt;/EventData&gt;
+&lt;/Event&gt;
+</code></pre></div><h2 id="vss-shadows">VSS Shadowsの一覧表示</h2>
+<p>以下のコマンドで一覧を確認しました。</p>
+<pre><code class="language-console" data-lang="console">vssadmin list shadows
+</code></pre><p>すると先ほどイベントビューアに出ていた 6a1301d0-ab28-4b33-98ca-e063ddba90bc と一致するものが一覧に出ていました。</p>
+<h2 id="vss-shadows-1">VSS Shadowsの削除</h2>
+<p>以下のコマンドで削除できました。</p>
+<pre><code class="language-console" data-lang="console">vssadmin delete shadows /all
+</code></pre><h1 id="heading-10">再度ボリュームの縮小を試すと今度は良い感じ</h1>
+<p>今度は縮小可能なサイズがエクスプローラで見た空き容量と同程度になっていました。</p>
+<p>ただ、一気に40GBぐらい縮小しようとしたら作業領域がないという感じのエラーになったので、20GBずつ段階を踏んで縮小したら無事できました。</p>
+<p>最終的にはWindowsのパーティションを80GBにしてみました。</p>
+<h1 id="heading-11">一時的に削除していたのを戻す</h1>
+<h2 id="heading-12">ページファイルを有効にする</h2>
+<pre><code class="language-console" data-lang="console">wmic pagefileset create name=&quot;C:\\pagefile.sys&quot;
+wmic computersystem set AutomaticManagedPagefile=True
+</code></pre><h2 id="heading-13">ハイバネーションを有効にする</h2>
+<pre><code class="language-console" data-lang="console">powercfg /h on
+</code></pre><h2 id="heading-14">システム復元を有効にする</h2>
+<pre><code class="language-console" data-lang="console">Enable-ComputerRestore -Drive C:
+</code></pre><p><a href="https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.management/enable-computerrestore?view=powershell-5.1">Enable-ComputerRestore</a></p>
+<h2 id="heading-15">再起動</h2>
+<p>「ページファイルを有効にする」、「ハイバネーションを有効にする」、「システム復元を有効にする」の3つを行った後、Windowsを再起動しました。</p>
+<p>管理者権限のPowerShellで以下のコマンドを実行してハイバネーション用のファイルとページファイルが作られたことを確認します。</p>
+<pre><code class="language-console" data-lang="console">PS C:\WINDOWS\system32&gt; get-childitem -force -file C:\
+</code></pre><p>実行例を以下に示します。 hiberfil.sys, pagefile.sys, swapfile.sys の3つがあればOKです。</p>
+<pre><code class="language-console" data-lang="console">PS C:\WINDOWS\system32&gt; get-childitem -force -file C:\
+
+    ディレクトリ: C:\
+
+Mode                LastWriteTime         Length Name
+----                -------------         ------ ----
+---h--       2018/02/18     22:15           1024 AMTAG.BIN
+-a-hs-       2018/04/02      1:20     6818037760 hiberfil.sys
+-a-hs-       2018/04/02      1:20     2550136832 pagefile.sys
+-a-hs-       2018/04/02      1:20       16777216 swapfile.sys
+</code></pre><h1 id="heading-16">おわりに</h1>
+<p>ちょっと手間はかかりましたが、サードパーティのパーティションエディターソフトを使わなくてもここまで出来るということがわかったので良かったです。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

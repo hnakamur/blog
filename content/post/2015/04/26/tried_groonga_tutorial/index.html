@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Groongaのチュートリアルを試してみた &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Groongaのチュートリアルを試してみた</h1>
+  <time datetime=2015-04-26T23:53:06&#43;0900 class="post-date">2015-04-26</time>
+  <p>Groongaのチュートリアルを試してみたメモです。
+試した環境は Groonga 5.0.2, Ubuntu 14.04.2 です。</p>
+<h2 id="heading">セットアップ手順</h2>
+<p><a href="http://groonga.org/ja/docs/install/ubuntu.html#ppa-personal-package-archive">2.4. Ubuntu — Groonga v5.0.2ドキュメント</a>にそってセットアップしました。</p>
+<p>セットアップ手順は<a href="https://github.com/hnakamur/groonga-dockerfiles/blob/b4d64e23eaf9afda47c31bc34794eb2e56b7614d/dockerfiles/trusty/Dockerfile">Dockerfile</a>にまとめておきました。</p>
+<p>さらにVirtualBox + VagrantでUbuntuにdockerとdocker-composeをインストールして、上のDockerfileでコンテナを作る手順を自動化するVagrantfileを作成して
+<a href="https://github.com/hnakamur/groonga-dockerfiles">hnakamur/groonga-dockerfiles</a>
+で公開しています。</p>
+<p>VirtualBoxとVagrantをインストールしてあれば、以下の手順ですぐ試せます。</p>
+<pre><code>git clone https://github.com/hnakamur/groonga-dockerfiles
+cd groonga-dockerfiles
+vagrant up
+</code></pre><p>起動後コンテナを作って起動するまでには結構時間がかかります。</p>
+<pre><code>$ vagrant ssh
+</code></pre><p>でVMにログインして、以下のようにCommandでgroonga-httpdが実行されたら起動完了です。</p>
+<pre><code>$ cd /vagrant/dockerfiles
+$ sudo docker-compose ps
+      Name             Command             State              Ports
+-------------------------------------------------------------------------
+dockerfiles_groo   /usr/sbin          Up                 0.0.0.0:80-&gt;1004
+ngatrusty_1        /groonga-httpd                        1/tcp
+                   -g ...
+</code></pre><h2 id="groonga">管理画面とgroongaコマンドの起動方法</h2>
+<p>http://192.168.33.12/ でgroongaの管理画面にアクセスできます。</p>
+<p>groongaコマンドの起動方法は以下の通りです。</p>
+<pre><code>vagrant ssh
+</code></pre><p>でVMにログインし、</p>
+<pre><code>sudo docker exec -it dockerfiles_groongatrusty_1 /bin/bash
+</code></pre><p>でコンテナ内に入り</p>
+<pre><code>sudo -u groonga groonga /var/lib/groonga/db/db
+</code></pre><p>でgroongaコマンドを実行します。</p>
+<h3 id="groongaroot">groongaコマンドの実行ユーザをrootにするとハマるので注意</h3>
+<p>groongaコマンドはgroongaで実行するのが重要です。</p>
+<p>rootユーザで実行してしまうとエラーにはならないのですが、テーブルなどを作成してもgroongaの管理画面で表示されずハマりました。</p>
+<p>groongaのデータベースは最初は1つのファイルですが、テーブルなどを作るとファイルが追加で作成されます。</p>
+<pre><code>root@b95446c72160:/# cd /var/lib/groonga/db
+root@b95446c72160:/var/lib/groonga/db# ll
+total 15332
+drwxr-xr-x 2 groonga groonga     4096 Apr 26 14:34 ./
+drwxr-xr-x 3 groonga groonga     4096 Apr 26 01:49 ../
+-rw-r--r-- 1 groonga groonga     4096 Apr 26 14:33 db
+-rw-r--r-- 1 groonga groonga 21245952 Apr 26 14:33 db.0000000
+-rw-r--r-- 1 groonga groonga 16842752 Apr 26 14:34 db.0000100
+-rw-r--r-- 1 groonga groonga 12857344 Apr 26 14:26 db.0000101
+-rw-r--r-- 1 groonga groonga  8437760 Apr 26 14:28 db.0000102
+-rw-r--r-- 1 groonga groonga  1085440 Apr 26 14:28 db.0000103
+-rw-r--r-- 1 groonga groonga  4198400 Apr 26 14:28 db.0000103.c
+-rw-r--r-- 1 groonga groonga  8437760 Apr 26 14:34 db.0000104
+-rw-r--r-- 1 groonga groonga  4198400 Apr 26 14:34 db.0000105
+-rw-r--r-- 1 groonga groonga  1085440 Apr 26 14:34 db.0000106
+-rw-r--r-- 1 groonga groonga  4198400 Apr 26 14:34 db.0000106.c
+-rw-r--r-- 1 groonga groonga  1048576 Apr 26 14:34 db.001
+</code></pre><p>rootユーザでgroongaコマンドを実行すると作成されたファイルの所有者がrootユーザになり、groonga-httpdから見えないようです。</p>
+<p><code>chown groonga: /var/lib/groonga/db/db*</code> で所有者をgroongaユーザに変更すれば見えるようになりました。</p>
+<p>ということで、上記のようにgroongaユーザでgroongaコマンドを実行するのが良いです。</p>
+<h2 id="heading-1">チュートリアルの一部手順でエラーが出てハマった</h2>
+<p><a href="http://groonga.org/ja/docs/tutorial.html">4. チュートリアル — Groonga v5.0.2ドキュメント</a>の手順で試してみました。ほとんどはすんなり実行できましたが、1箇所ハマりました。</p>
+<h3 id="nonexistent-source">インデックス付きジオサーチのところでnonexistent sourceというエラー</h3>
+<p><a href="http://groonga.org/ja/docs/tutorial/index.html#geo-location-search-with-index">4.6.3. インデックス付きジオサーチ</a>のところで以下の様なエラーが出ました。</p>
+<pre><code>&gt; table_create --name GeoIndex --flags TABLE_PAT_KEY --key_type WGS84GeoPoint
+[[0,1429178015.01179,0.00191092491149902],true]
+&gt; column_create --table GeoIndex --name index_point --type Site --flags COLUMN_INDEX --source location
+[[-22,1429178020.73797,0.00554323196411133,&quot;[column][create] nonexistent source: &lt;location&gt;&quot;,[[&quot;proc_column_create_resolve_source_name&quot;,&quot;proc.c&quot;,1774]]],false]
+</code></pre><p>Siteテーブルは<a href="http://groonga.org/ja/docs/tutorial/introduction.html#create-a-table">4.1.5. テーブルの作成</a>で</p>
+<pre><code>table_create --name Site --flags TABLE_HASH_KEY --key_type ShortText
+</code></pre><p>として作成していますが、その後 <code>location</code> カラムを作る箇所がなかったようです。</p>
+<p>2015-04-28追記 <a href="https://twitter.com/kenhys/status/592901925089189889">https://twitter.com/kenhys/status/592901925089189889</a> でご指摘いただいたのですが、実は<a href="http://groonga.org/ja/docs/tutorial/search.html#narrow-down-sort-by-using-location-information">4.4.3. 位置情報を用いた絞込・ソート</a>で <code>location</code> カラムを作っているのを私が見落としていました。失礼いたしました。</p>
+<pre><code>column_create --table Site --name location --type WGS84GeoPoint
+</code></pre><p>のようにカラムを作成すれば大丈夫でした。</p>
+<pre><code>table_create --name GeoIndex --flags TABLE_PAT_KEY --key_type WGS84GeoPoint
+column_create --table GeoIndex --name index_point --type Site --flags COLUMN_INDEX --source location
+</code></pre><p>でインデクス用のテーブルとカラムを作成して、</p>
+<pre><code>load --table Site
+[
+ {&quot;_key&quot;:&quot;http://example.org/&quot;,&quot;location&quot;:&quot;128452975x503157902&quot;},
+ {&quot;_key&quot;:&quot;http://example.net/&quot;,&quot;location&quot;:&quot;128487316x502920929&quot;}
+]
+</code></pre><p>で、データをロードします。</p>
+<pre><code>&gt; select --table Site --filter 'geo_in_circle(location, &quot;128515259x503187188&quot;, 5000)' --output_columns _key,location
+[[0,1430061299.24235,0.00105690956115723],[[[1],[[&quot;_key&quot;,&quot;ShortText&quot;],[&quot;location&quot;,&quot;WGS84GeoPoint&quot;]],[&quot;http://example.org/&quot;,&quot;128452975x503157902&quot;]]]]
+</code></pre><p>で検索できました。</p>
+<h2 id="heading-2">まとめ</h2>
+<p>2箇所ハマりましたが解決してとりあえず使えるようになりました。今後さらに調査していきたいと思います。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

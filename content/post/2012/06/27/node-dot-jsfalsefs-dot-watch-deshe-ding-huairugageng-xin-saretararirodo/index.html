@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>node.jsのfs.watch()で設定ファイルが更新されたらリロード &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>node.jsのfs.watch()で設定ファイルが更新されたらリロード</h1>
+  <time datetime=2012-06-27T00:00:00Z class="post-date">2012-06-27</time>
+  <p><a href="http://stackoverflow.com/questions/1972242/auto-reload-of-files-in-node-js">javascript - Auto-reload of files in Node.js - Stack Overflow</a>によると、モジュールをリロードするには<a href="https://github.com/isaacs/node-supervisor">isaacs/node-supervisor</a>がよさそうです。</p>
+<p>が、今回は設定ファイルのリロードなのでfs.watch(filename, [options], [listener]) で十分ということで試してみました。
+<a href="http://nodejs.org/api/fs.html#fs_fs_watch_filename_options_listener">File System Node.js v0.8.0 Manual &amp; Documentation</a>
+によると環境によっては使えないそうなので注意が必要です。</p>
+<p>CentOS 6.2では使えました。</p>
+<p>watch.js</p>
+<pre><code>var fs = require('fs');
+fs.watch('router.json', function(ev, filename) {
+  if (filename) {
+    fs.readFile(filename, function(err, data) {
+      if (err) throw err;
+      var router = JSON.parse(data);
+      console.log(router);
+    });
+  }
+});
+</code></pre><p>router.json</p>
+<pre><code>{
+  &quot;vhost1.example.com&quot;: &quot;127.0.0.1:3000&quot;,
+  &quot;vhost2.example.com&quot;: &quot;127.0.0.1:3001&quot;,
+  &quot;vhost3.example.com&quot;: &quot;127.0.0.1:3002&quot;,
+  &quot;vhost4.example.com&quot;: &quot;127.0.0.1:3003&quot;
+}
+</code></pre><pre><code>node watch
+</code></pre><p>で起動して</p>
+<pre><code>touch router.json
+</code></pre><p>を実行すると</p>
+<pre><code>{ 'vhost1.example.com': '127.0.0.1:3000',
+  'vhost2.example.com': '127.0.0.1:3001',
+  'vhost3.example.com': '127.0.0.1:3002',
+  'vhost4.example.com': '127.0.0.1:3003' }
+</code></pre><p>と出力されます。</p>
+<p>ただし、vimでrouter.jsonを開いて:wで保存すると下記のエラーでnodeが異常終了してしまいました。</p>
+<pre><code>/var/www/app/watch-sample/watch.js:6
+      if (err) throw err;
+                     ^
+Error: ENOENT, open 'router.json'
+</code></pre><pre><code>node watch
+</code></pre><p>再起動後、vimでrouter.jsonを開いて:wqで保存して終了すると異常終了はしませんでしたが、下記のようにコールバックが4回も呼び出されてしまいました。</p>
+<pre><code>{ 'vhost1.example.com': '127.0.0.1:3000',
+  'vhost2.example.com': '127.0.0.1:3001',
+  'vhost3.example.com': '127.0.0.1:3002',
+  'vhost4.example.com': '127.0.0.1:3003' }
+{ 'vhost1.example.com': '127.0.0.1:3000',
+  'vhost2.example.com': '127.0.0.1:3001',
+  'vhost3.example.com': '127.0.0.1:3002',
+  'vhost4.example.com': '127.0.0.1:3003' }
+{ 'vhost1.example.com': '127.0.0.1:3000',
+  'vhost2.example.com': '127.0.0.1:3001',
+  'vhost3.example.com': '127.0.0.1:3002',
+  'vhost4.example.com': '127.0.0.1:3003' }
+{ 'vhost1.example.com': '127.0.0.1:3000',
+  'vhost2.example.com': '127.0.0.1:3001',
+  'vhost3.example.com': '127.0.0.1:3002',
+  'vhost4.example.com': '127.0.0.1:3003' }
+</code></pre><p>実用するには前回の設定内容と比較して変わっている場合だけ処理するとか、設定ファイルを直接見るのではなく更新完了通知用の専用ファイルを用意してそちらをtouchするとか、何らかの対処が必要そうです。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

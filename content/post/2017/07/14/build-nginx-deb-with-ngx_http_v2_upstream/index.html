@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>ngx_http_v2_upstreamモジュールを追加したnginxのdebパッケージを作ってみた &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>ngx_http_v2_upstreamモジュールを追加したnginxのdebパッケージを作ってみた</h1>
+  <time datetime=2017-07-14T06:07:00&#43;0900 class="post-date">2017-07-14</time>
+  <h2 id="heading">はじめに</h2>
+<p><a href="http://asnokaze.hatenablog.com/entry/2017/07/03/083530">Nginxのリバースプロキシでバックエンドとhttp2通信する - ASnoKaze blog</a> で紹介されていたngx_http_v2_upstreamモジュールを組み込んだnginxのdebianパッケージを作ってみたのでメモです。</p>
+<p><a href="/blog/2017/07/05/how-to-build-deb-with-git-buildpackage/">git-buildpackageでdebパッケージをビルドしてPPAにアップロードする手順</a> のdquiltでパッチを適用するところでこの記事とは違うパターンが出てきたので、そこを重点的に書いておきます。</p>
+<p>なお、なるべくupstreamに近いものを使いたいので、ベースはUbuntuのパッケージではなく <a href="http://nginx.org/">nginx.org</a> のパッケージを使います。</p>
+<p><a href="http://nginx.org/en/download.html">nginx: download</a> のページのPre-Built Packagesにはstable versionとmainline versionの2種類がありますが、 <a href="http://bokko.hatenablog.com/entry/2014/05/24/220554">どのバージョンのnginxを使うべきか？ - 考える人、コードを書く人</a> を読んで以来私はmainlineを使っています。</p>
+<p>今回使用した nginx のバージョンは 1.13.3 で、作業した環境は Ubuntu 16.04 です。</p>
+<h2 id="heading-1">ソースパッケージのダウンロード</h2>
+<p><a href="http://nginx.org/en/linux_packages.html#mainline">Pre-Built Packages for Mainline version</a> を参考に以下の内容を <code>/etc/apt/sources.list.d/nginx-org.list</code> というファイルに保存します。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">deb http://nginx.org/packages/mainline/ubuntu/ xenial nginx
+deb-src http://nginx.org/packages/mainline/ubuntu/ xenial nginx
+</code></pre></div><p>作業ディレクトリを作って nginx.org で配布しているdebのソースパッケージをダウンロードします。</p>
+<pre><code class="language-console" data-lang="console">mkdir -p ~/nginx.org-deb/nginx-1.13.3-deb
+cd !$
+sudo apt update
+sudo apt source nginx
+</code></pre><p>ダウンロードされたファイルは以下の通りです。</p>
+<pre><code class="language-console" data-lang="console">$ ls -F
+nginx-1.13.3/                        nginx_1.13.3-1~xenial.dsc
+nginx_1.13.3-1~xenial.debian.tar.xz  nginx_1.13.3.orig.tar.gz
+</code></pre><h2 id="dep-3">パッチファイルをDEP-3準拠にして保存</h2>
+<p><code>~/nginx.org-deb/ngx_http_v2_upstream-patches</code> というディレクトリを作り、そこに以下の14個のパッチを保存しました。</p>
+<ul>
+<li><a href="http://mailman.nginx.org/pipermail/nginx-devel/2017-June/010209.html">[PATCH 01 of 14] Output chain: propagate last_buf flag to c-&gt;send_chain()</a></li>
+<li><a href="http://mailman.nginx.org/pipermail/nginx-devel/2017-June/010210.html">[PATCH 02 of 14] Upstream keepalive: preserve c-&gt;data</a></li>
+<li><a href="http://mailman.nginx.org/pipermail/nginx-devel/2017-June/010211.html">[PATCH 03 of 14] HTTP/2: add debug logging of control frames</a></li>
+<li><a href="http://mailman.nginx.org/pipermail/nginx-devel/2017-June/010212.html">[PATCH 04 of 14] HTTP/2: s/client/peer/</a></li>
+<li><a href="http://mailman.nginx.org/pipermail/nginx-devel/2017-June/010213.html">[PATCH 05 of 14] HTTP/2: introduce h2c-&gt;conf_ctx</a></li>
+<li><a href="http://mailman.nginx.org/pipermail/nginx-devel/2017-June/010214.html">[PATCH 06 of 14] HTTP/2: introduce stream-&gt;fake_connection</a></li>
+<li><a href="http://mailman.nginx.org/pipermail/nginx-devel/2017-June/010215.html">[PATCH 07 of 14] HTTP/2: introduce ngx_http_v2_handle_event()</a></li>
+<li><a href="http://mailman.nginx.org/pipermail/nginx-devel/2017-June/010216.html">[PATCH 08 of 14] HTTP/2: add HTTP/2 to upstreams</a></li>
+<li><a href="http://mailman.nginx.org/pipermail/nginx-devel/2017-June/010217.html">[PATCH 09 of 14] Proxy: add &ldquo;proxy_ssl_alpn&rdquo; directive</a></li>
+<li><a href="http://mailman.nginx.org/pipermail/nginx-devel/2017-June/010218.html">[PATCH 10 of 14] Proxy: always emit &ldquo;Host&rdquo; header first</a></li>
+<li><a href="http://mailman.nginx.org/pipermail/nginx-devel/2017-June/010219.html">[PATCH 11 of 14] Proxy: split configured header names and values</a></li>
+<li><a href="http://mailman.nginx.org/pipermail/nginx-devel/2017-June/010221.html">[PATCH 12 of 14] Proxy: add HTTP/2 support</a></li>
+<li><a href="http://mailman.nginx.org/pipermail/nginx-devel/2017-June/010220.html">[PATCH 13 of 14] Proxy: add &ldquo;proxy_pass_trailers&rdquo; directive</a></li>
+<li><a href="http://mailman.nginx.org/pipermail/nginx-devel/2017-June/010222.html">[PATCH 14 of 14] Cache: add HTTP/2 support</a></li>
+</ul>
+<p><a href="http://packaging.ubuntu.com/html/patches-to-packages.html">8. Patches to Packages — Ubuntu Packaging Guide</a> でもお勧めされている通り、 パッチは <a href="http://dep.debian.net/">Debian Enhancement Proposals</a> の <a href="http://dep.debian.net/deps/dep3/">DEP-3: Patch Tagging Guidelines</a> に準拠した形式にしておきます。</p>
+<p>今回は <code>Subject</code> 、 <code>Author</code> 、 <code>Description</code> 、 <code>Origin</code> ヘッダを付けるようにしました。</p>
+<p>例えば <code>[PATCH 09 of 14] Proxy: add &quot;proxy_ssl_alpn&quot; directive</code> は以下のようになっています。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text"># HG changeset patch
+# User Piotr Sikora &lt;piotrsikora at google.com&gt;
+# Date 1489621682 25200
+#      Wed Mar 15 16:48:02 2017 -0700
+# Node ID 96075d4cd2a6e8bd67caf1d7b78f8e87d757c48d
+# Parent  154ca6c5e62a1931a616e9f2b99ef2553b7c2c8b
+Proxy: add &#34;proxy_ssl_alpn&#34; directive.
+
+ALPN is used here only to indicate which version of the HTTP protocol
+is going to be used and we doesn&#39;t verify that upstream agreed to it.
+
+Please note that upstream is allowed to reject SSL connection with a
+fatal &#34;no_application_protocol&#34; alert if it doesn&#39;t support it.
+
+Signed-off-by: Piotr Sikora &lt;piotrsikora at google.com&gt;
+
+diff -r 154ca6c5e62a -r 96075d4cd2a6 src/event/ngx_event_openssl.c
+…(略)…
+</code></pre></div><p>これは以下の内容で <code>~/nginx.org-deb/ngx_http_v2_upstream-patches/</code> ディレクトリに
+<code>ngx_http_v2_upstream-09-of-14.diff</code> というファイル名で保存しました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">Subject: Proxy: add &#34;proxy_ssl_alpn&#34; directive
+Description: ALPN is used here only to indicate which version of the HTTP protocol
+ is going to be used and we doesn&#39;t verify that upstream agreed to it.
+ .
+ Please note that upstream is allowed to reject SSL connection with a
+ fatal &#34;no_application_protocol&#34; alert if it doesn&#39;t support it.
+Author: Piotr Sikora &lt;piotrsikora at google.com&gt;
+Origin: http://mailman.nginx.org/pipermail/nginx-devel/2017-June/010217.html
+
+diff -r 154ca6c5e62a -r 96075d4cd2a6 src/event/ngx_event_openssl.c
+…(略)…
+</code></pre></div><p>変更内容は以下の通りです。</p>
+<ul>
+<li>最後の <code>#</code> の行の次の行を <code>Subject</code> にしました。</li>
+<li><code>Signed-off-by</code> の値を <code>Author</code> にしました。実際は <code>at</code> を <code>@</code> に置き換えて保存しています。</li>
+<li>そしてその間の部分を <code>Description</code> にしました。継続行はスペース1つでインデントし、空行は <code> .</code> にします。間の部分がない場合は <code>Description</code> ヘッダを省略します。</li>
+<li>最後に上記のパッチのメーリングリストでのアーカイブのURLを <code>Origin</code> にしました。 <code>#</code> のコメントの先頭行にHG (Mercurial)のchangeset patchと書いてあるので、それの公開URLがあればそちらにしたほうが良いと思いますが、不明なのでこれで良しとしました。</li>
+</ul>
+<h2 id="git">ソースパッケージをインポートしてgitレポジトリを作成</h2>
+<p>レポジトリのディレクトリは <code>~/.ghq/github.com/hnakamur/nginx-deb</code> にしたいので、その親ディレクトリの <code>~/.ghq/github.com/hnakamur</code> に移動してインポートします。</p>
+<pre><code class="language-console" data-lang="console">cd ~/.ghq/github.com/hnakamur
+gbp import-dsc --pristine-tar ~/nginx.org-deb/nginx-1.13.3-deb/nginx_1.13.3-1~xenial.dsc
+</code></pre><p><code>~/.ghq/github.com/hnakamur/nginx</code> ディレクトリが作られるので
+<code>~/.ghq/github.com/hnakamur/nginx-deb</code> にリネームしてそこに移動します。</p>
+<pre><code class="language-console" data-lang="console">mv nginx nginx-deb
+cd !$
+</code></pre><h2 id="dquilt">dquiltでパッチをインポート</h2>
+<p><code>quilt</code> の使い方については以下の2つの記事が参考になりました。</p>
+<ul>
+<li><a href="https://raphaelhertzog.com/2012/08/08/how-to-use-quilt-to-manage-patches-in-debian-packages/">How to use quilt to manage patches in Debian packages</a></li>
+<li><a href="http://www.geocities.jp/xsybr354/debian/devel-notes/quilt.txt">www.geocities.jp/xsybr354/debian/devel-notes/quilt.txt</a></li>
+</ul>
+<p>「git-buildpackageでdebパッケージをビルドしてPPAにアップロードする手順」の記事で書いたように <code>dquilt</code> というエイリアスを登録していますので、 <code>quilt</code> の代わりに <code>dquilt</code> を使って同様に実行していきます。</p>
+<p>以下のコマンドで14個のパッチをインポートします。パッチはスタックとして管理されるので14番のパッチから1番のパッチへと逆順にインポートしています。</p>
+<pre><code class="language-console" data-lang="console">$ for i in {14..01}; do dquilt import ~/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-$i-of-14.diff; done
+Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-14-of-14.diff (stored as ngx_http_v2_upstream-14-of-14.diff)
+Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-13-of-14.diff (stored as ngx_http_v2_upstream-13-of-14.diff)
+Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-12-of-14.diff (stored as ngx_http_v2_upstream-12-of-14.diff)
+Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-11-of-14.diff (stored as ngx_http_v2_upstream-11-of-14.diff)
+Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-10-of-14.diff (stored as ngx_http_v2_upstream-10-of-14.diff)
+Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-09-of-14.diff (stored as ngx_http_v2_upstream-09-of-14.diff)
+Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-08-of-14.diff (stored as ngx_http_v2_upstream-08-of-14.diff)
+Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-07-of-14.diff (stored as ngx_http_v2_upstream-07-of-14.diff)
+Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-06-of-14.diff (stored as ngx_http_v2_upstream-06-of-14.diff)
+Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-05-of-14.diff (stored as ngx_http_v2_upstream-05-of-14.diff)
+Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-04-of-14.diff (stored as ngx_http_v2_upstream-04-of-14.diff)
+Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-03-of-14.diff (stored as ngx_http_v2_upstream-03-of-14.diff)
+Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-02-of-14.diff (stored as ngx_http_v2_upstream-02-of-14.diff)
+Importing patch /home/hnakamur/nginx.org-deb/ngx_http_v2_upstream-patches/ngx_http_v2_upstream-01-of-14.diff (stored as ngx_http_v2_upstream-01-of-14.diff)
+</code></pre><p><code>debian/patches/</code> ディレクトリを <code>ls</code> で見るとパッチファイルと <code>series</code> ファイルが作られています。</p>
+<pre><code class="language-console" data-lang="console">$ ls debian/patches/
+ngx_http_v2_upstream-01-of-14.diff  ngx_http_v2_upstream-06-of-14.diff  ngx_http_v2_upstream-11-of-14.diff
+ngx_http_v2_upstream-02-of-14.diff  ngx_http_v2_upstream-07-of-14.diff  ngx_http_v2_upstream-12-of-14.diff
+ngx_http_v2_upstream-03-of-14.diff  ngx_http_v2_upstream-08-of-14.diff  ngx_http_v2_upstream-13-of-14.diff
+ngx_http_v2_upstream-04-of-14.diff  ngx_http_v2_upstream-09-of-14.diff  ngx_http_v2_upstream-14-of-14.diff
+ngx_http_v2_upstream-05-of-14.diff  ngx_http_v2_upstream-10-of-14.diff  series
+</code></pre><p><code>dquilt series</code> コマンドを実行して今取り込んだパッチが1番から14番の順に表示されることを確認します。</p>
+<pre><code class="language-console" data-lang="console">$ dquilt series
+ngx_http_v2_upstream-01-of-14.diff
+ngx_http_v2_upstream-02-of-14.diff
+ngx_http_v2_upstream-03-of-14.diff
+ngx_http_v2_upstream-04-of-14.diff
+ngx_http_v2_upstream-05-of-14.diff
+ngx_http_v2_upstream-06-of-14.diff
+ngx_http_v2_upstream-07-of-14.diff
+ngx_http_v2_upstream-08-of-14.diff
+ngx_http_v2_upstream-09-of-14.diff
+ngx_http_v2_upstream-10-of-14.diff
+ngx_http_v2_upstream-11-of-14.diff
+ngx_http_v2_upstream-12-of-14.diff
+ngx_http_v2_upstream-13-of-14.diff
+ngx_http_v2_upstream-14-of-14.diff
+</code></pre><p>なお、ここで逆順になってしまっても、少なくともこの時点であれば <code>debian/patches/series</code> を編集して順序を入れ替えれば大丈夫でした。一部のパッチを適用した後は試してないです。</p>
+<p><code>dquilt next</code> で次のパッチが1番目のパッチであることを確認して、 <code>dquilt push</code> でパッチを適用します。</p>
+<pre><code class="language-console" data-lang="console">$ dquilt next
+ngx_http_v2_upstream-01-of-14.diff
+$ dquilt push
+Applying patch ngx_http_v2_upstream-01-of-14.diff
+patching file src/core/ngx_output_chain.c
+
+Now at patch ngx_http_v2_upstream-01-of-14.diff
+</code></pre><p>gitレポジトリの状態を確認します。ここでは省略しますが <code>git diff</code> で差分も見てみました。</p>
+<pre><code class="language-console" data-lang="console">$ git status -sb
+## master
+ M src/core/ngx_output_chain.c
+ ?? .pc/
+ ?? debian/patches/
+</code></pre><p><code>.pc/</code> ディレクトリにはパッチの適用状況が管理されています。前回の記事では適用後は消すようにしていましたが、消すと <code>dquilt applied</code> で適用状態を確認したりできなくなることがわかったので今回は残しておくことにしました。この記事では省略しますが、パッチを1つずつ適用するたびに中を見ていくとパッチごとのディレクトリが作られて状態を管理していることがわかります。</p>
+<p>同様にして順次パッチを適用していきます。</p>
+<p>8番目のパッチを適用しようとすると一部当たらずエラーになりました。</p>
+<pre><code class="language-console" data-lang="console">$ dquilt next
+ngx_http_v2_upstream-08-of-14.diff
+$ dquilt push
+Applying patch ngx_http_v2_upstream-08-of-14.diff
+patching file auto/modules
+patching file src/core/ngx_connection.h
+patching file src/http/ngx_http_upstream.c
+Hunk #2 succeeded at 190 (offset 2 lines).
+Hunk #3 succeeded at 1523 (offset 7 lines).
+Hunk #4 succeeded at 1558 (offset 7 lines).
+Hunk #5 succeeded at 1626 (offset 7 lines).
+Hunk #6 succeeded at 1649 (offset 7 lines).
+Hunk #7 FAILED at 1742.
+Hunk #8 succeeded at 1878 (offset 15 lines).
+Hunk #9 succeeded at 2017 (offset 15 lines).
+Hunk #10 succeeded at 2219 (offset 15 lines).
+Hunk #11 succeeded at 2282 (offset 15 lines).
+Hunk #12 succeeded at 2400 (offset 15 lines).
+Hunk #13 succeeded at 2436 (offset 15 lines).
+Hunk #14 succeeded at 2684 (offset 15 lines).
+Hunk #15 succeeded at 4192 (offset 15 lines).
+Hunk #16 succeeded at 4373 (offset 15 lines).
+1 out of 16 hunks FAILED -- rejects in file src/http/ngx_http_upstream.c
+patching file src/http/ngx_http_upstream.h
+patching file src/http/v2/ngx_http_v2.c
+patching file src/http/v2/ngx_http_v2.h
+patching file src/http/v2/ngx_http_v2_filter_module.c
+patching file src/http/v2/ngx_http_v2_module.c
+patching file src/http/v2/ngx_http_v2_upstream.c
+Patch ngx_http_v2_upstream-08-of-14.diff does not apply (enforce with -f)
+</code></pre><p>メッセージの最後に書かれているように <code>-f</code> をつけて <code>dquilt push -f</code> を実行して強制的に適用します。</p>
+<pre><code class="language-console" data-lang="console">$ dquilt push -f
+Applying patch ngx_http_v2_upstream-08-of-14.diff
+patching file auto/modules
+patching file src/core/ngx_connection.h
+patching file src/http/ngx_http_upstream.c
+Hunk #2 succeeded at 190 (offset 2 lines).
+Hunk #3 succeeded at 1523 (offset 7 lines).
+Hunk #4 succeeded at 1558 (offset 7 lines).
+Hunk #5 succeeded at 1626 (offset 7 lines).
+Hunk #6 succeeded at 1649 (offset 7 lines).
+Hunk #7 FAILED at 1742.
+Hunk #8 succeeded at 1878 (offset 15 lines).
+Hunk #9 succeeded at 2017 (offset 15 lines).
+Hunk #10 succeeded at 2219 (offset 15 lines).
+Hunk #11 succeeded at 2282 (offset 15 lines).
+Hunk #12 succeeded at 2400 (offset 15 lines).
+Hunk #13 succeeded at 2436 (offset 15 lines).
+Hunk #14 succeeded at 2684 (offset 15 lines).
+Hunk #15 succeeded at 4192 (offset 15 lines).
+Hunk #16 succeeded at 4373 (offset 15 lines).
+1 out of 16 hunks FAILED -- saving rejects to file src/http/ngx_http_upstream.c.rej
+patching file src/http/ngx_http_upstream.h
+patching file src/http/v2/ngx_http_v2.c
+patching file src/http/v2/ngx_http_v2.h
+patching file src/http/v2/ngx_http_v2_filter_module.c
+patching file src/http/v2/ngx_http_v2_module.c
+patching file src/http/v2/ngx_http_v2_upstream.c
+Applied patch ngx_http_v2_upstream-08-of-14.diff (forced; needs refresh)
+</code></pre><p><code>src/http/ngx_http_upstream.c.rej</code> を確認すると以下のような内容でした。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">--- src/http/ngx_http_upstream.c
++++ src/http/ngx_http_upstream.c
+@@ -1742,6 +1775,16 @@ ngx_http_upstream_ssl_handshake(ngx_conn
+		 c-&gt;write-&gt;handler = ngx_http_upstream_handler;
+		 c-&gt;read-&gt;handler = ngx_http_upstream_handler;
+
++#if (NGX_HTTP_V2)
++
++        if (u-&gt;http2 &amp;&amp; u-&gt;stream == NULL) {
++            if (ngx_http_upstream_v2_init_connection(r, u, c) != NGX_OK) {
++                return;
++            }
++        }
++
++#endif
++
+		 c = r-&gt;connection;
+
+		 ngx_http_upstream_send_request(r, u, 1);
+</code></pre></div><p><code>src/http/ngx_http_upstream.c</code> の1742行付近を見た感じ、1769行目の前に入れればよさそうな雰囲気です。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1736
+</span><span class="lnt">1737
+</span><span class="lnt">1738
+</span><span class="lnt">1739
+</span><span class="lnt">1740
+</span><span class="lnt">1741
+</span><span class="lnt">1742
+</span><span class="lnt">1743
+</span><span class="lnt">1744
+</span><span class="lnt">1745
+</span><span class="lnt">1746
+</span><span class="lnt">1747
+</span><span class="lnt">1748
+</span><span class="lnt">1749
+</span><span class="lnt">1750
+</span><span class="lnt">1751
+</span><span class="lnt">1752
+</span><span class="lnt">1753
+</span><span class="lnt">1754
+</span><span class="lnt">1755
+</span><span class="lnt">1756
+</span><span class="lnt">1757
+</span><span class="lnt">1758
+</span><span class="lnt">1759
+</span><span class="lnt">1760
+</span><span class="lnt">1761
+</span><span class="lnt">1762
+</span><span class="lnt">1763
+</span><span class="lnt">1764
+</span><span class="lnt">1765
+</span><span class="lnt">1766
+</span><span class="lnt">1767
+</span><span class="lnt">1768
+</span><span class="lnt">1769
+</span><span class="lnt">1770
+</span><span class="lnt">1771
+</span><span class="lnt">1772
+</span><span class="lnt">1773
+</span><span class="lnt">1774
+</span><span class="lnt">1775
+</span><span class="lnt">1776
+</span><span class="lnt">1777
+</span><span class="lnt">1778
+</span><span class="lnt">1779
+</span><span class="lnt">1780
+</span><span class="lnt">1781
+</span><span class="lnt">1782
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-text" data-lang="text">static void
+ngx_http_upstream_ssl_handshake(ngx_http_request_t *r, ngx_http_upstream_t *u,
+	ngx_connection_t *c)
+{
+	long  rc;
+
+	if (c-&gt;ssl-&gt;handshaked) {
+
+		if (u-&gt;conf-&gt;ssl_verify) {
+			rc = SSL_get_verify_result(c-&gt;ssl-&gt;connection);
+
+			if (rc != X509_V_OK) {
+				ngx_log_error(NGX_LOG_ERR, c-&gt;log, 0,
+							  &#34;upstream SSL certificate verify error: (%l:%s)&#34;,
+							  rc, X509_verify_cert_error_string(rc));
+				goto failed;
+			}
+
+			if (ngx_ssl_check_host(c, &amp;u-&gt;ssl_name) != NGX_OK) {
+				ngx_log_error(NGX_LOG_ERR, c-&gt;log, 0,
+							  &#34;upstream SSL certificate does not match \&#34;%V\&#34;&#34;,
+							  &amp;u-&gt;ssl_name);
+				goto failed;
+			}
+		}
+
+		if (u-&gt;conf-&gt;ssl_session_reuse) {
+			u-&gt;peer.save_session(&amp;u-&gt;peer, u-&gt;peer.data);
+		}
+
+		c-&gt;write-&gt;handler = ngx_http_upstream_handler;
+		c-&gt;read-&gt;handler = ngx_http_upstream_handler;
+
+		ngx_http_upstream_send_request(r, u, 1);
+
+		return;
+	}
+
+	if (c-&gt;write-&gt;timedout) {
+		ngx_http_upstream_next(r, u, NGX_HTTP_UPSTREAM_FT_TIMEOUT);
+		return;
+	}
+
+failed:
+
+	ngx_http_upstream_next(r, u, NGX_HTTP_UPSTREAM_FT_ERROR);
+}
+</code></pre></td></tr></table>
+</div>
+</div><p>編集後、 <code>dquilt refresh</code> でパッチを更新します。</p>
+<pre><code class="language-console" data-lang="console">$ dquilt refresh
+Refreshed patch ngx_http_v2_upstream-08-of-14.diff
+</code></pre><p>11番目のパッチは全く当たりませんでした。</p>
+<pre><code class="language-console" data-lang="console">$ dquilt push
+Applying patch ngx_http_v2_upstream-11-of-14.diff
+patching file src/http/modules/ngx_http_proxy_module.c
+Hunk #1 FAILED at 1151.
+Hunk #2 FAILED at 1265.
+Hunk #3 FAILED at 1369.
+Hunk #4 FAILED at 3528.
+4 out of 4 hunks FAILED -- rejects in file src/http/modules/ngx_http_proxy_module.c
+</code></pre><p><code>-f</code> を付けて再実行し強制的に適用します。</p>
+<pre><code class="language-console" data-lang="console">$ dquilt push -f
+Applying patch ngx_http_v2_upstream-11-of-14.diff
+patching file src/http/modules/ngx_http_proxy_module.c
+Hunk #1 FAILED at 1151.
+Hunk #2 FAILED at 1265.
+Hunk #3 FAILED at 1369.
+Hunk #4 FAILED at 3528.
+4 out of 4 hunks FAILED -- saving rejects to file src/http/modules/ngx_http_proxy_module.c.rej
+Applied patch ngx_http_v2_upstream-11-of-14.diff (forced; needs refresh)
+
+	Patch ngx_http_v2_upstream-11-of-14.diff does not apply (enforce with -f)
+</code></pre><p><code>src/http/modules/ngx_http_proxy_module.c.rej</code> と <code>src/http/modules/ngx_http_proxy_module.c</code> を見比べてみると、多少変更されていますがパッチが当たらなかった内容と等価なものは全て含まれていました。</p>
+<p>おそらくコードに変更を加えた上で別途既に取り込まれていたようです。</p>
+<p>ということで11番目のパッチは削除します。</p>
+<pre><code class="language-console" data-lang="console">$ dquilt delete -r debian/patches/ngx_http_v2_upstream-11-of-14.d
+iff
+Removing patch ngx_http_v2_upstream-11-of-14.diff
+Now at patch ngx_http_v2_upstream-10-of-14.diff
+Removed patch ngx_http_v2_upstream-11-of-14.diff
+</code></pre><p>12番目のパッチを適用します。　</p>
+<pre><code class="language-console" data-lang="console">$ dquilt next
+ngx_http_v2_upstream-12-of-14.diff
+$ dquilt push
+Applying patch ngx_http_v2_upstream-12-of-14.diff
+patching file src/http/modules/ngx_http_proxy_module.c
+patching file src/http/v2/ngx_http_v2.h
+patching file src/http/v2/ngx_http_v2_filter_module.c
+
+Now at patch ngx_http_v2_upstream-12-of-14.diff
+</code></pre><p>あとは同様にして最後の14番目のパッチまで適用しました。</p>
+<p>gitレポジトリの状態は以下のようになっていました。</p>
+<pre><code class="language-console" data-lang="console">$ git status -sb
+## master
+ M auto/modules
+ M src/core/ngx_connection.h
+ M src/core/ngx_output_chain.c
+ M src/event/ngx_event_openssl.c
+ M src/event/ngx_event_openssl.h
+ M src/http/modules/ngx_http_fastcgi_module.c
+ M src/http/modules/ngx_http_memcached_module.c
+ M src/http/modules/ngx_http_proxy_module.c
+ M src/http/modules/ngx_http_scgi_module.c
+ M src/http/modules/ngx_http_ssl_module.c
+ M src/http/modules/ngx_http_upstream_keepalive_module.c
+ M src/http/modules/ngx_http_uwsgi_module.c
+ M src/http/ngx_http.h
+ M src/http/ngx_http_cache.h
+ M src/http/ngx_http_file_cache.c
+ M src/http/ngx_http_upstream.c
+ M src/http/ngx_http_upstream.h
+ M src/http/v2/ngx_http_v2.c
+ M src/http/v2/ngx_http_v2.h
+ M src/http/v2/ngx_http_v2_filter_module.c
+ M src/http/v2/ngx_http_v2_module.c
+ M src/http/v2/ngx_http_v2_table.c
+?? .pc/
+?? debian/patches/
+?? src/http/modules/ngx_http_proxy_module.c.rej
+?? src/http/ngx_http_upstream.c.rej
+?? src/http/v2/ngx_http_v2_upstream.c
+</code></pre><p><code>*.rej</code> ファイルは削除してから、コミットします。</p>
+<pre><code class="language-console" data-lang="console">$ find . -name '*.rej' -exec rm {} \;
+$ git add .
+$ git commit -m 'Apply ngx_http_v2_upstream patches'
+</code></pre><h2 id="debianchangelog">debian/changelogの編集</h2>
+<p>以下のコマンドを実行して <code>debian/changelog</code> を編集します。</p>
+<pre><code class="language-console" data-lang="console">$ gbp dch --release
+</code></pre><p>エディタが起動されて、ファイルの先頭は以下のようになっていました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">nginx (1.13.3-1~xenialubuntu1) xenial; urgency=medium
+
+  * Apply ngx_http_v2_upstream patches
+
+ -- Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;  Fri, 14 Jul 2017 09:35:07 +0900
+
+nginx (1.13.3-1~xenial) xenial; urgency=low
+</code></pre></div><p>バージョンで <code>xenial</code> と <code>ubuntu1</code> がくっついているのは良くないのと、公式パッケージではなくPPAなので、
+バージョンを <code>1.13.3-1~xenial1ppa1</code> を書き換えて保存してエディタを終了しました。</p>
+<p>gitレポジトリの状態を確認し、 <code>debian/changelog</code> をコミットします。</p>
+<pre><code class="language-console" data-lang="console">$ git status -sb
+## master
+ M debian/changelog
+</code></pre><p>.. code-block:: console</p>
+<pre><code>$ git commit -m 'Release 1.13.3-1~xenial1ppa1' debian/changelog
+</code></pre>
+<h2 id="heading-2">ソースパッケージのビルド</h2>
+<p>ソースパッケージのビルドですが、今回はupstreamのソースに対してdfsg対応の修正は加えておらずそのままなので <code>--git-pristine-tar-commit</code> オプションは指定せず以下のコマンドを実行します。</p>
+<pre><code class="language-console" data-lang="console">gbp buildpackage --git-export-dir=../build-area -S -sa
+</code></pre><p>gpgのパスフレーズを2回聞かれるので入力します。</p>
+<h2 id="heading-3">バイナリパッケージのビルド</h2>
+<p>以下のコマンドでバイナリパッケージをビルドします。</p>
+<pre><code class="language-console" data-lang="console">sudo pbuilder build ../build-area/nginx_1.13.3-1~xenial1ppa1.dsc
+</code></pre><h2 id="git-1">gitのタグ作成</h2>
+<p>ビルドしたバイナリパッケージを壊しても良いコンテナなどにインストールして動作確認が取れたらgitのタグを打っておきます。</p>
+<p>debのバージョンに <code>~</code> が入っていますが、gitのタグに <code>~</code> は使えないだろうからどうしようかと思って、今のタグを見ると <code>~</code> は <code>_</code> で置き換えていました。</p>
+<pre><code class="language-console" data-lang="console">$ git tag
+debian/1.13.3-1_xenial
+upstream/1.13.3
+</code></pre><p>ということで以下のようにタグを打っておきました。</p>
+<pre><code class="language-console" data-lang="console">$ git tag debian/1.13.3-1_xenial1ppa1
+</code></pre>
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

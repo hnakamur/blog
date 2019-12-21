@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました</h1>
+  <time datetime=2015-12-15T04:19:16&#43;0900 class="post-date">2015-12-15</time>
+  <h2 id="heading">はじめに</h2>
+<p><a href="/blog/2015/11/26/use_travis_and_copr_to_build_and_host_rpm/">Travis CIとcopr.fedoraproject.orgを使ってrpmをビルド・配布するのを試してみた · hnakamur's blog at github</a>と<a href="/blog/2015/12/05/build_rpm_with_mock/">mockコマンドでrpmをビルドする · hnakamur's blog at github</a>の環境でいくつかrpmをビルド・配布してみたのですが、手元の環境でビルドを成功させるまでに試行錯誤するのと、coprにsrpmをアップロードしてビルド・配布するのが別の環境だと面倒なことに気付きました。</p>
+<p>そこで、1つのdockerコンテナで両方を行えるようにしました。</p>
+<h2 id="travis-ci">Travis CIは外しました</h2>
+<p>また、Travis CIは使わないようにしました。理由は2つあります。1つめの理由はgithubのプロジェクトごとにTravis CIのプロジェクトを作ってcopr APIのログイン名、ユーザ名、トークンを環境変数で設定するのが面倒だったからです。これ自体はTravisのAPIを使えば解決する問題かもしれません。</p>
+<p>2つめの理由は、結局手元の環境でビルドを試すので、そこからそのままcoprにsrpmを上げるほうが手っ取り早いことに気づいたからです。これは初回にrpmのspecファイルを作成するときも、その後specファイルのバージョンを更新して新しいバージョンのrpmを作成するときもそうです。</p>
+<h2 id="nginxrpmdocker">nginxのカスタムrpmをビルド・配布するためのdockerコンテナ</h2>
+<p>githubレポジトリ<a href="https://github.com/hnakamur/nginx-rpm">hnakamur/nginx-rpm</a>に公開しています。対応するcoprのプロジェクトは<a href="https://copr.fedoraproject.org/coprs/hnakamur/nginx/">hnakamur/nginx Copr</a>です。</p>
+<h2 id="heading-1">ビルド前の準備</h2>
+<h3 id="copr-apienvrc">copr APIトークンを.envrcにコピー</h3>
+<p>coprを使うにはFedoraアカウントが必要です。<a href="https://admin.fedoraproject.org/accounts/user/new">Sign up for a Fedora account</a> から登録してください。</p>
+<p>Fedoraアカウントにログインした状態で <a href="https://copr.fedoraproject.org/api/">API for Copr</a>を開くと、ページの先頭にAPI Tokenというセクションがあり、以下のような内容が表示されます。</p>
+<pre><code>[copr-cli]
+login = ログインID
+username = ユーザ名
+token = トークン
+copr_url = https://copr.fedoraproject.org
+# expiration date: 2016-05-12
+</code></pre><p>以下のコマンドを実行して上記のgithubレポジトリを手元にコピーします。</p>
+<pre><code>git clone https://github.com/hnakamur/nginx-rpm
+</code></pre><p><code>.envrc.example</code> を <code>.envrc</code> にコピーして、上で表示したログインID、ユーザ名、トークンを <code>.envrc</code> 内の <code>COPR_LOGIN</code>, <code>COPR_USERNAME</code>, <code>COPR_TOKEN</code> 環境変数に設定します。</p>
+<pre><code># NOTE: Copy this file to .envrc and edit the values
+# Go https://copr.fedoraproject.org/api/ and login in and see the values to set.
+export COPR_LOGIN=_your_login_here_
+export COPR_USERNAME=_your_username_here_
+export COPR_TOKEN=_your_token_here_
+</code></pre><p>セキュリティを考慮してこれらの値はdockerのイメージには埋め込まず、実行時にdockerの <code>-e</code> オプションで渡すようにしています。具体的には <a href="https://github.com/hnakamur/nginx-rpm/blob/master/docker_wrapper.sh">docker_wrapper.sh</a> の <code>docker run</code> の行を参照してください。</p>
+<h3 id="spec">specファイルの調整</h3>
+<p>specファイルは <a href="https://github.com/hnakamur/nginx-rpm/blob/master/SPECS/nginx.spec">SPECS/nginx</a> にあります。各自のニーズに応じて適宜調整します。現時点では <a href="http://nginx.org/packages/centos/7/SRPMS/">http://nginx.org/packages/centos/7/SRPMS/</a> で配布されているCentOS 7用のsrpmをベースに以下の3つのモジュールを組み込んだものになっています。</p>
+<ul>
+<li><a href="https://github.com/openresty/lua-nginx-module">openresty/lua-nginx-module</a></li>
+<li><a href="https://github.com/yaoweibin/nginx_upstream_check_module">yaoweibin/nginx_upstream_check_module</a></li>
+<li><a href="https://github.com/replay/ngx_http_consistent_hash">replay/ngx_http_consistent_hash</a></li>
+</ul>
+<p>nginx.orgで配布されているsrpm内のnginx.specからの差分は <a href="https://github.com/hnakamur/nginx-rpm/compare/7e234d2a222778c0a46204dba4e2dcaae8bf7894...ce4e842731a9b90034f9e00796e16839d8bda826">https://github.com/hnakamur/nginx-rpm/compare/7e234d2a222778c0a46204dba4e2dcaae8bf7894...ce4e842731a9b90034f9e00796e16839d8bda826</a> で見られます。</p>
+<h3 id="sources">SOURCES/*ファイルの調整</h3>
+<p><a href="https://github.com/hnakamur/nginx-rpm/tree/master/SOURCES">SOURCES/</a>にsrpmで必要なソースファイルを置いています。必要に応じて調整してください。今は <a href="http://nginx.org/packages/centos/7/SRPMS/">http://nginx.org/packages/centos/7/SRPMS/</a> で配布されているCentOS 7用のsrpmから頂いたものをそのまま使用しています。</p>
+<p>なお、nginx自体のソースコード(例: nginx-1.9.9.tar.gz)や各エクステンションのソースコードは含めず、ビルド時にダウンロードするようにしています。これはgitレポジトリの肥大化を防ぐためです。</p>
+<h3 id="heading-2">ビルドスクリプトの調整</h3>
+<p>ビルドスクリプト<a href="https://github.com/hnakamur/nginx-rpm/blob/master/scripts/build.sh">scripts/build.sh</a>も適宜調整します。</p>
+<ul>
+<li>copr_project_name、copr_project_description、copr_project_instructions、rpm_nameをお好みで編集してください。</li>
+<li><code>download_source_files</code> 関数はspecファイルの <code>/^Source[0-9]*:</code> にマッチするパターンで値がhttpから始まるURLについてダウンロードするようにしています。そしてURLの最後のスラッシュ以降をファイル名として採用しています。このルールから外れる場合は、この関数を適宜変更してください。</li>
+</ul>
+<h3 id="dockerfiledocker">Dockerfileとdockerのラッパースクリプトを調整</h3>
+<p><a href="https://github.com/hnakamur/nginx-rpm/blob/master/Dockerfile">Dockerfile</a>と<a href="https://github.com/hnakamur/nginx-rpm/blob/master/docker_wrapper.sh">docker_wrapper.sh</a>を適宜調整してください。</p>
+<p>通常は<a href="https://github.com/hnakamur/nginx-rpm/blob/fa051c195e030c2e7f247fa258c6fad1ef9f0dde/docker_wrapper.sh">docker_wrapper.sh</a>のdockerimageを好きな名前に変えるぐらいで大丈夫だと思います。</p>
+<h2 id="docker">dockerイメージを作成</h2>
+<p>以下のコマンドを実行してdockerイメージをビルドします。</p>
+<pre><code>./docker_wrapper.sh build
+</code></pre><h2 id="dockermockrpm">dockerイメージを起動してmockでrpmをビルド</h2>
+<p>以下のコマンドを実行してdockerイメージを起動してbashプロンプトを表示します。</p>
+<pre><code>source .envrc
+./docker_wrapper.sh bash
+</code></pre><p>ちなみに私は<a href="https://github.com/direnv/direnv">direnv/direnv</a>を使っているので、 <code>source .envrc</code> の行は自分で入力しなくても<a href="https://github.com/direnv/direnv">direnv/direnv</a>が実行してくれるので便利です。direnvについては<a href="http://blog.hde.co.jp/entry/2015/02/27/182117">改めて、direnvを使いましょう！ - HDE BLOG</a>などの記事を参照してください。</p>
+<p>dockerイメージのbashプロンプトで以下のコマンドを実行してmockでrpmをビルドします。</p>
+<pre><code>./build.sh mock
+</code></pre><p>mockはchroot環境を作ってそこでrpmをビルドするようになっているので、chroot環境の作成にちょっと時間がかかります。</p>
+<p>dockerコンテナという独立空間が既にあるのにmockでchroot環境を作るのは無駄なんですが、coprがmockを使っているためmockでビルドが成功することを確認してからcoprにsrpmをアップロードするほうが、coprでのビルド失敗を減らせて良いですのでこうしています。</p>
+<h2 id="coprsrpmrpm">coprにsrpmをアップロードして、rpmをビルド・配布</h2>
+<p>mockでrpmのビルドが成功することを確認できたら、dockerコンテナ内で以下のコマンドを実行してsrpmをcoprにアップロードします。</p>
+<pre><code>./build.sh copr
+</code></pre><p><a href="https://github.com/hnakamur/nginx-rpm/blob/master/scripts/build.sh">scripts/build.sh</a>の <code>copr_project_name</code> で指定した名前のプロジェクトがcopr上に存在しない場合はまず作成してからsrpmをアップロードするようになっています。</p>
+<p>coprのプロジェクト <code>https://copr.fedoraproject.org/coprs/${COPR_USER_NAME}/${copr_project_name}/</code> でビルドが完了すれば、rpmのレポジトリとして利用可能です。</p>
+<h2 id="heading-3">まとめ</h2>
+<p>mockとcoprを使ってnginxのカスタムrpmをビルド・配布する環境について説明しました。</p>
+<p>mockを使ってクリーンな環境でビルドできるので、今回のスクリプトでdockerコンテナを使う必要性は特にありません。Dockerfileでセットアップしたのと同等のCentOS7環境があれば <a href="https://github.com/hnakamur/nginx-rpm/blob/master/scripts/build.sh">scripts/build.sh</a>を使ってsrpmのビルド、rpmのビルド、srpmのcoprへのアップロードを行えます。</p>
+<p>mockでのrpmのビルドが失敗した場合の調査方法とかcoprのAPIをcopr-cliではなくcurlで呼び出している話とか、いくつか書きたい話があるので日を改めて別記事として書こうと思います。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

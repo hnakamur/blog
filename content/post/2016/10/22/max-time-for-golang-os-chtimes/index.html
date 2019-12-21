@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Go言語のos.Chtimesで設定可能な最大日時は 2262-04-11 23:47:16.854775807 &#43;0000 UTC &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Go言語のos.Chtimesで設定可能な最大日時は 2262-04-11 23:47:16.854775807 &#43;0000 UTC</h1>
+  <time datetime=2016-10-22T18:32:50&#43;0900 class="post-date">2016-10-22</time>
+  <p><a href="https://golang.org/pkg/os/#Chtimes">os.Chtimes</a> のソース</p>
+<ul>
+<li><a href="https://golang.org/src/os/file_posix.go?s=3693:3758#L123">src/os/file_posix.go - The Go Programming Language</a></li>
+<li><a href="https://github.com/golang/go/blob/go1.7.3/src/os/file_posix.go#L133-L141">go/file_posix.go at go1.7.3 · golang/go</a></li>
+</ul>
+<p>を見ると、引数は <code>time.Time</code> なのですが、 <code>syscall.Timespec</code> に変換するときに <code>time</code> の <code>UnixNano()</code> を使っています。 <code>UnixNano()</code> は 1970-01-01T00:00:00Z からの通算ミリ秒です。</p>
+<p><code>UnixNano()</code> で int64 の最大値を設定したときと、 <code>time.Time</code> で表現可能な最大の日時を調べてみました。</p>
+<p><a href="https://play.golang.org/p/eUj5L-eEkS">https://play.golang.org/p/eUj5L-eEkS</a></p>
+<pre><code>package main
+
+import (
+	&quot;fmt&quot;
+	&quot;math&quot;
+	&quot;time&quot;
+)
+
+func main() {
+	fmt.Println(time.Unix(int64(math.MaxInt64)/1e9, int64(math.MaxInt64)%1e9).UTC())
+	fmt.Println(time.Unix(math.MaxInt64, 1e9-1).UTC())
+}
+</code></pre><pre><code>2262-04-11 23:47:16.854775807 +0000 UTC
+219250468-12-04 15:30:07.999999999 +0000 UTC
+</code></pre><p>となりました。</p>
+<p>Linux amd64 環境だと <a href="https://github.com/golang/go/blob/go1.7.3/src/syscall/syscall_linux_amd64.go#L91-L95">NsecToTimespec</a> と <a href="https://github.com/golang/go/blob/go1.7.3/src/syscall/ztypes_linux_amd64.go#L24-L27">Timespec</a> は</p>
+<pre><code>func NsecToTimespec(nsec int64) (ts Timespec) {
+	ts.Sec = nsec / 1e9
+	ts.Nsec = nsec % 1e9
+	return
+}
+</code></pre><pre><code>type Timespec struct {
+	Sec  int64
+	Nsec int64
+}
+</code></pre><p>となっているので、 <code>NsecToTimespec</code> を使わずに</p>
+<pre><code>func Chtimes(name string, atime time.Time, mtime time.Time) error {
+	var utimes [2]syscall.Timespec
+	utimes[0] = syscall.Timespec(atime.Unix(), atime.Nanosecond())
+	utimes[1] = syscall.Timespec(mtime.Unix(), mtime.Nanosecond())
+	if e := syscall.UtimesNano(name, utimes[0:]); e != nil {
+		return &amp;PathError{&quot;chtimes&quot;, name, e}
+	}
+	return nil
+}
+</code></pre><p>と書けば <code>time.Time</code> の限界まで渡すことは出来ます。とは言え <code>syscall.UtimesNano</code> が対応しているかはまた別問題ですが。</p>
+<p>2262 年まで表現できれば個人的には困らないので、メモだけ残しておくということで。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

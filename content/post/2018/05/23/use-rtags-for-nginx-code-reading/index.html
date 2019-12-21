@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>nginxのコードリーディングにrtagsを使う &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>nginxのコードリーディングにrtagsを使う</h1>
+  <time datetime=2018-05-23T22:25:00&#43;0900 class="post-date">2018-05-23</time>
+  <h1 id="heading">はじめに</h1>
+<p><a href="/blog/2018/05/23/build-rtags-deb-for-ubuntu-18.04-lts/">Ubuntu 18.04 LTS用にrtagsのdebパッケージを作成した</a> で作成したrtagsを使ってnginxのコードリーディングをするための手順メモです。</p>
+<p>configure で生成される <code>ngx_auto_config.h</code> と <code>ngx_auto_headers.h</code> も含めて読みたいというのと、rtagsのREADMEの <code>Setup](https://github.com/Andersbakken/rtags#setup) のうちnginxでは [Bear](https://github.com/rizsotto/Bear) を使って </code>compile_commands.json<code>を生成するという関係もあり、</code>debパッケージを使ってnginxモジュールをビルド・デバッグする](<a href="https://hnakamur.github.io/blog/2018/05/10/build-and-debug-nginx-module-using-deb-package/">https://hnakamur.github.io/blog/2018/05/10/build-and-debug-nginx-module-using-deb-package/</a>) と似た感じでビルドしていくことになります。</p>
+<p>例によってこの記事に書いているのは試行錯誤してとりあえず動いたという手順なので、もっと良い手順があるかもしれません。</p>
+<h1 id="rtagsvim-rtags">rtagsとvim-rtagsのインストール</h1>
+<p><a href="/blog/2018/05/23/build-rtags-deb-for-ubuntu-18.04-lts/">Ubuntu 18.04 LTS用にrtagsのdebパッケージを作成した</a> の手順で rtags をインストールして rdm を実行しておきます。またvim-rtagsもインストールしておきます。</p>
+<h1 id="heading-1">必要なソフトのインストール</h1>
+<p>debパッケージのビルドに必要なツールをインストールします。 equivs は後述の mk-build-deps コマンドで必要になります。</p>
+<pre><code class="language-console" data-lang="console">sudo apt install build-essential devscripts equivs bear
+</code></pre><h1 id="nginxdeb">nginxのdebパッケージのソースの取得</h1>
+<p>普段使っているモジュール込みでコードリーディングしたいので自作debパッケージのソースを使います。
+適当な作業ディレクトリで以下のコマンドを実行します。</p>
+<pre><code class="language-console" data-lang="console">git clone https://github.com/hnakamur/nginx-deb
+cd nginx-deb
+</code></pre><h1 id="heading-2">依存ライブラリのインストール</h1>
+<pre><code class="language-console" data-lang="console">mk-build-deps debian/control
+sudo dpkg -i ./nginx-build-deps*.deb
+sudo apt install -f
+</code></pre><h1 id="heading-3">パッチ適用</h1>
+<p>debパッケージに含まれるパッチを適用します。この記事を書いている2018-05-23時点ではパッチを当てないとlua-nginx-moduleがUbuntu 18.04のlibluajit-5.1-devパッケージのファイルを見つけられないので当てる必要があります。</p>
+<p>以下のコマンドでパッチを当てます。ちなみにこの手順はバイナリパッケージをビルドするコマンド <code>dpkg-buildpackage -b</code> を実行したときに出力されていて知りました。</p>
+<pre><code class="language-console" data-lang="console">dpkg-source --before-build .
+</code></pre><p>この時点で <code>git status</code> を実行するとカレントディクレクトリ配下のソースが変更されていました。後ほど <code>git checkout .</code> で元に戻しておきます。</p>
+<h1 id="configure">ソースのコピーとconfigure実行</h1>
+<pre><code class="language-console" data-lang="console">./debian/rules config.status.nginx
+</code></pre><p>これで <code>debian/build-nginx</code> ディレクトリが作成されてnginxとモジュールのソースがコピーされconfigureが実行されます。この結果として <code>debian/build-nginx</code> 以下に <code>Makefile</code>, <code>objs/ngx_auto_config.h</code>, <code>objs/ngx_auto_headers.h</code> やその他のファイルが作られます。</p>
+<p>また、カレントディレクトリには <code>config.env.nginx</code> と <code>config.status.nginx</code> というファイルが生成されます。 <code>debian/rules</code> の中を見るとMakefileになっているのですが、これらはmakeのターゲットになっています。</p>
+<p>もしcleanしてやり直したい場合は <code>fakeroot ./debian/rules clean</code> でcleanできますが、 <code>debian/build-nginx</code> 以下の <code>Makefile</code> も消えてしまうので、再度 <code>./debian/rules config.status.nginx</code> を実行する必要があります。その際は <code>config.env.nginx</code> と <code>config.status.nginx</code> を消しておく必要があります。</p>
+<h1 id="bearcompile-commandsjson">bearを使ってcompile_commands.json作成</h1>
+<p>rtagsのインデクスを作るための元ネタになる <code>compile_commands.json</code> をbearを使って作ります。
+<code>compile_commands.json</code> にはソースコードのフルパスが含まれるので、コードを読むのを別のディレクトリで行いたい場合は、このタイミングで移動すると良いです。</p>
+<p>ここでは <code>~/nginx-code-reading</code> に移動してみました。</p>
+<pre><code class="language-console" data-lang="console">mv debian/build-nginx ~/nginx-code-reading
+cd !$
+bear make
+</code></pre><p>これで <code>compile_commands.json</code> が作られますので、あとは以下を実行してインデクスを作成します。</p>
+<pre><code class="language-console" data-lang="console">rc -J
+</code></pre><p>すると <code>~/.cache/rtags</code> ディレクトリの下に <code>_home_hnakamur_nginx-code-reading_</code> というディレイクトリが作られていました。これは <code>/home/hnakamur/nginx-code-reading</code> というディレクトリに対応したものです（ <code>/</code> を <code>_</code> に置換して最後に <code>_</code> を追加している）。</p>
+<h1 id="rtags">rtagsを使ってコードを読む</h1>
+<p>lyuts/vim-rtags の <a href="https://github.com/lyuts/vim-rtags#mappings">Mappings</a> のキー操作により定義にジャンプしたり関数などの参照箇所を表示します。</p>
+<p><code>&lt;Leader&gt;rj</code> での定義へのジャンプは関数で使えるのはもちろんですが、構造体のフィールドを参照している箇所にカーソルをおいて <code>&lt;Leader&gt;rj</code> を押すと構造体の定義のフィールドの行に飛べるのが便利でした。</p>
+<p>ジャンプから戻るのは <code>Ctrl-O</code> でできました。</p>
+<h1 id="heading-4">おわりに</h1>
+<p>まだ使い始めたばかりなのでよくわかっていませんが、かなり便利そうなので使いこなしていきたいです。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

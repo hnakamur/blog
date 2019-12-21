@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>universal-ctagsのUbuntu 18.04 LTS用debパッケージをビルドした &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>universal-ctagsのUbuntu 18.04 LTS用debパッケージをビルドした</h1>
+  <time datetime=2018-06-08T00:30:00&#43;0900 class="post-date">2018-06-08</time>
+  <h1 id="heading">はじめに</h1>
+<p>ctagsというと Ubuntu 18.04 LTS には
+<a href="https://packages.ubuntu.com/bionic/exuberant-ctags">exuberant-ctags (1:5.9~svn20110310-11)</a>
+というパッケージがあります。ですが、バージョン番号のsvnの後の日付が2011年とあるようにかなり古いです。</p>
+<p>検索してみると
+<a href="https://github.com/universal-ctags/ctags">universal-ctags/ctags: A maintained ctags implementation</a>
+活発に開発されているので、こちらを使うことにしました。</p>
+<p><a href="https://github.com/universal-ctags/ctags/issues/655">Add debian packaging information to the repository · Issue #655 · universal-ctags/ctags</a> というイシューの <a href="https://github.com/universal-ctags/ctags/issues/655#issuecomment-377423868">コメント</a> で
+<a href="https://packages.debian.org/buster/universal-ctags">Debian &ndash; buster の universal-ctags パッケージ</a>
+があることを知りました。</p>
+<p>その下の <a href="https://github.com/universal-ctags/ctags/issues/655#issuecomment-377699060">コメント</a> にmanページを追加してlibxml2をリンクしたほうが良いとアドバイスがありました。</p>
+<p>そこで、これらに対応したdebパッケージをビルドしてみました。</p>
+<ul>
+<li><a href="https://launchpad.net/~hnakamur/+archive/ubuntu/universal-ctags">universal-ctagsのPPAのページ</a></li>
+<li><a href="https://github.com/hnakamur/universal-ctags-deb">universal-ctagsのdebのソース</a></li>
+</ul>
+<h1 id="heading-1">使い方(インストール手順)</h1>
+<p>後から参照する時用に、ビルドしたパッケージを利用する手順を先に書いておきます。</p>
+<pre><code class="language-console" data-lang="console">sudo apt install software-properties-common
+sudo add-apt-repository ppa:hnakamur/universal-ctags
+sudo apt update
+sudo apt install universal-ctags
+</code></pre><h1 id="deb">debパッケージをビルドしたときのメモ</h1>
+<h2 id="heading-2">リンクするライブラリの追加</h2>
+<p>libxml2, libjansson, libseccomp, libyaml, libaspellのdevパッケージを <code>debian/control</code> の <code>Build-Depends</code> に追加しました。
+テストの実行時に必要になるので aspell-en パッケージも追加しました。</p>
+<p>また libaspell-dev パッケージには pkg-config のファイルが何故か含まれていないので <code>ASPELL_CFLAGS</code> と <code>ASPELL_LIBS</code> 環境変数を configure に引き渡すように変更しました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-diff" data-lang="diff"><span class="gh">diff --git a/debian/control b/debian/control
+</span><span class="gh"></span><span class="gh">index 86c233c..17cc873 100644
+</span><span class="gh"></span><span class="gd">--- a/debian/control
+</span><span class="gd"></span><span class="gi">+++ b/debian/control
+</span><span class="gi"></span><span class="gu">@@ -2,7 +2,9 @@ Source: universal-ctags
+</span><span class="gu"></span> Section: editors
+ Priority: optional
+ Maintainer: Alessandro Ghedini &lt;ghedo@debian.org&gt;
+<span class="gd">-Build-Depends: debhelper (&gt;= 11), autoconf, automake, pkg-config
+</span><span class="gd"></span><span class="gi">+Build-Depends: debhelper (&gt;= 11), autoconf, automake, pkg-config,
+</span><span class="gi"></span><span class="gi">+  libxml2-dev, libjansson-dev, libseccomp-dev, libyaml-dev,
+</span><span class="gi"></span><span class="gi">+  libaspell-dev, aspell-en
+</span><span class="gi"></span> Standards-Version: 4.1.3
+ Vcs-Git: https://salsa.debian.org/debian/universal-ctags.git
+ Vcs-Browser: https://salsa.debian.org/debian/universal-ctags
+<span class="gh">diff --git a/debian/rules b/debian/rules
+</span><span class="gh"></span><span class="gh">index aa15ce4..d6e3363 100755
+</span><span class="gh"></span><span class="gd">--- a/debian/rules
+</span><span class="gd"></span><span class="gi">+++ b/debian/rules
+</span><span class="gi"></span><span class="gu">@@ -14,5 +14,12 @@ override_dh_autoreconf:
+</span><span class="gu"></span>        dh_autoreconf
+ 
+ override_dh_auto_configure:
+<span class="gi">+	# We need to pass ASPELL_CFLAGS and ASPELL_LIBS here
+</span><span class="gi"></span><span class="gi">+	# because the libaspell-dev package does not include pkg-config file.
+</span><span class="gi"></span><span class="gi">+	ASPELL_CFLAGS=-I/usr/include ASPELL_LIBS=-laspell \
+</span><span class="gi"></span>        dh_auto_configure -- \
+                --program-transform-name=&#39;s/ctags/ctags-universal/&#39;
+<span class="gi">+
+</span><span class="gi"></span><span class="gi">+override_dh_install:
+</span><span class="gi"></span><span class="gi">+	mv man/ctags.1 man/ctags-universal.1
+</span><span class="gi"></span><span class="gi">+	dh_auto_install
+</span></code></pre></div><p>また、 <code>/usr/share/man/man1/ctags.1.gz</code> というファイルは exuberant-ctags パッケージと衝突するので
+<code>/usr/share/man/man1/ctags-universal.1.gz</code> となるように変更しています。</p>
+<h2 id="manupdate-alternatives">manページ用にupdate-alternativesの調整</h2>
+<p>ビルド時に実行される <code>make rst2man</code> で必要な <code>python3-docutils</code> パッケージを Build-Requires に追加しました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-diff" data-lang="diff"><span class="gh">diff --git a/debian/control b/debian/control
+</span><span class="gh"></span><span class="gh">index 17cc873..590afd6 100644
+</span><span class="gh"></span><span class="gd">--- a/debian/control
+</span><span class="gd"></span><span class="gi">+++ b/debian/control
+</span><span class="gi"></span><span class="gu">@@ -4,7 +4,7 @@ Priority: optional
+</span><span class="gu"></span> Maintainer: Alessandro Ghedini &lt;ghedo@debian.org&gt;
+ Build-Depends: debhelper (&gt;= 11), autoconf, automake, pkg-config,
+   libxml2-dev, libjansson-dev, libseccomp-dev, libyaml-dev,
+<span class="gd">-  libaspell-dev, aspell-en
+</span><span class="gd"></span><span class="gi">+  libaspell-dev, aspell-en, python3-docutils
+</span><span class="gi"></span> Standards-Version: 4.1.3
+ Vcs-Git: https://salsa.debian.org/debian/universal-ctags.git
+ Vcs-Browser: https://salsa.debian.org/debian/universal-ctags
+<span class="gh">diff --git a/debian/postinst b/debian/postinst
+</span><span class="gh"></span><span class="gh">index b179db6..c53102e 100644
+</span><span class="gh"></span><span class="gd">--- a/debian/postinst
+</span><span class="gd"></span><span class="gi">+++ b/debian/postinst
+</span><span class="gi"></span><span class="gu">@@ -4,8 +4,9 @@ set -e
+</span><span class="gu"></span> 
+ case &#34;$1&#34; in
+     configure)
+<span class="gd">-        update-alternatives --install \
+</span><span class="gd"></span><span class="gd">-            /usr/bin/ctags ctags /usr/bin/ctags-universal 30
+</span><span class="gd"></span><span class="gi">+        update-alternatives \
+</span><span class="gi"></span><span class="gi">+	    --install /usr/bin/ctags ctags /usr/bin/ctags-universal 30 \
+</span><span class="gi"></span><span class="gi">+	    --slave /usr/share/man/man1/ctags.1.gz ctags.1.gz /usr/share/man/man1/ctags-universal.1.gz
+</span><span class="gi"></span>     ;;
+ 
+     abort-upgrade|abort-remove|abort-deconfigure)
+<span class="gh">diff --git a/debian/universal-ctags.manpages b/debian/universal-ctags.manpages
+</span><span class="gh"></span>new file mode 100644
+<span class="gh">index 0000000..ac25efb
+</span><span class="gh"></span><span class="gd">--- /dev/null
+</span><span class="gd"></span><span class="gi">+++ b/debian/universal-ctags.manpages
+</span><span class="gi"></span><span class="gu">@@ -0,0 +1,3 @@
+</span><span class="gu"></span><span class="gi">+man/ctags-incompatibilities.7
+</span><span class="gi"></span><span class="gi">+man/ctags-optlib.7
+</span><span class="gi"></span><span class="gi">+man/ctags-universal.1
+</span></code></pre></div><p>exuberant-ctags パッケージだけをインストールした状態で update-alternatives の設定を確認すると以下のようになっていたので、 <code>debian/postinst</code> 内で実行している universal-ctags 用の update-alternatives の設定を上記のdiff内にのように変更しました。</p>
+<pre><code class="language-console" data-lang="console">$ update-alternatives --display ctags
+ctags - auto mode
+  link best version is /usr/bin/ctags-exuberant
+  link currently points to /usr/bin/ctags-exuberant
+  link ctags is /usr/bin/ctags
+  slave ctags.1.gz is /usr/share/man/man1/ctags.1.gz
+/usr/bin/ctags-exuberant - priority 30
+  slave ctags.1.gz: /usr/share/man/man1/ctags-exuberant.1.gz
+</code></pre><p>universal-ctags のパッケージをビルド後、exuberant-ctags とともにインストールされている環境で、update-alternativesで切り替えるのは以下のようにします。</p>
+<pre><code class="language-console" data-lang="console">root@nginx-dev:~# update-alternatives --config ctags
+There are 2 choices for the alternative ctags (providing /usr/bin/ctags).
+
+  Selection    Path                      Priority   Status
+------------------------------------------------------------
+* 0            /usr/bin/ctags-universal   30        auto mode
+  1            /usr/bin/ctags-exuberant   30        manual mode
+  2            /usr/bin/ctags-universal   30        manual mode
+
+Press &lt;enter&gt; to keep the current choice[*], or type selection number: 2
+</code></pre><p>切り替え後に update-alternatives の設定を確認すると以下のようになっていました。</p>
+<pre><code class="language-console" data-lang="console">root@nginx-dev:~# update-alternatives --display ctags
+ctags - manual mode
+  link best version is /usr/bin/ctags-universal
+  link currently points to /usr/bin/ctags-universal
+  link ctags is /usr/bin/ctags
+  slave ctags.1.gz is /usr/share/man/man1/ctags.1.gz
+/usr/bin/ctags-exuberant - priority 30
+  slave ctags.1.gz: /usr/share/man/man1/ctags-exuberant.1.gz
+/usr/bin/ctags-universal - priority 30
+  slave ctags.1.gz: /usr/share/man/man1/ctags-universal.1.gz
+</code></pre><p>実際にファイルを確認して見ると以下のようなシンボリックリンクになっていました。</p>
+<pre><code class="language-console" data-lang="console">root@nginx-dev:~# ls -l /usr/bin/ctags
+lrwxrwxrwx 1 root root 23 May 10 05:47 /usr/bin/ctags -&gt; /etc/alternatives/ctags
+root@nginx-dev:~# ls -l /etc/alternatives/ctags
+lrwxrwxrwx 1 root root 24 Jun  7 07:15 /etc/alternatives/ctags -&gt; /usr/bin/ctags-universal
+root@nginx-dev:~# ls -l /usr/share/man/man1/ctags.1.gz
+lrwxrwxrwx 1 root root 28 Jun  7 04:00 /usr/share/man/man1/ctags.1.gz -&gt; /etc/alternatives/ctags.1.gz
+root@nginx-dev:~# ls -l /etc/alternatives/ctags.1.gz
+lrwxrwxrwx 1 root root 40 Jun  7 07:15 /etc/alternatives/ctags.1.gz -&gt; /usr/share/man/man1/ctags-universal.1.gz
+</code></pre><h2 id="pbuilderppa">ローカルのpbuilderでは問題ないがPPAではエラーになるテストをスキップ</h2>
+<p><a href="https://launchpadlibrarian.net/373545107/buildlog_ubuntu-bionic-amd64.universal-ctags_0+SNAPSHOT20180606-1ubuntu1ppa2~ubuntu18.04.1_BUILDING.txt.gz">PPAでのビルド失敗時のログその1</a> ではテストの1つで以下のようなエラーが出ていました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">Testing parser-own-fields
+------------------------------------------------------------
+stdout                                                      failed (diff: /&lt;&lt;BUILDDIR&gt;&gt;/universal-ctags-0+SNAPSHOT20180606/Tmain/parser-own-fields.d/stdout-diff.txt)
+</code></pre></div><p><code>misc/units</code> や <code>Makefile</code> を読んだところ、テスト実行時に
+<code>SHOW_DIFF_OUTPUT=--show-diff-output</code> のように環境変数を設定しておけばdiffが表示されることがわかったので、 <code>debian/rules</code> を以下のように変更しました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-diff" data-lang="diff"><span class="gh">diff --git a/debian/rules b/debian/rules
+</span><span class="gh"></span><span class="gh">index d6e3363..62f9835 100755
+</span><span class="gh"></span><span class="gd">--- a/debian/rules
+</span><span class="gd"></span><span class="gi">+++ b/debian/rules
+</span><span class="gi"></span><span class="gu">@@ -20,6 +20,10 @@ override_dh_auto_configure:
+</span><span class="gu"></span>	dh_auto_configure -- \
+		--program-transform-name=&#39;s/ctags/ctags-universal/&#39;
+ 
+<span class="gi">+override_dh_auto_test:
+</span><span class="gi"></span><span class="gi">+	SHOW_DIFF_OUTPUT=--show-diff-output \
+</span><span class="gi"></span><span class="gi">+	dh_auto_test
+</span><span class="gi"></span><span class="gi">+
+</span><span class="gi"></span> override_dh_install:
+	mv man/ctags.1 man/ctags-universal.1
+	dh_auto_install
+</code></pre></div><p><a href="https://launchpadlibrarian.net/373545107/buildlog_ubuntu-bionic-amd64.universal-ctags_0+SNAPSHOT20180606-1ubuntu1ppa2~ubuntu18.04.1_BUILDING.txt.gz">PPAでのビルド失敗時のログその2</a> では以下のようにdiffが表示されていました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">Detail [compare]
+------------------------------------------------------------
+/&lt;&lt;BUILDDIR&gt;&gt;/universal-ctags-0+SNAPSHOT20180606/Tmain/parser-own-fields.d/stdout-diff.txt
+
+	--- /&lt;&lt;BUILDDIR&gt;&gt;/universal-ctags-0+SNAPSHOT20180606/Tmain/parser-own-fields.d/stdout-actual.txt	2018-06-07 13:20:17.380303536 +0000
+	+++ ./Tmain/parser-own-fields.d/stdout-expected.txt	2018-06-07 05:45:08.000000000 +0000
+	@@ -1,0 +2,3 @@
+	+bar	input.unknown	/^protected func bar(n);$/;&#34;	f
+	+baz	input.unknown	/^private func baz(n,...);$/;&#34;	f
+	+foo	input.unknown	/^public func foo(n, m);$/;&#34;	f
+	@@ -2,0 +6,3 @@
+	+bar	input.unknown	/^protected func bar(n);$/;&#34;	f	signature:(n)
+	+baz	input.unknown	/^private func baz(n,...);$/;&#34;	f	signature:(n,...)
+	+foo	input.unknown	/^public func foo(n, m);$/;&#34;	f	signature:(n, m)
+	@@ -3,0 +10,3 @@
+	+bar	input.unknown	/^protected func bar(n);$/;&#34;	f	protection:protected 
+	+baz	input.unknown	/^private func baz(n,...);$/;&#34;	f	protection:private 
+	+foo	input.unknown	/^public func foo(n, m);$/;&#34;	f	protection:public 
+	@@ -4,0 +14,3 @@
+	+bar	input.unknown	/^protected func bar(n);$/;&#34;	f	protection:protected 	signature:(n)
+	+baz	input.unknown	/^private func baz(n,...);$/;&#34;	f	protection:private 	signature:(n,...)
+	+foo	input.unknown	/^public func foo(n, m);$/;&#34;	f	protection:public 	signature:(n, m)
+
+Makefile:7158: recipe for target &#39;tmain&#39; failed
+make[2]: *** [tmain] Error 1
+</code></pre></div><p>ローカル環境でpbuilderやsbuildでビルドしても発生せず、PPAでビルドしたときのみ発生する現象で、調査が難しそうなので、対処療法として以下のパッチを当てて、問題のテストをスキップするようにしました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-diff" data-lang="diff"><span class="gh">diff --git a/debian/patches/0001-Skip-Tmain-parser-own-fields-stdout-comparison-test.patch b/debian/patches/0001-Skip-Tmain-parser-own-fields-stdout-comparison-test.patch
+</span><span class="gh"></span>new file mode 100644
+<span class="gh">index 0000000..ebaaa9c
+</span><span class="gh"></span><span class="gd">--- /dev/null
+</span><span class="gd"></span><span class="gi">+++ b/debian/patches/0001-Skip-Tmain-parser-own-fields-stdout-comparison-test.patch
+</span><span class="gi"></span><span class="gu">@@ -0,0 +1,32 @@
+</span><span class="gu"></span><span class="gi">+From: Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+</span><span class="gi"></span><span class="gi">+Date: Thu, 7 Jun 2018 22:46:46 +0900
+</span><span class="gi"></span><span class="gi">+Subject: Skip Tmain parser-own-fields stdout comparison test
+</span><span class="gi"></span><span class="gi">+
+</span><span class="gi"></span><span class="gi">+This is a workaround for avoiding the diff which happens only on the Ubuntu PPA build.
+</span><span class="gi"></span><span class="gi">+---
+</span><span class="gi"></span><span class="gi">+ Tmain/parser-own-fields.d/stdout-expected.txt | 16 ----------------
+</span><span class="gi"></span><span class="gi">+ 1 file changed, 16 deletions(-)
+</span><span class="gi"></span><span class="gi">+ delete mode 100644 Tmain/parser-own-fields.d/stdout-expected.txt
+</span><span class="gi"></span><span class="gi">+
+</span><span class="gi"></span><span class="gi">+diff --git a/Tmain/parser-own-fields.d/stdout-expected.txt b/Tmain/parser-own-fields.d/stdout-expected.txt
+</span><span class="gi"></span><span class="gi">+deleted file mode 100644
+</span><span class="gi"></span><span class="gi">+index 77ffecc..0000000
+</span><span class="gi"></span><span class="gi">+--- a/Tmain/parser-own-fields.d/stdout-expected.txt
+</span><span class="gi"></span><span class="gi">++++ /dev/null
+</span><span class="gi"></span><span class="gi">+@@ -1,16 +0,0 @@
+</span><span class="gi"></span><span class="gi">+-# disabling fields
+</span><span class="gi"></span><span class="gi">+-bar	input.unknown	/^protected func bar(n);$/;&#34;	f
+</span><span class="gi"></span><span class="gi">+-baz	input.unknown	/^private func baz(n,...);$/;&#34;	f
+</span><span class="gi"></span><span class="gi">+-foo	input.unknown	/^public func foo(n, m);$/;&#34;	f
+</span><span class="gi"></span><span class="gi">+-# enabling signature only
+</span><span class="gi"></span><span class="gi">+-bar	input.unknown	/^protected func bar(n);$/;&#34;	f	signature:(n)
+</span><span class="gi"></span><span class="gi">+-baz	input.unknown	/^private func baz(n,...);$/;&#34;	f	signature:(n,...)
+</span><span class="gi"></span><span class="gi">+-foo	input.unknown	/^public func foo(n, m);$/;&#34;	f	signature:(n, m)
+</span><span class="gi"></span><span class="gi">+-# enabling protection only
+</span><span class="gi"></span><span class="gi">+-bar	input.unknown	/^protected func bar(n);$/;&#34;	f	protection:protected 
+</span><span class="gi"></span><span class="gi">+-baz	input.unknown	/^private func baz(n,...);$/;&#34;	f	protection:private 
+</span><span class="gi"></span><span class="gi">+-foo	input.unknown	/^public func foo(n, m);$/;&#34;	f	protection:public 
+</span><span class="gi"></span><span class="gi">+-# enabling both signature and protection
+</span><span class="gi"></span><span class="gi">+-bar	input.unknown	/^protected func bar(n);$/;&#34;	f	protection:protected 	signature:(n)
+</span><span class="gi"></span><span class="gi">+-baz	input.unknown	/^private func baz(n,...);$/;&#34;	f	protection:private 	signature:(n,...)
+</span><span class="gi"></span><span class="gi">+-foo	input.unknown	/^public func foo(n, m);$/;&#34;	f	protection:public 	signature:(n, m)
+</span><span class="gi"></span><span class="gh">diff --git a/debian/patches/series b/debian/patches/series
+</span><span class="gh"></span>new file mode 100644
+<span class="gh">index 0000000..31a44df
+</span><span class="gh"></span><span class="gd">--- /dev/null
+</span><span class="gd"></span><span class="gi">+++ b/debian/patches/series
+</span><span class="gi"></span><span class="gu">@@ -0,0 +1 @@
+</span><span class="gu"></span><span class="gi">+0001-Skip-Tmain-parser-own-fields-stdout-comparison-test.patch
+</span></code></pre></div><p>これでPPAでも無事ビルドできました。</p>
+<p>2018-06-09 追記。その後universal-ctagsの開発者の方から連絡をいただき、PPAのビルド時に <code>V=1</code> という環境変数を設定している影響でテストが誤作動していることが判明しました。回避策を教えていただいたのでdebのビルド時にパッチを当てて回避できることを確認しました。その後
+<a href="https://github.com/universal-ctags/ctags/pull/1762">Tmain: initialize &ldquo;V&rdquo; variable explicitly by masatake · Pull Request #1762 · universal-ctags/ctags</a>
+でupstream側に取り込んでくださったので、次回upstreamのソースを更新するタイミングでdeb側のパッチを削除予定です。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Homebrew Caskを使わずにdmgファイルのアプリをコマンドでインストールする &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Homebrew Caskを使わずにdmgファイルのアプリをコマンドでインストールする</h1>
+  <time datetime=2015-04-06T00:45:50&#43;0900 class="post-date">2015-04-06</time>
+  <h2 id="homebrew-cask">なぜHomebrew Caskをやめたか</h2>
+<p><a href="http://t-wada.hatenablog.jp/entry/mac-provisioning-by-ansible">Mac の開発環境構築を自動化する (2015 年初旬編) - t-wadaのブログ</a>でもHomebrew Caskの不安な点について書かれていますが、私もHomebrew Caskは便利と思いつつも止めたいなと思っていました。</p>
+<p>私が使うアプリに関してはほとんどがアプリ側で最新版のお知らせとバージョンアップの仕組みを持っています。あとHomebrew Caskは/opt/homebrew-cask/以下に実体を置いて~/Applications/や/Applications/にシンボリックリンクを貼るようになっています。</p>
+<p>私はそこまで複雑な仕組みは要らないので、初期インストールがコマンドで半自動化できれば十分です。</p>
+<h2 id="dmg">dmgファイルのアプリをコマンドラインからインストールする</h2>
+<p><a href="http://stackoverflow.com/questions/22934083/install-dmg-package-on-mac-os-from-terminal/22940943#22940943">osx - Install dmg package on MAC OS from Terminal - Stack Overflow</a>や<a href="http://commandlinemac.blogspot.jp/2008/12/installing-dmg-application-from-command.html">Command Line Mac: Installing a .dmg application from the command line</a>を見て実際にやってみました。</p>
+<p>ソースは<a href="https://github.com/hnakamur/my-macbook-initial-setup">hnakamur/my-macbook-initial-setup · GitHub</a>にあります。</p>
+<p>以下のアプリをdmgファイルからインストールしています。</p>
+<ul>
+<li><a href="https://github.com/splhack/macvim-kaoriya">splhack/macvim-kaoriya · GitHub</a></li>
+<li><a href="http://calibre-ebook.com/">calibre - E-book management</a></li>
+<li><a href="https://www.google.co.jp/chrome/browser/desktop/index.html">Chrome</a></li>
+<li><a href="https://www.mozilla.org/ja/firefox/new/">Firefox</a></li>
+<li><a href="https://www.google.co.jp/ime/">Google 日本語入力</a></li>
+<li><a href="http://iterm2.com/">iTerm2 - Mac OS Terminal Replacement</a></li>
+<li><a href="https://java.com/ja/download/">Java (JRE)</a></li>
+<li><a href="http://grandperspectiv.sourceforge.net/">GrandPerspective</a></li>
+<li><a href="https://www-jp.mysql.com/products/workbench/">MySQL Workbench</a></li>
+<li><a href="http://mstarke.github.io/MacPass/">MacPass</a></li>
+<li><a href="http://www.shadowlab.org/Software/spark.php">Spark</a></li>
+<li><a href="https://www.virtualbox.org/">Oracle VM VirtualBox</a></li>
+<li><a href="https://www.vagrantup.com/">Vagrant</a></li>
+<li><a href="http://xquartz.macosforge.org/landing/">XQuartz</a></li>
+</ul>
+<h2 id="dmg-1">dmgファイルのマウントとアンマウント</h2>
+<p>共通の処理として、dmgファイルのマウントは <code>hdiutil attach</code> 、アンマウントは <code>hdiutil detach</code> コマンドで行います。</p>
+<p>マウントした時の /Volumes/〜 のディレクトリ名は <code>hdiutil attach</code> の実行結果の最後の行から取得できます。</p>
+<p>最初は</p>
+<pre><code>  mount_dir=`hdiutil attach $dmg_file | awk 'END{print $NF}'`
+</code></pre><p>のようにして最後の行の一番右のフィールドを取得していましたが、 <code>/Volumes/Google Chrome</code> のように空白を含む場合があることがわかりました。</p>
+<p><a href="http://stackoverflow.com/questions/22934083/install-dmg-package-on-mac-os-from-terminal/22940943#22940943">osx - Install dmg package on MAC OS from Terminal - Stack Overflow</a>では第1フィールドと第2フィールドを消して第3フィールド以降にしていますが、試してみると余分な空白（実際はタブと判明）が付いてきました。</p>
+<p><code>hdiutil attach</code> の結果をファイルに落として見てみたら、空白に加えてタブで区切られていてタブで区切るほうがシンプルなことがわかりました。</p>
+<p>そこで、以下のようにして取得するようにしました。</p>
+<pre><code>  mount_dir=`hdiutil attach $dmg_file | awk -F '\t' 'END{print $NF}'`
+</code></pre><h2 id="heading">インストール方法のパターン</h2>
+<p>上記のアプリの範囲では4パターンありました。</p>
+<h3 id="dmgapp">dmgファイル内に〜.appフォルダがあるパターン</h3>
+<p>Chromeなどがこのパターンです。<a href="https://developer.apple.com/library/mac/documentation/Darwin/Reference/ManPages/man1/ditto.1.html">ditto</a>コマンドで/Applications/〜.appにコピーするようにしました。</p>
+<p><a href="https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L731-L740">https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L731-L740</a></p>
+<pre><code>install_google_chrome() {
+  download_url=https://dl.google.com/chrome/mac/stable/GGRO/googlechrome.dmg
+  dmg_file=${download_url##*/}
+
+  curl -LO $download_url
+  mount_dir=`hdiutil attach $dmg_file | awk -F '\t' 'END{print $NF}'`
+  sudo /usr/bin/ditto &quot;$mount_dir/Google Chrome.app&quot; &quot;/Applications/Google Chrome.app&quot;
+  hdiutil detach &quot;$mount_dir&quot;
+  rm $dmg_file
+}
+</code></pre><h3 id="dmgpkg">dmgファイル内に*.pkgのインストーラがあるパターン</h3>
+<p>Google日本語入力などがこのパターンです。OSXの<a href="https://developer.apple.com/library/mac/documentation/Darwin/Reference/ManPages/man8/installer.8.html">installer</a>コマンドでインストールします。</p>
+<p><a href="https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L742-L751">https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L742-L751</a></p>
+<pre><code>install_google_japanese_input() {
+  download_url=https://dl.google.com/japanese-ime/latest/GoogleJapaneseInput.dmg
+  dmg_file=${download_url##*/}
+
+  curl -LO $download_url
+  mount_dir=`hdiutil attach $dmg_file | awk -F '\t' 'END{print $NF}'`
+  sudo installer -pkg $mount_dir/GoogleJapaneseInput.pkg -target /
+  hdiutil detach &quot;$mount_dir&quot;
+  rm $dmg_file
+}
+</code></pre><h3 id="dmg-2">dmgファイル内に独自形式のインストーラがあるパターン</h3>
+<p>Javaがこのパターンでした。インストーラを実行してインストールします。</p>
+<p><a href="https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L762-L772">https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L762-L772</a></p>
+<pre><code>install_java() {
+  download_url=http://javadl.sun.com/webapps/download/AutoDL?BundleId=105219
+  dmg_file=jre.dmg
+
+  curl -L -o $dmg_file &quot;$download_url&quot;
+  mount_dir=`hdiutil attach $dmg_file | awk -F '\t' 'END{print $NF}'`
+  java_dir=&quot;${mount_dir##*/}&quot;
+  sudo &quot;$mount_dir/${java_dir}.app/Contents/MacOS/MacJREInstaller&quot;
+  hdiutil detach &quot;$mount_dir&quot;
+  rm $dmg_file
+}
+</code></pre><h3 id="zipapp">zipファイル内に〜.appがあるパターン</h3>
+<p>iTerm2などがこのパターンです。unzipコマンドの-dオプションで解凍先を/Applicationsにして解凍してインストールします。</p>
+<p><a href="https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L753-L760">https://github.com/hnakamur/my-macbook-initial-setup/blob/df0eb48db189d39de9103a53c06f85a5acfaf347/run.sh#L753-L760</a></p>
+<pre><code>install_iterm2() {
+  download_url=https://iterm2.com/downloads/stable/iTerm2_v2_0.zip
+  zip_file=${download_url##*/}
+
+  curl -LO $download_url
+  sudo unzip $zip_file -d /Applications
+  rm $zip_file
+}
+</code></pre><h2 id="heading-1">まとめ</h2>
+<p>Homebrew Caskを使わずにコマンドラインでOSXのアプリのインストールを半自動化しました。全自動ではなく半自動化といっているのは、アプリによってパスワード入力が必要だったり、ダイアログが表示されてボタンを押す必要があるからです。</p>
+<p>アプリのバージョンが今後上がった時にダウンロードURLを再度調べる必要があるのが面倒ではありますが、OSXを一からセットアップするのはたまにしか行わないのでよしとします。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

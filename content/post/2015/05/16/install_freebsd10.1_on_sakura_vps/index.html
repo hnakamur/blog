@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>さくらのVPSにFreeBSD 10.1をクリーンインストールした時のメモ &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>さくらのVPSにFreeBSD 10.1をクリーンインストールした時のメモ</h1>
+  <time datetime=2015-05-16T11:39:29&#43;0900 class="post-date">2015-05-16</time>
+  <h2 id="heading">はじめに</h2>
+<p>さくらのVPSにFreeBSD 10.1をクリーンインストールしてみましたので、手順をメモしておきます。作業した環境は MacBook Pro (USキーボード) です。
+インストール後以下の設定を行います。</p>
+<ul>
+<li>ファイルシステムはZFSを選択</li>
+<li>sshの鍵認証の設定</li>
+<li>sudoのインストールと設定</li>
+</ul>
+<p>なお、インストールには下記のページを参考にしました。ありがとうございます！</p>
+<ul>
+<li><a href="http://blog.emaita.jp/2015/03/06/freebsd10_1.html">FreeBSD 10.1 導入 — emaita 備忘録</a></li>
+<li><a href="http://blog.livedoor.jp/saba_nano/archives/28363307.html">[FreeBSD] さくらのVPSに FreeBSD 9.1 amd64 をインストールする方法 (1) : saba nano - へっぽこ管理者のサーバ管理日誌（LV.2）</a></li>
+</ul>
+<h2 id="heading-1">インストール準備</h2>
+<h3 id="isovpssftp">ISOイメージをミラーから取得してVPSにsftpでアップロード</h3>
+<p><a href="http://www.jp.freebsd.org/mirror.html">FreeBSD-related Sites in Japan</a>を見てftp3.jp.FreeBSD.org (ftp.sakura.ad.jp)からダウンロードすることにしました。</p>
+<p>ブラウザで
+<a href="ftp://ftp3.jp.freebsd.org/pub/FreeBSD/releases/ISO-IMAGES/10.1/">ftp://ftp3.jp.freebsd.org/pub/FreeBSD/releases/ISO-IMAGES/10.1/</a>
+を開き
+<a href="ftp://ftp3.jp.freebsd.org/pub/FreeBSD/releases/ISO-IMAGES/10.1/FreeBSD-10.1-RELEASE-amd64-bootonly.iso">ftp://ftp3.jp.freebsd.org/pub/FreeBSD/releases/ISO-IMAGES/10.1/FreeBSD-10.1-RELEASE-amd64-bootonly.iso</a>
+をダウンロードします。</p>
+<p>これを<a href="https://help.sakura.ad.jp/app/answers/detail/a_id/2405">ISOイメージインストール｜さくらインターネット公式サポートサイト</a>の手順を参考にアップロードします。</p>
+<p>OS Xにはsftpコマンドが標準で入っているのでそれを使います。接続情報は、さくらのVPSのコントロールパネルで確認します。
+ここでは、ユーザ名をvpsXXXXXXXXXXXX, ホスト名をvps-isoY.sakura.ad.jpとして説明します。</p>
+<p>isoファイルのあるディレクトリでsftpを実行し、以下の手順で上記のisoファイルをアップロードします。</p>
+<pre><code>$ sftp vpsXXXXXXXXXXXX@vps-isoY.sakura.ad.jp
+vpsXXXXXXXXXXXX@vps-isoY.sakura.ad.jp's password: (パスワードを入力)
+sftp&gt; cd iso
+sftp&gt; put FreeBSD-10.1-RELEASE-amd64-bootonly.iso
+sftp&gt; quit
+</code></pre><p>アップロードが完了したらsftpコマンドは終了します。さくらのVPSのコントロールパネルの「ISOイメージインストール」のポップアップの「ISOイメージ情報」に今アップロードしたisoファイルが表示されたことを確認し、「マウント設定」の「設定内容を確認する」ボタンを押し、「インストールを実行する」ボタンを押します。</p>
+<h2 id="heading-2">インストール</h2>
+<p>「VNCコンソール(HTML5版)を起動」ボタンを押してコンソールで作業します。</p>
+<h3 id="heading-3">キーマップの確認</h3>
+<p>HTML5版のVNCコンソールは、どうも日本語キーボードを想定しているようで、USキーボードだと以下のように一部の記号の配置が異なっています。
+なお、キーマップはデフォルト(US配列)を選択しています。</p>
+<p>押したキーを左、入力された文字を右に示します。</p>
+<!-- raw HTML omitted -->
+<h3 id="heading-4">ホスト名設定</h3>
+<p>&ldquo;Please choose a hostname for this machine.&ldquo;の画面ではVPSのコンソールの標準ホスト名を入力します。</p>
+<h3 id="heading-5">インストールするコンポーネントの選択</h3>
+<p>初期選択状態は以下のようになっていました。</p>
+<ul>
+<li><input disabled="" type="checkbox">doc: Additional documentation</li>
+<li>[*] games: Games (fortune, etc.)</li>
+<li>[*] lib32: 32-bit compatiblity libraries</li>
+<li>[*] ports: Ports tree</li>
+<li><input disabled="" type="checkbox">src: System source code</li>
+</ul>
+<p>gamesとlib32を外して、docとsrcを追加しました。</p>
+<h3 id="heading-6">ネットワーク設定</h3>
+<ul>
+<li>「Network Configuration」では「vtnet0」を選び「OK」を押します。</li>
+<li>&ldquo;Would you like to configure IPv4 for this interface&rdquo; → [Yes]を押す</li>
+<li>&ldquo;Would you like to use DHCP to configure this interface?&rdquo; → [No]を押す</li>
+<li>「Static Netowrk Interface Configuration」の画面でIP Address, Subnet Mask, Default Routerを入力します。VPSのコントロールパネルのIPv4のアドレス、ネットマスク、ゲートウェイの値をそれぞれ入力します。</li>
+<li>&ldquo;Would you like to configure IPv6 for this interface?&rdquo; → NoYes]を押す</li>
+<li>「Resolver Configuration」の画面でSearch, IPv4 DNS #1, IPv4 DNS #2を入力します。順にVPSコントロールパネルの標準ホスト名のドメイン部分(私の場合はvs.sakura.ne.jp)、IPv4のプライマリDNS、セカンダリDNSを入力します。</li>
+</ul>
+<h4 id="-ipv6">(ボツ) IPv6を有効にすると失敗しました</h4>
+<ul>
+<li>&ldquo;Would you like to configure IPv6 for this interface?&rdquo; → [Yes]を押す</li>
+<li>&ldquo;Would you like to try stateless address autoconfiguration (SLAAC)?&rdquo; → [No]を押す</li>
+<li>「Static IPv6 Network Interface Configuration」の画面でIPv6 AddressとDefault RouterにVPSのコントロールパネルのIPv6のアドレスとゲートウェイを入力します。上記のキーマップの確認に書いたように:を入力するにはUSキーボードではShift+=を押してください。</li>
+<li>「Resolver Configuration」の画面でSearch, IPv6 DNS #1, IPv6 DNS #2, IPv4 DNS #1, IPv4 DNS #2を入力します。順にVPSコントロールパネルの標準ホスト名のドメイン部分(私の場合はvs.sakura.ne.jp)、IPv6のDNS、空欄、IPv4のプライマリDNS、セカンダリDNSを入力します。</li>
+</ul>
+<p>ダウンロードは無事に進んだようなのですが、その後以下のエラーが出ました。</p>
+<pre><code>Abort
+Distribution extract failed
+
+An installation step has been aborted. Would you
+like to restart the installation or exit
+the installer?
+</code></pre><h3 id="heading-7">ミラーサイト選択</h3>
+<p>「Mirror Selection」の画面では「ftp://ftp3.jp.freebsd.org Japan #3」を選択します。</p>
+<h3 id="heading-8">パーティション作成</h3>
+<ul>
+<li>Auto (UFS): Guided Disk Setup</li>
+<li>Manual: Manual Disk Setup (experts)</li>
+<li>Shell: Open a shell and partition by hand</li>
+<li>Auto (ZFS): Guided Root-on-ZFS</li>
+</ul>
+<p>今回は「Auto (ZFS)」にしました。
+「ZFS Configuration」ではそのまま「&raquo;&gt; Install     Proceed with Installation」を選びます。</p>
+<h3 id="zfs">ZFSの仮想デバイスタイプ</h3>
+<ul>
+<li>stripe: Stripe - No Redundancy</li>
+<li>mirror: Mirror - n-Way Mirroring</li>
+<li>raidz1: RAID-Z1 - Single Redundant RAID</li>
+<li>raidz2: RAID-Z2 - Single Redundant RAID</li>
+<li>raidz3: RAID-Z3 - Single Redundant RAID</li>
+</ul>
+<p>「stripe」を選びました。</p>
+<h3 id="heading-9">ブロックデバイス選択</h3>
+<p>「vtbd0 VirtIO Block Device」をスペースキーを押して選択します。</p>
+<p>&ldquo;Last Chance! Are you sure you want to destroy the current contents of the following disks: vtbd0&rdquo; では[YES]を選びます。</p>
+<h3 id="root">rootユーザのパスワード設定</h3>
+<p>以下のようにrootユーザのパスワードを設定します。なぜかreturnキーが効かないようなのでCtrl-Jで代用しました。</p>
+<pre><code>Please select a password for the system management account (root):
+Changing local password for root
+New Password: (パスワードを入力してCtrl-Jを押す)
+Retype New Password: (パスワードを入力してCtrl-Jを押す)
+</code></pre><p>表示も変で、Ctrl-Jを押した時に行が次の行に進みますが、行頭には戻らず続きのカラムから表示されていました。</p>
+<h3 id="heading-10">タイムゾーン設定</h3>
+<p>&ldquo;Is this machine's CMOS clock set to UTC?  If it is set to local time, or you don't know, please choose NO here!&rdquo; ではハードウェアの設定はわからないので「No」を選びます。</p>
+<p>「Select a region」では「5 Asia」を選び、「Select a country or region」では「18 Japan」を選びます。
+&ldquo;Does the abbreviation `JST&rsquo; look reasonable?&ldquo;に「Yes」を選びます。</p>
+<h3 id="heading-11">自動起動するサービス選択</h3>
+<pre><code>Choose the services you would like to be started at boot:
+  [ ] local_unbound  Local caching validating resolver
+  [*] sshd           Secure shell daemon
+  [ ] moused         PS/2 mouse pointer on console
+  [ ] ntpd           Synchronize system and network time
+  [ ] powerd         Adjust CPU frequency dynamically if supported
+  [*] dumpev         Enable kernel crash dumps to /var/crash
+</code></pre><p>ntpdを追加選択します。</p>
+<h3 id="heading-12">ユーザ追加</h3>
+<p>sshでログインする管理用のユーザとして「admin」という名前のユーザを追加することにします。あとでsudoersに追加するのでadminユーザのセカンダリグループにwheelを追加します。</p>
+<p>&ldquo;Would you like to add users to the installed systems now?&ldquo;に「Yes」を選びます。</p>
+<pre><code>Add Users
+Username: admin
+Full name: admin
+Uid (Leave empty for default): (Ctrl-Jを押す)
+Login group [admin]: (Ctrl-Jを押す)
+Login group is admin. Invite admin into other groups? []: (wheelと入力してCtrl-Jを押す)
+Login class [default]: (Ctrl-Jを押す)
+Shell (ch csh tcsh nologin) [sh]: (Ctrl-Jを押す)
+Home directory [/home/admin]: (Ctrl-Jを押す)
+Home directory permissions (Leave empty for default): (Ctrl-Jを押す)
+Use password-based authentication? [yes]: (Ctrl-Jを押す)
+Use an empty password? (yes/no) [no]: (Ctrl-Jを押す)
+Use a random password? (yes/no) [no]: (Ctrl-Jを押す)
+Enter password: (パスワードを入力してCtrl-Jを押す)
+Enter password again: (パスワードを入力してCtrl-Jを押す)
+Lock out the accout after creation? [no]: (Ctrl-Jを押す)
+OK? (yes/no): (yesと入力してCtrl-Jを押す)
+adduser: INFO Successfully added (admin) to the user database.
+Add another user? (yes/no): (noと入力してCtrl-Jを押す)
+</code></pre><h3 id="heading-13">インストールの終了</h3>
+<pre><code>Setup of you FreeBSD system is nearly complete.  You can now
+modify your configuration choices. After this screen, you will
+have an opportunity to make more complex changes using a shell.
+</code></pre><p>上記の画面では「Exit」を選択して「OK」を押します。</p>
+<pre><code>The installation is now finished.
+Before exiting the installer, yould
+you like to open a shell in the new
+system to make any final manual
+modifications?
+</code></pre><p>上記の画面では「No」を選択します。</p>
+<pre><code>Installation of FreeBSD
+complete! Would you like
+to reboot into the
+installed system now?
+</code></pre><p>上記の画面では「Reboot」を押しても、またインストーラの画面が起動してしまいます。
+そこで、さくらのVPSのコンソールで「OSインストール」→「ISOイメージインストール」を選び、「ISOイメージアップロード情報」の「アカウントの削除」ボタンを押します。
+「アカウントを削除してよろしいですか？アップロードしたファイルも削除されます。」と表示されたら「削除する」ボタンを押します。</p>
+<p>その後「ISOイメージインストール」のポップアップで「キャンセル」を押してVPSのコンソールに戻りツールバーの「強制停止」ボタンを押して停止した後「起動」ボタンを押して起動します。</p>
+<h2 id="heading-14">インストール後の設定</h2>
+<h3 id="admin">adminユーザの公開鍵の設置</h3>
+<p>ここでは、OS X側で秘密鍵・公開鍵を作成済みとし、秘密鍵は ~/.ssh/id_rsa、公開鍵は ~/.ssh/id_rsa.pub とします。</p>
+<p>OSX上で以下の操作を行い、公開鍵をサーバに転送します。</p>
+<pre><code>scp ~/.ssh/id_rsa.pub admin@サーバのIPアドレス:
+</code></pre><p>adminユーザのパスワードを聞かれるので入力します。</p>
+<p>その後sshでサーバにログインします。</p>
+<pre><code>ssh admin@サーバのIPアドレス
+</code></pre><p>パスワードを入力すると以下のようなメッセージが表示されます。アドレスのXXX.XXX.XXX.XXXとRSA鍵のフィンガープリントはここでは伏せていますが実際は異なる値になります。「yes」と入力してログインしてください。</p>
+<pre><code>The authenticity of host 'XXX.XXX.XXX.XXX (XXX.XXX.XXX.XXX)' can't be established.
+RSA key fingerprint is yy:yy:yy:yy:yy:yy:yy:yy:yy:yy:yy:yy:yy:yy:yy:yy.
+Are you sure you want to continue connecting (yes/no)?
+</code></pre><p>パスワードを入力してサーバにログインしたらサーバ上で以下のコマンドを実行し、カギ認証でログインできるようにします。</p>
+<pre><code>mkdir ~/.ssh
+chmod 700 ~/.ssh
+mv id_rsa.pub ~/.ssh/authorized_keys
+</code></pre><p>今度はOS X側で ~/.ssh/configというファイルが無い場合は新規作成した上で、以下の内容を追加します。</p>
+<pre><code>Host 接続に使用するお好みのホスト名エイリアス
+  Hostname サーバのIPアドレス
+  User admin
+  PasswordAuthentication no
+  IdentityFile ~/.ssh/id_rsa
+</code></pre><p>IdentityFileの行は ~/.ssh/id_rsa はデフォルト値なので、この場合はこの行自体不要です。別のファイル名にしていた場合は設定が必要です。</p>
+<p>この設定を加えた状態で、OS Xから以下のようにコマンドを実行しパスワードを聞かれずにログインできれば成功です。</p>
+<pre><code>ssh ホスト名エイリアス
+</code></pre><h3 id="ssh">sshパスワード認証の無効化</h3>
+<p>鍵認証でssh接続できるようになったら、悪意を持った第三者の攻撃でパスワードを当ててログインされてしまうのを防ぐため、パスワードでのログインを無効にします。</p>
+<p>サーバ上で以下の手順を実行します。まず以下のコマンドを実行してrootユーザになります。</p>
+<pre><code>su -
+</code></pre><p>rootユーザのパスワードを聞かれますので入力します(1行が長いのでブラウザでコピペする際は右の方までスクロールしてください)。</p>
+<pre><code>sed -i .orig -e 's/^#\(PasswordAuthentication no\)/\1/;s/^#\(UsePAM\) yes/\1 no/;s/^#\(X11Forwarding\) yes/\1 no/' /etc/ssh/sshd_config
+</code></pre><pre><code>less /etc/ssh/sshd_config
+</code></pre><p>で設定内容を確認します。</p>
+<pre><code>…(略)…
+PasswordAuthentication no
+…(略)…
+UsePAM no
+…(略)…
+X11Forwarding no
+…(略)…
+</code></pre><p>となっていればOKですのでqを押してlessを終了します。</p>
+<p>以下のコマンドを実行してsshdを再起動します。</p>
+<pre><code>/etc/rc.d/sshd restart
+</code></pre><p>次に実際にパスワード認証が無効化されたことを確認します。</p>
+<p>一旦このrootユーザの接続は残しておいて、OS X上で別のターミナルを開き、~/.ssh/configを以下のように編集します。</p>
+<pre><code>Host 接続に使用するお好みのホスト名エイリアス
+  Hostname サーバのIPアドレス
+  User admin
+  PasswordAuthentication yes
+  PubkeyAuthentication no
+  #PasswordAuthentication no
+  #IdentityFile ~/.ssh/id_rsa
+</code></pre><p>この状態で</p>
+<pre><code>ssh ホスト名エイリアス
+</code></pre><p>のようにコマンドを実行した時にパスワードを聞かれることなく以下のように表示されれば、パスワード認証は正しく無効化できています。</p>
+<pre><code>Permission denied (publickey,keyboard-interactive).
+</code></pre><p>上記の確認ができたらOS Xの~/.ssh/configは元の内容に戻しておいてください。</p>
+<h3 id="heading-15">セキュリティパッチの適用</h3>
+<p>先ほどのrootで接続していたターミナルに戻ってセキュリティパッチを適用します。</p>
+<p><a href="https://www.freebsd.org/doc/ja_JP.eucJP/books/handbook/updating-upgrading-freebsdupdate.html">18.2. FreeBSD Update</a>の「セキュリティパッチの適用」の項を参考にします。</p>
+<p><a href="https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=198030">Bug 198030 – /usr/src/crypto/openssl/util/mkbuildinf.pl: No such file or directory on freebsd-update install</a>のバグを回避するため
+<a href="https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=198030#c7">Comment 7</a>の手順を実行してから、パッチを適用します。</p>
+<pre><code># freebsd-update fetch
+# mkdir -p /usr/src/crypto/openssl/util
+# freebsd-update install
+</code></pre><p><code>freebsd-update patch</code> を実行すると、アップデートを取得後moreコマンドが起動して更新されたファイル一覧を確認できます。スペースキーを押してページを進め、確認したらqを押して終了します。</p>
+<h3 id="sudo">sudoのインストールと設定</h3>
+<p>rootユーザで以下のコマンドを実行します。</p>
+<pre><code>pkg install -y sudo
+</code></pre><p>すると以下のようにpkgコマンド自体をインストールするか聞かれますので、yと入力します。</p>
+<pre><code>The package management tool is not yet installed on your system.
+Do you want to fetch and install it now? [y/N]:
+</code></pre><p>pkgとsudoのインストールが終わったら、以下のコマンドを実行してsudoの設定を変更します。</p>
+<pre><code>visudo
+</code></pre><p>ここではwheelグループにsudoを許可します。</p>
+<pre><code># %wheel ALL=(ALL) ALL
+</code></pre><p>の行を</p>
+<pre><code>%wheel ALL=(ALL) ALL
+</code></pre><p>のように変更して:wqで保存して終了します。</p>
+<p>sudoの設定を確認するため、rootのターミナルは一旦置いておいて、OS Xからsshでadminユーザでログインし、以下のコマンドを実行します。</p>
+<pre><code>sudo -i
+</code></pre><p>以下のようにメッセージが表示されますので、adminユーザのパスワードを入力します。
+rootユーザのプロンプトが出れば成功です。</p>
+<pre><code>$ sudo -i
+
+We trust you have received the usual lecture from the local System
+Administrator. It usually boils down to these three things:
+
+    #1) Respect the privacy of others.
+    #2) Think before you type.
+    #3) With great power comes great responsibility.
+
+Password:
+root@ホスト名からドメインを除いたもの:~ #
+</code></pre><p>確認できたら、このターミナルでCtrl-Dを押してadminユーザに戻り、さらにCtrl-Dを押してログアウトします。
+先程残しておいたrootユーザのターミナルも同様にしてログアウトします。</p>
+<h2 id="heading-16">おわりに</h2>
+<p>いくつかハマりどころがありましたが、さくらのVPSにFreeBSD 10.1をクリーンインストールできました。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

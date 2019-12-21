@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>LXDのDHCPで使っていないIPアドレスを一括で解放するスクリプトを書いた &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>LXDのDHCPで使っていないIPアドレスを一括で解放するスクリプトを書いた</h1>
+  <time datetime=2016-08-11T22:58:21&#43;0900 class="post-date">2016-08-11</time>
+  <p><a href="/blog/2016/05/07/how-to-use-fixed-ip-address-for-a-lxd-container/">LXDコンテナで固定IPアドレスを使うための設定 · hnakamur's blog at github</a> の設定を行ってもIPアドレスが指定通りにならないことがありました。</p>
+<p><code>journal -xe</code> で見てみると</p>
+<pre><code>Aug 11 22:46:55 bai1b7faf04 dnsmasq-dhcp[11082]: not using configured address 10.155.92.102 because it is leased to 00:16:3e:1e:08:8a
+</code></pre><p>というメッセージが出ていて、他のMACアドレスに貸出中になっています。</p>
+<p>ググってみると <a href="http://www.linuxquestions.org/questions/linux-newbie-8/dnsmasq-force-release-renew-of-dhcp-clients-how-933535/">[SOLVED] dnsmasq force release/renew of dhcp clients, how?</a> に回答がありました。</p>
+<h2 id="ip">使っていないIPアドレスを手動で消す</h2>
+<pre><code>sudo systemctl stop lxd-bridge
+</code></pre><p>で止めて</p>
+<pre><code>sudo vi /var/lib/lxd-bridge/dnsmasq.lxdbr0.leases
+</code></pre><p>で使っていないIPアドレスの行を全て削除します。</p>
+<p>その後</p>
+<pre><code>sudo systemctl start lxd-bridge
+</code></pre><p>で再起動します。</p>
+<h2 id="heading">自動で消すスクリプトも書きました</h2>
+<p>これでよいかと思ったら、
+<a href="http://lists.thekelleys.org.uk/pipermail/dnsmasq-discuss/2013q3/007356.html">http://lists.thekelleys.org.uk/pipermail/dnsmasq-discuss/2013q3/007356.html</a>
+を見て <code>dhcp_release</code> というコマンドを使えば <code>lxd-bridge</code> の再起動が不要なことを知りました。</p>
+<p>ということでスクリプトを書いてみました。
+<a href="https://gist.github.com/hnakamur/7ed3f7c6175817b633586a1b468bd5c1">https://gist.github.com/hnakamur/7ed3f7c6175817b633586a1b468bd5c1</a></p>
+<pre><code>#!/bin/sh
+set -eu
+
+# Set value of LXD_BRIDGE
+. /etc/default/lxd-bridge
+
+addr_list_file=/tmp/lxd-addr-list.`date +%Y-%m-%dT%H:%M:%S`
+lxc list | awk '$4==&quot;RUNNING&quot;{print $6}' &gt; $addr_list_file
+cleanup() {
+  rm $addr_list_file
+}
+trap cleanup EXIT
+
+awk -v addr_list_file=$addr_list_file -v interface=$LXD_BRIDGE '{
+  mac_addr = $2
+  addr = $3
+  ret = system(sprintf(&quot;awk -v addr=%s '\''BEGIN{rc=1} $1==addr{rc=0} END{exit rc}'\'' %s&quot;, addr,  addr_list_file))
+  if (ret == 1) {
+    system(sprintf(&quot;sudo dhcp_release %s %s %s&quot;, interface, addr, mac_addr))
+  }
+}' /var/lib/lxd-bridge/dnsmasq.$LXD_BRIDGE.leases
+</code></pre><p>Ubuntu 16.04 の場合 <code>dhcp_release</code> コマンドを使うには以下のように <code>dnsmasq-utils</code> パッケージをインストールする必要があります。</p>
+<pre><code>sudo apt -y install dnsmasq-utils
+</code></pre>
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

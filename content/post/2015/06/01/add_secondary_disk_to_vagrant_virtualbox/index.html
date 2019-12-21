@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Vagrant &#43; Virtualboxでのディスク追加 &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Vagrant &#43; Virtualboxでのディスク追加</h1>
+  <time datetime=2015-06-01T06:04:04&#43;0900 class="post-date">2015-06-01</time>
+  <p>Vagrant + Virtualboxでのディスク追加についてのメモです。</p>
+<h2 id="heading">ディスク追加の設定</h2>
+<ul>
+<li><a href="http://stackoverflow.com/questions/21050496/vagrant-virtualbox-second-disk-path/26743144#26743144">http://stackoverflow.com/questions/21050496/vagrant-virtualbox-second-disk-path/26743144#26743144</a></li>
+<li><a href="https://gist.github.com/leifg/4713995#comment-1206250">https://gist.github.com/leifg/4713995#comment-1206250</a></li>
+</ul>
+<p>を参考に以下のようにしました。</p>
+<pre><code># -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure(2) do |config|
+  config.vm.box = 'base'
+
+  config.vm.provider &quot;virtualbox&quot; do |p|
+    vagrant_root = File.dirname(File.expand_path(__FILE__))
+    file_to_disk = File.join(vagrant_root, 'ad1.vdi')
+    unless File.exist?(file_to_disk)
+      vb.customize ['createhd', '--filename', file_to_disk, '--size', 500 * 1024]
+    end
+    vb.customize ['storageattach', :id, '--storagectl', 'SATA Controller', '--port', 1, '--device', 0, '--type', 'hdd', '--medium', file_to_disk]
+  end
+end
+</code></pre><p>上記の後者のリンク先では <code>Vagrantfile</code> のあるディレクトリを <code>VAGRANT_ROOT</code> と大文字で定数に設定していますが、私は <code>vagrant_root</code> と小文字で変数にしました。</p>
+<p>デバッグプリントを入れてみてわかったのですが、このブロックは1度ではなく複数回呼ばれます。定数だと既に初期化済みの警告が出るので変数にしたというわけです。</p>
+<h2 id="sata-controllerpacker">SATA Controllerの作成はpackerで行っておく</h2>
+<p>上の設定だけでは <a href="https://github.com/hnakamur/freebsd-packer/tree/ef57aff51b02a03e658f0348eb5e463ed08735aa">https://github.com/hnakamur/freebsd-packer/tree/ef57aff51b02a03e658f0348eb5e463ed08735aa</a> で作ったFreeBSD 10.1 amd64のboxではSATA Controllerが無いためうまく行きませんでした。</p>
+<p><a href="https://gist.github.com/leifg/4713995#comment-1374268">https://gist.github.com/leifg/4713995#comment-1374268</a> でVagrantにモンキーパッチで対応しようとしているがうまくいかない例がありました。</p>
+<p><a href="https://github.com/mitchellh/vagrant/issues/4015#issuecomment-45930125">Rescue customization exception · Issue #4015 · mitchellh/vagrant</a>のVagrant開発者のコメントで、Vagrantfileの設定は手続き型ではなく宣言型なので、Vagrantfileの設定では無理でVagrantプラグインを作る必要があると書かれています。</p>
+<p>結局 <a href="https://github.com/hnakamur/freebsd-packer/commit/fc041427ffd9de330d390036ebd0948f01e707fe">https://github.com/hnakamur/freebsd-packer/commit/fc041427ffd9de330d390036ebd0948f01e707fe</a> のようにpackerのテンプレートを作る際にSATA Controllerも作っておくのがお手軽だったのでそうしました。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

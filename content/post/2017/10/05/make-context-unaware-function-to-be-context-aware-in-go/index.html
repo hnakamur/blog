@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Goでcontext非対応の関数をcontext対応にするラッパ関数を書いた &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Goでcontext非対応の関数をcontext対応にするラッパ関数を書いた</h1>
+  <time datetime=2017-10-05T20:32:00&#43;0900 class="post-date">2017-10-05</time>
+  <h2 id="heading">はじめに</h2>
+<p>Goの <a href="https://golang.org/pkg/net/http/#Server">net/http.Server</a> でグレースフルシャットダウンを行う際の注意点として
+<a href="https://shogo82148.github.io/blog/2017/01/21/golang-1-dot-8-graceful-shutdown/">Go1.8のGraceful Shutdownとgo-gracedownの対応 - Shogo's Blog</a>
+のブログ記事で以下の3点が紹介されていました。</p>
+<pre><code>* `Server.Shutdown` を使う( `Serer.Close` もあるけど、そっちはGracefulではない)
+* `Server.Serve` は **シャットダウンが始まる** とすぐに制御を返す(**シャットダウンが終わる** とではない)
+* `Server.Shutdow` は **シャットダウンが終わる** と制御を返す(**シャットダウンが始まる** とではない)
+</code></pre>
+<p>これに対応するために <a href="https://golang.org/pkg/net/http/#Server.Serve">func (*Server) Serve</a> をgoroutineで実行し、メインのコードでシグナルを待つという書き方が紹介されており、ありがたく真似させていただいていました。</p>
+<p>しかし、 <a href="https://twitter.com/kaoriya/status/912553754171338758">https://twitter.com/kaoriya/status/912553754171338758</a> のツイートで以下のような指摘がありました。</p>
+<pre><code>goroutineの中でServeを呼んでメインの方でシグナルまってる。これだとシャットダウン以外の理由でServeが停止した時に、シグナル待ちでプログラム終わらないんじゃないか? 
+</code></pre>
+<p>あー、確かに。一度検証してみないとなー、と思いつつしてませんでした。</p>
+<p>そこへ、今日
+<a href="https://golangnews.com/stories/2744-video-ways-to-do-things-peter-bourgon-gosf">Video: Ways To Do Things - Peter Bourgon #GoSF - Golang News</a>
+という動画をツイッターで知って見てみたのですが、
+その中で
+<a href="https://godoc.org/github.com/oklog/oklog/pkg/group">github.com/oklog/oklog/pkg/group</a>
+というパッケージが紹介されていました。</p>
+<p>これは標準ライブラリの <a href="https://golang.org/pkg/context/">context</a> パッケージに対応していないライブラリで動作している goroutine を停止する枠組みを提供するもので、以下のような型とメソッドを持っています。</p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">Group</span>
+	<span class="kd">func</span> <span class="p">(</span><span class="nx">g</span> <span class="o">*</span><span class="nx">Group</span><span class="p">)</span> <span class="nf">Add</span><span class="p">(</span><span class="nx">execute</span> <span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="kt">error</span><span class="p">,</span> <span class="nx">interrupt</span> <span class="kd">func</span><span class="p">(</span><span class="kt">error</span><span class="p">)</span><span class="p">)</span>
+	<span class="kd">func</span> <span class="p">(</span><span class="nx">g</span> <span class="o">*</span><span class="nx">Group</span><span class="p">)</span> <span class="nf">Run</span><span class="p">(</span><span class="p">)</span> <span class="kt">error</span>
+</code></pre></div><h2 id="gocontextcontext">Goでcontext非対応の関数をcontext対応にする</h2>
+<p>なるほどー便利そうだなーと思ったのですが、逆に context 非対応のライブラリの関数をラップして context 対応にするほうが良いなと思い当たりました。</p>
+<p><a href="https://golang.org/pkg/context/#WithCancel">WithCancel</a> で作った <code>context.Context</code> を渡して実行しておけば、停止したいときは <code>WithCancel</code> の戻り値の <code>cancel</code> を呼ぶだけで良いのが楽です。</p>
+<p>特に、複数の goroutine を実行していたり goroutine からさらに別の goroutine を実行していたりした場合に、それぞれ個別の停止方法を呼び出す場合は context を使わない場合はかなり面倒だと推測します。</p>
+<p>ということで書いてみました。</p>
+<ul>
+<li>ソース: <a href="https://github.com/hnakamur/contextify">hnakamur/contextify</a></li>
+<li>ドキュメント: <a href="https://godoc.org/github.com/hnakamur/contextify">https://godoc.org/github.com/hnakamur/contextify</a></li>
+</ul>
+<p>ソースは 53 行と短いので、以下に引用します。
+公開APIは <code>Contextify</code> という関数1つだけで、これは <code>context</code> 非対応の実行用関数 <code>run</code> とキャンセルを行う関数 <code>cancel</code> を受け取って、 <code>context</code> 対応の関数を返すというものです。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Package contextify provides a utility function to convert a context-unaware
+</span><span class="c1"></span><span class="c1">// run function and a cancel function to a context-aware function.
+</span><span class="c1"></span><span class="kn">package</span> <span class="nx">contextify</span>
+
+<span class="kn">import</span> <span class="s">&#34;context&#34;</span>
+
+<span class="c1">// Contextify convert a context-unaware run function and a cancel function to
+</span><span class="c1"></span><span class="c1">// a context-aware function.
+</span><span class="c1"></span><span class="c1">//
+</span><span class="c1"></span><span class="c1">// If context.Context is not cancelled before run() finishes, the return value
+</span><span class="c1"></span><span class="c1">// function waits for run() to be finished and returns the return value of run().
+</span><span class="c1"></span><span class="c1">//
+</span><span class="c1"></span><span class="c1">// If context.Context is cancelled before run() finishes, the return value
+</span><span class="c1"></span><span class="c1">// function waits for both the run() and cancel() to be finished.
+</span><span class="c1"></span><span class="c1">//
+</span><span class="c1"></span><span class="c1">// If pickError is nil, the first non-nil error will be retruned of the return
+</span><span class="c1"></span><span class="c1">// value of run(), cancel(), and context.Context.Err().
+</span><span class="c1"></span><span class="c1">// You can change this behavior with writing a function to pick a desired error
+</span><span class="c1"></span><span class="c1">// and pass it to the pickError argument.
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">Contextify</span><span class="p">(</span><span class="nx">run</span> <span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="kt">error</span><span class="p">,</span> <span class="nx">cancel</span> <span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="kt">error</span><span class="p">,</span>
+	<span class="nx">pickError</span> <span class="kd">func</span><span class="p">(</span><span class="nx">errFromRun</span><span class="p">,</span> <span class="nx">errFromCancel</span><span class="p">,</span> <span class="nx">errFromContext</span> <span class="kt">error</span><span class="p">)</span> <span class="kt">error</span><span class="p">)</span> <span class="kd">func</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+
+	<span class="k">return</span> <span class="kd">func</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+		<span class="kd">var</span> <span class="nx">errFromRun</span> <span class="kt">error</span>
+		<span class="nx">done</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kd">struct</span><span class="p">{</span><span class="p">}</span><span class="p">)</span>
+		<span class="k">go</span> <span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
+			<span class="nx">errFromRun</span> <span class="p">=</span> <span class="nf">run</span><span class="p">(</span><span class="p">)</span>
+			<span class="nb">close</span><span class="p">(</span><span class="nx">done</span><span class="p">)</span>
+		<span class="p">}</span><span class="p">(</span><span class="p">)</span>
+
+		<span class="k">select</span> <span class="p">{</span>
+		<span class="k">case</span> <span class="o">&lt;-</span><span class="nx">done</span><span class="p">:</span>
+			<span class="k">return</span> <span class="nx">errFromRun</span>
+		<span class="k">case</span> <span class="o">&lt;-</span><span class="nx">ctx</span><span class="p">.</span><span class="nf">Done</span><span class="p">(</span><span class="p">)</span><span class="p">:</span>
+			<span class="nx">errFromCancel</span> <span class="o">:=</span> <span class="nf">cancel</span><span class="p">(</span><span class="p">)</span>
+			<span class="o">&lt;-</span><span class="nx">done</span>
+			<span class="k">if</span> <span class="nx">pickError</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+				<span class="nx">pickError</span> <span class="p">=</span> <span class="nx">defaultPickError</span>
+			<span class="p">}</span>
+			<span class="k">return</span> <span class="nf">pickError</span><span class="p">(</span><span class="nx">errFromRun</span><span class="p">,</span> <span class="nx">errFromCancel</span><span class="p">,</span> <span class="nx">ctx</span><span class="p">.</span><span class="nf">Err</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="nf">defaultPickError</span><span class="p">(</span><span class="nx">errFromRun</span><span class="p">,</span> <span class="nx">errFromCancel</span><span class="p">,</span> <span class="nx">errFromContext</span> <span class="kt">error</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="nx">errFromRun</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">errFromRun</span>
+	<span class="p">}</span>
+	<span class="k">if</span> <span class="nx">errFromCancel</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">errFromCancel</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="nx">errFromContext</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><code>run</code> が終わるのを待つために 25行目で <code>done</code> というチャンネルを作っています。</p>
+<p>キャンセルが行われない (上記の <code>WithCancel</code> の戻り値の <code>cancel</code> が実行されない) まま <code>run</code> が終了した場合は、32行目の <code>case</code> が処理されて <code>run</code> の戻り値のエラーを返します。</p>
+<p>一方 <code>run</code> が終わる前にキャンセル依頼が来た場合は、 34行目の <code>case</code> が処理されて、元々受け取った <code>cancel</code> 関数を呼び出して <code>cancel</code> 関数の実行完了を待ちます。
+その後 <code>done</code> チャンネルからの受信を待つことで <code>run</code> 関数の終了を待ちます。</p>
+<p>こうすることで、当初指定された <code>run</code> と <code>cancel</code> の両方が終わるまで待つことができます。</p>
+<p><code>Contextify</code> 関数の第3引数は <code>run</code>, <code>cancel</code>, <code>ctx.Err()</code> のどのエラーを返すかを選択するためのものです。 <code>nil</code> を指定するとデフォルトの処理として上記の順番で最初の非 <code>nil</code> なエラーを返します。
+違う動きにしたい場合は関数を書いて渡せばよいようになっています。</p>
+<h2 id="heading-1">使用例</h2>
+<p><code>net/http.Server</code> でグレースフルシャットダウンを行う場合の使用例を示します。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">ctx</span><span class="p">,</span> <span class="nx">cancel</span> <span class="o">:=</span> <span class="nx">context</span><span class="p">.</span><span class="nf">WithCancel</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nf">Background</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+<span class="k">go</span> <span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">c</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="nx">os</span><span class="p">.</span><span class="nx">Signal</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+	<span class="nx">signal</span><span class="p">.</span><span class="nf">Notify</span><span class="p">(</span><span class="nx">c</span><span class="p">,</span> <span class="nx">os</span><span class="p">.</span><span class="nx">Interrupt</span><span class="p">)</span>
+
+	<span class="nx">s</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">c</span>
+	<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;received signal, %s&#34;</span><span class="p">,</span> <span class="nx">s</span><span class="p">)</span>
+	<span class="nf">cancel</span><span class="p">(</span><span class="p">)</span>
+	<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;cancelled context&#34;</span><span class="p">)</span>
+<span class="p">}</span><span class="p">(</span><span class="p">)</span>
+
+<span class="nx">http</span><span class="p">.</span><span class="nf">HandleFunc</span><span class="p">(</span><span class="s">&#34;/&#34;</span><span class="p">,</span> <span class="kd">func</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">_</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">w</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&#34;Hello, example http server\n&#34;</span><span class="p">)</span><span class="p">)</span>
+<span class="p">}</span><span class="p">)</span>
+<span class="nx">s</span> <span class="o">:=</span> <span class="nx">http</span><span class="p">.</span><span class="nx">Server</span><span class="p">{</span><span class="nx">Addr</span><span class="p">:</span> <span class="s">&#34;:8080&#34;</span><span class="p">}</span>
+<span class="nx">run</span> <span class="o">:=</span> <span class="nx">contextify</span><span class="p">.</span><span class="nf">Contextify</span><span class="p">(</span><span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+	<span class="k">return</span> <span class="nx">s</span><span class="p">.</span><span class="nf">ListenAndServe</span><span class="p">(</span><span class="p">)</span>
+<span class="p">}</span><span class="p">,</span> <span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+	<span class="k">return</span> <span class="nx">s</span><span class="p">.</span><span class="nf">Shutdown</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nf">Background</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+<span class="p">}</span><span class="p">,</span> <span class="kc">nil</span><span class="p">)</span>
+<span class="nx">err</span> <span class="o">:=</span> <span class="nf">run</span><span class="p">(</span><span class="nx">ctx</span><span class="p">)</span>
+<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+	<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;got error, %v&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+<span class="p">}</span>
+<span class="nx">log</span><span class="p">.</span><span class="nf">Print</span><span class="p">(</span><span class="s">&#34;exiting&#34;</span><span class="p">)</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>17行目が実行用の処理で、19行目がキャンセルつまりグレースフルシャットダウンを開始する処理です。</p>
+<p>21行目では <code>Contextify</code> 関数の戻り値の <code>run</code> に1行目で <code>WithCancel</code> で作った <code>ctx</code> を引数に渡して実行します。</p>
+<p>2～10行目の goroutine では <code>os.Interrupt</code> シグナルを受け取ったら、1行目の <code>WithCancel</code> の戻り値の <code>cancel</code> 関数を呼び出すことでキャンセルを実行しています。</p>
+<p>すると 17行目の処理と19行目の処理の両方が終わるのを待ってから 22行目以降の処理が行われます。</p>
+<p>実際に試しやすいように
+<a href="https://github.com/hnakamur/contextify/blob/master/example/httpserver/main.go">example/httpserver/main.go</a>
+という例も含めています。</p>
+<p>処理の関数とキャンセルの関数のどちらが後に戻るかを簡単に変えてテストするために
+<a href="https://github.com/hnakamur/contextify/blob/master/example/sleep/main.go">example/sleep/main.go</a>
+という例も作りました。</p>
+<p>起動後何もせずに5秒待つと、キャンセル無しで終了するケースになります。</p>
+<p>起動後5秒以内に Ctrl-C を押すと、キャンセルを依頼したほうは1msですぐに戻って来て、キャンセル依頼を受けたほうは受けてから1秒で戻るようになっています。</p>
+<p>一方 <code>-trigger</code> オプションに <code>2s</code> と指定して起動して5秒以内に Ctrl-C を押すと、今度はキャンセルを依頼したほうが後に終わるようになります。</p>
+<h2 id="heading-2">おわりに</h2>
+<p>このライブラリを使えば <code>context</code> 非対応の関数で処理本体とキャンセル処理のどちらが後に終わるかを気にする必要はなくなります。
+気にすることが減るのは良いことなので今後使っていこうと思います。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

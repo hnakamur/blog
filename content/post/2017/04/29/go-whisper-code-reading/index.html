@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>go-whisperをコードリーディングしてみた &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>go-whisperをコードリーディングしてみた</h1>
+  <time datetime=2017-04-29T17:05:00&#43;0900 class="post-date">2017-04-29</time>
+  <h2 id="heading">はじめに</h2>
+<p><a href="/blog/2017/04/29/go-carbon-tcp-receiver-code-reading/">go-carbonのTCPレシーバについてコードリーディングしてみた</a> の続きです。</p>
+<p>go-whisperのレポジトリは
+<a href="https://github.com/lomik/go-whisper/">lomik/go-whisper: A Go port of Graphite's Whisper timeseries database</a>
+で、
+対象のコミットは
+<a href="https://github.com/lomik/go-whisper/tree/6de93631b9853148a7e1a659f7805a89451368bf">https://github.com/lomik/go-whisper/tree/6de93631b9853148a7e1a659f7805a89451368bf</a>
+です。</p>
+<h2 id="whisper">既存のwhisperファイルを開く</h2>
+<p><code>whisper.Open</code> の実装は以下の通りです。</p>
+<p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L260-L322">whisper.go#L260-L322</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">260
+</span><span class="lnt">261
+</span><span class="lnt">262
+</span><span class="lnt">263
+</span><span class="lnt">264
+</span><span class="lnt">265
+</span><span class="lnt">266
+</span><span class="lnt">267
+</span><span class="lnt">268
+</span><span class="lnt">269
+</span><span class="lnt">270
+</span><span class="lnt">271
+</span><span class="lnt">272
+</span><span class="lnt">273
+</span><span class="lnt">274
+</span><span class="lnt">275
+</span><span class="lnt">276
+</span><span class="lnt">277
+</span><span class="lnt">278
+</span><span class="lnt">279
+</span><span class="lnt">280
+</span><span class="lnt">281
+</span><span class="lnt">282
+</span><span class="lnt">283
+</span><span class="lnt">284
+</span><span class="lnt">285
+</span><span class="lnt">286
+</span><span class="lnt">287
+</span><span class="lnt">288
+</span><span class="lnt">289
+</span><span class="lnt">290
+</span><span class="lnt">291
+</span><span class="lnt">292
+</span><span class="lnt">293
+</span><span class="lnt">294
+</span><span class="lnt">295
+</span><span class="lnt">296
+</span><span class="lnt">297
+</span><span class="lnt">298
+</span><span class="lnt">299
+</span><span class="lnt">300
+</span><span class="lnt">301
+</span><span class="lnt">302
+</span><span class="lnt">303
+</span><span class="lnt">304
+</span><span class="lnt">305
+</span><span class="lnt">306
+</span><span class="lnt">307
+</span><span class="lnt">308
+</span><span class="lnt">309
+</span><span class="lnt">310
+</span><span class="lnt">311
+</span><span class="lnt">312
+</span><span class="lnt">313
+</span><span class="lnt">314
+</span><span class="lnt">315
+</span><span class="lnt">316
+</span><span class="lnt">317
+</span><span class="lnt">318
+</span><span class="lnt">319
+</span><span class="lnt">320
+</span><span class="lnt">321
+</span><span class="lnt">322
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="cm">/*
+</span><span class="cm">  Open an existing Whisper database and read it&#39;s header
+</span><span class="cm">*/</span>
+<span class="kd">func</span> <span class="nf">Open</span><span class="p">(</span><span class="nx">path</span> <span class="kt">string</span><span class="p">)</span> <span class="p">(</span><span class="nx">whisper</span> <span class="o">*</span><span class="nx">Whisper</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">file</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">os</span><span class="p">.</span><span class="nf">OpenFile</span><span class="p">(</span><span class="nx">path</span><span class="p">,</span> <span class="nx">os</span><span class="p">.</span><span class="nx">O_RDWR</span><span class="p">,</span> <span class="mo">0666</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+        <span class="k">return</span>
+    <span class="p">}</span>
+
+    <span class="k">defer</span> <span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+            <span class="nx">whisper</span> <span class="p">=</span> <span class="kc">nil</span>
+            <span class="nx">file</span><span class="p">.</span><span class="nf">Close</span><span class="p">(</span><span class="p">)</span>
+        <span class="p">}</span>
+    <span class="p">}</span><span class="p">(</span><span class="p">)</span>
+
+    <span class="nx">whisper</span> <span class="p">=</span> <span class="nb">new</span><span class="p">(</span><span class="nx">Whisper</span><span class="p">)</span>
+    <span class="nx">whisper</span><span class="p">.</span><span class="nx">file</span> <span class="p">=</span> <span class="nx">file</span>
+
+    <span class="nx">offset</span> <span class="o">:=</span> <span class="mi">0</span>
+
+    <span class="c1">// read the metadata
+</span><span class="c1"></span>    <span class="nx">b</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">MetadataSize</span><span class="p">)</span>
+    <span class="nx">readed</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">file</span><span class="p">.</span><span class="nf">Read</span><span class="p">(</span><span class="nx">b</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+        <span class="nx">err</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Unable to read header: %s&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">.</span><span class="nf">Error</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="p">}</span>
+    <span class="k">if</span> <span class="nx">readed</span> <span class="o">!=</span> <span class="nx">MetadataSize</span> <span class="p">{</span>
+        <span class="nx">err</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Unable to read header: EOF&#34;</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="p">}</span>
+
+    <span class="nx">a</span> <span class="o">:=</span> <span class="nf">unpackInt</span><span class="p">(</span><span class="nx">b</span><span class="p">[</span><span class="nx">offset</span> <span class="p">:</span> <span class="nx">offset</span><span class="o">+</span><span class="nx">IntSize</span><span class="p">]</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nx">a</span> <span class="p">&gt;</span> <span class="mi">1024</span> <span class="p">{</span> <span class="c1">// support very old format. File starts with lastUpdate and has only average aggregation method
+</span><span class="c1"></span>        <span class="nx">whisper</span><span class="p">.</span><span class="nx">aggregationMethod</span> <span class="p">=</span> <span class="nx">Average</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="nx">whisper</span><span class="p">.</span><span class="nx">aggregationMethod</span> <span class="p">=</span> <span class="nf">AggregationMethod</span><span class="p">(</span><span class="nx">a</span><span class="p">)</span>
+    <span class="p">}</span>
+    <span class="nx">offset</span> <span class="o">+=</span> <span class="nx">IntSize</span>
+    <span class="nx">whisper</span><span class="p">.</span><span class="nx">maxRetention</span> <span class="p">=</span> <span class="nf">unpackInt</span><span class="p">(</span><span class="nx">b</span><span class="p">[</span><span class="nx">offset</span> <span class="p">:</span> <span class="nx">offset</span><span class="o">+</span><span class="nx">IntSize</span><span class="p">]</span><span class="p">)</span>
+    <span class="nx">offset</span> <span class="o">+=</span> <span class="nx">IntSize</span>
+    <span class="nx">whisper</span><span class="p">.</span><span class="nx">xFilesFactor</span> <span class="p">=</span> <span class="nf">unpackFloat32</span><span class="p">(</span><span class="nx">b</span><span class="p">[</span><span class="nx">offset</span> <span class="p">:</span> <span class="nx">offset</span><span class="o">+</span><span class="nx">FloatSize</span><span class="p">]</span><span class="p">)</span>
+    <span class="nx">offset</span> <span class="o">+=</span> <span class="nx">FloatSize</span>
+    <span class="nx">archiveCount</span> <span class="o">:=</span> <span class="nf">unpackInt</span><span class="p">(</span><span class="nx">b</span><span class="p">[</span><span class="nx">offset</span> <span class="p">:</span> <span class="nx">offset</span><span class="o">+</span><span class="nx">IntSize</span><span class="p">]</span><span class="p">)</span>
+    <span class="nx">offset</span> <span class="o">+=</span> <span class="nx">IntSize</span>
+
+    <span class="c1">// read the archive info
+</span><span class="c1"></span>    <span class="nx">b</span> <span class="p">=</span> <span class="nb">make</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">ArchiveInfoSize</span><span class="p">)</span>
+
+    <span class="nx">whisper</span><span class="p">.</span><span class="nx">archives</span> <span class="p">=</span> <span class="nb">make</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="o">*</span><span class="nx">archiveInfo</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nx">archiveCount</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+        <span class="nx">readed</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">file</span><span class="p">.</span><span class="nf">Read</span><span class="p">(</span><span class="nx">b</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">||</span> <span class="nx">readed</span> <span class="o">!=</span> <span class="nx">ArchiveInfoSize</span> <span class="p">{</span>
+            <span class="nx">err</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Unable to read archive %d metadata&#34;</span><span class="p">,</span> <span class="nx">i</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="p">}</span>
+        <span class="nx">whisper</span><span class="p">.</span><span class="nx">archives</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">whisper</span><span class="p">.</span><span class="nx">archives</span><span class="p">,</span> <span class="nf">unpackArchiveInfo</span><span class="p">(</span><span class="nx">b</span><span class="p">)</span><span class="p">)</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="nx">whisper</span><span class="p">,</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><h2 id="whisper-1">Whisper構造体</h2>
+<p><code>Whisper</code> 構造体の定義です。</p>
+<p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L128-L139">whisper.go#L128-L139</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">128
+</span><span class="lnt">129
+</span><span class="lnt">130
+</span><span class="lnt">131
+</span><span class="lnt">132
+</span><span class="lnt">133
+</span><span class="lnt">134
+</span><span class="lnt">135
+</span><span class="lnt">136
+</span><span class="lnt">137
+</span><span class="lnt">138
+</span><span class="lnt">139
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="cm">/*
+</span><span class="cm">    Represents a Whisper database file.
+</span><span class="cm">*/</span>
+<span class="kd">type</span> <span class="nx">Whisper</span> <span class="kd">struct</span> <span class="p">{</span>
+    <span class="nx">file</span> <span class="o">*</span><span class="nx">os</span><span class="p">.</span><span class="nx">File</span>
+
+    <span class="c1">// Metadata
+</span><span class="c1"></span>    <span class="nx">aggregationMethod</span> <span class="nx">AggregationMethod</span>
+    <span class="nx">maxRetention</span>      <span class="kt">int</span>
+    <span class="nx">xFilesFactor</span>      <span class="kt">float32</span>
+    <span class="nx">archives</span>          <span class="p">[</span><span class="p">]</span><span class="o">*</span><span class="nx">archiveInfo</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><code>AggregationMethod</code> の型と定数の定義です。</p>
+<p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L37-L45">whisper.go#L37-L45</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">AggregationMethod</span> <span class="kt">int</span>
+
+<span class="kd">const</span> <span class="p">(</span>
+    <span class="nx">Average</span> <span class="nx">AggregationMethod</span> <span class="p">=</span> <span class="kc">iota</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="nx">Sum</span>
+    <span class="nx">Last</span>
+    <span class="nx">Max</span>
+    <span class="nx">Min</span>
+<span class="p">)</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><code>archiveInfo</code> 構造体の定義です。</p>
+<p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L840-L849">go-whisper/whisper.go#L840-L849</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">840
+</span><span class="lnt">841
+</span><span class="lnt">842
+</span><span class="lnt">843
+</span><span class="lnt">844
+</span><span class="lnt">845
+</span><span class="lnt">846
+</span><span class="lnt">847
+</span><span class="lnt">848
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="cm">/*
+</span><span class="cm">  Describes a time series in a file.
+</span><span class="cm">  The only addition this type has over a Retention is the offset at which it exists within the
+</span><span class="cm">  whisper file.
+</span><span class="cm">*/</span>
+<span class="kd">type</span> <span class="nx">archiveInfo</span> <span class="kd">struct</span> <span class="p">{</span>
+    <span class="nx">Retention</span>
+    <span class="nx">offset</span> <span class="kt">int</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><code>Retention</code> 構造体の定義です。</p>
+<p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L790-L799">whisper.go#L790-L799</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">790
+</span><span class="lnt">791
+</span><span class="lnt">792
+</span><span class="lnt">793
+</span><span class="lnt">794
+</span><span class="lnt">795
+</span><span class="lnt">796
+</span><span class="lnt">797
+</span><span class="lnt">798
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="cm">/*
+</span><span class="cm">  A retention level.
+</span><span class="cm">  Retention levels describe a given archive in the database. How detailed it is and how far back
+</span><span class="cm">  it records.
+</span><span class="cm">*/</span>
+<span class="kd">type</span> <span class="nx">Retention</span> <span class="kd">struct</span> <span class="p">{</span>
+    <span class="nx">secondsPerPoint</span> <span class="kt">int</span>
+    <span class="nx">numberOfPoints</span>  <span class="kt">int</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><h2 id="updatemany">UpdateManyメソッド</h2>
+<p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L464-L496">whisper.go#L464-L496</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">464
+</span><span class="lnt">465
+</span><span class="lnt">466
+</span><span class="lnt">467
+</span><span class="lnt">468
+</span><span class="lnt">469
+</span><span class="lnt">470
+</span><span class="lnt">471
+</span><span class="lnt">472
+</span><span class="lnt">473
+</span><span class="lnt">474
+</span><span class="lnt">475
+</span><span class="lnt">476
+</span><span class="lnt">477
+</span><span class="lnt">478
+</span><span class="lnt">479
+</span><span class="lnt">480
+</span><span class="lnt">481
+</span><span class="lnt">482
+</span><span class="lnt">483
+</span><span class="lnt">484
+</span><span class="lnt">485
+</span><span class="lnt">486
+</span><span class="lnt">487
+</span><span class="lnt">488
+</span><span class="lnt">489
+</span><span class="lnt">490
+</span><span class="lnt">491
+</span><span class="lnt">492
+</span><span class="lnt">493
+</span><span class="lnt">494
+</span><span class="lnt">495
+</span><span class="lnt">496
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">whisper</span> <span class="o">*</span><span class="nx">Whisper</span><span class="p">)</span> <span class="nf">UpdateMany</span><span class="p">(</span><span class="nx">points</span> <span class="p">[</span><span class="p">]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">)</span> <span class="p">(</span><span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c1">// recover panics and return as error
+</span><span class="c1"></span>    <span class="k">defer</span> <span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="nx">e</span> <span class="o">:=</span> <span class="nb">recover</span><span class="p">(</span><span class="p">)</span><span class="p">;</span> <span class="nx">e</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+            <span class="nx">err</span> <span class="p">=</span> <span class="nx">errors</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="p">(</span><span class="kt">string</span><span class="p">)</span><span class="p">)</span>
+        <span class="p">}</span>
+    <span class="p">}</span><span class="p">(</span><span class="p">)</span>
+
+    <span class="c1">// sort the points, newest first
+</span><span class="c1"></span>    <span class="nf">reversePoints</span><span class="p">(</span><span class="nx">points</span><span class="p">)</span>
+    <span class="nx">sort</span><span class="p">.</span><span class="nf">Stable</span><span class="p">(</span><span class="nx">timeSeriesPointsNewestFirst</span><span class="p">{</span><span class="nx">points</span><span class="p">}</span><span class="p">)</span>
+
+    <span class="nx">now</span> <span class="o">:=</span> <span class="nb">int</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Unix</span><span class="p">(</span><span class="p">)</span><span class="p">)</span> <span class="c1">// TODO: danger of 2030 something overflow
+</span><span class="c1"></span>
+    <span class="kd">var</span> <span class="nx">currentPoints</span> <span class="p">[</span><span class="p">]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span>
+    <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">archive</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">whisper</span><span class="p">.</span><span class="nx">archives</span> <span class="p">{</span>
+        <span class="nx">currentPoints</span><span class="p">,</span> <span class="nx">points</span> <span class="p">=</span> <span class="nf">extractPoints</span><span class="p">(</span><span class="nx">points</span><span class="p">,</span> <span class="nx">now</span><span class="p">,</span> <span class="nx">archive</span><span class="p">.</span><span class="nf">MaxRetention</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">currentPoints</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+            <span class="k">continue</span>
+        <span class="p">}</span>
+        <span class="c1">// reverse currentPoints
+</span><span class="c1"></span>        <span class="nf">reversePoints</span><span class="p">(</span><span class="nx">currentPoints</span><span class="p">)</span>
+        <span class="nx">err</span> <span class="p">=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">archiveUpdateMany</span><span class="p">(</span><span class="nx">archive</span><span class="p">,</span> <span class="nx">currentPoints</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+            <span class="k">return</span>
+        <span class="p">}</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">points</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span> <span class="c1">// nothing left to do
+</span><span class="c1"></span>            <span class="k">break</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="k">return</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><code>TimeSeriesPoint</code> 構造体の定義です。</p>
+<p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L907-L910">whisper.go#L907-L910</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">907
+</span><span class="lnt">908
+</span><span class="lnt">909
+</span><span class="lnt">910
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">TimeSeriesPoint</span> <span class="kd">struct</span> <span class="p">{</span>
+    <span class="nx">Time</span>  <span class="kt">int</span>
+    <span class="nx">Value</span> <span class="kt">float64</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><code>reversePoints</code> 関数の実装です。渡されたスライスのバックストアを上書きして逆順にしています。</p>
+<p><a href="https://github.com/golang/go/wiki/SliceTricks#reversing">SliceTricks · golang/go Wiki</a>
+の
+<a href="https://github.com/golang/go/wiki/SliceTricks#reversing">Reversing</a>
+で書かれているのとほぼ同じ手法です。</p>
+<p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L455-L462">whisper.go#L455-L462</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">455
+</span><span class="lnt">456
+</span><span class="lnt">457
+</span><span class="lnt">458
+</span><span class="lnt">459
+</span><span class="lnt">460
+</span><span class="lnt">461
+</span><span class="lnt">462
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">reversePoints</span><span class="p">(</span><span class="nx">points</span> <span class="p">[</span><span class="p">]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">size</span> <span class="o">:=</span> <span class="nb">len</span><span class="p">(</span><span class="nx">points</span><span class="p">)</span>
+    <span class="nx">end</span> <span class="o">:=</span> <span class="nx">size</span> <span class="o">/</span> <span class="mi">2</span>
+
+    <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nx">end</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+        <span class="nx">points</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span><span class="p">,</span> <span class="nx">points</span><span class="p">[</span><span class="nx">size</span><span class="o">-</span><span class="nx">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="p">=</span> <span class="nx">points</span><span class="p">[</span><span class="nx">size</span><span class="o">-</span><span class="nx">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="p">,</span> <span class="nx">points</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><code>timeSeriesPointsNewestFirst</code> は名前の通りポイントを時刻の新しい順に並べるための構造体です。</p>
+<p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L912-L928">whisper.go#L912-L928</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">912
+</span><span class="lnt">913
+</span><span class="lnt">914
+</span><span class="lnt">915
+</span><span class="lnt">916
+</span><span class="lnt">917
+</span><span class="lnt">918
+</span><span class="lnt">919
+</span><span class="lnt">920
+</span><span class="lnt">921
+</span><span class="lnt">922
+</span><span class="lnt">923
+</span><span class="lnt">924
+</span><span class="lnt">925
+</span><span class="lnt">926
+</span><span class="lnt">927
+</span><span class="lnt">928
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">timeSeriesPoints</span> <span class="p">[</span><span class="p">]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="nx">timeSeriesPoints</span><span class="p">)</span> <span class="nf">Len</span><span class="p">(</span><span class="p">)</span> <span class="kt">int</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="nx">p</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="nx">timeSeriesPoints</span><span class="p">)</span> <span class="nf">Swap</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span> <span class="nx">j</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">p</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span><span class="p">,</span> <span class="nx">p</span><span class="p">[</span><span class="nx">j</span><span class="p">]</span> <span class="p">=</span> <span class="nx">p</span><span class="p">[</span><span class="nx">j</span><span class="p">]</span><span class="p">,</span> <span class="nx">p</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span>
+<span class="p">}</span>
+
+<span class="kd">type</span> <span class="nx">timeSeriesPointsNewestFirst</span> <span class="kd">struct</span> <span class="p">{</span>
+    <span class="nx">timeSeriesPoints</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="nx">timeSeriesPointsNewestFirst</span><span class="p">)</span> <span class="nf">Less</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span> <span class="nx">j</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">bool</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="nx">p</span><span class="p">.</span><span class="nx">timeSeriesPoints</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span><span class="p">.</span><span class="nx">Time</span> <span class="p">&gt;</span> <span class="nx">p</span><span class="p">.</span><span class="nx">timeSeriesPoints</span><span class="p">[</span><span class="nx">j</span><span class="p">]</span><span class="p">.</span><span class="nx">Time</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L552-L564">whisper.go#L552-L564</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">552
+</span><span class="lnt">553
+</span><span class="lnt">554
+</span><span class="lnt">555
+</span><span class="lnt">556
+</span><span class="lnt">557
+</span><span class="lnt">558
+</span><span class="lnt">559
+</span><span class="lnt">560
+</span><span class="lnt">561
+</span><span class="lnt">562
+</span><span class="lnt">563
+</span><span class="lnt">564
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">extractPoints</span><span class="p">(</span><span class="nx">points</span> <span class="p">[</span><span class="p">]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">,</span> <span class="nx">now</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">maxRetention</span> <span class="kt">int</span><span class="p">)</span> <span class="p">(</span><span class="nx">currentPoints</span> <span class="p">[</span><span class="p">]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">,</span> <span class="nx">remainingPoints</span> <span class="p">[</span><span class="p">]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">maxAge</span> <span class="o">:=</span> <span class="nx">now</span> <span class="o">-</span> <span class="nx">maxRetention</span>
+    <span class="k">for</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">point</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">points</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="nx">point</span><span class="p">.</span><span class="nx">Time</span> <span class="p">&lt;</span> <span class="nx">maxAge</span> <span class="p">{</span>
+            <span class="k">if</span> <span class="nx">i</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+                <span class="k">return</span> <span class="nx">points</span><span class="p">[</span><span class="p">:</span><span class="nx">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="p">,</span> <span class="nx">points</span><span class="p">[</span><span class="nx">i</span><span class="o">-</span><span class="mi">1</span><span class="p">:</span><span class="p">]</span>
+            <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+                <span class="k">return</span> <span class="p">[</span><span class="p">]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">{</span><span class="p">}</span><span class="p">,</span> <span class="nx">points</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="nx">points</span><span class="p">,</span> <span class="nx">remainingPoints</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><code>Whisper</code> の <code>archiveUpdateMany</code> メソッドの実装です。</p>
+<p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L498-L550">whisper.go#L498-L550</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">498
+</span><span class="lnt">499
+</span><span class="lnt">500
+</span><span class="lnt">501
+</span><span class="lnt">502
+</span><span class="lnt">503
+</span><span class="lnt">504
+</span><span class="lnt">505
+</span><span class="lnt">506
+</span><span class="lnt">507
+</span><span class="lnt">508
+</span><span class="lnt">509
+</span><span class="lnt">510
+</span><span class="lnt">511
+</span><span class="lnt">512
+</span><span class="lnt">513
+</span><span class="lnt">514
+</span><span class="lnt">515
+</span><span class="lnt">516
+</span><span class="lnt">517
+</span><span class="lnt">518
+</span><span class="lnt">519
+</span><span class="lnt">520
+</span><span class="lnt">521
+</span><span class="lnt">522
+</span><span class="lnt">523
+</span><span class="lnt">524
+</span><span class="lnt">525
+</span><span class="lnt">526
+</span><span class="lnt">527
+</span><span class="lnt">528
+</span><span class="lnt">529
+</span><span class="lnt">530
+</span><span class="lnt">531
+</span><span class="lnt">532
+</span><span class="lnt">533
+</span><span class="lnt">534
+</span><span class="lnt">535
+</span><span class="lnt">536
+</span><span class="lnt">537
+</span><span class="lnt">538
+</span><span class="lnt">539
+</span><span class="lnt">540
+</span><span class="lnt">541
+</span><span class="lnt">542
+</span><span class="lnt">543
+</span><span class="lnt">544
+</span><span class="lnt">545
+</span><span class="lnt">546
+</span><span class="lnt">547
+</span><span class="lnt">548
+</span><span class="lnt">549
+</span><span class="lnt">550
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">whisper</span> <span class="o">*</span><span class="nx">Whisper</span><span class="p">)</span> <span class="nf">archiveUpdateMany</span><span class="p">(</span><span class="nx">archive</span> <span class="o">*</span><span class="nx">archiveInfo</span><span class="p">,</span> <span class="nx">points</span> <span class="p">[</span><span class="p">]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+    <span class="nx">alignedPoints</span> <span class="o">:=</span> <span class="nf">alignPoints</span><span class="p">(</span><span class="nx">archive</span><span class="p">,</span> <span class="nx">points</span><span class="p">)</span>
+    <span class="nx">intervals</span><span class="p">,</span> <span class="nx">packedBlocks</span> <span class="o">:=</span> <span class="nf">packSequences</span><span class="p">(</span><span class="nx">archive</span><span class="p">,</span> <span class="nx">alignedPoints</span><span class="p">)</span>
+
+    <span class="nx">baseInterval</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">getBaseInterval</span><span class="p">(</span><span class="nx">archive</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nx">baseInterval</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+        <span class="nx">baseInterval</span> <span class="p">=</span> <span class="nx">intervals</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="p">}</span>
+
+    <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">intervals</span> <span class="p">{</span>
+        <span class="nx">myOffset</span> <span class="o">:=</span> <span class="nx">archive</span><span class="p">.</span><span class="nf">PointOffset</span><span class="p">(</span><span class="nx">baseInterval</span><span class="p">,</span> <span class="nx">intervals</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span><span class="p">)</span>
+        <span class="nx">bytesBeyond</span> <span class="o">:=</span> <span class="nb">int</span><span class="p">(</span><span class="nx">myOffset</span><span class="o">-</span><span class="nx">archive</span><span class="p">.</span><span class="nf">End</span><span class="p">(</span><span class="p">)</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nx">bytesBeyond</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+            <span class="nx">pos</span> <span class="o">:=</span> <span class="nb">len</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span><span class="p">)</span> <span class="o">-</span> <span class="nx">bytesBeyond</span>
+            <span class="nx">err</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">fileWriteAt</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span><span class="p">[</span><span class="p">:</span><span class="nx">pos</span><span class="p">]</span><span class="p">,</span> <span class="nx">myOffset</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+                <span class="k">return</span> <span class="nx">err</span>
+            <span class="p">}</span>
+            <span class="nx">err</span> <span class="p">=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">fileWriteAt</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span><span class="p">[</span><span class="nx">pos</span><span class="p">:</span><span class="p">]</span><span class="p">,</span> <span class="nx">archive</span><span class="p">.</span><span class="nf">Offset</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+                <span class="k">return</span> <span class="nx">err</span>
+            <span class="p">}</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+            <span class="nx">err</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">fileWriteAt</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span><span class="p">,</span> <span class="nx">myOffset</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+                <span class="k">return</span> <span class="nx">err</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+
+    <span class="nx">higher</span> <span class="o">:=</span> <span class="nx">archive</span>
+    <span class="nx">lowerArchives</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">lowerArchives</span><span class="p">(</span><span class="nx">archive</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">lower</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">lowerArchives</span> <span class="p">{</span>
+        <span class="nx">seen</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">int</span><span class="p">]</span><span class="kt">bool</span><span class="p">)</span>
+        <span class="nx">propagateFurther</span> <span class="o">:=</span> <span class="kc">false</span>
+        <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">point</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">alignedPoints</span> <span class="p">{</span>
+            <span class="nx">interval</span> <span class="o">:=</span> <span class="nx">point</span><span class="p">.</span><span class="nx">interval</span> <span class="o">-</span> <span class="nf">mod</span><span class="p">(</span><span class="nx">point</span><span class="p">.</span><span class="nx">interval</span><span class="p">,</span> <span class="nx">lower</span><span class="p">.</span><span class="nx">secondsPerPoint</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">!</span><span class="nx">seen</span><span class="p">[</span><span class="nx">interval</span><span class="p">]</span> <span class="p">{</span>
+                <span class="k">if</span> <span class="nx">propagated</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">propagate</span><span class="p">(</span><span class="nx">interval</span><span class="p">,</span> <span class="nx">higher</span><span class="p">,</span> <span class="nx">lower</span><span class="p">)</span><span class="p">;</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+                    <span class="nb">panic</span><span class="p">(</span><span class="s">&#34;Failed to propagate&#34;</span><span class="p">)</span>
+                <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="nx">propagated</span> <span class="p">{</span>
+                    <span class="nx">propagateFurther</span> <span class="p">=</span> <span class="kc">true</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="p">!</span><span class="nx">propagateFurther</span> <span class="p">{</span>
+            <span class="k">break</span>
+        <span class="p">}</span>
+        <span class="nx">higher</span> <span class="p">=</span> <span class="nx">lower</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L566-L579">whisper.go#L566-L579</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">566
+</span><span class="lnt">567
+</span><span class="lnt">568
+</span><span class="lnt">569
+</span><span class="lnt">570
+</span><span class="lnt">571
+</span><span class="lnt">572
+</span><span class="lnt">573
+</span><span class="lnt">574
+</span><span class="lnt">575
+</span><span class="lnt">576
+</span><span class="lnt">577
+</span><span class="lnt">578
+</span><span class="lnt">579
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">alignPoints</span><span class="p">(</span><span class="nx">archive</span> <span class="o">*</span><span class="nx">archiveInfo</span><span class="p">,</span> <span class="nx">points</span> <span class="p">[</span><span class="p">]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">)</span> <span class="p">[</span><span class="p">]</span><span class="nx">dataPoint</span> <span class="p">{</span>
+    <span class="nx">alignedPoints</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="nx">dataPoint</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nx">points</span><span class="p">)</span><span class="p">)</span>
+    <span class="nx">positions</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">int</span><span class="p">]</span><span class="kt">int</span><span class="p">)</span>
+    <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">point</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">points</span> <span class="p">{</span>
+        <span class="nx">dPoint</span> <span class="o">:=</span> <span class="nx">dataPoint</span><span class="p">{</span><span class="nx">point</span><span class="p">.</span><span class="nx">Time</span> <span class="o">-</span> <span class="nf">mod</span><span class="p">(</span><span class="nx">point</span><span class="p">.</span><span class="nx">Time</span><span class="p">,</span> <span class="nx">archive</span><span class="p">.</span><span class="nx">secondsPerPoint</span><span class="p">)</span><span class="p">,</span> <span class="nx">point</span><span class="p">.</span><span class="nx">Value</span><span class="p">}</span>
+        <span class="k">if</span> <span class="nx">p</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">positions</span><span class="p">[</span><span class="nx">dPoint</span><span class="p">.</span><span class="nx">interval</span><span class="p">]</span><span class="p">;</span> <span class="nx">ok</span> <span class="p">{</span>
+            <span class="nx">alignedPoints</span><span class="p">[</span><span class="nx">p</span><span class="p">]</span> <span class="p">=</span> <span class="nx">dPoint</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+            <span class="nx">alignedPoints</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">alignedPoints</span><span class="p">,</span> <span class="nx">dPoint</span><span class="p">)</span>
+            <span class="nx">positions</span><span class="p">[</span><span class="nx">dPoint</span><span class="p">.</span><span class="nx">interval</span><span class="p">]</span> <span class="p">=</span> <span class="nb">len</span><span class="p">(</span><span class="nx">alignedPoints</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="nx">alignedPoints</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L930-L933">whisper.go#L930-L933</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">930
+</span><span class="lnt">931
+</span><span class="lnt">932
+</span><span class="lnt">933
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">dataPoint</span> <span class="kd">struct</span> <span class="p">{</span>
+    <span class="nx">interval</span> <span class="kt">int</span>
+    <span class="nx">value</span>    <span class="kt">float64</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L1021-L1027">whisper.go#L1021-L1027</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1021
+</span><span class="lnt">1022
+</span><span class="lnt">1023
+</span><span class="lnt">1024
+</span><span class="lnt">1025
+</span><span class="lnt">1026
+</span><span class="lnt">1027
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="cm">/*
+</span><span class="cm">    Implementation of modulo that works like Python
+</span><span class="cm">    Thanks @timmow for this
+</span><span class="cm">*/</span>
+<span class="kd">func</span> <span class="nf">mod</span><span class="p">(</span><span class="nx">a</span><span class="p">,</span> <span class="nx">b</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">int</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="nx">a</span> <span class="o">-</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span> <span class="nb">int</span><span class="p">(</span><span class="nx">math</span><span class="p">.</span><span class="nf">Floor</span><span class="p">(</span><span class="nb">float64</span><span class="p">(</span><span class="nx">a</span><span class="p">)</span><span class="o">/</span><span class="nb">float64</span><span class="p">(</span><span class="nx">b</span><span class="p">)</span><span class="p">)</span><span class="p">)</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L581-L593">whisper.go#L581-L593</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">581
+</span><span class="lnt">582
+</span><span class="lnt">583
+</span><span class="lnt">584
+</span><span class="lnt">585
+</span><span class="lnt">586
+</span><span class="lnt">587
+</span><span class="lnt">588
+</span><span class="lnt">589
+</span><span class="lnt">590
+</span><span class="lnt">591
+</span><span class="lnt">592
+</span><span class="lnt">593
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">packSequences</span><span class="p">(</span><span class="nx">archive</span> <span class="o">*</span><span class="nx">archiveInfo</span><span class="p">,</span> <span class="nx">points</span> <span class="p">[</span><span class="p">]</span><span class="nx">dataPoint</span><span class="p">)</span> <span class="p">(</span><span class="nx">intervals</span> <span class="p">[</span><span class="p">]</span><span class="kt">int</span><span class="p">,</span> <span class="nx">packedBlocks</span> <span class="p">[</span><span class="p">]</span><span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">intervals</span> <span class="p">=</span> <span class="nb">make</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="kt">int</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="nx">packedBlocks</span> <span class="p">=</span> <span class="nb">make</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">for</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">point</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">points</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="nx">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="o">||</span> <span class="nx">point</span><span class="p">.</span><span class="nx">interval</span> <span class="o">!=</span> <span class="nx">intervals</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">intervals</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="nx">archive</span><span class="p">.</span><span class="nx">secondsPerPoint</span> <span class="p">{</span>
+            <span class="nx">intervals</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">intervals</span><span class="p">,</span> <span class="nx">point</span><span class="p">.</span><span class="nx">interval</span><span class="p">)</span>
+            <span class="nx">packedBlocks</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">,</span> <span class="nx">point</span><span class="p">.</span><span class="nf">Bytes</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+            <span class="nx">packedBlocks</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="p">,</span> <span class="nx">point</span><span class="p">.</span><span class="nf">Bytes</span><span class="p">(</span><span class="p">)</span><span class="o">...</span><span class="p">)</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="k">return</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L935-L940">whisper.go#L935-L940</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">935
+</span><span class="lnt">936
+</span><span class="lnt">937
+</span><span class="lnt">938
+</span><span class="lnt">939
+</span><span class="lnt">940
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">point</span> <span class="o">*</span><span class="nx">dataPoint</span><span class="p">)</span> <span class="nf">Bytes</span><span class="p">(</span><span class="p">)</span> <span class="p">[</span><span class="p">]</span><span class="kt">byte</span> <span class="p">{</span>
+    <span class="nx">b</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">PointSize</span><span class="p">)</span>
+    <span class="nf">packInt</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="nx">point</span><span class="p">.</span><span class="nx">interval</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="nf">packFloat64</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="nx">point</span><span class="p">.</span><span class="nx">value</span><span class="p">,</span> <span class="nx">IntSize</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nx">b</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L141-L145">whisper.go#L141-L145</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">141
+</span><span class="lnt">142
+</span><span class="lnt">143
+</span><span class="lnt">144
+</span><span class="lnt">145
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Wrappers for whisper.file operations
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">whisper</span> <span class="o">*</span><span class="nx">Whisper</span><span class="p">)</span> <span class="nf">fileWriteAt</span><span class="p">(</span><span class="nx">b</span> <span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">off</span> <span class="kt">int64</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+    <span class="nx">_</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nx">file</span><span class="p">.</span><span class="nf">WriteAt</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="nx">off</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nx">err</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L616-L623">whisper.go#L616-L623</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">616
+</span><span class="lnt">617
+</span><span class="lnt">618
+</span><span class="lnt">619
+</span><span class="lnt">620
+</span><span class="lnt">621
+</span><span class="lnt">622
+</span><span class="lnt">623
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">whisper</span> <span class="o">*</span><span class="nx">Whisper</span><span class="p">)</span> <span class="nf">lowerArchives</span><span class="p">(</span><span class="nx">archive</span> <span class="o">*</span><span class="nx">archiveInfo</span><span class="p">)</span> <span class="p">(</span><span class="nx">lowerArchives</span> <span class="p">[</span><span class="p">]</span><span class="o">*</span><span class="nx">archiveInfo</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">for</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">lower</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">whisper</span><span class="p">.</span><span class="nx">archives</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="nx">lower</span><span class="p">.</span><span class="nx">secondsPerPoint</span> <span class="p">&gt;</span> <span class="nx">archive</span><span class="p">.</span><span class="nx">secondsPerPoint</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="nx">whisper</span><span class="p">.</span><span class="nx">archives</span><span class="p">[</span><span class="nx">i</span><span class="p">:</span><span class="p">]</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="k">return</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L670-L692">whisper.go#L670-L692</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">670
+</span><span class="lnt">671
+</span><span class="lnt">672
+</span><span class="lnt">673
+</span><span class="lnt">674
+</span><span class="lnt">675
+</span><span class="lnt">676
+</span><span class="lnt">677
+</span><span class="lnt">678
+</span><span class="lnt">679
+</span><span class="lnt">680
+</span><span class="lnt">681
+</span><span class="lnt">682
+</span><span class="lnt">683
+</span><span class="lnt">684
+</span><span class="lnt">685
+</span><span class="lnt">686
+</span><span class="lnt">687
+</span><span class="lnt">688
+</span><span class="lnt">689
+</span><span class="lnt">690
+</span><span class="lnt">691
+</span><span class="lnt">692
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">whisper</span> <span class="o">*</span><span class="nx">Whisper</span><span class="p">)</span> <span class="nf">readSeries</span><span class="p">(</span><span class="nx">start</span><span class="p">,</span> <span class="nx">end</span> <span class="kt">int64</span><span class="p">,</span> <span class="nx">archive</span> <span class="o">*</span><span class="nx">archiveInfo</span><span class="p">)</span> <span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="nx">dataPoint</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">b</span> <span class="p">[</span><span class="p">]</span><span class="kt">byte</span>
+    <span class="k">if</span> <span class="nx">start</span> <span class="p">&lt;</span> <span class="nx">end</span> <span class="p">{</span>
+        <span class="nx">b</span> <span class="p">=</span> <span class="nb">make</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">end</span><span class="o">-</span><span class="nx">start</span><span class="p">)</span>
+        <span class="nx">err</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">fileReadAt</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="nx">start</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+        <span class="p">}</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="nx">b</span> <span class="p">=</span> <span class="nb">make</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">archive</span><span class="p">.</span><span class="nf">End</span><span class="p">(</span><span class="p">)</span><span class="o">-</span><span class="nx">start</span><span class="p">)</span>
+        <span class="nx">err</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">fileReadAt</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="nx">start</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+        <span class="p">}</span>
+        <span class="nx">b2</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">end</span><span class="o">-</span><span class="nx">archive</span><span class="p">.</span><span class="nf">Offset</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+        <span class="nx">err</span> <span class="p">=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">fileReadAt</span><span class="p">(</span><span class="nx">b2</span><span class="p">,</span> <span class="nx">archive</span><span class="p">.</span><span class="nf">Offset</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+        <span class="p">}</span>
+        <span class="nx">b</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="nx">b2</span><span class="o">...</span><span class="p">)</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="nf">unpackDataPoints</span><span class="p">(</span><span class="nx">b</span><span class="p">)</span><span class="p">,</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div>
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

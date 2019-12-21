@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Kuberntesでデータ領域をNFSマウントしてMySQLを動かしてみた &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Kuberntesでデータ領域をNFSマウントしてMySQLを動かしてみた</h1>
+  <time datetime=2017-01-01T12:38:24&#43;0900 class="post-date">2017-01-01</time>
+  <h2 id="heading">はじめに</h2>
+<p><a href="/blog/2017/01/01/use-nfs-persistent-volume-on-minikube-virtualbox/">minikubeとVirtualBoxでNFSのpersistent volumeを試してみた · hnakamur's blog at github</a>の結果を踏まえて、 <a href="http://kubernetes.io/docs/tutorials/stateful-application/run-stateful-application/">Running a Single-Instance Stateful Application - Kubernetes</a> のチュートリアルを試してみたのでメモです。</p>
+<h2 id="heading-1">設定ファイル</h2>
+<pre><code>$ cat persistent-volume-nfs.yml
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: pv-nfs
+  labels:
+    type: nfs
+spec:
+  capacity:
+    storage: 30Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  nfs:
+    # TODO: modify path and server appropriately
+    path: /Users/hnakamur/kube-data/mysql
+    server: 192.168.99.1
+</code></pre><pre><code>$ cat mysql-pvc.yml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: mysql-pvc
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 15Gi
+</code></pre><pre><code>$ cat mysql-deploy.yml
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: mysql
+spec:
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - image: mysql:5.6
+        name: mysql
+        env:
+          # Use secret in real usage
+        - name: MYSQL_ROOT_PASSWORD
+          value: password
+        ports:
+        - containerPort: 3306
+          name: mysql
+        volumeMounts:
+        - name: mysql-persistent-storage
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: mysql-persistent-storage
+        persistentVolumeClaim:
+          claimName: mysql-pvc
+</code></pre><pre><code>$ cat mysql-svc.yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+spec:
+  ports:
+    - port: 3306
+  selector:
+    app: mysql
+  clusterIP: None
+</code></pre><p>ハマった点としては、persistent volumeとpersistent volume claimのaccessModesは合わせないとうまく行きませんでした。具体的には <code>kubectl describe pvc mysql-pvc</code> で確認したときにStatusがPendingになっていました。</p>
+<p><a href="http://kubernetes.io/docs/user-guide/persistent-volumes/#access-modes">Access Modes</a>にアクセスモードについての説明があります。</p>
+<h2 id="heading-2">サービスの作成と公開</h2>
+<pre><code>kubectl create -f persistent-volume-nfs.yml
+kubectl create -f mysql-pvc.yml
+kubectl create -f mysql-deploy.yml
+kubectl create -f mysql-svc.yml
+</code></pre><h2 id="mysql">MySQLに接続してみる</h2>
+<p>まずMySQLコンテナのIPアドレスを調べます。</p>
+<pre><code>$ kubectl get pods -o wide -l app=mysql
+NAME                     READY     STATUS    RESTARTS   AGE       IP           NODE
+mysql-4160924354-c5x2l   1/1       Running   0          3m        172.17.0.5   minikube
+</code></pre><p>mysqlクライアントのイメージを使ってmysqlに接続します。
+<code>If you don't see a command prompt, try pressing enter.</code> とある通り、そのままではプロンプトが表示されなかったのでエンターキーを押すと表示されました。</p>
+<p>試しにデータベースをテーブルを作成してみます。その後 Control-D を押してmysqlクライアントを抜けます。</p>
+<pre><code>$ kubectl run -it --rm --image=mysql:5.6 mysql-client -- mysql -h 172.17.0.5 -ppassword
+Waiting for pod default/mysql-client-1703061864-g1p4s to be running, status is Pending, pod ready: false
+If you don't see a command prompt, try pressing enter.
+
+mysql&gt; create database test1;
+Query OK, 1 row affected (0.00 sec)
+
+mysql&gt; use test1;
+Database changed
+mysql&gt; create table table1 (id integer);
+Query OK, 0 rows affected (0.02 sec)
+
+mysql&gt; ^DBye
+Session ended, resume using 'kubectl attach mysql-client-1703061864-g1p4s -c mysql-client -i -t' command when the pod is running
+deployment &quot;mysql-client&quot; deleted
+</code></pre><h2 id="mysqlpod">MySQLサーバのPodを更新してみる</h2>
+<p>mysql-deploy.yml を書き変えて <code>kubectl apply</code> で更新してみます。</p>
+<p>最初MYSQL_ROOT_PASSWORDの値を変えてみようかと思って試したのですが、よく考えるとこれはデータベース作成時に設定されてNFSでマウントしたデータ領域はそのまま残るので、この値を変えても更新できませんでした。</p>
+<p>そこで、ラベルに <code>ver=5.6</code> というのを追加してみました。
+最初5.6はダブルクォートで囲まずにyamlファイルに書いてみたのですが、エラーになったのでダブルクォートで囲んでいます。</p>
+<pre><code>$ cat mysql-deploy.yml
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: mysql
+spec:
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: mysql
+        ver: &quot;5.6&quot;
+    spec:
+      containers:
+      - image: mysql:5.6
+        name: mysql
+        env:
+          # Use secret in real usage
+        - name: MYSQL_ROOT_PASSWORD
+          value: password
+        ports:
+        - containerPort: 3306
+          name: mysql
+        volumeMounts:
+        - name: mysql-persistent-storage
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: mysql-persistent-storage
+        persistentVolumeClaim:
+          claimName: mysql-pvc
+</code></pre><p>以下のコマンドで反映しました。</p>
+<pre><code>kubectl apply -f mysql-deploy.yml
+</code></pre><p>再度mysqlに接続して、先ほど作成したデータベースとテーブルがあるかを確認します。</p>
+<p>まずMySQLコンテナのIPアドレスを調べます。
+spec.strategyがRecreateなので、コンテナが作り直されてIPアドレスも先程とは変わっています。</p>
+<pre><code>$ kubectl get pods -o wide -l app=mysql
+NAME                     READY     STATUS    RESTARTS   AGE       IP           NODE
+mysql-1726459224-c5gps   1/1       Running   0          10s       172.17.0.6   minikube
+</code></pre><p><code>kubectl describe po -l app=mysql</code> を実行してStateのStartedやEventsの時刻を見るとコンテナが作り直されたことがわかります。</p>
+<p>mysqlに接続して、データベースとテーブルを確認します。</p>
+<pre><code>$ kubectl run -it --rm --image=mysql:5.6 mysql-client -- mysql -h 172.17.0.6 -pmypassword
+Waiting for pod default/mysql-client-1775806825-vxjgf to be running, status is Pending, pod ready: false
+If you don't see a command prompt, try pressing enter.
+
+mysql&gt; show databases;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| mysql              |
+| performance_schema |
+| test1              |
++--------------------+
+4 rows in set (0.01 sec)
+
+mysql&gt; use test1;
+Reading table information for completion of table and column names
+You can turn off this feature to get a quicker startup with -A
+
+Database changed
+mysql&gt; show tables;
++-----------------+
+| Tables_in_test1 |
++-----------------+
+| table1          |
++-----------------+
+1 row in set (0.00 sec)
+
+mysql&gt; exit
+Bye
+Session ended, resume using 'kubectl attach mysql-client-1775806825-vxjgf -c mysql-client -i -t' command when the pod is running
+deployment &quot;mysql-client&quot; deleted
+</code></pre>
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

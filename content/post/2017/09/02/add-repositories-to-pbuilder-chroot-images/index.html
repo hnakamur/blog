@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>pbuilderのchroot環境にレポジトリを追加する &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>pbuilderのchroot環境にレポジトリを追加する</h1>
+  <time datetime=2017-09-02T16:00:00&#43;0900 class="post-date">2017-09-02</time>
+  <h2 id="heading">はじめに</h2>
+<p><a href="https://pbuilder.alioth.debian.org/">pbuilder</a> を使っていくつかdebパッケージを作ってみて、chroot環境をカスタマイズするベストプラクティスが自分の中で出来たのでメモです。</p>
+<ul>
+<li>Ubuntu Xenialと同じapt-lineを使いたい</li>
+<li>xenial-updates にあるパッケージを使いたい</li>
+<li>PPAにあるgcc 7を使いたい</li>
+<li>ローカルにある自作debパッケージを使いたい</li>
+</ul>
+<p>というニーズを満たすためのものです。</p>
+<h2 id="-chroot-">ベースの chroot 環境の作成手順</h2>
+<p>試行錯誤の結果、 Ubuntu Xenial と同じ apt-line の chroot 環境の作成手順は以下のように落ち着きました。</p>
+<pre><code class="language-console" data-lang="console">$ sudo pbuilder create \
+        --mirror http://jp.archive.ubuntu.com/ubuntu/ \
+        --distribution xenial \
+        --components &quot;main restricted universe multiverse&quot;
+</code></pre><p>.. code-block:: console</p>
+<pre><code>    $ sudo mkdir -p /var/cache/pbuilder/scripts
+    $ cat &lt;&lt;'EOS' | sudo tee /var/cache/pbuilder/scripts/add-updates-backports-security.sh
+    echo 'deb http://jp.archive.ubuntu.com/ubuntu/ xenial-updates main restricted universe multiverse' \
+            &gt; /etc/apt/sources.list.d/xenial-updates.list
+    echo 'deb http://jp.archive.ubuntu.com/ubuntu/ xenial-backports main restricted universe multiverse' \
+            &gt; /etc/apt/sources.list.d/xenial-backports.list
+    echo 'deb http://security.ubuntu.com/ubuntu xenial-security main restricted universe multiverse' \
+            &gt; /etc/apt/sources.list.d/xenial-security.list
+    apt update -y
+    apt upgrade -y
+    EOS
+</code></pre>
+<pre><code class="language-console" data-lang="console">$ sudo pbuilder execute --save-after-exec \
+        -- /var/cache/pbuilder/scripts/add-updates-backports-security.sh
+</code></pre><p>追加の apt-line は <code>pbuilder create</code> に <code>--othermirror</code> オプションで <code>|</code> で区切って複数指定する方法もあります。
+しかし、ローカルにある自作debパッケージを使いたいとき、ビルド時に <code>pbuilder build</code> で <code>--override-config</code> オプションとともに <code>--othermirror</code> オプションで変更したいのですが、上記の xenial-updates などの追加レポジトリも全て書く必要があって面倒です。</p>
+<p>そこで、 xenial-updates などのレポジトリは <code>--othermirror</code> オプションを使わずに上記の手順で追加するようにしました。</p>
+<p>作った chroot 環境の中身を確認するのは <code>sudo pbuilder login</code> で出来ます。
+<code>/etc/apt/sources.list.d/xenial-updates.list</code> などが意図通りに追加されていることを確認したら Ctrl-D で抜けます。</p>
+<h2 id="gcc-7-chroot-">gcc-7を使う際の chroot 環境の作成手順</h2>
+<p><code>/var/cache/pbuilder/base.tgz</code> をコピーして <code>/var/cache/pbuilder/gcc7.tgz</code> を作り変更していきます。</p>
+<pre><code class="language-console" data-lang="console">$ sudo cp /var/cache/pbuilder/base.tgz /var/cache/pbuilder/gcc7.tgz
+</code></pre><p>.. code-block:: console</p>
+<pre><code>    $ cat &lt;&lt;'EOS' | sudo tee /var/cache/pbuilder/scripts/add-gcc-7-repo.sh
+    apt-key adv --keyserver keyserver.ubuntu.com --recv BA9EF27F
+    echo 'deb http://ppa.launchpad.net/ubuntu-toolchain-r/test/ubuntu xenial main' \
+            &gt; /etc/apt/sources.list.d/ubuntu-toolchain-r-ubuntu-test-xenial.list
+    apt update -y
+    EOS
+</code></pre>
+<pre><code class="language-console" data-lang="console">$ sudo pbuilder execute --basetgz /var/cache/pbuilder/gcc7.tgz --save-after-exec \
+        -- /var/cache/pbuilder/scripts/add-gcc-7-repo.sh
+</code></pre><p><code>/var/cache/pbuilder/scripts/add-gcc-7-repo.sh</code> でのレポジトリの追加は
+<a href="/2017/09/02/add-ppa-to-apt-line-without-add-apt-repository/">add-apt-repositoryを使わずにPPAをapt-lineに追加する方法</a>
+で説明した方法を使っています。</p>
+<p>ここで作った chroot 環境の中身は
+<code>sudo pbuilder login --basetgz /var/cache/pbuilder/gcc7.tgz</code>
+で確認できます。</p>
+<h2 id="pbuilder--chroot-">pbuilder の chroot 環境の手動更新</h2>
+<p>chroot 環境は一度作成すると更新されないので、ときどき以下の手順で <code>apt update</code> と <code>apt upgrade</code> 相当の更新をする必要があります。</p>
+<p><code>/var/cache/pbuilder/base.tgz</code> を更新する場合は以下のコマンドを実行します。</p>
+<pre><code class="language-console" data-lang="console">$ sudo pbuilder update
+</code></pre><p><code>/var/cache/pbuilder/gcc7.tgz</code> を更新する場合は以下のコマンドを実行します。</p>
+<pre><code class="language-console" data-lang="console">$ sudo pbuilder update --basetgz /var/cache/pbuilder/gcc7.tgz
+</code></pre><h2 id="-apt-update-">ビルド時に apt update するための設定</h2>
+<p><code>~/.pbuilderrc</code> に以下の設定を追加します。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">HOOKDIR=&#34;/var/cache/pbuilder/hook.d&#34;
+</code></pre></div><p><code>mkdir -p /var/cache/pbuilder/hook.d</code> でディレクトリを作成し、以下の内容で <code>/var/cache/pbuilder/hook.d/D70apt-update</code> というファイルを作成し実行パーミションを付与します。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">#!/bin/sh
+/usr/bin/apt update
+</code></pre></div><h2 id="deb">ローカルにある自作debパッケージを使いたい場合のビルド手順</h2>
+<p>ローカルにある自作パッケージをビルド時に含める方法は
+<a href="https://wiki.debian.org/PbuilderTricks#How_to_include_local_packages_in_the_build">How to include local packages in the build</a>
+に書かれていました。</p>
+<p>上記のように chroot 環境を作っておけば、gcc-7 を使いつつローカルにある自作debパッケージのレポジトリ <code>http://localhost/my-debs/cache</code> をレポジトリとして追加してビルドするには以下のようにします。</p>
+<pre><code class="language-console" data-lang="console">$ sudo pbuilder build --basetgz /var/cache/pbuilder/gcc7.tgz \
+        --override-config \
+        --othermirror 'deb [trusted=yes] http://localhost/my-debs/cache xenial main' \
+        dscファイル名
+</code></pre><p>なお、上記の「ビルド時に apt update するための設定」を行っておく必要があります。</p>
+<h2 id="-chroot--1">ビルド時にエラーになったときに chroot 環境に入る設定</h2>
+<p>上記の「ビルド時に apt update するための設定」の <code>~/.pbuilderrc</code> の設定追加と
+<code>HOOKDIR</code> のディレクトリを作成するのをやった上で、以下のコマンドで
+<code>/var/cache/pbuilder/hook.d/C10shell</code> というシンボリックリンクを作成します。</p>
+<pre><code class="language-console" data-lang="console">$ sudo ln -s /usr/share/doc/pbuilder/examples/C10shell /var/cache/pbuilder/hook.d/
+</code></pre>
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

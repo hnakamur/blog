@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Windows UI Automation APIを使うためのGoライブラリw32uiautomationを書いた &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Windows UI Automation APIを使うためのGoライブラリw32uiautomationを書いた</h1>
+  <time datetime=2015-02-22T00:09:24&#43;0900 class="post-date">2015-02-22</time>
+  <h1 id="heading">なぜ</h1>
+<p>ウェブアプリ開発をしているとInternet Explorerでの動作確認のため<a href="https://www.modern.ie/ja-jp">modern.IE</a>が欠かせません。が、インストール直後は英語環境になっているので、日本語環境での動作確認のためにはセットアップが必要です。</p>
+<p>セットアップ手順は以下のQiitaの記事に書いたのですが、手数が多くて面倒でした。</p>
+<ul>
+<li><a href="http://qiita.com/hnakamur/items/5f2f9e817dd0de60abb2">VirtualBox - modern.IEのWindows 7で日本語の表示と入力をできるようにする - Qiita</a></li>
+<li><a href="http://qiita.com/hnakamur/items/cd37c9c8826afe4b4dda">Windows8.xのmodern.IEで日本語を入力、表示できるようにする。 - Qiita</a></li>
+</ul>
+<p>それを自動化するコマンドラインツール<a href="https://github.com/hnakamur/moderniejapanizer">moderniejapanizer</a>を作りました。実は2年ぐらい前に<a href="https://www.autoitscript.com/site/autoit/">AutoIt</a>を使って作り始めたのですが自動制御がうまくいかないときがあって挫折していました。昨年暮れぐらいから再挑戦して、今回は勉強を兼ねてGoで実装してみました。</p>
+<p>日本語化のほとんどはWin32 APIとレジストリの操作で実現できたのですが、Windows 8で言語に日本語を追加して英語を削除する操作だけはWin32 APIやレジストリで実現する方法を見つけられませんでした。</p>
+<p>そこでコントロールパネルの操作をUIオートメーションで行うことにしました。
+mattnさんの<a href="https://github.com/mattn/go-ole">go-ole</a>を利用して、UIオートメーション APIの一部をGoで実装したのが、<a href="https://github.com/hnakamur/w32uiautomation">hnakamur/w32uiautomation</a>です。</p>
+<p>UIオートメーションAPIの全部をカバーするつもりはなくて自分が使う部分だけを実装しています。とりあえず動くようにはなりましたが、まだまだ試行錯誤中なのでAPIは互換性無く変更予定です。</p>
+<h1 id="windows-ui-">Windows UI オートメーションについて</h1>
+<p>下記のページに説明とリファレンスがありました。</p>
+<ul>
+<li>[UI オートメーションの概要](<a href="https://msdn.microsoft.com/ja-jp/library/ms747327(v=vs.110%29.aspx)">https://msdn.microsoft.com/ja-jp/library/ms747327(v=vs.110%29.aspx)</a></li>
+<li>[UI Automation (Windows)](<a href="https://msdn.microsoft.com/en-us/library/windows/desktop/ee684009(v=vs.85%29.aspx)">https://msdn.microsoft.com/en-us/library/windows/desktop/ee684009(v=vs.85%29.aspx)</a></li>
+</ul>
+<p>また、始めの一歩として以下の記事も参考にさせて頂きました。ありがとうございます！</p>
+<ul>
+<li><a href="http://180.cocolog-nifty.com/blog/2011/10/ui-automationjs.html">UI AutomationをJScript.NETで動かす: korokaraのブログ</a></li>
+<li><a href="http://d.sunnyone.org/2014/09/windowsuiui-automation-powershell.html">WindowsアプリのUI自動操作をUI Automation PowerShell Extensionで行う | d.sunnyone.org</a></li>
+</ul>
+<h1 id="w32uiautomation">w32uiautomationの実装について</h1>
+<h2 id="uiapiidispatch">UIオートメーションAPIはIDispatchインタフェースを実装していない</h2>
+<p>実はw32uiautomationを実装する前に、[Windows Update Agent API (Windows)](<a href="https://msdn.microsoft.com/en-us/library/windows/desktop/aa387099(v=vs.85%29.aspx)">https://msdn.microsoft.com/en-us/library/windows/desktop/aa387099(v=vs.85%29.aspx)</a>の実装も作りました。 <a href="https://github.com/hnakamur/windowsupdate">hnakamur/windowsupdate</a>です。これはWindows 7で日本語の言語パックをWindows Update経由でインストールするために作りました。</p>
+<p>Windows Update Agent APIの各インタフェースは例えば[IAutomaticUpdates interface (Windows)](<a href="https://msdn.microsoft.com/en-us/library/windows/desktop/aa385821(v=vs.85%29.aspx)">https://msdn.microsoft.com/en-us/library/windows/desktop/aa385821(v=vs.85%29.aspx)</a>のように[IDispatch interface (Automation)](<a href="https://msdn.microsoft.com/en-us/library/windows/desktop/ms221608(v=vs.85%29.aspx)">https://msdn.microsoft.com/en-us/library/windows/desktop/ms221608(v=vs.85%29.aspx)</a>を実装しています。</p>
+<p>ですので、 <a href="https://github.com/hnakamur/windowsupdate/blob/a878b9dbfeadeb768f27011d6bfd97bfecdd5d9d/search.go#L32">https://github.com/hnakamur/windowsupdate/blob/a878b9dbfeadeb768f27011d6bfd97bfecdd5d9d/search.go#L32</a></p>
+<pre><code>	searcher, err := toIDispatchErr(oleutil.CallMethod((*ole.IDispatch)(s), &quot;CreateUpdateSearcher&quot;))
+</code></pre><p>のように<a href="https://github.com/mattn/go-ole/blob/7d0136ad48c228000c2abdea549674c498110124/oleutil/oleutil.go#L47">oleutil.CallMethod</a>などのoleutilパッケージの各種メソッドを使ってWindows Update Agent APIのメソッド呼び出しやプロパティ値の設定・取得を動的に行うことが出来ます。</p>
+<p>一方、UIオートメーションAPIのほうは、[IUIAutomation interface (Windows)](<a href="https://msdn.microsoft.com/en-us/library/windows/desktop/ee671406(v=vs.85%29.aspx)">https://msdn.microsoft.com/en-us/library/windows/desktop/ee671406(v=vs.85%29.aspx)</a>のようにIDsipatchインタフェースは実装しておらず、IUnknownインタフェースを実装しているだけです。</p>
+<p>そこで、UIオートメーションのインタフェースごとにGoのstructを定義していく必要があります。</p>
+<p>mattnさんのgo-oleの<a href="https://github.com/mattn/go-ole/blob/master/iunknown.go">iunknown.go</a>や<a href="https://github.com/mattn/go-ole/blob/master/idispatch.go">idispatch.go</a>を見よう見まねで実装してみました。きちんと理解せず雰囲気で書いているので、おかしなところがあるかもしれません。</p>
+<h2 id="iuiautomationelementfindfirst">IUIAutomationElement::FindFirstは実装してみたが挙動が変</h2>
+<p>[IUIAutomationElement::FindFirst method (Windows)](<a href="https://msdn.microsoft.com/en-us/library/windows/desktop/ee696029(v=vs.85%29.aspx)">https://msdn.microsoft.com/en-us/library/windows/desktop/ee696029(v=vs.85%29.aspx)</a>は</p>
+<ul>
+<li><a href="https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomationelement.go#L113-L115">https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomationelement.go#L113-L115</a></li>
+<li><a href="https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomationelement.go#L141-L155">https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomationelement.go#L141-L155</a></li>
+</ul>
+<p>あたりで実装しています。実行すると戻り値の*IUIAutomationElementはnilではない値になって目的のUI要素が見つかっているようです。しかし、<a href="http://www.microsoft.com/en-us/download/details.aspx?id=8279">Microsoft Windows SDK for Windows 7 and .NET Framework 4</a>同梱のinspect.exeで見るとnameプロパティに空ではない値が設定されているのに<a href="https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomationelement.go#L129">Get_CurrentName</a>などで名前を取得してみると空文字になってしまうというトラブルに見舞われました。</p>
+<p>[IUIAutomation::CreatePropertyCondition](<a href="https://msdn.microsoft.com/en-us/library/windows/desktop/ee671529(v=vs.85%29.aspx)">https://msdn.microsoft.com/en-us/library/windows/desktop/ee671529(v=vs.85%29.aspx)</a>でVARIANT型を引数で渡すところがあって、VARIANT型のサイズはuintptrのサイズより大きいので分割してsyscall.Syscallファミリーの関数を呼ぶ必要があります。</p>
+<ul>
+<li><a href="https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/variant_386.go#L14-L22">https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/variant_386.go#L14-L22</a></li>
+<li><a href="https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomation_386.go#L11-L29">https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/iuiautomation_386.go#L11-L29</a></li>
+</ul>
+<p>あたりで実装しているのですが、どこかおかしいのかもしれません。</p>
+<h2 id="treewalker">回避策としてTreeWalkerで自前で探すメソッドを実装</h2>
+<p>FindFirstがうまく動かせなかったので、回避策としてTreeWalkerで自前で探すメソッドを実装してみました。</p>
+<p><a href="https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/search.go">https://github.com/hnakamur/w32uiautomation/blob/e469741ce0aeaf5b4f8661a0887f9004a01688ab/search.go</a></p>
+<p>幅優先探索でUI要素のツリーを探すようにしています。
+また、ウィンドウがまだ存在しない場合はポーリングして存在するまで待ってから返す関数も実装しています。</p>
+<h2 id="sleep">現状だとウィンドウ切り替わり時にSleepを入れる必要がある</h2>
+<p>実際に試してみるとウィンドウを開いた後すぐにUI要素を探そうとすると見つからない場合がありました。おそらくウィンドウ内のUI要素が作られる前のタイミングで探そうとしているのだと思います。</p>
+<p>ただ上記のようにポーリングをしているのでUI要素が作られれば見つかると想定していたのですが、実際はいつまでもポーリングを続けてしまいました。</p>
+<p>しかたがないので、</p>
+<p><a href="https://github.com/hnakamur/moderniejapanizer/blob/fcc9eb9f51560916ae8831e9c042a789ced298cf/imeja.go#L58">https://github.com/hnakamur/moderniejapanizer/blob/fcc9eb9f51560916ae8831e9c042a789ced298cf/imeja.go#L58</a></p>
+<p>のようにウィンドウが切り替わった後、ウィンドウを探す前に1秒のスリープを入れています。が、これだとマシンが重い状態だと1秒では足りなくてUI要素が見つからずにポーリングし続けてしまうケースが起こりえます。</p>
+<h2 id="iuiautomationaddstructurechangedeventhandlergo">IUIAutomation::AddStructureChangedEventHandlerを使いたいがGoの関数をコールバックしてもらう方法がわからず挫折中</h2>
+<p>おそらくあるべき姿としてはポーリングではなく[IUIAutomation::AddStructureChangedEventHandler method (Windows)](<a href="https://msdn.microsoft.com/en-us/library/windows/desktop/ee671512(v=vs.85%29.aspx)">https://msdn.microsoft.com/en-us/library/windows/desktop/ee671512(v=vs.85%29.aspx)</a>を使うのだと思います。</p>
+<p>が、[IUIAutomationStructureChangedEventHandler interface (Windows)](<a href="https://msdn.microsoft.com/en-us/library/windows/desktop/ee696197(v=vs.85%29.aspx)">https://msdn.microsoft.com/en-us/library/windows/desktop/ee696197(v=vs.85%29.aspx)</a>の[IUIAutomationStructureChangedEventHandler::HandleStructureChangedEvent method (Windows)](<a href="https://msdn.microsoft.com/en-us/library/windows/desktop/ee696198(v=vs.85%29.aspx)">https://msdn.microsoft.com/en-us/library/windows/desktop/ee696198(v=vs.85%29.aspx)</a>をGoの関数で書いてコールバックで読んでもらう方法がわからず挫折中です。</p>
+<p><a href="https://github.com/hnakamur/w32uiautomation/commit/c76d7dfb476cd13723bed6da5581639d66b6ffbb">Trying AddStructureChangedEventHandler but no luck yet · c76d7df · hnakamur/w32uiautomation</a>でよくわからないまま雰囲気でトライしてみたのですが、実行時エラーになってしまいました。</p>
+<h1 id="heading-1">とりあえず当初の目的には使えていますが、まだまだ改良が必要</h1>
+<p>なのですが、行き詰まっているのでなにかアドバイスありましたらぜひお願いします。</p>
+<h1 id="2015-02-23-0107">2015-02-23 01:07頃追記</h1>
+<h2 id="uiautomationelementfindfirst">UIAutomationElement::FindFirstがちゃんと動くようになりました</h2>
+<p>やはり <a href="https://github.com/hnakamur/w32uiautomation/blob/0c48ebfdce27726587ae6797643b29b7fe0b99f7/variant_386.go#L14">VariantToUintptrArray</a>がバグっていました。
+<a href="https://github.com/hnakamur/w32uiautomation/commit/0c48ebfdce27726587ae6797643b29b7fe0b99f7">Fix 32bit VariantToUintptrArray · 0c48ebf · hnakamur/w32uiautomation</a>で修正しました。</p>
+<p>FindFirstがちゃんと動くようになったので、回避策で作ったTreeWalkerで自前で探すメソッドは削除しました。<a href="https://github.com/hnakamur/w32uiautomation/commit/733229d4bd779da9e44241b4b581951ff1c4643e">Remove WaitFindFirstWithBreadthFirstSearch in favor of FindFirst. · 733229d · hnakamur/w32uiautomation</a></p>
+<h2 id="syscallnewcallback">コールバックを使うためのsyscall.NewCallbackという関数を見つけました</h2>
+<p><a href="https://github.com/golang/go/blob/edadffa2f3464c48a234f3cf2fc092a03f91824f/src/syscall/syscall_windows.go#L113-L118">go/syscall_windows.go at edadffa2f3464c48a234f3cf2fc092a03f91824f · golang/go</a>で定義されていました。</p>
+<pre><code>// Converts a Go function to a function pointer conforming
+// to the stdcall calling convention. This is useful when
+// interoperating with Windows code requiring callbacks.
+func NewCallback(fn interface{}) uintptr {
+	return compileCallback(fn, true)
+}
+</code></pre><p>後日試してみたいと思います。</p>
+<h1 id="2015-02-23-0500">2015-02-23 05:00頃追記</h1>
+<p>実は<a href="https://github.com/mattn/go-ole/blob/master/example/winsock/winsock.go">go-ole/winsock.go</a>がコールバックを使うサンプルになっていることに気づきました。</p>
+<p>またまた見よう見まねで[IUIAutomationStructureChangedEventHandler interface](<a href="https://msdn.microsoft.com/en-us/library/windows/desktop/ee696197(v=vs.85%29.aspx)">https://msdn.microsoft.com/en-us/library/windows/desktop/ee696197(v=vs.85%29.aspx)</a>を使えるところまでこぎつけました。
+<a href="https://github.com/hnakamur/w32uiautomation/pull/2">Add structure changed event handler by hnakamur · Pull Request #2 · hnakamur/w32uiautomation</a></p>
+<p>早速これを活用して、FindFirstで見つからなかったら見つかるまでループするというWaitFindFirstをSleepではなくUI要素が追加されるまで待って繰り返すように改良しました。
+<a href="https://github.com/hnakamur/w32uiautomation/blob/8fe8ac469892d3e07e008341a3d4a2fc2b611a4a/waitfind.go#L10-L49">https://github.com/hnakamur/w32uiautomation/blob/8fe8ac469892d3e07e008341a3d4a2fc2b611a4a/waitfind.go#L10-L49</a></p>
+<p>winsockのサンプルではコールバックを待つ間メッセージループを回すコードは
+<a href="https://github.com/mattn/go-ole/blob/7d0136ad48c228000c2abdea549674c498110124/example/winsock/winsock.go#L133-L137">https://github.com/mattn/go-ole/blob/7d0136ad48c228000c2abdea549674c498110124/example/winsock/winsock.go#L133-L137</a>
+のようになっていました。</p>
+<p><a href="https://github.com/hnakamur/w32uiautomation/blob/8fe8ac469892d3e07e008341a3d4a2fc2b611a4a/waitfind.go#L10-L49">https://github.com/hnakamur/w32uiautomation/blob/8fe8ac469892d3e07e008341a3d4a2fc2b611a4a/waitfind.go#L10-L49</a>
+のほうは参照カウンタが0以外の間ループを回すのではなくて、waitingフラグがtrueの間回すようにしています。で、コールバックでお目当てのイベント、つまりUI要素が追加されたイベントだったらwaitingフラグをfalseにしています。</p>
+<p><a href="https://github.com/hnakamur/moderniejapanizer">hnakamur/moderniejapanizer</a>も新しいWaitFindFirstを使うように更新しました。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

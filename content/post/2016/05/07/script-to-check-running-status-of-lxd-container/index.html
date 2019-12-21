@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>LXCの特定の1つのコンテナの起動状態をシェルスクリプトで確認したいときのお勧めの方法 &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>LXCの特定の1つのコンテナの起動状態をシェルスクリプトで確認したいときのお勧めの方法</h1>
+  <time datetime=2016-05-07T14:12:49&#43;0900 class="post-date">2016-05-07</time>
+  <h2 id="1-lxc-listawk">イマイチな方法1: lxc listの出力をawkで加工</h2>
+<p><code>lxc list -h</code> を見ると <code>lxc list [resource] [filters] [--format table|json] [-c columns] [--fast]</code> というコマンドラインになっていて、 <code>-c</code> オプションで表示するカラムを指定可能です。</p>
+<p>例えば　以下のようにすれば <code>cent01</code> コンテナの起動状態だけを表示できます。</p>
+<pre><code>$ lxc list -c s cent01
++---------+
+|  STATE  |
++---------+
+| RUNNING |
++---------+
+</code></pre><p>ただ、デフォルトの <code>--format table</code> だとASCII文字の罫線が表示されるので、状態を抜き出すにはawkで加工する必要があります。</p>
+<pre><code>$ lxc list -c s cent01 | awk 'NR==4{print $2}'
+RUNNING
+</code></pre><h2 id="2-lxc-list---format-jsonjq">イマイチな方法2: lxc list &ndash;format jsonの出力をjqで加工</h2>
+<p><code>--format json</code> でJSON形式で出力できるのですが、この場合は <code>-c</code> オプションで項目を限定することは出来ませんでした。</p>
+<pre><code>$ lxc list --format json -c s cent01
+[{&quot;architecture&quot;:&quot;x86_64&quot;,&quot;config&quot;:{&quot;volatile.base_image&quot;:&quot;a027d59858d663fb2bc12b5ba767e92196a4aee8dbb2a607db53d718b91eb5d2&quot;,&quot;volatile.eth0.hwaddr&quot;:&quot;00:16:3e:5f:01:7e&quot;,&quot;volatile.last_state.idmap&quot;:&quot;[{\&quot;Isuid\&quot;:true,\&quot;Isgid\&quot;:false,\&quot;Hostid\&quot;:100000,\&quot;Nsid\&quot;:0,\&quot;Maprange\
+&quot;:65536},{\&quot;Isuid\&quot;:false,\&quot;Isgid\&quot;:true,\&quot;Hostid\&quot;:100000,\&quot;Nsid\&quot;:0,\&quot;Maprange\&quot;:65536}]&quot;},&quot;created_at&quot;:&quot;2016-05-06T18:56:46+09:00&quot;,&quot;devices&quot;:{&quot;root&quot;:{&quot;path&quot;:&quot;/&quot;,&quot;type&quot;:&quot;disk&quot;}},&quot;ephemeral&quot;:false,&quot;expanded_config&quot;:{&quot;volatile.base_image&quot;:&quot;a027d59858d663fb2bc12b5ba767e9
+2196a4aee8dbb2a607db53d718b91eb5d2&quot;,&quot;volatile.eth0.hwaddr&quot;:&quot;00:16:3e:5f:01:7e&quot;,&quot;volatile.last_state.idmap&quot;:&quot;[{\&quot;Isuid\&quot;:true,\&quot;Isgid\&quot;:false,\&quot;Hostid\&quot;:100000,\&quot;Nsid\&quot;:0,\&quot;Maprange\&quot;:65536},{\&quot;Isuid\&quot;:false,\&quot;Isgid\&quot;:true,\&quot;Hostid\&quot;:100000,\&quot;Nsid\&quot;:0,\&quot;Maprange\&quot;:65536}
+]&quot;},&quot;expanded_devices&quot;:{&quot;eth0&quot;:{&quot;name&quot;:&quot;eth0&quot;,&quot;nictype&quot;:&quot;bridged&quot;,&quot;parent&quot;:&quot;lxdbr0&quot;,&quot;type&quot;:&quot;nic&quot;},&quot;root&quot;:{&quot;path&quot;:&quot;/&quot;,&quot;type&quot;:&quot;disk&quot;}},&quot;name&quot;:&quot;cent01&quot;,&quot;profiles&quot;:[&quot;default&quot;],&quot;stateful&quot;:false,&quot;status&quot;:&quot;Running&quot;,&quot;status_code&quot;:103,&quot;state&quot;:null,&quot;snapshots&quot;:null}]
+</code></pre><p><code>sudo apt install jq</code> で <code>jq</code> コマンドをインストールして、それで状態を抜き出すことは可能です。</p>
+<pre><code>$ lxc list --format json cent01 | jq -r '.[0].status'
+Running
+</code></pre><h2 id="-lxc-infoawk">お勧めの方法: lxc infoの出力をawkで加工</h2>
+<p><code>lxc list</code> の場合は指定した文字列は完全一致ではなくて前方一致で表示されました。上記の例のように <code>cent01</code> と <code>cent02</code> の2つのコンテナがあるときに、 <code>lxc list -c s cent0</code> と実行すると以下のようになります。</p>
+<pre><code>$ lxc list -c s cent0
++---------+
+|  STATE  |
++---------+
+| RUNNING |
++---------+
+| RUNNING |
++---------+
+</code></pre><p>これだとどの行がどのコンテナかわからないのでコンテナ名の列も付ける必要があります。</p>
+<pre><code>$ lxc list -c ns cent0
++--------+---------+
+|  NAME  |  STATE  |
++--------+---------+
+| cent01 | RUNNING |
++--------+---------+
+| cent02 | RUNNING |
++--------+---------+
+</code></pre><p>この結果をawkで加工するのでも良いのですが、もっと良いのは <code>lxc info</code> コマンドを使うことです。</p>
+<pre><code>$ lxc info cent01
+コンテナ名: cent01
+アーキテクチャ: x86_64
+作成日時: 2016/05/06 09:56 UTC
+状態: Running
+タイプ: persistent
+プロファイル: default
+Pid: 29354
+IPアドレス:
+  eth0: inet    10.155.92.101   vethG4XSE4
+  eth0: inet6   fe80::216:3eff:fe5f:17e vethG4XSE4
+  lo:   inet    127.0.0.1
+  lo:   inet6   ::1
+リソース:
+  プロセス数: 10
+  メモリ消費量:
+    メモリ (現在値): 23.60MB
+    メモリ (ピーク): 43.08MB
+  ネットワーク使用状況:
+    eth0:
+      受信バイト数: 24.16kB
+      送信バイト数: 8.06kB
+      受信パケット: 232
+      送信パケット: 88
+    lo:
+      受信バイト数: 0 bytes
+      送信バイト数: 0 bytes
+      受信パケット: 0
+      送信パケット: 0
+</code></pre><p>存在しないコンテナ名を指定するとエラーになります。これは標準エラー出力に出力されています。</p>
+<pre><code>$ lxc info hoge
+エラー: not found
+</code></pre><p>シェルスクリプトで加工するには英語出力のほうが良いので <code>LANG=C</code> 付きで実行します。</p>
+<pre><code>$ LANG=C lxc info cent01
+Name: cent01
+Architecture: x86_64
+Created: 2016/05/06 09:56 UTC
+Status: Running
+Type: persistent
+Profiles: default
+Pid: 29354
+Ips:
+  eth0: inet    10.155.92.101   vethG4XSE4
+  eth0: inet6   fe80::216:3eff:fe5f:17e vethG4XSE4
+  lo:   inet    127.0.0.1
+  lo:   inet6   ::1
+Resources:
+  Processes: 10
+  Memory usage:
+    Memory (current): 23.60MB
+    Memory (peak): 43.08MB
+  Network usage:
+    eth0:
+      Bytes received: 24.58kB
+      Bytes sent: 8.56kB
+      Packets received: 235
+      Packets sent: 93
+    lo:
+      Bytes received: 0 bytes
+      Bytes sent: 0 bytes
+      Packets received: 0
+      Packets sent: 0
+$ LANG=C lxc info hoge
+error: not found
+</code></pre><p>結局以下のように実行するのがお勧めです。</p>
+<pre><code>$ LANG=C lxc info cent01 2&gt; /dev/null | awk '$1==&quot;Status:&quot;{print $2}'
+Running
+</code></pre><p>存在しない場合は空文字列になります。</p>
+<pre><code>$ LANG=C lxc info hoge 2&gt; /dev/null | awk '$1==&quot;Status:&quot;{print $2}'
+</code></pre><p>判定例はこんな感じです。</p>
+<pre><code>$ [ x`LANG=C lxc info cent01 2&gt; /dev/null | awk '$1==&quot;Status:&quot;{print $2}'` == xRunning ] &amp;&amp; echo &quot;container is running&quot;
+container is running
+$ [ x`LANG=C lxc info hoge 2&gt; /dev/null | awk '$1==&quot;Status:&quot;{print $2}'` == xRunning ] &amp;&amp; echo &quot;container is running&quot;
+$
+</code></pre>
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

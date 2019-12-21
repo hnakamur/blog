@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Ubuntu 16.04上にUbuntu 18.04のPXEブートサーバをセットアップ &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Ubuntu 16.04上にUbuntu 18.04のPXEブートサーバをセットアップ</h1>
+  <time datetime=2018-04-24T01:00:00&#43;0900 class="post-date">2018-04-24</time>
+  <h2 id="heading">はじめに</h2>
+<p><a href="/blog/2018/04/23/setup-router-on-ubuntu16.04/">Ubuntu 16.04をルーター化</a> したところに
+Ubuntu 18.04のPXEブートサーバをセットアップしたメモです。</p>
+<p>Ubuntu 18.04はリリース前の
+<a href="http://archive.ubuntu.com/ubuntu/dists/bionic/main/installer-amd64/20101020ubuntu538/">2018-04-21版</a>
+を使いました。</p>
+<p>手順は
+<a href="https://www.hiroom2.com/2016/05/05/ubuntu-16-04-debian-8%E3%81%ABpxe%E3%83%96%E3%83%BC%E3%83%88%E3%82%B5%E3%83%BC%E3%83%90%E3%82%92%E3%82%A4%E3%83%B3%E3%82%B9%E3%83%88%E3%83%BC%E3%83%AB%E3%81%97%E3%81%A6%E3%83%8D%E3%83%83%E3%83%88%E3%83%AF%E3%83%BC%E3%82%AF%E3%82%A4%E3%83%B3%E3%82%B9%E3%83%88%E3%83%BC%E3%83%AB%E7%92%B0%E5%A2%83%E3%82%92%E6%95%B4%E3%81%88%E3%82%8B/">Ubuntu 16.04 / Debian 8: PXEブートサーバをインストールしてネットワークインストール環境を整える - Narrow Escape</a>
+を参考にしましたが、preseedは今回は使わないようにしました。</p>
+<h2 id="tftp">tftpサーバのインストールと起動</h2>
+<p><code>tftpd-hpa</code> パッケージをインストール。</p>
+<pre><code class="language-console" data-lang="console">sudo apt install tftpd-hpa
+</code></pre><p>うろ覚えですが、インストールして状態確認すると、起動して自動起動も有効になっていたと思います。</p>
+<pre><code class="language-console" data-lang="console">systemctl status tftpd-hpa
+</code></pre><h2 id="dhcp">dhcpサーバのインストールと起動</h2>
+<p><code>isc-dhcp-server</code> パッケージをインストール。</p>
+<pre><code class="language-console" data-lang="console">sudo apt install isc-dhcp-server
+</code></pre><p>設定ファイル <code>/etc/dhcp/dhcpd.conf</code> に自分の環境に応じた設定を追記。
+<code>hardware ethernet</code> の後のMACアドレス <code>xx:xx:xx:xx:xx:xx</code> は実際の値に置き換えてください。
+PXEブートのときにコンソールに表示されていたのでそれを見ながら設定しました。
+事前に設定するならBIOSで確認すれば良さそうです。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">subnet 192.168.3.0 netmask 255.255.255.0 {
+  option domain-name-servers 192.168.2.1;
+  option routers 192.168.3.1;
+  filename &#34;pxelinux.0&#34;;
+}
+
+host ubuntu-18.04-pxeboot {
+  hardware ethernet xx:xx:xx:xx:xx:xx;
+  fixed-address 192.168.3.2;
+}
+</code></pre></div><p>コマンドで追記にするなら以下の2つのどちらかで。後者のほうがクォートが不要というメリットがあります。</p>
+<pre><code class="language-console" data-lang="console">sudo sh -c 'cat &lt;&lt;EOF &gt;&gt; /etc/dhcp/dhcpd.conf
+subnet 192.168.3.0 netmask 255.255.255.0 {
+  option domain-name-servers 192.168.2.1;
+  option routers 192.168.3.1;
+  filename &quot;pxelinux.0&quot;;
+}
+
+host ubuntu-18.04-pxeboot {
+  hardware ethernet xx:xx:xx:xx:xx:xx;
+  fixed-address 192.168.3.2;
+}
+EOF
+'
+</code></pre><p>.. code-block:: console</p>
+<pre><code>sudo cat &lt;&lt;EOF | sudo tee -a /etc/dhcp/dhcpd.conf &gt; /dev/null
+subnet 192.168.3.0 netmask 255.255.255.0 {
+  option domain-name-servers 192.168.2.1;
+  option routers 192.168.3.1;
+  filename &quot;pxelinux.0&quot;;
+}
+
+host ubuntu-18.04-pxeboot {
+  hardware ethernet xx:xx:xx:xx:xx:xx;
+  fixed-address 192.168.3.2;
+}
+EOF
+</code></pre>
+<p>こちらもうろ覚えですが、起動と自動起動有効化はすでにされていたと思うので、再起動して設定変更を反映しました。</p>
+<pre><code class="language-console" data-lang="console">sudo systemctl restart isc-dhcp-server
+</code></pre><h2 id="ubuntu-1804">Ubuntu 18.04のネットブートイメージの取得と設置</h2>
+<p>参考にした記事ではpreseedを使うためにネットブートイメージのtarballを取得・展開した後、小分けにコピーしていましたが、preseed無しなら単にtarballをtfptd-hpaの公開ディレクトリ <code>/var/lib/tftpboot</code> に展開して所有者を <code>tftp</code> にするだけでOKでした。</p>
+<pre><code class="language-console" data-lang="console">curl -LO http://archive.ubuntu.com/ubuntu/dists/bionic/main/installer-amd64/current/images/netboot/netboot.tar.gz
+sudo tar xf netboot.tar.gz -C /var/lib/tftpboot
+sudo chown -R tftp:tftp /var/lib/tftpboot
+</code></pre>
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

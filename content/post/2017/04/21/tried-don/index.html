@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>github.com/deoxxa/donを試してみた &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>github.com/deoxxa/donを試してみた</h1>
+  <time datetime=2017-04-21T02:00:00&#43;0900 class="post-date">2017-04-21</time>
+  <h2 id="heading">はじめに</h2>
+<p><a href="https://github.com/deoxxa/don">deoxxa/don: Less than half of mastodon.</a> はGoによる
+<a href="https://github.com/tootsuite/mastodon/">tootsuite/mastodon</a> の実装です。
+まだ開発中で、タイトルによるとmastodonの機能の半分以下らしいです。</p>
+<p>この記事はdonをとりあえず動かしてみたメモです。</p>
+<h2 id="nginxssl">nginxとSSL証明書の設定</h2>
+<p><a href="https://github.com/tootsuite/documentation/blob/master/Running-Mastodon/Production-guide.md#nginx">Production-guide.md のnginx</a> にそって設定し、SSL証明書も設定します。</p>
+<p>私は <a href="https://github.com/hnakamur/mastadon-ansible-playbook">hnakamur/mastadon-ansible-playbook: さくらのVPSでmastodonをセットアップするAnsibleプレイブック</a> で構築した環境で <code>systemctl stop mastodon-web</code> でmastodonのサービスを止めた状態で試しました。</p>
+<h2 id="don">donのバイナリを取得</h2>
+<p><a href="https://github.com/deoxxa/don">deoxxa/don: Less than half of mastodon.</a> の
+<a href="https://github.com/deoxxa/don#prebuilt-binaries">Prebuilt Binaries</a> でlinux/amd64のバイナリをダウンロードしました。</p>
+<pre><code class="language-console" data-lang="console">curl --create-dirs -Lo ~/bin/don_dev 'https://bintray.com/deoxxa/don/download_file?file_path=don_dev_linux-amd64'
+chmod +x ~/bin/don_dev
+</code></pre><h2 id="cookie-signing-key">cookie_signing_keyオプションが必須</h2>
+<p>READMEを読んで最初 <code>--public_url</code> オプションのみ指定したのですが、 <code>--cookie_signing_key</code> オプションも必須だというエラーになりました。</p>
+<pre><code class="language-console" data-lang="console">ubuntu@naruh:~$ ~/bin/don_dev --public_url https://mstdn.naruh.com
+don_dev: error: required flag --cookie_signing_key not provided, try --help
+</code></pre><p>コードを見ると <code>--cookie_signing_key</code> オプションと
+<code>--cookie_encryption_key</code> オプションは16進数文字列で指定するようです。
+<code>--cookie_encryption_key</code> オプションにも <code>Required()</code> がついているのでこれも必須です。</p>
+<p><a href="https://github.com/deoxxa/don/blob/98d261c5dcf352131fe31fcfd464f8a876e1b845/main.go#L48-L49">don/main.go#L48-L49</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">cookieSigningKey</span>      <span class="p">=</span> <span class="nx">app</span><span class="p">.</span><span class="nf">Flag</span><span class="p">(</span><span class="s">&#34;cookie_signing_key&#34;</span><span class="p">,</span> <span class="s">&#34;Key for signing cookies.&#34;</span><span class="p">)</span><span class="p">.</span><span class="nf">Envar</span><span class="p">(</span><span class="s">&#34;COOKIE_SIGNING_KEY&#34;</span><span class="p">)</span><span class="p">.</span><span class="nf">Required</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">HexBytes</span><span class="p">(</span><span class="p">)</span>
+<span class="nx">cookieEncryptionKey</span>   <span class="p">=</span> <span class="nx">app</span><span class="p">.</span><span class="nf">Flag</span><span class="p">(</span><span class="s">&#34;cookie_encryption_key&#34;</span><span class="p">,</span> <span class="s">&#34;Key for encrypting cookies.&#34;</span><span class="p">)</span><span class="p">.</span><span class="nf">Envar</span><span class="p">(</span><span class="s">&#34;COOKIE_ENCRYPTION_KEY&#34;</span><span class="p">)</span><span class="p">.</span><span class="nf">Required</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">HexBytes</span><span class="p">(</span><span class="p">)</span>
+</code></pre></div><p>使っている個所は
+<a href="https://github.com/deoxxa/don/blob/98d261c5dcf352131fe31fcfd464f8a876e1b845/main.go#L126">don/main.go#L126</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">ss</span> <span class="o">:=</span> <span class="nx">sessions</span><span class="p">.</span><span class="nf">NewCookieStore</span><span class="p">(</span><span class="o">*</span><span class="nx">cookieSigningKey</span><span class="p">,</span> <span class="o">*</span><span class="nx">cookieEncryptionKey</span><span class="p">)</span>
+</code></pre></div><p>で、 <a href="https://github.com/deoxxa/don/blob/98d261c5dcf352131fe31fcfd464f8a876e1b845/main.go#L19">don/main.go#L19</a> を見ると <a href="https://github.com/gorilla/sessions">gorilla/sessions</a> を使っていました。</p>
+<p><a href="https://godoc.org/github.com/gorilla/sessions#NewCookieStore">sessions.NewCookieStore のドキュメント</a> を見ると、キーペアの最初のキーが認証用で2つ目のキーが暗号化用とのことです。</p>
+<p>認証用キーは32バイトか64バイトで、暗号化キーは16, 24, 32バイトのどれかが推奨となっていて、キーは <a href="https://godoc.org/github.com/gorilla/securecookie#GenerateRandomKey">securecookie.GenerateRandomKey</a> で生成すれば良いそうです。</p>
+<p>ということで以下のコードを書いてキーを生成しました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="kn">import</span> <span class="p">(</span>
+    <span class="s">&#34;encoding/hex&#34;</span>
+    <span class="s">&#34;fmt&#34;</span>
+
+    <span class="s">&#34;github.com/gorilla/securecookie&#34;</span>
+<span class="p">)</span>
+
+<span class="kd">func</span> <span class="nf">generateRandomKey</span><span class="p">(</span><span class="nx">length</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">string</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="nx">hex</span><span class="p">.</span><span class="nf">EncodeToString</span><span class="p">(</span><span class="nx">securecookie</span><span class="p">.</span><span class="nf">GenerateRandomKey</span><span class="p">(</span><span class="nx">length</span><span class="p">)</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="nf">main</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">signingKey</span> <span class="o">:=</span> <span class="nf">generateRandomKey</span><span class="p">(</span><span class="mi">64</span><span class="p">)</span>
+    <span class="nx">encryptingKey</span> <span class="o">:=</span> <span class="nf">generateRandomKey</span><span class="p">(</span><span class="mi">32</span><span class="p">)</span>
+    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;--cookie_signing_key=%s --cookie_encryption_key=%s\n&#34;</span><span class="p">,</span> <span class="nx">signingKey</span><span class="p">,</span> <span class="nx">encryptingKey</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div><p>.. code-block:: console</p>
+<pre><code>$ go run main.go
+--cookie_signing_key=5072237fbdb086f2541cac0fb007e97f9e6ab90b28e9045e3a754ce329591fc5158f9e46843baf975a6a7caa7bce04f835a9f2ce7113682a26d29e7d76eb5081 --cookie_encryption_key=580bab08ccbc59c98ad43dd2d13d199c79a0033d54e284f8198383c1d8fac196
+</code></pre>
+<h2 id="heading-1">実行</h2>
+<p>以下のように実行すると、今度は起動しました (実際に実行するときはドメインは適宜調整してください)。</p>
+<pre><code class="language-console" data-lang="console">$ ~/bin/don_dev \
+  --cookie_signing_key=5072237fbdb086f2541cac0fb007e97f9e6ab90b28e9045e3a754ce329591fc5158f9e46843baf975a6a7caa7bce04f835a9f2ce7113682a26d29e7d76eb5081 \
+  --cookie_encryption_key=580bab08ccbc59c98ad43dd2d13d199c79a0033d54e284f8198383c1d8fac196 \
+  --addr &quot;:3000&quot; --public_url https://mstdn.example.com
+</code></pre><p>サインアップフォームからアカウント名、メールアドレス、パスワードを入力すると、メールが送られることなくそのままサインアップ完了となりました。</p>
+<p>サインアップしてみると以下のような画面になりました。</p>
+<p>.. image:: {attach}/images/2017/04/21/don.png
+:width: 544px
+:height: 110px
+:alt: don top page</p>
+<p>This is a ridiculously simple, read-only StatusNet node. Mostly an experiment. Source code is available.
+と書かれていて、今はリードオンリーなStatusNetのノードとして動いている状態らしいです。</p>
+<p>なるほど、読みと書きのうち読みだけなので、Less than half of mastodon というわけなんですね。
+以上、とりあえず試してみました！</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

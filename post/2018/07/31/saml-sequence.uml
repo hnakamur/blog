@@ -1,0 +1,54 @@
+@startuml
+actor User
+participant nginx
+participant "Service Provider (SP)" as SP
+participant Upstream
+participant "ID Provider (IdP)" as IdP
+
+User -> nginx : Try to access protected page without valid session cookie
+activate nginx
+nginx -> SP : Request to create SAML Request
+activate SP
+SP -> nginx : Return SAML Request
+deactivate SP
+nginx -> User : Redirect to IdP login page
+deactivate nginx
+
+User -> IdP : Open login page with SAML Request
+activate IdP
+IdP -> User : Show login page
+deactivate IdP
+
+User -> IdP : Submit user ID and password
+activate IdP
+IdP -> User : Show two factor auth page
+deactivate IdP
+
+User -> IdP : Submit two factor information
+activate IdP
+IdP -> User : Return SAML Response and redirect to SP after login finihes
+deactivate IdP
+
+User -> nginx : Send SAML Response
+activate nginx
+nginx -> SP : Verify SAML Response, create session, and save user mail address
+activate SP
+SP -> nginx : Return session cookie
+deactivate SP
+nginx -> User : Return session cookie and redirect to protected page
+deactivate nginx
+
+User -> nginx : Access to protected page with session cookie
+activate nginx
+nginx -> SP : Check session exists and get user mail address from session
+activate SP
+SP -> Upstream : Send request with user mail address
+activate Upstream
+Upstream -> SP
+deactivate Upstream
+SP -> nginx
+deactivate SP
+nginx -> User
+deactivate nginx
+
+@enduml

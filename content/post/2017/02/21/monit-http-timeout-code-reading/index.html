@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>monitのhttpのタイムアウトのコードリーディング &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>monitのhttpのタイムアウトのコードリーディング</h1>
+  <time datetime=2017-02-21T11:10:00&#43;0900 class="post-date">2017-02-21</time>
+  <h2 id="heading">はじめに</h2>
+<p><a href="/blog/2017/02/20/monit-event-loop-code-reading/">monitのイベントループのコードリーディング</a> からの続きです。</p>
+<h2 id="socket-create">socket_create関数からの流れ</h2>
+<p><a href="/blog/2017/02/20/monit-if-failed-url-code-reading/">monitのif failed urlのコードリーディング</a> の <code>check_connection</code> 関数の156行目で呼ばれている <code>socket_create</code> 関数の実装を追ってみます。</p>
+<p><code>socket_create</code> 関数の実装。
+<a href="https://bitbucket.org/tildeslash/monit/src/97641b51c99226fbf8862797c8f5ec16ac68a18b/src/socket.c?at=release-5-11-0&amp;fileviewer=file-view-default#socket.c-146:183">src/socket.c#L146-#L183</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">146
+</span><span class="lnt">147
+</span><span class="lnt">148
+</span><span class="lnt">149
+</span><span class="lnt">150
+</span><span class="lnt">151
+</span><span class="lnt">152
+</span><span class="lnt">153
+</span><span class="lnt">154
+</span><span class="lnt">155
+</span><span class="lnt">156
+</span><span class="lnt">157
+</span><span class="lnt">158
+</span><span class="lnt">159
+</span><span class="lnt">160
+</span><span class="lnt">161
+</span><span class="lnt">162
+</span><span class="lnt">163
+</span><span class="lnt">164
+</span><span class="lnt">165
+</span><span class="lnt">166
+</span><span class="lnt">167
+</span><span class="lnt">168
+</span><span class="lnt">169
+</span><span class="lnt">170
+</span><span class="lnt">171
+</span><span class="lnt">172
+</span><span class="lnt">173
+</span><span class="lnt">174
+</span><span class="lnt">175
+</span><span class="lnt">176
+</span><span class="lnt">177
+</span><span class="lnt">178
+</span><span class="lnt">179
+</span><span class="lnt">180
+</span><span class="lnt">181
+</span><span class="lnt">182
+</span><span class="lnt">183
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-c" data-lang="c"><span class="n">Socket_T</span> <span class="nf">socket_create</span><span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="n">port</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kt">int</span> <span class="n">socket</span><span class="p">;</span>
+        <span class="n">Socket_T</span> <span class="n">S</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+        <span class="n">Port_T</span> <span class="n">p</span> <span class="o">=</span> <span class="n">port</span><span class="p">;</span>
+        <span class="n">ASSERT</span><span class="p">(</span><span class="n">port</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">switch</span> <span class="p">(</span><span class="n">p</span><span class="o">-</span><span class="o">&gt;</span><span class="n">family</span><span class="p">)</span> <span class="p">{</span>
+                <span class="k">case</span> <span class="nl">AF_UNIX</span><span class="p">:</span>
+                        <span class="n">socket</span> <span class="o">=</span> <span class="n">create_unix_socket</span><span class="p">(</span><span class="n">p</span><span class="o">-</span><span class="o">&gt;</span><span class="n">pathname</span><span class="p">,</span> <span class="n">p</span><span class="o">-</span><span class="o">&gt;</span><span class="n">type</span><span class="p">,</span> <span class="n">p</span><span class="o">-</span><span class="o">&gt;</span><span class="n">timeout</span><span class="p">)</span><span class="p">;</span>
+                        <span class="k">break</span><span class="p">;</span>
+                <span class="k">case</span> <span class="nl">AF_INET</span><span class="p">:</span>
+                        <span class="n">socket</span> <span class="o">=</span> <span class="n">create_socket</span><span class="p">(</span><span class="n">p</span><span class="o">-</span><span class="o">&gt;</span><span class="n">hostname</span><span class="p">,</span> <span class="n">p</span><span class="o">-</span><span class="o">&gt;</span><span class="n">port</span><span class="p">,</span> <span class="n">p</span><span class="o">-</span><span class="o">&gt;</span><span class="n">type</span><span class="p">,</span> <span class="n">p</span><span class="o">-</span><span class="o">&gt;</span><span class="n">timeout</span><span class="p">)</span><span class="p">;</span>
+                        <span class="k">break</span><span class="p">;</span>
+                <span class="k">default</span><span class="o">:</span>
+                        <span class="n">LogError</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s">Invalid Port Protocol family</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">)</span><span class="p">;</span>
+                        <span class="k">return</span> <span class="nb">NULL</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">socket</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+                <span class="n">LogError</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s">socket_create: Could not create socket -- %s</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">STRERROR</span><span class="p">)</span><span class="p">;</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+                <span class="n">NEW</span><span class="p">(</span><span class="n">S</span><span class="p">)</span><span class="p">;</span>
+                <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">socket</span> <span class="o">=</span> <span class="n">socket</span><span class="p">;</span>
+                <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">type</span> <span class="o">=</span> <span class="n">p</span><span class="o">-</span><span class="o">&gt;</span><span class="n">type</span><span class="p">;</span>
+                <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">port</span> <span class="o">=</span> <span class="n">p</span><span class="o">-</span><span class="o">&gt;</span><span class="n">port</span><span class="p">;</span>
+                <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">timeout</span> <span class="o">=</span> <span class="n">p</span><span class="o">-</span><span class="o">&gt;</span><span class="n">timeout</span><span class="p">;</span>
+                <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">connection_type</span> <span class="o">=</span> <span class="n">TYPE_LOCAL</span><span class="p">;</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">p</span><span class="o">-</span><span class="o">&gt;</span><span class="n">family</span> <span class="o">=</span><span class="o">=</span> <span class="n">AF_UNIX</span><span class="p">)</span> <span class="p">{</span>
+                        <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">host</span> <span class="o">=</span> <span class="n">Str_dup</span><span class="p">(</span><span class="n">LOCALHOST</span><span class="p">)</span><span class="p">;</span>
+                <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+                        <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">host</span> <span class="o">=</span> <span class="n">Str_dup</span><span class="p">(</span><span class="n">p</span><span class="o">-</span><span class="o">&gt;</span><span class="n">hostname</span><span class="p">)</span><span class="p">;</span>
+                <span class="p">}</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">p</span><span class="o">-</span><span class="o">&gt;</span><span class="n">SSL</span><span class="p">.</span><span class="n">use_ssl</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="o">!</span><span class="n">socket_switch2ssl</span><span class="p">(</span><span class="n">S</span><span class="p">,</span> <span class="n">p</span><span class="o">-</span><span class="o">&gt;</span><span class="n">SSL</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+                        <span class="n">socket_free</span><span class="p">(</span><span class="o">&amp;</span><span class="n">S</span><span class="p">)</span><span class="p">;</span>
+                        <span class="k">return</span> <span class="nb">NULL</span><span class="p">;</span>
+                <span class="p">}</span>
+                <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">Port</span> <span class="o">=</span> <span class="n">port</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">S</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><code>create_socket</code> 関数の実装。
+<a href="https://bitbucket.org/tildeslash/monit/src/97641b51c99226fbf8862797c8f5ec16ac68a18b/src/net.c?at=release-5-11-0&amp;fileviewer=file-view-default#net.c-267:306">src/net.c#L267-#L306</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">267
+</span><span class="lnt">268
+</span><span class="lnt">269
+</span><span class="lnt">270
+</span><span class="lnt">271
+</span><span class="lnt">272
+</span><span class="lnt">273
+</span><span class="lnt">274
+</span><span class="lnt">275
+</span><span class="lnt">276
+</span><span class="lnt">277
+</span><span class="lnt">278
+</span><span class="lnt">279
+</span><span class="lnt">280
+</span><span class="lnt">281
+</span><span class="lnt">282
+</span><span class="lnt">283
+</span><span class="lnt">284
+</span><span class="lnt">285
+</span><span class="lnt">286
+</span><span class="lnt">287
+</span><span class="lnt">288
+</span><span class="lnt">289
+</span><span class="lnt">290
+</span><span class="lnt">291
+</span><span class="lnt">292
+</span><span class="lnt">293
+</span><span class="lnt">294
+</span><span class="lnt">295
+</span><span class="lnt">296
+</span><span class="lnt">297
+</span><span class="lnt">298
+</span><span class="lnt">299
+</span><span class="lnt">300
+</span><span class="lnt">301
+</span><span class="lnt">302
+</span><span class="lnt">303
+</span><span class="lnt">304
+</span><span class="lnt">305
+</span><span class="lnt">306
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-c" data-lang="c"><span class="kt">int</span> <span class="nf">create_socket</span><span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">hostname</span><span class="p">,</span> <span class="kt">int</span> <span class="n">port</span><span class="p">,</span> <span class="kt">int</span> <span class="n">type</span><span class="p">,</span> <span class="kt">int</span> <span class="n">timeout</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kt">int</span> <span class="n">s</span><span class="p">,</span> <span class="n">status</span><span class="p">;</span>
+        <span class="k">struct</span> <span class="n">sockaddr_in</span> <span class="n">sin</span><span class="p">;</span>
+        <span class="k">struct</span> <span class="n">sockaddr_in</span> <span class="o">*</span><span class="n">sa</span><span class="p">;</span>
+        <span class="k">struct</span> <span class="n">addrinfo</span> <span class="n">hints</span><span class="p">;</span>
+        <span class="k">struct</span> <span class="n">addrinfo</span> <span class="o">*</span><span class="n">result</span><span class="p">;</span>
+        <span class="n">ASSERT</span><span class="p">(</span><span class="n">hostname</span><span class="p">)</span><span class="p">;</span>
+        <span class="n">memset</span><span class="p">(</span><span class="o">&amp;</span><span class="n">hints</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="k">struct</span> <span class="n">addrinfo</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+        <span class="n">hints</span><span class="p">.</span><span class="n">ai_family</span> <span class="o">=</span> <span class="n">AF_INET</span><span class="p">;</span>
+
+        <span class="k">if</span><span class="p">(</span><span class="p">(</span><span class="n">status</span> <span class="o">=</span> <span class="n">getaddrinfo</span><span class="p">(</span><span class="n">hostname</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">hints</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">result</span><span class="p">)</span><span class="p">)</span> <span class="o">!</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+                <span class="n">LogError</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s">Cannot translate &#39;%s&#39; to IP address -- %s</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">hostname</span><span class="p">,</span> <span class="n">status</span> <span class="o">=</span><span class="o">=</span> <span class="n">EAI_SYSTEM</span> <span class="o">?</span> <span class="nl">STRERROR</span> <span class="p">:</span> <span class="n">gai_strerror</span><span class="p">(</span><span class="n">status</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+                <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="k">if</span><span class="p">(</span><span class="p">(</span><span class="n">s</span> <span class="o">=</span> <span class="n">socket</span><span class="p">(</span><span class="n">AF_INET</span><span class="p">,</span> <span class="n">type</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+                <span class="n">LogError</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s">Cannot create socket -- %s</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">STRERROR</span><span class="p">)</span><span class="p">;</span>
+                <span class="n">freeaddrinfo</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="p">;</span>
+                <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="n">sa</span> <span class="o">=</span> <span class="p">(</span><span class="k">struct</span> <span class="n">sockaddr_in</span> <span class="o">*</span><span class="p">)</span><span class="n">result</span><span class="o">-</span><span class="o">&gt;</span><span class="n">ai_addr</span><span class="p">;</span>
+        <span class="n">memcpy</span><span class="p">(</span><span class="o">&amp;</span><span class="n">sin</span><span class="p">,</span> <span class="n">sa</span><span class="p">,</span> <span class="n">result</span><span class="o">-</span><span class="o">&gt;</span><span class="n">ai_addrlen</span><span class="p">)</span><span class="p">;</span>
+        <span class="n">sin</span><span class="p">.</span><span class="n">sin_family</span> <span class="o">=</span> <span class="n">AF_INET</span><span class="p">;</span>
+        <span class="n">sin</span><span class="p">.</span><span class="n">sin_port</span> <span class="o">=</span> <span class="n">htons</span><span class="p">(</span><span class="n">port</span><span class="p">)</span><span class="p">;</span>
+        <span class="n">freeaddrinfo</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">if</span><span class="p">(</span><span class="o">!</span> <span class="n">Net_setNonBlocking</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+                <span class="n">LogError</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s">Cannot set nonblocking socket -- %s</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">STRERROR</span><span class="p">)</span><span class="p">;</span>
+                <span class="k">goto</span> <span class="n">error</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">fcntl</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">F_SETFD</span><span class="p">,</span> <span class="n">FD_CLOEXEC</span><span class="p">)</span> <span class="o">=</span><span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+                <span class="n">LogError</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s">Cannot set socket close on exec -- %s</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">STRERROR</span><span class="p">)</span><span class="p">;</span>
+                <span class="k">goto</span> <span class="n">error</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">do_connect</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="p">(</span><span class="k">struct</span> <span class="n">sockaddr</span> <span class="o">*</span><span class="p">)</span><span class="o">&amp;</span><span class="n">sin</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">sin</span><span class="p">)</span><span class="p">,</span> <span class="n">timeout</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+                <span class="k">goto</span> <span class="n">error</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">s</span><span class="p">;</span>
+<span class="nl">error</span><span class="p">:</span>
+        <span class="n">Net_close</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>上記の291行目で <code>Net_setNonBlocking</code> 関数を呼び出してソケットをノンブロッキングにしています。</p>
+<p><code>Net_setNonBlocking</code> 関数の実装。</p>
+<p><a href="https://bitbucket.org/tildeslash/monit/src/97641b51c99226fbf8862797c8f5ec16ac68a18b/libmonit/src/system/Net.c?at=release-5-11-0&amp;fileviewer=file-view-default#Net.c-72:74">libmonit/src/system/Net.c#L72-#L74</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">72
+</span><span class="lnt">73
+</span><span class="lnt">74
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-c" data-lang="c"><span class="kt">int</span> <span class="nf">Net_setNonBlocking</span><span class="p">(</span><span class="kt">int</span> <span class="n">socket</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">fcntl</span><span class="p">(</span><span class="n">socket</span><span class="p">,</span> <span class="n">F_SETFL</span><span class="p">,</span> <span class="n">fcntl</span><span class="p">(</span><span class="n">socket</span><span class="p">,</span> <span class="n">F_GETFL</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">|</span> <span class="n">O_NONBLOCK</span><span class="p">)</span> <span class="o">!</span><span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><code>do_connect</code> 関数の実装。
+<a href="https://bitbucket.org/tildeslash/monit/src/97641b51c99226fbf8862797c8f5ec16ac68a18b/src/net.c?at=release-5-11-0&amp;fileviewer=file-view-default#net.c-161:199">src/net.c#L161-#L199</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">161
+</span><span class="lnt">162
+</span><span class="lnt">163
+</span><span class="lnt">164
+</span><span class="lnt">165
+</span><span class="lnt">166
+</span><span class="lnt">167
+</span><span class="lnt">168
+</span><span class="lnt">169
+</span><span class="lnt">170
+</span><span class="lnt">171
+</span><span class="lnt">172
+</span><span class="lnt">173
+</span><span class="lnt">174
+</span><span class="lnt">175
+</span><span class="lnt">176
+</span><span class="lnt">177
+</span><span class="lnt">178
+</span><span class="lnt">179
+</span><span class="lnt">180
+</span><span class="lnt">181
+</span><span class="lnt">182
+</span><span class="lnt">183
+</span><span class="lnt">184
+</span><span class="lnt">185
+</span><span class="lnt">186
+</span><span class="lnt">187
+</span><span class="lnt">188
+</span><span class="lnt">189
+</span><span class="lnt">190
+</span><span class="lnt">191
+</span><span class="lnt">192
+</span><span class="lnt">193
+</span><span class="lnt">194
+</span><span class="lnt">195
+</span><span class="lnt">196
+</span><span class="lnt">197
+</span><span class="lnt">198
+</span><span class="lnt">199
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/*
+</span><span class="cm"> * Do a non blocking connect, timeout if not connected within timeout milliseconds
+</span><span class="cm"> */</span>
+<span class="k">static</span> <span class="kt">int</span> <span class="nf">do_connect</span><span class="p">(</span><span class="kt">int</span> <span class="n">s</span><span class="p">,</span> <span class="k">const</span> <span class="k">struct</span> <span class="n">sockaddr</span> <span class="o">*</span><span class="n">addr</span><span class="p">,</span> <span class="n">socklen_t</span> <span class="n">addrlen</span><span class="p">,</span> <span class="kt">int</span> <span class="n">timeout</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kt">int</span> <span class="n">error</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="k">struct</span> <span class="n">pollfd</span> <span class="n">fds</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="p">;</span>
+        <span class="n">error</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">addr</span><span class="p">,</span> <span class="n">addrlen</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">error</span> <span class="o">=</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+                <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">errno</span> <span class="o">!</span><span class="o">=</span> <span class="n">EINPROGRESS</span><span class="p">)</span> <span class="p">{</span>
+                <span class="n">LogError</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s">Connection failed -- %s</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">STRERROR</span><span class="p">)</span><span class="p">;</span>
+                <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="n">fds</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="p">.</span><span class="n">fd</span> <span class="o">=</span> <span class="n">s</span><span class="p">;</span>
+        <span class="n">fds</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="p">.</span><span class="n">events</span> <span class="o">=</span> <span class="n">POLLIN</span><span class="o">|</span><span class="n">POLLOUT</span><span class="p">;</span>
+        <span class="n">error</span> <span class="o">=</span> <span class="n">poll</span><span class="p">(</span><span class="n">fds</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">timeout</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">error</span> <span class="o">=</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+                <span class="n">LogError</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s">Connection timed out</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">)</span><span class="p">;</span>
+                <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">error</span> <span class="o">=</span><span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+                <span class="n">LogError</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s">Poll failed -- %s</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">STRERROR</span><span class="p">)</span><span class="p">;</span>
+                <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">fds</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="p">.</span><span class="n">events</span> <span class="o">&amp;</span> <span class="n">POLLIN</span> <span class="o">|</span><span class="o">|</span> <span class="n">fds</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="p">.</span><span class="n">events</span> <span class="o">&amp;</span> <span class="n">POLLOUT</span><span class="p">)</span> <span class="p">{</span>
+                <span class="n">socklen_t</span> <span class="n">len</span> <span class="o">=</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">error</span><span class="p">)</span><span class="p">;</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">getsockopt</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">SOL_SOCKET</span><span class="p">,</span> <span class="n">SO_ERROR</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">error</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">len</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+                        <span class="n">LogError</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s">Cannot get socket error -- %s</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">STRERROR</span><span class="p">)</span><span class="p">;</span>
+                        <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+                <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">error</span><span class="p">)</span> <span class="p">{</span>
+                        <span class="n">errno</span> <span class="o">=</span> <span class="n">error</span><span class="p">;</span>
+                        <span class="n">LogError</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s">Socket error -- %s</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">STRERROR</span><span class="p">)</span><span class="p">;</span>
+                        <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+                <span class="p">}</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+                <span class="n">LogError</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s">Socket not ready for I/O</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">)</span><span class="p">;</span>
+                <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>上記の176行目の <code>epoll</code> でタイムアウトした場合は 177行目の <code>if (error == 0)</code> が成立してエラーで抜けることになります。</p>
+<h2 id="socket-write">socket_write関数からの流れ</h2>
+<p><a href="/blog/2017/02/20/monit-if-failed-url-code-reading/">monitのif failed urlのコードリーディング</a> の <code>check_http</code> 関数の313行目で呼ばれている <code>socket_write</code> 関数の実装を追ってみます。</p>
+<p><code>socket_write</code> 関数の実装。
+<a href="https://bitbucket.org/tildeslash/monit/src/97641b51c99226fbf8862797c8f5ec16ac68a18b/src/socket.c?at=release-5-11-0&amp;fileviewer=file-view-default#socket.c-406:429">src/socket.c#L406-#L429</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">406
+</span><span class="lnt">407
+</span><span class="lnt">408
+</span><span class="lnt">409
+</span><span class="lnt">410
+</span><span class="lnt">411
+</span><span class="lnt">412
+</span><span class="lnt">413
+</span><span class="lnt">414
+</span><span class="lnt">415
+</span><span class="lnt">416
+</span><span class="lnt">417
+</span><span class="lnt">418
+</span><span class="lnt">419
+</span><span class="lnt">420
+</span><span class="lnt">421
+</span><span class="lnt">422
+</span><span class="lnt">423
+</span><span class="lnt">424
+</span><span class="lnt">425
+</span><span class="lnt">426
+</span><span class="lnt">427
+</span><span class="lnt">428
+</span><span class="lnt">429
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-c" data-lang="c"><span class="kt">int</span> <span class="nf">socket_write</span><span class="p">(</span><span class="n">Socket_T</span> <span class="n">S</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">b</span><span class="p">,</span> <span class="n">size_t</span> <span class="n">size</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">ssize_t</span> <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="kt">void</span> <span class="o">*</span><span class="n">p</span> <span class="o">=</span> <span class="n">b</span><span class="p">;</span>
+        <span class="n">ASSERT</span><span class="p">(</span><span class="n">S</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">while</span> <span class="p">(</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">ssl</span><span class="p">)</span> <span class="p">{</span>
+                        <span class="n">n</span> <span class="o">=</span> <span class="n">send_ssl_socket</span><span class="p">(</span><span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">ssl</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">timeout</span><span class="p">)</span><span class="p">;</span>
+                <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+                        <span class="k">if</span> <span class="p">(</span><span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">type</span> <span class="o">=</span><span class="o">=</span> <span class="n">SOCK_DGRAM</span><span class="p">)</span>
+                                <span class="n">n</span> <span class="o">=</span> <span class="n">udp_write</span><span class="p">(</span><span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">socket</span><span class="p">,</span>  <span class="n">p</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">timeout</span><span class="p">)</span><span class="p">;</span>
+                        <span class="k">else</span>
+                                <span class="n">n</span> <span class="o">=</span> <span class="n">sock_write</span><span class="p">(</span><span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">socket</span><span class="p">,</span>  <span class="n">p</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">timeout</span><span class="p">)</span><span class="p">;</span>
+                <span class="p">}</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">n</span> <span class="o">&lt;</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="k">break</span><span class="p">;</span>
+                <span class="n">p</span> <span class="o">+</span><span class="o">=</span> <span class="n">n</span><span class="p">;</span>
+                <span class="n">size</span> <span class="o">-</span><span class="o">=</span> <span class="n">n</span><span class="p">;</span>
+
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">n</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+                <span class="cm">/* No write or a partial write is an error */</span>
+                <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="k">return</span>  <span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="p">(</span><span class="n">p</span> <span class="o">-</span> <span class="n">b</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>上記の417行目で呼んでいる <code>sock_write</code> 関数の実装。
+<a href="https://bitbucket.org/tildeslash/monit/src/97641b51c99226fbf8862797c8f5ec16ac68a18b/src/net.c?at=release-5-11-0&amp;fileviewer=file-view-default#net.c-393:395">src/net.c#L393-#L395</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">393
+</span><span class="lnt">394
+</span><span class="lnt">395
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-c" data-lang="c"><span class="n">ssize_t</span> <span class="nf">sock_write</span><span class="p">(</span><span class="kt">int</span> <span class="n">socket</span><span class="p">,</span> <span class="k">const</span> <span class="kt">void</span> <span class="o">*</span><span class="n">buffer</span><span class="p">,</span> <span class="n">size_t</span> <span class="n">size</span><span class="p">,</span> <span class="kt">int</span> <span class="n">timeout</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="n">Net_write</span><span class="p">(</span><span class="n">socket</span><span class="p">,</span> <span class="n">buffer</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">timeout</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><code>Net_write</code> 関数の実装。
+<a href="https://bitbucket.org/tildeslash/monit/src/97641b51c99226fbf8862797c8f5ec16ac68a18b/libmonit/src/system/Net.c?at=release-5-11-0&amp;fileviewer=file-view-default#Net.c-124:139">libmonit/src/system/Net.c#L124-#L139</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">124
+</span><span class="lnt">125
+</span><span class="lnt">126
+</span><span class="lnt">127
+</span><span class="lnt">128
+</span><span class="lnt">129
+</span><span class="lnt">130
+</span><span class="lnt">131
+</span><span class="lnt">132
+</span><span class="lnt">133
+</span><span class="lnt">134
+</span><span class="lnt">135
+</span><span class="lnt">136
+</span><span class="lnt">137
+</span><span class="lnt">138
+</span><span class="lnt">139
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-c" data-lang="c"><span class="n">ssize_t</span> <span class="nf">Net_write</span><span class="p">(</span><span class="kt">int</span> <span class="n">socket</span><span class="p">,</span> <span class="k">const</span> <span class="kt">void</span> <span class="o">*</span><span class="n">buffer</span><span class="p">,</span> <span class="n">size_t</span> <span class="n">size</span><span class="p">,</span> <span class="n">time_t</span> <span class="n">timeout</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">ssize_t</span> <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+                <span class="k">do</span> <span class="p">{</span>
+                        <span class="n">n</span> <span class="o">=</span> <span class="n">write</span><span class="p">(</span><span class="n">socket</span><span class="p">,</span> <span class="n">buffer</span><span class="p">,</span> <span class="n">size</span><span class="p">)</span><span class="p">;</span>
+                <span class="p">}</span> <span class="k">while</span> <span class="p">(</span><span class="n">n</span> <span class="o">=</span><span class="o">=</span> <span class="o">-</span><span class="mi">1</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="n">errno</span> <span class="o">=</span><span class="o">=</span> <span class="n">EINTR</span><span class="p">)</span><span class="p">;</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">n</span> <span class="o">=</span><span class="o">=</span> <span class="o">-</span><span class="mi">1</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="n">errno</span> <span class="o">=</span><span class="o">=</span> <span class="n">EAGAIN</span> <span class="o">|</span><span class="o">|</span> <span class="n">errno</span> <span class="o">=</span><span class="o">=</span> <span class="n">EWOULDBLOCK</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+                        <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">timeout</span> <span class="o">=</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">|</span><span class="o">|</span> <span class="p">(</span><span class="n">Net_canWrite</span><span class="p">(</span><span class="n">socket</span><span class="p">,</span> <span class="n">timeout</span><span class="p">)</span> <span class="o">=</span><span class="o">=</span> <span class="nb">false</span><span class="p">)</span><span class="p">)</span>
+                                <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+                        <span class="k">do</span> <span class="p">{</span>
+                                <span class="n">n</span> <span class="o">=</span> <span class="n">write</span><span class="p">(</span><span class="n">socket</span><span class="p">,</span> <span class="n">buffer</span><span class="p">,</span> <span class="n">size</span><span class="p">)</span><span class="p">;</span>
+                        <span class="p">}</span> <span class="k">while</span> <span class="p">(</span><span class="n">n</span> <span class="o">=</span><span class="o">=</span> <span class="o">-</span><span class="mi">1</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="n">errno</span> <span class="o">=</span><span class="o">=</span> <span class="n">EINTR</span><span class="p">)</span><span class="p">;</span>
+                <span class="p">}</span>
+        <span class="p">}</span>
+	<span class="k">return</span> <span class="n">n</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><code>Net_canWrite</code> 関数の実装。
+<a href="https://bitbucket.org/tildeslash/monit/src/97641b51c99226fbf8862797c8f5ec16ac68a18b/libmonit/src/system/Net.c?at=release-5-11-0&amp;fileviewer=file-view-default#Net.c-94:103">libmonit/src/system/Net.c#L94-#L103</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">94
+</span><span class="lnt">95
+</span><span class="lnt">96
+</span><span class="lnt">97
+</span><span class="lnt">98
+</span><span class="lnt">99
+</span><span class="lnt">100
+</span><span class="lnt">101
+</span><span class="lnt">102
+</span><span class="lnt">103
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-c" data-lang="c"><span class="kt">int</span> <span class="nf">Net_canWrite</span><span class="p">(</span><span class="kt">int</span> <span class="n">socket</span><span class="p">,</span> <span class="n">time_t</span> <span class="n">milliseconds</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kt">int</span> <span class="n">r</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="k">struct</span> <span class="n">pollfd</span> <span class="n">fds</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="p">;</span>
+        <span class="n">fds</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="p">.</span><span class="n">fd</span> <span class="o">=</span> <span class="n">socket</span><span class="p">;</span>
+        <span class="n">fds</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="p">.</span><span class="n">events</span> <span class="o">=</span> <span class="n">POLLOUT</span><span class="p">;</span>
+        <span class="k">do</span> <span class="p">{</span>
+                <span class="n">r</span> <span class="o">=</span> <span class="n">poll</span><span class="p">(</span><span class="n">fds</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">milliseconds</span><span class="p">)</span><span class="p">;</span>
+        <span class="p">}</span> <span class="k">while</span> <span class="p">(</span><span class="n">r</span> <span class="o">=</span><span class="o">=</span> <span class="o">-</span><span class="mi">1</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="n">errno</span> <span class="o">=</span><span class="o">=</span> <span class="n">EINTR</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">r</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><h2 id="socket-readln">socket_readln関数からの流れ</h2>
+<p><a href="/blog/2017/02/20/monit-if-failed-url-code-reading/">monitのif failed urlのコードリーディング</a> の <code>check_request</code> 関数の208行目と222行目で呼ばれている <code>socket_readln</code> 関数の実装を追ってみます。</p>
+<p><code>socket_readln</code> 関数の実装。
+<a href="https://bitbucket.org/tildeslash/monit/src/97641b51c99226fbf8862797c8f5ec16ac68a18b/src/socket.c?at=release-5-11-0&amp;fileviewer=file-view-default#socket.c-453:466">src/socket.c#L453-#L466</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">453
+</span><span class="lnt">454
+</span><span class="lnt">455
+</span><span class="lnt">456
+</span><span class="lnt">457
+</span><span class="lnt">458
+</span><span class="lnt">459
+</span><span class="lnt">460
+</span><span class="lnt">461
+</span><span class="lnt">462
+</span><span class="lnt">463
+</span><span class="lnt">464
+</span><span class="lnt">465
+</span><span class="lnt">466
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-c" data-lang="c"><span class="kt">char</span> <span class="o">*</span><span class="nf">socket_readln</span><span class="p">(</span><span class="n">Socket_T</span> <span class="n">S</span><span class="p">,</span> <span class="kt">char</span> <span class="o">*</span><span class="n">s</span><span class="p">,</span> <span class="kt">int</span> <span class="n">size</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kt">int</span> <span class="n">c</span><span class="p">;</span>
+        <span class="kt">unsigned</span> <span class="kt">char</span> <span class="o">*</span><span class="n">p</span> <span class="o">=</span> <span class="p">(</span><span class="kt">unsigned</span> <span class="kt">char</span> <span class="o">*</span><span class="p">)</span><span class="n">s</span><span class="p">;</span>
+        <span class="n">ASSERT</span><span class="p">(</span><span class="n">S</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">while</span> <span class="p">(</span><span class="o">-</span><span class="o">-</span><span class="n">size</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="p">(</span><span class="n">c</span> <span class="o">=</span> <span class="n">socket_read_byte</span><span class="p">(</span><span class="n">S</span><span class="p">)</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span> <span class="c1">// Stop when \0 is read
+</span><span class="c1"></span>                <span class="o">*</span><span class="n">p</span><span class="o">+</span><span class="o">+</span> <span class="o">=</span> <span class="n">c</span><span class="p">;</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">c</span> <span class="o">=</span><span class="o">=</span> <span class="sa"></span><span class="sc">&#39;</span><span class="sc">\n</span><span class="sc">&#39;</span><span class="p">)</span>
+                        <span class="k">break</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="o">*</span><span class="n">p</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="o">*</span><span class="n">s</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">s</span><span class="p">;</span>
+        <span class="k">return</span> <span class="nb">NULL</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><code>socket_read_byte</code> 関数の実装。
+<a href="https://bitbucket.org/tildeslash/monit/src/97641b51c99226fbf8862797c8f5ec16ac68a18b/src/socket.c?at=release-5-11-0&amp;fileviewer=file-view-default#socket.c-432:439">src/socket.c#L432-#L439</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">432
+</span><span class="lnt">433
+</span><span class="lnt">434
+</span><span class="lnt">435
+</span><span class="lnt">436
+</span><span class="lnt">437
+</span><span class="lnt">438
+</span><span class="lnt">439
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-c" data-lang="c"><span class="kt">int</span> <span class="nf">socket_read_byte</span><span class="p">(</span><span class="n">Socket_T</span> <span class="n">S</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">ASSERT</span><span class="p">(</span><span class="n">S</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">offset</span> <span class="o">&gt;</span><span class="o">=</span> <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">length</span><span class="p">)</span> <span class="p">{</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">fill</span><span class="p">(</span><span class="n">S</span><span class="p">,</span> <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">timeout</span><span class="p">)</span> <span class="o">&lt;</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+                        <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">buffer</span><span class="p">[</span><span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">offset</span><span class="o">+</span><span class="o">+</span><span class="p">]</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><code>fill</code> 関数の実装。
+<a href="https://bitbucket.org/tildeslash/monit/src/97641b51c99226fbf8862797c8f5ec16ac68a18b/src/socket.c?at=release-5-11-0&amp;fileviewer=file-view-default#socket.c-109:134">src/socket.c#L109-#L134</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">109
+</span><span class="lnt">110
+</span><span class="lnt">111
+</span><span class="lnt">112
+</span><span class="lnt">113
+</span><span class="lnt">114
+</span><span class="lnt">115
+</span><span class="lnt">116
+</span><span class="lnt">117
+</span><span class="lnt">118
+</span><span class="lnt">119
+</span><span class="lnt">120
+</span><span class="lnt">121
+</span><span class="lnt">122
+</span><span class="lnt">123
+</span><span class="lnt">124
+</span><span class="lnt">125
+</span><span class="lnt">126
+</span><span class="lnt">127
+</span><span class="lnt">128
+</span><span class="lnt">129
+</span><span class="lnt">130
+</span><span class="lnt">131
+</span><span class="lnt">132
+</span><span class="lnt">133
+</span><span class="lnt">134
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/*
+</span><span class="cm"> * Fill the internal buffer. If an error occurs or if the read
+</span><span class="cm"> * operation timed out -1 is returned.
+</span><span class="cm"> * @param S A Socket object
+</span><span class="cm"> * @param timeout The number of milliseconds to wait for data to be read
+</span><span class="cm"> * @return TRUE (the length of data read) or -1 if an error occured
+</span><span class="cm"> */</span>
+<span class="k">static</span> <span class="kt">int</span> <span class="nf">fill</span><span class="p">(</span><span class="n">Socket_T</span> <span class="n">S</span><span class="p">,</span> <span class="kt">int</span> <span class="n">timeout</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kt">int</span> <span class="n">n</span><span class="p">;</span>
+        <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">offset</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">length</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">type</span> <span class="o">=</span><span class="o">=</span> <span class="n">SOCK_DGRAM</span><span class="p">)</span>
+                <span class="n">timeout</span> <span class="o">=</span> <span class="mi">500</span><span class="p">;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">ssl</span><span class="p">)</span> <span class="p">{</span>
+                <span class="n">n</span> <span class="o">=</span> <span class="n">recv_ssl_socket</span><span class="p">(</span><span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">ssl</span><span class="p">,</span> <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">buffer</span> <span class="o">+</span> <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">length</span><span class="p">,</span> <span class="n">RBUFFER_SIZE</span><span class="o">-</span><span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">length</span><span class="p">,</span> <span class="n">timeout</span><span class="p">)</span><span class="p">;</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+                <span class="n">n</span> <span class="o">=</span> <span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">sock_read</span><span class="p">(</span><span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">socket</span><span class="p">,</span> <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">buffer</span> <span class="o">+</span> <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">length</span><span class="p">,</span>  <span class="n">RBUFFER_SIZE</span><span class="o">-</span><span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">length</span><span class="p">,</span> <span class="n">timeout</span><span class="p">)</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">n</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+                <span class="n">S</span><span class="o">-</span><span class="o">&gt;</span><span class="n">length</span> <span class="o">+</span><span class="o">=</span> <span class="n">n</span><span class="p">;</span>
+        <span class="p">}</span>  <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">n</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+                <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="o">!</span> <span class="p">(</span><span class="n">errno</span> <span class="o">=</span><span class="o">=</span> <span class="n">EAGAIN</span> <span class="o">|</span><span class="o">|</span> <span class="n">errno</span> <span class="o">=</span><span class="o">=</span> <span class="n">EWOULDBLOCK</span><span class="p">)</span><span class="p">)</span> <span class="c1">// Peer closed connection
+</span><span class="c1"></span>                <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+        <span class="k">return</span> <span class="n">n</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><code>sock_read</code> 関数の実装。
+<a href="https://bitbucket.org/tildeslash/monit/src/97641b51c99226fbf8862797c8f5ec16ac68a18b/src/net.c?at=release-5-11-0&amp;fileviewer=file-view-default#net.c-398:400">src/net.c#L398-#L400</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">398
+</span><span class="lnt">399
+</span><span class="lnt">400
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-c" data-lang="c"><span class="n">ssize_t</span> <span class="nf">sock_read</span><span class="p">(</span><span class="kt">int</span> <span class="n">socket</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">buffer</span><span class="p">,</span> <span class="kt">int</span> <span class="n">size</span><span class="p">,</span> <span class="kt">int</span> <span class="n">timeout</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="n">Net_read</span><span class="p">(</span><span class="n">socket</span><span class="p">,</span> <span class="n">buffer</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">timeout</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><code>Net_read</code> 関数の実装。
+<a href="https://bitbucket.org/tildeslash/monit/src/97641b51c99226fbf8862797c8f5ec16ac68a18b/libmonit/src/system/Net.c?at=release-5-11-0&amp;fileviewer=file-view-default#Net.c-106:121">libmonit/src/system/Net.c#L106-#L121</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">106
+</span><span class="lnt">107
+</span><span class="lnt">108
+</span><span class="lnt">109
+</span><span class="lnt">110
+</span><span class="lnt">111
+</span><span class="lnt">112
+</span><span class="lnt">113
+</span><span class="lnt">114
+</span><span class="lnt">115
+</span><span class="lnt">116
+</span><span class="lnt">117
+</span><span class="lnt">118
+</span><span class="lnt">119
+</span><span class="lnt">120
+</span><span class="lnt">121
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-c" data-lang="c"><span class="n">ssize_t</span> <span class="nf">Net_read</span><span class="p">(</span><span class="kt">int</span> <span class="n">socket</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">buffer</span><span class="p">,</span> <span class="n">size_t</span> <span class="n">size</span><span class="p">,</span> <span class="n">time_t</span> <span class="n">timeout</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">ssize_t</span> <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+                <span class="k">do</span> <span class="p">{</span>
+                        <span class="n">n</span> <span class="o">=</span> <span class="n">read</span><span class="p">(</span><span class="n">socket</span><span class="p">,</span> <span class="n">buffer</span><span class="p">,</span> <span class="n">size</span><span class="p">)</span><span class="p">;</span>
+                <span class="p">}</span> <span class="k">while</span> <span class="p">(</span><span class="n">n</span> <span class="o">=</span><span class="o">=</span> <span class="o">-</span><span class="mi">1</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="n">errno</span> <span class="o">=</span><span class="o">=</span> <span class="n">EINTR</span><span class="p">)</span><span class="p">;</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">n</span> <span class="o">=</span><span class="o">=</span> <span class="o">-</span><span class="mi">1</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="n">errno</span> <span class="o">=</span><span class="o">=</span> <span class="n">EAGAIN</span> <span class="o">|</span><span class="o">|</span> <span class="n">errno</span> <span class="o">=</span><span class="o">=</span> <span class="n">EWOULDBLOCK</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+                        <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">timeout</span> <span class="o">=</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">|</span><span class="o">|</span> <span class="p">(</span><span class="n">Net_canRead</span><span class="p">(</span><span class="n">socket</span><span class="p">,</span> <span class="n">timeout</span><span class="p">)</span> <span class="o">=</span><span class="o">=</span> <span class="nb">false</span><span class="p">)</span><span class="p">)</span>
+                                <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+                        <span class="k">do</span> <span class="p">{</span>
+                                <span class="n">n</span> <span class="o">=</span> <span class="n">read</span><span class="p">(</span><span class="n">socket</span><span class="p">,</span> <span class="n">buffer</span><span class="p">,</span> <span class="n">size</span><span class="p">)</span><span class="p">;</span>
+                        <span class="p">}</span> <span class="k">while</span> <span class="p">(</span><span class="n">n</span> <span class="o">=</span><span class="o">=</span> <span class="o">-</span><span class="mi">1</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="n">errno</span> <span class="o">=</span><span class="o">=</span> <span class="n">EINTR</span><span class="p">)</span><span class="p">;</span>
+                <span class="p">}</span>
+        <span class="p">}</span>
+	<span class="k">return</span> <span class="n">n</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><code>Net_canRead</code> 関数の実装。
+<a href="https://bitbucket.org/tildeslash/monit/src/97641b51c99226fbf8862797c8f5ec16ac68a18b/libmonit/src/system/Net.c?at=release-5-11-0&amp;fileviewer=file-view-default#Net.c-82:91">libmonit/src/system/Net.c#L82-#L91</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">82
+</span><span class="lnt">83
+</span><span class="lnt">84
+</span><span class="lnt">85
+</span><span class="lnt">86
+</span><span class="lnt">87
+</span><span class="lnt">88
+</span><span class="lnt">89
+</span><span class="lnt">90
+</span><span class="lnt">91
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-c" data-lang="c"><span class="kt">int</span> <span class="nf">Net_canRead</span><span class="p">(</span><span class="kt">int</span> <span class="n">socket</span><span class="p">,</span> <span class="n">time_t</span> <span class="n">milliseconds</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kt">int</span> <span class="n">r</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="k">struct</span> <span class="n">pollfd</span> <span class="n">fds</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="p">;</span>
+        <span class="n">fds</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="p">.</span><span class="n">fd</span> <span class="o">=</span> <span class="n">socket</span><span class="p">;</span>
+        <span class="n">fds</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="p">.</span><span class="n">events</span> <span class="o">=</span> <span class="n">POLLIN</span><span class="p">;</span>
+        <span class="k">do</span> <span class="p">{</span>
+                <span class="n">r</span> <span class="o">=</span> <span class="n">poll</span><span class="p">(</span><span class="n">fds</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">milliseconds</span><span class="p">)</span><span class="p">;</span>
+        <span class="p">}</span> <span class="k">while</span> <span class="p">(</span><span class="n">r</span> <span class="o">=</span><span class="o">=</span> <span class="o">-</span><span class="mi">1</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="n">errno</span> <span class="o">=</span><span class="o">=</span> <span class="n">EINTR</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">r</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><h2 id="heading-1">まとめ</h2>
+<ul>
+<li>if failed urlでretryとtimeoutを指定しない場合のデフォルトはretry=1, timeout=5秒</li>
+<li>retryは名前に反して初回の試行＋追加試行の回数ではなく、全体の試行回数（retry=1だと1回だけ試してリトライ無し）</li>
+<li>timeoutはconnect, write, readの個々の操作が指定のタイムアウト内に終わらなければエラー</li>
+</ul>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

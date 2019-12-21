@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>mockコマンドでrpmをビルドする &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>mockコマンドでrpmをビルドする</h1>
+  <time datetime=2015-12-05T22:10:26&#43;0900 class="post-date">2015-12-05</time>
+  <h2 id="2015-12-15-">2015-12-15 追記</h2>
+<p><a href="/blog/2015/12/15/using_mock_and_copr_to_build_nginx_rpm_on_docker/">nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました · hnakamur's blog at github</a>という記事を書きましたのでそちらもご参照ください。</p>
+<h2 id="heading">以下元記事です</h2>
+<p><a href="/blog/2015/11/26/use_travis_and_copr_to_build_and_host_rpm/">Travis CIとcopr.fedoraproject.orgを使ってrpmをビルド・配布するのを試してみた · hnakamur's blog at github</a>でrpmを外部のサーバでビルドできるようになりましたが、試行錯誤中はこの手順だと時間がかかりますので、手元の環境でビルドしたいところです。</p>
+<h2 id="rpmbuild">rpmbuild</h2>
+<p>私は最近までrpmbuildでrpmをビルドしていました。以下のコマンドでspecファイルの <code>BuildRequires</code> に書いたrpmをまとめてインストールすることが出来ることも最近知りました。</p>
+<pre><code>sudo yum-builddep -y specファイルのパス
+</code></pre><p>これだけでも十分便利ですが、1つの環境でいろんなrpmをビルドするような使い方をしていると不満が出てきます。ビルドに必要なパッケージを <code>BuildRequires</code> に書き忘れていても、別のrpmのビルドの際にインストールされていてビルドが通ってしまい気づかない恐れがあるからです。</p>
+<h2 id="mock">mock</h2>
+<p><a href="https://fedoraproject.org/wiki/Mock">Mock - FedoraProject</a>を使えば、chrootでクリーンな環境でrpmをビルドしてくれるので、上記のように <code>BuildRequires</code> に必要なパッケージを書き忘れた場合はビルドエラーになり間違いに気づくことができます。</p>
+<p>また、実行環境と異なるCPUアーキテクチャやRHELのバージョン用のrpmもビルドできます。 <a href="http://linux.die.net/man/1/mock">mock(1): build SRPMs in chroot - Linux man page</a>によると <code>-r</code> オプションで <code>/etc/mock/&lt;chroot&gt;.cfg</code> の <code>&lt;chroot&gt;</code> の部分を指定すればよいそうです。</p>
+<p>CentOS 7で <code>/etc/mock</code> を見てみたところ、以下のような環境が用意されていました。</p>
+<pre><code>[vagrant@localhost ~]$ ls /etc/mock/
+default.cfg            fedora-21-armhfp.cfg   fedora-22-i386.cfg     fedora-23-ppc64.cfg         fedora-rawhide-ppc64le.cfg
+epel-5-i386.cfg        fedora-21-i386.cfg     fedora-22-ppc64.cfg    fedora-23-ppc64le.cfg       fedora-rawhide-s390.cfg
+epel-5-ppc.cfg         fedora-21-ppc64.cfg    fedora-22-ppc64le.cfg  fedora-23-s390.cfg          fedora-rawhide-s390x.cfg
+epel-5-x86_64.cfg      fedora-21-ppc64le.cfg  fedora-22-s390.cfg     fedora-23-s390x.cfg         fedora-rawhide-sparc.cfg
+epel-6-i386.cfg        fedora-21-s390.cfg     fedora-22-s390x.cfg    fedora-23-x86_64.cfg        fedora-rawhide-x86_64.cfg
+epel-6-ppc64.cfg       fedora-21-s390x.cfg    fedora-22-x86_64.cfg   fedora-rawhide-aarch64.cfg  logging.ini
+epel-6-x86_64.cfg      fedora-21-x86_64.cfg   fedora-23-aarch64.cfg  fedora-rawhide-armhfp.cfg   site-defaults.cfg
+epel-7-x86_64.cfg      fedora-22-aarch64.cfg  fedora-23-armhfp.cfg   fedora-rawhide-i386.cfg
+fedora-21-aarch64.cfg  fedora-22-armhfp.cfg   fedora-23-i386.cfg     fedora-rawhide-ppc64.cfg
+</code></pre><p><a href="https://fedoraproject.org/wiki/Using_Mock_to_test_package_builds#Caching_in_mock_0.8.x_and_later">Caching in mock 0.8.x and later</a>を見るとmockの今のバージョンでは <code>mock</code> を実行してchroot環境を作ってyumでダウンロードしたrpmはホスト環境にキャッシュされるそうです。</p>
+<p>ですので、複数のrpmをビルドしたり、同じrpmを試行錯誤で何度もビルドする場合に、キャッシュによる高速化が期待できます。</p>
+<p>まとめると、mockの利点は以下の2つです。</p>
+<ul>
+<li>chrootによりクリーンな環境でビルドできるのでspecファイルの間違いに気づきやすい</li>
+<li>yumのキャッシュがあるのでビルドの際の <code>yum install</code> が高速化される</li>
+</ul>
+<h3 id="coprmock">coprもmockを使用しています</h3>
+<p><a href="https://copr.fedoraproject.org/">copr</a>でビルドした結果のmockchaing.log.gzを見ると、以下の様な行がありました。</p>
+<pre><code>[2015-12-05 11:13:20,751][  INFO][PID:19554] executing: /usr/bin/mockchain -r epel-7-x86_64 -l /var/tmp/mockremote-ZTm5H/build/ -a https://copr-be.cloud.fedoraproject.org/results/hnakamur/nginx/epel-7-x86_64 -a https://copr-be.cloud.fedoraproject.org/results/hnakamur/nginx/epel-7-x86_64/devel -m '--define=copr_username hnakamur' -m '--define=copr_projectname nginx' -m '--define=vendor Fedora Project COPR (hnakamur/nginx)' /tmp/build_package_repo/nginx/nginx-1.9.7-1.el7.ngx.src.rpm
+</code></pre><p><a href="http://linux.die.net/man/1/mockchain">mockchain(1): chain package builder - Linux man page</a>によると複数のrpmを一括ビルドするためのコマンドだそうです。</p>
+<h3 id="mock-1">mockを使うためのセットアップ</h3>
+<p>epelを入れればmockはyumでインストール可能です。他にもsrpmを作るためにrpm-buildなどもyumでインストールする必要があるので、Vagrant用とDocker用にそれぞれセットアップ手順をまとめたものを作りました。</p>
+<ul>
+<li><a href="https://github.com/hnakamur/centos-mock-vagrant">hnakamur/centos-mock-vagrant</a></li>
+<li><a href="https://github.com/hnakamur/centos-mock-docker">hnakamur/centos-mock-docker</a></li>
+</ul>
+<p>Vagrant環境のほうは単に <code>vagrant up</code> で起動して <code>vagrant ssh</code> でログインし、 <code>sudo su - mockbuild</code> で <code>mockbuild</code> ユーザになって作業します。</p>
+<p>Docker環境でmockを利用する場合、mockがunshareシステムコールを呼ぶので <code>SYS_ADMIN</code> ケーパビリティが必要になります。そこで <code>docker run</code> の際に <code>--cap-add=SYS_ADMIN</code> オプションが必要です。</p>
+<p><code>docker build -t mock .</code> で <code>mock</code> という名前でdockerイメージをビルドした場合、
+<code>docker run --cap-add=SYS_ADMIN -it mock</code> でbashプロンプトが起動しますので、 <code>su - mockbuild</code> で <code>mockbuild</code> ユーザになって作業します。</p>
+<p>mockのyumキャッシュを有効活用するには、複数のビルド間に環境を破棄せずに維持したほうが良いです。dockerのほうはbashを抜けると環境が消えてしまうので、もう少しDockerfileを工夫したようが良さそうです。</p>
+<p>とりあえず私はVagrantの環境の方を使っています。</p>
+<h3 id="mock-2">mockでのビルド</h3>
+<p>まずsrpmファイルを作ります。
+上記の環境ですと、<code>mockbuild</code> ユーザの <code>/home/mockbuild/rpmbuild/</code> の下に <code>SPECS</code> や <code>SOURCES</code> ディレクトリが作ってありますので、そこにspecファイルやソースを置いて以下のコマンドを実行して作成します。</p>
+<pre><code>rpmbuild -bs specファイルのパス
+</code></pre><p>上記の環境では <code>/home/mockbuild/rpmbuild/SRPMS/</code> にsrpmファイルが生成されます。
+その後、以下のようにmockコマンドを実行してビルドします。</p>
+<pre><code>mock --rebuild srpmファイルのパス
+</code></pre><p>ビルドで生成されたrpmとsrpmファイルは <code>/var/lib/mock/&lt;chroot&gt;/result/</code> に置かれます。
+また、ビルドの作業ディレクトリは <code>/var/lib/mock/&lt;chroot&gt;/root/builddir/build/</code> 以下に <code>BUILD</code>, <code>BUILDROOT</code>, <code>RPMS</code>, <code>SOURCES</code>, <code>SPECS</code>, <code>SRPMS</code> ディレクトリが作成されていますので、ビルドが失敗した場合はこの中を見て調査できます。</p>
+<h2 id="heading-1">おわりに</h2>
+<p>実は<a href="https://fedoraproject.org/wiki/Mock">Mock - FedoraProject</a>や<a href="https://copr.fedoraproject.org/">Project List</a>はしばらく前に存在を知っていたのですが、ググっても情報が少ないしよくわからないのでスルーしていました。今回ついに使ってみたのですが、非常に便利なツールとサービスだということがわかりました。もっと前から使っておけばよかったです。</p>
+<p>みなさんも<a href="https://fedoraproject.org/wiki/Mock">Mock - FedoraProject</a>と<a href="https://copr.fedoraproject.org/">Project List</a>を活用して、快適なrpmビルド・配布環境を手に入れましょう！</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>

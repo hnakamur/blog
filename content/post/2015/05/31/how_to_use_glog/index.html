@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-JP" lang="ja-JP">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.61.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>goでglogを使うときのメモ &middot; hnakamur&#39;s blog at github</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog at github</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+      <p>powered by <a href="http://gohugo.io">Hugo</a></p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>goでglogを使うときのメモ</h1>
+  <time datetime=2015-05-31T02:30:02&#43;0900 class="post-date">2015-05-31</time>
+  <p><a href="http://blog.satotaichi.info/logging-frameworks-for-go/">go言語におけるロギングについて</a>の記事と<a href="http://godoc.org/github.com/golang/glog">glog - GoDoc</a>を読んで試してみました。</p>
+<p><code>flag.Parse()</code> を呼ぶ必要があり、最後に <code>glog.Flush()</code> を呼ぶ必要があるので <code>main</code> で <code>defer</code> で書いておきます。</p>
+<pre><code>package main
+
+import (
+	&quot;flag&quot;
+
+	&quot;github.com/golang/glog&quot;
+)
+
+func main() {
+	flag.Parse()
+	defer glog.Flush()
+
+	if glog.V(0) {
+		glog.Info(&quot;Hello, glog&quot;)
+	}
+
+	glog.V(0).Info(&quot;exiting&quot;)
+}
+</code></pre><p>ログレベルは <code>-v</code> オプションで指定できるのですがデフォルト値は0なので、デフォルトで出力したいログはレベル0で書くようにします。</p>
+<p><a href="http://godoc.org/github.com/golang/glog#Verbose">Verbose</a>の説明によると、上の2つの書き方では前者のほうが実行時負荷が安上がりとのことです。これはログレベルの設定で出力を抑止した時に、 <code>Info</code> の引数の評価をしなくて済むからです。</p>
+<p>使い分けるのも面倒なので、常に前者を使うことにします。</p>
+<p>ログファイル名は非公開関数 <a href="https://github.com/golang/glog/blob/44145f04b68cf362d9c4df2182967c2275eaefed/glog_file.go#L83-L97">glog.logName()</a> の形式になります。</p>
+<p>ログのディレクトリは <code>-log_dir</code> オプションで指定可能ですが、デフォルトでは <a href="http://golang.org/pkg/os/#TempDir">os.TempDir()</a> になっています。</p>
+<p>OS Xの場合は環境変数 <code>$TMPDIR</code> になります。セキュリティ上 <code>/tmp</code> ではなくランダムは文字列のディレクトリになっています。</p>
+<pre><code>$ echo $TMPDIR
+/var/folders/9p/r7jylfyd163bszlxvp0wk36h0000gn/T/
+</code></pre><p>ということで、ログファイルを見るときは <code>less $TMPDIR/${プログラム名}.INFO</code> とすればOKです。<code>go build</code> でビルドしてプログラムを実行した時はその名前ですが、 <code>go run main.go</code> のときは <code>main</code> になるようで <code>$TMPDIR/main.INFO</code> というファイルが出来ていました。</p>
+<p>このファイルはプログラム実行のたびに上書きされます。過去のログを見たいときは <code>less $TMPDIR/${プログラム名}</code> まで入力しTABでファイル名補完して見るようにします。</p>
+<p>上記のサンプルで出力されたログは以下のようになっていました。</p>
+<pre><code>Log file created at: 2015/05/31 02:22:07
+Running on machine: sunshine5
+Binary: Built with gc go1.4.2 for darwin/amd64
+Log line format: [IWEF]mmdd hh:mm:ss.uuuuuu threadid file:line] msg
+I0531 02:22:07.343002   54353 main.go:14] Hello, glog
+I0531 02:22:07.343897   54353 main.go:18] exiting
+</code></pre><p>ログの行フォーマットは4行目に書いてありますが、 <a href="https://github.com/golang/glog/blob/44145f04b68cf362d9c4df2182967c2275eaefed/glog.go#L518-L534">glog.header()のコメント</a> に詳細な説明があります。</p>
+<p>各行の日付には年がないのですが、行のフォーマットは固定なので諦めましょう。ログファイルサイズ削減のために年は付けないようにしているのでしょう。先頭行に作成日時が年つきで書いてあるのでそちらを見れば良いです。</p>
+<p>スレッドIDやログ出力したファイル名と行番号が出るのが便利です。</p>
+<p>ということで開発時のデバッグログとしてはglog便利そうです。逆にシステムの運用ログとしては別のログライブラリのようが良いかもしれません。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>
