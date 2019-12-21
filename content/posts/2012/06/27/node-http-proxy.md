@@ -4,6 +4,7 @@ title: "node-http-proxyでバーチャルホストで振り分けつつhttp/http
 date: 2012-06-27
 comments: true
 categories: node.js websocket proxy
+slug: 2012/06/27/node-http-proxy
 ---
 以下の2つのページを参考に、node-http-proxyでバーチャルホストで振り分けつつ
 http/httpsからwebsocketにリバースプロキシする実験をしてみました。
