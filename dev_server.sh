@@ -1,3 +1,2 @@
 #!/bin/sh
-cd public
-python -m pelican.server
+pelican --autoreload -l -b 0.0.0.0 -o public content
