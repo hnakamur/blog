@@ -1,6 +1,7 @@
 +++
 title="DockerでZFSストレージドライバを使う"
 date = "2019-12-21T21:00:00+09:00"
+lastmod = "2019-12-22T23:15:00+09:00"
 tags = ["docker", "zfs"]
 categories = ["blog"]
 +++
@@ -27,6 +28,22 @@ sudo zfs set mountpoint=/var/lib/docker tank1/docker
 
 ```console
 sudo tar cf - . -C /var/lib/docker.bak | sudo tar xf - -C /var/lib/docker
+```
+
+以下のコマンドを実行して `/etc/docker/daemon.json` を作成します。既にこのファイルがある場合は `"storage-driver": "zfs",` を適宜追加してください。
+
+```console
+cat <<'EOF' | sudo tee /etc/docker/daemon.json > /dev/null
+{
+  "storage-driver": "zfs"
+}
+EOF
+```
+
+docker サービスを再起動します。
+
+```console
+sudo systemctl restart docker
 ```
 
 動作確認して問題なければ `/var/lib/docker.bak` を消します。
