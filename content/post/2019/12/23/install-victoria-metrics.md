@@ -1,6 +1,7 @@
 +++
 title="VictoriaMetricsのインストール"
 date = "2019-12-23T00:05:00+09:00"
+lastmod = "2019-12-23T09:10:00+09:00"
 tags = ["victoriametrics"]
 categories = ["blog"]
 +++
@@ -29,6 +30,8 @@ sudo install bin/victoria-metrics-prod /usr/local/bin/victoriametrics
 
 `-retentionPeriod` は保管したい期間を月単位で指定します。下記の例は 6 か月です。 [lib/storage/table.go#L137](https://github.com/VictoriaMetrics/VictoriaMetrics/blob/v1.31.2/lib/storage/table.go#L137) を見ると1か月は31日として換算しています。
 
+私は graphite 互換でデータを送りたいので `-graphiteListenAddr :2003` も指定しました。ポートはお好みで。
+
 ```console
 cat <<'EOF' | sudo tee /etc/systemd/system/victoriametrics.serivce > /dev/null
 [Unit]
@@ -41,7 +44,8 @@ StartLimitBurst=5
 StartLimitInterval=0
 Restart=on-failure
 RestartSec=1
-ExecStart=/usr/local/bin/victoriametrics -storageDataPath /var/lib/victoriametrics -retentionPeriod 6
+PIDFile=/run/victoriametrics/victoriametrics.pid
+ExecStart=/usr/local/bin/victoriametrics -storageDataPath /var/lib/victoriametrics -retentionPeriod 6 -graphiteListenAddr :2003
 ExecStop=/bin/kill -s SIGTERM $MAINPID
 LimitNOFILE=65536
 LimitNPROC=32000
