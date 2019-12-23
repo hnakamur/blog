@@ -63,6 +63,7 @@ git checkout v1.31.2
 sudo install bin/victoria-metrics-prod /usr/local/bin/victoriametrics
 </code></pre><p><a href="https://github.com/VictoriaMetrics/VictoriaMetrics#setting-up-service">Setting up service</a> の <a href="https://github.com/VictoriaMetrics/VictoriaMetrics/issues/43">Documentation Addition for Creating a service · Issue #43 · VictoriaMetrics/VictoriaMetrics</a> と <a href="https://github.com/VictoriaMetrics/VictoriaMetrics/blob/v1.31.2/package/victoria-metrics.service">package/victoria-metrics.service</a> を参考に systemd のサービス定義ファイルを作成します。本番運用する際は root ユーザではなく専用のユーザを作るほうが良いと思いますが今回はとりあえず使ってみるだけなので手抜きします。ソースを見た感じでは PID のファイルは作らないようなのと <a href="https://github.com/VictoriaMetrics/VictoriaMetrics/blob/v1.31.2/package/victoria-metrics.service">package/victoria-metrics.service</a> にもないので <code>PIDFile</code> は無しで。</p>
 <p><code>-retentionPeriod</code> は保管したい期間を月単位で指定します。下記の例は 6 か月です。 <a href="https://github.com/VictoriaMetrics/VictoriaMetrics/blob/v1.31.2/lib/storage/table.go#L137">lib/storage/table.go#L137</a> を見ると1か月は31日として換算しています。</p>
+<p>私は graphite 互換でデータを送りたいので <code>-graphiteListenAddr :2003</code> も指定しました。ポートはお好みで。</p>
 <pre><code class="language-console" data-lang="console">cat &lt;&lt;'EOF' | sudo tee /etc/systemd/system/victoriametrics.serivce &gt; /dev/null
 [Unit]
 Description=VictoriaMetrics
@@ -74,7 +75,8 @@ StartLimitBurst=5
 StartLimitInterval=0
 Restart=on-failure
 RestartSec=1
-ExecStart=/usr/local/bin/victoriametrics -storageDataPath /var/lib/victoriametrics -retentionPeriod 6
+PIDFile=/run/victoriametrics/victoriametrics.pid
+ExecStart=/usr/local/bin/victoriametrics -storageDataPath /var/lib/victoriametrics -retentionPeriod 6 -graphiteListenAddr :2003
 ExecStop=/bin/kill -s SIGTERM $MAINPID
 LimitNOFILE=65536
 LimitNPROC=32000
