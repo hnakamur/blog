@@ -8,7 +8,7 @@ categories = ["blog"]
 
 # はじめに
 
-[VagrantでUbuntu 18.04 LTSとLXDをインストールする手順](/blog/content/post/2018/07/05/install-lxd-on-ubuntu-18.04-lts-on-vagrant/) で構築したLXDの環境で、macOS→VagrantのUbuntu→LXDコンテナへのポートフォワーディングをしたのでメモです。
+[VagrantでUbuntu 18.04 LTSとLXDをインストールする手順](/blog/2018/07/05/install-lxd-on-ubuntu-18.04-lts-on-vagrant/) で構築したLXDの環境で、macOS→VagrantのUbuntu→LXDコンテナへのポートフォワーディングをしたのでメモです。
 
 今回はhttpsの443番ポートで試しました。
 
@@ -96,7 +96,7 @@ sudo apt iptables-save
 
 # UbuntuからLXDコンテナへのポートフォワーディング
 
-[LXDのproxyを使ってポートフォワーディング](/blog/content/post/2018/07/05/port-forwarding-using-lxd-proxy/) の手順で設定してください。
+[LXDのproxyを使ってポートフォワーディング](/blog/2018/07/05/port-forwarding-using-lxd-proxy/) の手順で設定してください。
 
 
 # 動作確認
