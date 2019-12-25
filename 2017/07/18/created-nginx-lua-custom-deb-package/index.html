@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.62.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>nginx&#43;luaのカスタムdebパッケージを作ってみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>nginx&#43;luaのカスタムdebパッケージを作ってみた</h1>
+  <time datetime=2017-07-18T15:20:00&#43;0900 class="post-date">2017-07-18</time>
+  <h2 id="heading">はじめに</h2>
+<p><a href="/blog/2017/07/14/build-nginx-deb-with-ngx_http_v2_upstream/">ngx_http_v2_upstreamモジュールを追加したnginxのdebパッケージを作ってみた</a> 、 <a href="/blog/2017/07/14/tried-git-buildpackage-patch-queue/">git-buildpackageのpatch-queue機能を試してみた</a> の続きです。</p>
+<p>私はCentOS 6と7用のnginx + luaのカスタムrpmを
+<a href="https://github.com/hnakamur/nginx-rpm">hnakamur/nginx-rpm: A Dockerfile to build nginx rpm for CentOS 6 and 7 using fedora copr</a>
+で作っていましたが、それとほぼ同じ内容のdebパッケージを作ってみました。</p>
+<p>debパッケージのソースは
+<a href="https://github.com/hnakamur/nginx-deb">hnakamur/nginx-deb: my nginx custom deb package for Ubuntu 16.04 LTS</a>
+で公開しています。</p>
+<p>今回は手順ではなくて説明メモだけ書きます。
+一般的なdebパッケージ作成の話というよりは、nginx.orgのdebパッケージをベースにカスタマイズしたときの固有の話が多いです。</p>
+<h2 id="origin">パッチの起源をOriginヘッダで記録</h2>
+<p><a href="http://dep.debian.net/deps/dep3/">DEP-3: Patch Tagging Guidelines</a> では <code>Origin</code> ヘッダは
+<code>Author</code> ヘッダが存在しない場合のみ必須となっています。</p>
+<p>でも、パッチの元ネタがどこかは将来のバージョンアップ時に必要になるケースが出てくるので、 <code>Author</code> ヘッダを書く場合でも <code>Origin</code> ヘッダも付けておきたいと思いました。</p>
+<p>しかし <code>patch-queue</code> ブランチの各コミットでパッチを管理して <code>gbp pq export</code> でパッチを再生成すると、
+code:<code>From</code> ヘッダ、 <code>Date</code> ヘッダ、 <code>Subject</code> ヘッダは残るのですが <code>Origin</code> ヘッダは消されてしまうことがわかりました。</p>
+<p>そこで回避策として以下のようにパッチの前の本文の部分の先頭に <code>Origin</code> ヘッダを入れて、本文との区切りがわかるように改行を入れるようにしました。</p>
+<pre><code class="language-console" data-lang="console">From: Piotr Sikora &lt;piotrsikora at google.com&gt;
+Date: Sat, 8 Apr 2017 20:26:21 -0700
+Subject: Output chain: propagate last_buf flag to c-&gt;send_chain().
+
+Origin: http://mailman.nginx.org/pipermail/nginx-devel/2017-June/010209.html
+
+Signed-off-by: Piotr Sikora &lt;piotrsikora at google.com&gt;
+---
+</code></pre><h2 id="nginxupstream">サードパーティのnginxモジュールのソースはupstreamブランチで追加</h2>
+<p>現状ではnginxのモジュールはサードパーティのモジュールもnginx本体と同時にビルドする必要があります。
+サードパーティのnginxモジュールのソースをパッチで管理すると、パッチが増えすぎて現実的ではないのでupstreamブランチで管理することにしました。</p>
+<p>するとnginxのバージョンが例えば1.13.3でもサードパーティのモジュールのソースを追加・更新・削除など行った場合は
+アップストリームのtarballのバージョンを変える必要があります。</p>
+<p>そこで
+<a href="https://www.debian.org/doc/manuals/maint-guide/first.ja.html#namever">パッケージ名とバージョン</a> と
+<a href="https://wiki.debian.org/DebianMentorsFaq#What_does_.2BIBw-dfsg.2BIB0_in_the_version_string_mean.3F">What does “dfsg” in the version string mean?</a>
+を参考にして、アップストリームのバージョンに <code>+mod.1</code> のようにモジュール用のバージョンを追加し
+<code>1.13.3+mod.1~xenial1ppa1</code> のようなバージョンにしました。</p>
+<p>nginxのアップストリームのバージョンを変えずに、サードパーティのソースを変更した場合は <code>mod.</code> の後の数字を増やしてバージョンを変更し、そのタグを打ちます。</p>
+<h2 id="nginx">サードパーティのnginxモジュールのソースをダウンロードしてサブディレクトリに展開するスクリプトを追加</h2>
+<p>例えば
+<a href="https://github.com/openresty/lua-nginx-module">openresty/lua-nginx-module</a>
+だったら <code>lua-nginx-module</code> というサブディレクトリを作ってそこに置くようにしました。</p>
+<p>nginxのアップストリームのソース更新時にまた行うことになるかもしれないので、簡単なスクリプトを書いておきました。
+<a href="https://github.com/hnakamur/nginx-deb/blob/48c12f3100a568024027ee5de74579f44e78de98/debian/download-module-sources.sh">debian/download-module-sources.sh</a></p>
+<h2 id="debianrules">モジュールの追加に応じてdebian/rulesを編集</h2>
+<p>サードパーティのモジュールをビルドに追加するには <code>./configure</code> オプションに
+<code>--add-module=</code> または <code>--add-dynamic-module=</code> でモジュールのソースディレクトリを指定します。</p>
+<p>nginx.orgのdebパッケージの <code>debian/rules</code> はshbangに <code>#!/usr/bin/make -f</code> と書いてあって2行目以降は
+Makefileの形式になっています。</p>
+<p>デバッグシンボル有りと無しの2つをビルドする関係で <code>./configure</code> は <code>debian/rules](https://github.com/hnakamur/nginx-deb/blob/48c12f3100a568024027ee5de74579f44e78de98/debian/rules) の </code>config.status.nginx<code> ターゲットと</code>config.status.nginx_debug<code>ターゲットの2箇所あり、ビルドする際に別ディレクトリにコピーするための</code>config.env.%` ターゲットもあるので、サードパーティのモジュールを追加する際は合計3箇所を編集する必要があります。</p>
+<h2 id="nginx-1">サードパーティのnginxモジュールへのパッチ</h2>
+<p>サードパーティのnginxモジュールへのパッチもpatch-queueブランチで管理してみました。</p>
+<p>パッチの元ネタ作成はサードパーティのモジュールでトピックブランチを切って変更したコミットを追加し以下のコマンドで行いました。 <code>&lt;n&gt;</code> の部分は <code>debian/patches</code> にある最後のパッチの番号の次の番号にします。</p>
+<pre><code class="language-console" data-lang="console">git format-patch --starting-number &lt;n&gt; -1 HEAD
+</code></pre><p>私のnginxカスタムパッケージではサードパーティモジュールのソースはサブディレクトリに入れていますので、
+パッチを当てるソースのパスを手動で変更する必要があります。</p>
+<p>例えば
+<a href="https://github.com/hnakamur/nginx-deb/blob/48c12f3100a568024027ee5de74579f44e78de98/debian/patches/0014-Update-config-to-be-used-as-external-module-for-ngin.patch">nginx-deb/0014-Update-config-to-be-used-as-external-module-for-ngin.patch</a>
+は <code>nginx-dav-ext-module</code> を動的モジュールとしてビルド可能にするパッチなのですが、</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">diff --git a/config b/config
+index 98b2b7a..00ac047 100644
+--- a/config
++++ b/config
+</code></pre></div><p>とサードパーティモジュールのソースではディレクトリ直下にあった <code>config</code> ファイルが
+今回作成しているnginxパッケージでは <code>nginx-dav-ext-module/config</code> というパスになるので、下記のように手動で書き換えています。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">diff --git a/nginx-dav-ext-module/config b/nginx-dav-ext-module/config
+index 98b2b7a..00ac047 100644
+--- a/nginx-dav-ext-module/config
++++ b/nginx-dav-ext-module/config
+</code></pre></div><p>このようにパッチを作ってから <code>gbp pq apply パッチファイル名</code> で適用し、 <code>gbp pq export</code> でパッチを再生成するという手順でパッチを作成、適用しました。</p>
+<p>今回は試してないですが、場合によっては、 <code>patch-queue/master</code> ブランチで直接ファイルを編集してコミットし、 <code>gbp pq export</code> でパッチを再生成するほうが楽かもしれません。パッチの元ネタが自分以外の方の場合は <code>git commit</code> の <code>--author</code> や <code>--date</code> でコミットの著者や日時を元のパッチに合わせるようにしておけば、この手順で良さそうな気がします。</p>
+<h2 id="debiannginxinstall">インストールするファイルが増えたらdebian/nginx.installに追加</h2>
+<p>nginx本体またはサードパーティのモジュールをダイナミックモジュールでビルドするようにした場合は <code>/usr/lib/nginx/modules/</code> に <code>*.so</code> ファイルがインストールされるので <code>debian/nginx.install</code> にエントリを追加します。</p>
+<p>今回の具体例は
+<a href="https://github.com/hnakamur/nginx-deb/blob/48c12f3100a568024027ee5de74579f44e78de98/debian/nginx.install">nginx-deb/nginx.install</a>
+です。</p>
+<p>途中でサードパーティのダイナミックモジュールは別パッケージに分けようかとも思ったのですが、ソースをnginx本体とサードパーティのモジュールを一括で管理し、パッケージも <code>1.13.3+mod.1~xenial1ppa1</code> のようなバージョンにしているので、分けるとバージョンが紛らわしいと思い、分けないことにしました。</p>
+<h2 id="debiancontrolbuild-depends">サードパーティのモジュールのビルドに必要なライブラリをdebian/controlのBuild-Dependsに追加</h2>
+<p>今回の例
+<a href="https://github.com/hnakamur/nginx-deb/blob/48c12f3100a568024027ee5de74579f44e78de98/debian/control">nginx-deb/control</a>
+では <code>libluajit-5.1-dev</code> 以降を追加しています。</p>
+<p><code>pbuilder</code> でビルドしてエラーになったら必要なものを追加するという手順で追記していきました。</p>
+<h2 id="debdebiancontroldepends">作成したdebパッケージの依存ライブラリをdebian/controlのDependsに追加</h2>
+<p>LXDのコンテナを新規作成するなどしてクリーンな環境に作成したdebパッケージをインストールしてみて
+必要と言われたパッケージを <code>debian/control</code> の <code>Depends</code> に追記しました。</p>
+<p>横道にそれますが、
+<a href="https://askubuntu.com/questions/40011/how-to-let-dpkg-i-install-dependencies-for-me">How to let `dpkg -i` install dependencies for me? - Ask Ubuntu</a>
+にローカルのdebファイルを <code>dpkg -i</code> でインストールする時に必要なライブラリをインストールする方法が紹介されていました。以下の2つの方法を試してみて両方うまくいくことを確認しました。</p>
+<ul>
+<li>debファイルのインストールは <code>dpkg -i debパッケージファイル名</code> で行って、必要なライブラリが足りなくてエラーになった後 <code>apt install -f</code> でそれらをインストールする。</li>
+<li><code>gdebi-core</code> パッケージをインストールしておいて、 <code>gdebi debパッケージファイル名</code> でインストールする。</li>
+</ul>
+<p>そしてdebソースパッケージのmasterブランチを適宜rebaseしつつ、再ビルドして作成したdebパッケージが問題なくインストールできるようになったら完成です。</p>
+<h2 id="ppa">PPAでビルドするアーキテクチャの変更</h2>
+<p>ローカルでビルドが通るようになったのでPPAを作ってアップロードしてみたのですが、amd64ではビルド成功するけどi386ではビルド失敗しました。</p>
+<p>i386のdebパッケージは私は不要なのでビルド対象から外すことにしました。</p>
+<p><a href="https://help.launchpad.net/Packaging/PPA?action=show&amp;redirect=PPA">Packaging/PPA - Launchpad Help</a> の
+<a href="https://dev.launchpad.net/CommunityARMBuilds">ARM builds</a> にARMをビルド対象に追加する手順が書かれていました。</p>
+<p>これを参考にi386を削除しました。自分のnginxのPPAのページの右上に Change details というリンクがあるので、
+それをクリックし Processors の下のチェックボックスの選択を変更してSaveボタンを押せばOKです。</p>
+
+</div>
+
+
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>

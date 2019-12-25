@@ -1,42 +1,71 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
 <head>
-        <meta charset="utf-8" />
-        <title>minikubeとVirtualBoxでNFSのpersistent volumeを試してみた</title>
-        <link rel="stylesheet" href="../../../../theme/css/main.css" />
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.62.0" />
 
-        <!--[if IE]>
-            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
-        <![endif]-->
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>minikubeとVirtualBoxでNFSのpersistent volumeを試してみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
 </head>
 
-<body id="index" class="home">
-        <header id="banner" class="body">
-                <h1><a href="../../../../">hnakamur's blog at github </a></h1>
-                <nav><ul>
-                    <li class="active"><a href="../../../../category/blog.html">blog</a></li>
-                </ul></nav>
-        </header><!-- /#banner -->
-<section id="content" class="body">
-  <article>
-    <header>
-      <h1 class="entry-title">
-        <a href="../../../../2017/01/01/use-nfs-persistent-volume-on-minikube-virtualbox/" rel="bookmark"
-           title="Permalink to minikubeとVirtualBoxでNFSのpersistent volumeを試してみた">minikubeとVirtualBoxでNFSのpersistent volumeを試してみた</a></h1>
-    </header>
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
 
-    <div class="entry-content">
-<footer class="post-info">
-        <abbr class="published" title="2017-01-01T09:40:00+09:00">
-                Published: 2017-01-01
-        </abbr>
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
 
-        <address class="vcard author">
-                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
-        </address>
-<p>In <a href="../../../../category/blog.html">blog</a>.</p>
-<p>tags: <a href="../../../../tag/kubernetes.html">kubernetes</a> </p>
-</footer><!-- /.post-info -->      <h2>はじめに</h2>
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>minikubeとVirtualBoxでNFSのpersistent volumeを試してみた</h1>
+  <time datetime=2017-01-01T09:40:35&#43;0900 class="post-date">2017-01-01</time>
+  <h2 id="heading">はじめに</h2>
 <p><a href="http://kubernetes.io/docs/tutorials/">Tutorials - Kubernetes</a>のStateful Applicationsを試そうと思って少し読んだ所、 persistent volume というものを用意する必要があることがわかりました。</p>
 <p><a href="http://kubernetes.io/docs/user-guide/persistent-volumes/#types-of-persistent-volumes">Types of Persistent Volumes</a> を見るとさまざまなタイプの persistent volume がありますが、Mac上での開発環境としてkubernetesを使うならNFSが手軽そうなので、これを試してみることにしました。</p>
 <p>このページを見てもよくわからなかったので、検索して見つけた以下の情報を参考にして試行錯誤して、とりあえず動くようになったのでメモです。</p>
@@ -45,35 +74,29 @@
 <li><a href="https://github.com/TheNewNormal/kube-solo-osx/blob/master/examples/pv/nfs-pv-mount-on-pod.md">kube-solo-osx/nfs-pv-mount-on-pod.md at master · TheNewNormal/kube-solo-osx</a></li>
 <li><a href="https://github.com/kubernetes/kubernetes/tree/master/examples/volumes/nfs">kubernetes/examples/volumes/nfs at master · kubernetes/kubernetes</a></li>
 </ul>
-<h2>minikubeからmacのディスクをNFSマウントする</h2>
+<h2 id="minikubemacnfs">minikubeからmacのディスクをNFSマウントする</h2>
 <p><a href="https://github.com/kubernetes/minikube/issues/2#issuecomment-233629375">Support mounting host directories into pods · Issue #2 · kubernetes/minikube</a>のコメントに従って以下のコマンドをmacで実行しました。</p>
-<div class="highlight"><pre><span></span><span class="n">echo</span> <span class="ss">&quot;/Users -network 192.168.99.0 -mask 255.255.255.0 -alldirs -maproot=root:wheel&quot;</span> <span class="o">|</span> <span class="n">sudo</span> <span class="n">tee</span> <span class="o">-</span><span class="n">a</span> <span class="o">/</span><span class="n">etc</span><span class="o">/</span><span class="n">exports</span>
-<span class="n">sudo</span> <span class="n">nfsd</span> <span class="k">restart</span>
-</pre></div>
-
-
-<p>IPアドレスは <code>minikube ip</code> の結果に合わせて調整します。私の環境では 192.168.99.100 だったので、それにあわせて <code>-network</code> は 192.168.99.0、 <code>-mask</code> は 255.255.255.0 としています。</p>
+<pre><code>echo &quot;/Users -network 192.168.99.0 -mask 255.255.255.0 -alldirs -maproot=root:wheel&quot; | sudo tee -a /etc/exports
+sudo nfsd restart
+</code></pre><p>IPアドレスは <code>minikube ip</code> の結果に合わせて調整します。私の環境では 192.168.99.100 だったので、それにあわせて <code>-network</code> は 192.168.99.0、 <code>-mask</code> は 255.255.255.0 としています。</p>
 <p>以下の手順で、手動で一度マウントしてみました。 <code>minikube start</code> は既に起動済みなら不要です。</p>
-<div class="highlight"><pre><span></span><span class="n">minikube</span> <span class="k">start</span>
-<span class="n">minikube</span> <span class="n">ssh</span> <span class="c1">-- sudo umount /Users</span>
-<span class="n">minikube</span> <span class="n">ssh</span> <span class="c1">-- sudo /usr/local/etc/init.d/nfs-client start</span>
-<span class="n">minikube</span> <span class="n">ssh</span> <span class="c1">-- sudo mount 192.168.99.1:/Users /Users -o rw,async,noatime,rsize=32768,wsize=32768,proto=tcp</span>
-</pre></div>
-
-
-<p>IPアドレスは <code>minikube ip</code> の結果に合わせて調整します。私の環境では 192.168.99.100 だったので、minikubeからmacへは 192.168.99.1 で参照できるということでmountの引数にはこのアドレスを指定しています。</p>
+<pre><code>minikube start
+minikube ssh -- sudo umount /Users
+minikube ssh -- sudo /usr/local/etc/init.d/nfs-client start
+minikube ssh -- sudo mount 192.168.99.1:/Users /Users -o rw,async,noatime,rsize=32768,wsize=32768,proto=tcp
+</code></pre><p>IPアドレスは <code>minikube ip</code> の結果に合わせて調整します。私の環境では 192.168.99.100 だったので、minikubeからmacへは 192.168.99.1 で参照できるということでmountの引数にはこのアドレスを指定しています。</p>
 <p>マウントポイントの /Users は適宜変更変更します。</p>
 <p>無事マウントできたら <code>minikube ssh</code> でssh接続して <code>df -h</code> などでマウントされたことを確認し、minikube内からとmac側からファイルを作ったり削除して相互に見えることを確認しました。</p>
 <p>一通り確認したらminikube内から <code>sudo umount /Users</code> でアンマウントしておきます。</p>
-<h2>PodからNFSのpersistent volumeを使ってみる</h2>
+<h2 id="podnfspersistent-volume">PodからNFSのpersistent volumeを使ってみる</h2>
 <p><a href="https://github.com/TheNewNormal/kube-solo-osx/blob/master/examples/pv/nfs-pv-mount-on-pod.md">kube-solo-osx/nfs-pv-mount-on-pod.md at master · TheNewNormal/kube-solo-osx</a>と<a href="https://github.com/kubernetes/kubernetes/tree/master/examples/volumes/nfs">kubernetes/examples/volumes/nfs at master · kubernetes/kubernetes</a>を参考にして試行錯誤しました。</p>
 <p>後者の <a href="https://github.com/kubernetes/kubernetes/blob/f5d9c430e9168cf5c41197b8a4e457981cb031df/examples/volumes/nfs/nfs-web-rc.yaml">nfs-web-rc.yaml</a>では ReplicationController というものを作っているのですが、<a href="http://stackoverflow.com/questions/37423117/replication-controller-vs-deployment-in-kubernetes/37423281#37423281">google compute engine - Replication Controller VS Deployment in Kubernetes - Stack Overflow</a>というコメントによると、ReplicatioControllerはDeploymentsにとって変わられるものだそうです。ただし、 <a href="http://stackoverflow.com/questions/37423117/replication-controller-vs-deployment-in-kubernetes/37423217#37423217">google compute engine - Replication Controller VS Deployment in Kubernetes - Stack Overflow</a>によるとDeploymentはまだベータです。</p>
-<h2>サービス公開用の設定ファイル</h2>
+<h2 id="heading-1">サービス公開用の設定ファイル</h2>
 <p>試行錯誤した結果の設定ファイルは以下の通りです。</p>
 <p>persistent-volume-nfs.ymlのspec.nfs.pathに対応するディレクトリはmacで <code>mkdir -p /Users/hnakamur/kube-data</code> で作成しておきます。spec.nfs.serverはminikubeから見たmacのIPアドレスを指定します。</p>
 <p>spec.persistentVolumeReclaimPolicyは<a href="https://github.com/TheNewNormal/kube-solo-osx/blob/252b46b4837efc41e7c85c7c3171518e23520866/examples/pv/nfs-pv-mount-on-pod.md">kube-solo-osx/nfs-pv-mount-on-pod.md at 252b46b4837efc41e7c85c7c3171518e23520866 · TheNewNormal/kube-solo-osx</a>ではRetainedとなっていたのですが、動かしてみるとエラーメッセージが出たのでそこに書いてあった選択肢の1つのRetainに変えました。</p>
 <p>persistemt volumeとpersistent volume claimについては<a href="http://kubernetes.io/docs/user-guide/persistent-volumes/">Persistent Volumes - Kubernetes</a>に説明があります。</p>
-<div class="highlight"><pre><span></span>$ cat persistent-volume-nfs.yml
+<pre><code>$ cat persistent-volume-nfs.yml
 kind: PersistentVolume
 apiVersion: v1
 metadata:
@@ -87,13 +110,10 @@ spec:
     - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain
   nfs:
-    <span class="c1"># TODO: modify path and server appropriately</span>
+    # TODO: modify path and server appropriately
     path: /Users/hnakamur/kube-data
-    server: <span class="m">192</span>.168.99.1
-</pre></div>
-
-
-<div class="highlight"><pre><span></span>$ cat persistent-volume-claim.yml
+    server: 192.168.99.1
+</code></pre><pre><code>$ cat persistent-volume-claim.yml
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
@@ -104,17 +124,14 @@ spec:
   resources:
     requests:
       storage: 15Gi
-</pre></div>
-
-
-<p>Deploymentsについては<a href="http://kubernetes.io/docs/user-guide/deployments/">Deployments - Kubernetes</a>を参照してください。</p>
-<div class="highlight"><pre><span></span>$ cat nginx-deployment.yml
+</code></pre><p>Deploymentsについては<a href="http://kubernetes.io/docs/user-guide/deployments/">Deployments - Kubernetes</a>を参照してください。</p>
+<pre><code>$ cat nginx-deployment.yml
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: nginx
 spec:
-  replicas: <span class="m">3</span>
+  replicas: 3
   template:
     metadata:
       labels:
@@ -124,19 +141,16 @@ spec:
         - name: nginx
           image: nginx:1.11.8
           ports:
-            - containerPort: <span class="m">80</span>
+            - containerPort: 80
           volumeMounts:
-            - mountPath: <span class="s2">&quot;/usr/share/nginx/html&quot;</span>
+            - mountPath: &quot;/usr/share/nginx/html&quot;
               name: nginx-data
       volumes:
         - name: nginx-data
           persistentVolumeClaim:
             claimName: my-pvc
-</pre></div>
-
-
-<p>Servicesについては<a href="http://kubernetes.io/docs/user-guide/services/#type-nodeport">Services - Kubernetes</a>を参照してください。</p>
-<div class="highlight"><pre><span></span>$ cat nginx-service.yml
+</code></pre><p>Servicesについては<a href="http://kubernetes.io/docs/user-guide/services/#type-nodeport">Services - Kubernetes</a>を参照してください。</p>
+<pre><code>$ cat nginx-service.yml
 kind: Service
 apiVersion: v1
 metadata:
@@ -144,75 +158,53 @@ metadata:
 spec:
   ports:
     - protocol: TCP
-      port: <span class="m">80</span>
-      targetPort: <span class="m">80</span>
+      port: 80
+      targetPort: 80
   type: NodePort
   selector:
     app: nginx
-</pre></div>
-
-
-<h2>サービス作成と公開</h2>
+</code></pre><h2 id="heading-2">サービス作成と公開</h2>
 <p>上記の設定ファイルを用意しておけば、サービス作成と公開は以下のように実行するだけです。</p>
-<div class="highlight"><pre><span></span><span class="n">kubectl</span> <span class="k">create</span> <span class="o">-</span><span class="n">f</span> <span class="n">persistent</span><span class="o">-</span><span class="n">volume</span><span class="o">-</span><span class="n">nfs</span><span class="p">.</span><span class="n">yml</span>
-<span class="n">kubectl</span> <span class="k">create</span> <span class="o">-</span><span class="n">f</span> <span class="n">persistent</span><span class="o">-</span><span class="n">volume</span><span class="o">-</span><span class="n">claim</span><span class="p">.</span><span class="n">yml</span>
-<span class="n">kubectl</span> <span class="k">create</span> <span class="o">-</span><span class="n">f</span> <span class="n">nginx</span><span class="o">-</span><span class="n">deployment</span><span class="p">.</span><span class="n">yml</span>
-<span class="n">kubectl</span> <span class="k">create</span> <span class="o">-</span><span class="n">f</span> <span class="n">nginx</span><span class="o">-</span><span class="n">service</span><span class="p">.</span><span class="n">yml</span>
-</pre></div>
-
-
-<p>mac上で以下のコマンドでnginxで表示するHTMLファイルを作成します。HTMLファイルと言いつつ手抜きで単なるテキストです。</p>
-<div class="highlight"><pre><span></span><span class="n">echo</span> <span class="s1">&#39;Hello Kubernetes NFS volume!&#39;</span> <span class="o">&gt;</span> <span class="o">~/</span><span class="n">kube</span><span class="o">-</span><span class="k">data</span><span class="o">/</span><span class="k">index</span><span class="p">.</span><span class="n">html</span>
-</pre></div>
-
-
-<h2>macからcurlでサービスのnginxにアクセスしてみる</h2>
+<pre><code>kubectl create -f persistent-volume-nfs.yml
+kubectl create -f persistent-volume-claim.yml
+kubectl create -f nginx-deployment.yml
+kubectl create -f nginx-service.yml
+</code></pre><p>mac上で以下のコマンドでnginxで表示するHTMLファイルを作成します。HTMLファイルと言いつつ手抜きで単なるテキストです。</p>
+<pre><code>echo 'Hello Kubernetes NFS volume!' &gt; ~/kube-data/index.html
+</code></pre><h2 id="maccurlnginx">macからcurlでサービスのnginxにアクセスしてみる</h2>
 <p>ノードのIPとポートを取得して環境変数に設定。</p>
-<div class="highlight"><pre><span></span>$ <span class="nb">export</span> <span class="nv">NODE_IP</span><span class="o">=</span><span class="k">$(</span>minikube ip<span class="k">)</span>
-$ <span class="nb">echo</span> <span class="nv">NODE_IP</span><span class="o">=</span><span class="nv">$NODE_IP</span>
-<span class="nv">NODE_IP</span><span class="o">=</span><span class="m">192</span>.168.99.100
-$ <span class="nb">export</span> <span class="nv">NODE_PORT</span><span class="o">=</span><span class="k">$(</span>kubectl get services/nginx -o go-template<span class="o">=</span><span class="s1">&#39;{{(index .spec.ports 0).nodePort}}&#39;</span><span class="k">)</span>
-$ <span class="nb">echo</span> <span class="nv">NODE_PORT</span><span class="o">=</span><span class="nv">$NODE_PORT</span>
-<span class="nv">NODE_PORT</span><span class="o">=</span><span class="m">32252</span>
-</pre></div>
-
-
-<p>curlでアクセスすると、上記で作成したファイルの内容が表示されることを確認できました。</p>
-<div class="highlight"><pre><span></span>$ curl <span class="nv">$NODE_IP</span>:<span class="nv">$NODE_PORT</span>
+<pre><code>$ export NODE_IP=$(minikube ip)
+$ echo NODE_IP=$NODE_IP
+NODE_IP=192.168.99.100
+$ export NODE_PORT=$(kubectl get services/nginx -o go-template='{{(index .spec.ports 0).nodePort}}')
+$ echo NODE_PORT=$NODE_PORT
+NODE_PORT=32252
+</code></pre><p>curlでアクセスすると、上記で作成したファイルの内容が表示されることを確認できました。</p>
+<pre><code>$ curl $NODE_IP:$NODE_PORT
 Hello Kubernetes NFS volume!
-</pre></div>
-
-
-<h2>サービス公開停止と削除</h2>
+</code></pre><h2 id="heading-3">サービス公開停止と削除</h2>
 <p>作成時とは逆の順番に <code>kubectl delete -f</code> で設定ファイルを指定して削除すればOKでした。</p>
-<div class="highlight"><pre><span></span><span class="n">kubectl</span> <span class="k">delete</span> <span class="o">-</span><span class="n">f</span> <span class="n">nginx</span><span class="o">-</span><span class="n">service</span><span class="p">.</span><span class="n">yml</span>
-<span class="n">kubectl</span> <span class="k">delete</span> <span class="o">-</span><span class="n">f</span> <span class="n">nginx</span><span class="o">-</span><span class="n">deployment</span><span class="p">.</span><span class="n">yml</span>
-<span class="n">kubectl</span> <span class="k">delete</span> <span class="o">-</span><span class="n">f</span> <span class="n">persistent</span><span class="o">-</span><span class="n">volume</span><span class="o">-</span><span class="n">claim</span><span class="p">.</span><span class="n">yml</span>
-<span class="n">kubectl</span> <span class="k">delete</span> <span class="o">-</span><span class="n">f</span> <span class="n">persistent</span><span class="o">-</span><span class="n">volume</span><span class="o">-</span><span class="n">nfs</span><span class="p">.</span><span class="n">yml</span>
-</pre></div>
-    </div><!-- /.entry-content -->
+<pre><code>kubectl delete -f nginx-service.yml
+kubectl delete -f nginx-deployment.yml
+kubectl delete -f persistent-volume-claim.yml
+kubectl delete -f persistent-volume-nfs.yml
+</code></pre>
+</div>
 
-  </article>
-</section>
-        <section id="extras" class="body">
-        </section><!-- /#extras -->
 
-        <footer id="contentinfo" class="body">
-                <address id="about" class="vcard body">
-                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
-                </address><!-- /#about -->
+    </main>
 
-                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
-        </footer><!-- /#contentinfo -->
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
 
-    <script type="text/javascript">
-    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
-
-    ga('create', 'UA-53263855-1', 'auto');
-    ga('send', 'pageview');
-    </script>
-</body>
+  </body>
 </html>

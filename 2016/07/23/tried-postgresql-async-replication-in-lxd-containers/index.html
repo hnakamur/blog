@@ -1,230 +1,193 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
 <head>
-        <meta charset="utf-8" />
-        <title>LXDコンテナでPostgreSQLの非同期リプリケーションを試してみた</title>
-        <link rel="stylesheet" href="../../../../theme/css/main.css" />
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.62.0" />
 
-        <!--[if IE]>
-            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
-        <![endif]-->
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>LXDコンテナでPostgreSQLの非同期リプリケーションを試してみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
 </head>
 
-<body id="index" class="home">
-        <header id="banner" class="body">
-                <h1><a href="../../../../">hnakamur's blog at github </a></h1>
-                <nav><ul>
-                    <li class="active"><a href="../../../../category/blog.html">blog</a></li>
-                </ul></nav>
-        </header><!-- /#banner -->
-<section id="content" class="body">
-  <article>
-    <header>
-      <h1 class="entry-title">
-        <a href="../../../../2016/07/23/tried-postgresql-async-replication-in-lxd-containers/" rel="bookmark"
-           title="Permalink to LXDコンテナでPostgreSQLの非同期リプリケーションを試してみた">LXDコンテナでPostgreSQLの非同期リプリケーションを試してみた</a></h1>
-    </header>
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
 
-    <div class="entry-content">
-<footer class="post-info">
-        <abbr class="published" title="2016-07-23T21:13:00+09:00">
-                Published: 2016-07-23
-        </abbr>
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
 
-        <address class="vcard author">
-                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
-        </address>
-<p>In <a href="../../../../category/blog.html">blog</a>.</p>
-<p>tags: <a href="../../../../tag/lxd.html">lxd</a> <a href="../../../../tag/postgresql.html">postgresql</a> </p>
-</footer><!-- /.post-info -->      <p><a href="http://lets.postgresql.jp/documents/technical/replication/1/">ストリーミング・レプリケーションの構築 — Let's Postgres</a> と <a href="http://d.hatena.ne.jp/hiroe_orz17/20111113/1321180635">PostgreSQL9.1ためしてみた【非同期レプリケーション編】 - ごろねこ日記</a> を読んで、2台のLXDコンテナを使ってPostgreSQLの非同期リプリケーションを試してみたのでメモです。</p>
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>LXDコンテナでPostgreSQLの非同期リプリケーションを試してみた</h1>
+  <time datetime=2016-07-23T21:13:52&#43;0900 class="post-date">2016-07-23</time>
+  <p><a href="http://lets.postgresql.jp/documents/technical/replication/1/">ストリーミング・レプリケーションの構築 — Let's Postgres</a> と <a href="http://d.hatena.ne.jp/hiroe_orz17/20111113/1321180635">PostgreSQL9.1ためしてみた【非同期レプリケーション編】 - ごろねこ日記</a> を読んで、2台のLXDコンテナを使ってPostgreSQLの非同期リプリケーションを試してみたのでメモです。</p>
 <p>また<a href="https://www.packtpub.com/big-data-and-business-intelligence/postgresql-replication-second-edition">PostgreSQL Replication - Second Edition | PACKT Books</a>が $10 と安かったので、買って非同期レプリケーションの章まで読みました。</p>
 <p>手順はAnsible playbookとしてまとめました。 <a href="https://github.com/hnakamur/postgresql-async-replication-example-playbook">hnakamur/postgresql-async-replication-example-playbook</a></p>
-<p><code>ansible.cfg</code> で <code>ask_vault_pass = True</code> と指定しているので、プレイブック実行時に <code>Vault password:</code> と聞かれます。パスワードは <code>password</code> です。サンプルなので単純なパスワードにしていますが、実案件でのプレイブックはきちんとしたパスワードをつけています。</p>
-<h2>テスト環境構築</h2>
+<p><code>ansible.cfg</code> で <code>ask_vault_pass = True</code> と指定しているので、プレイブック実行時に <code>Vault password: </code> と聞かれます。パスワードは <code>password</code> です。サンプルなので単純なパスワードにしていますが、実案件でのプレイブックはきちんとしたパスワードをつけています。</p>
+<h2 id="heading">テスト環境構築</h2>
 <p>ホストマシンのディストリビューションはUbuntu 16.04でLXD 2.0.3, curl, jqをインストール済みの状態で試しました。</p>
 <p>作業ディレクトリを作って、そこに移動し上記のプレイブックを取得します。</p>
-<div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">clone</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="p">.</span><span class="n">com</span><span class="o">/</span><span class="n">hnakamur</span><span class="o">/</span><span class="n">postgresql</span><span class="o">-</span><span class="n">async</span><span class="o">-</span><span class="n">replication</span><span class="o">-</span><span class="n">example</span><span class="o">-</span><span class="n">playbook</span>
-<span class="n">cd</span> <span class="n">postgresql</span><span class="o">-</span><span class="n">async</span><span class="o">-</span><span class="n">replication</span><span class="o">-</span><span class="n">example</span><span class="o">-</span><span class="n">playbook</span>
-</pre></div>
+<pre><code>git clone https://github.com/hnakamur/postgresql-async-replication-example-playbook
+cd postgresql-async-replication-example-playbook
+</code></pre><p><code>lxd_container</code> モジュールを使うため、 github から最新のAnsibleをインストールします。</p>
+<pre><code>virtualenv venv
+source venv/bin/activate
+pip install git+https://github.com/ansible/ansible
+</code></pre><h2 id="masterstandby">masterとstandbyのコンテナを作成</h2>
+<pre><code>ansible-playbook launch_containers.yml
+</code></pre><p>実行すると <code>development</code> というインベントリファイルを生成します。初期状態ではコンテナ <code>pgsql1</code> が master, コンテナ <code>pgsql2</code> が standby になります。</p>
+<pre><code>[development]
+pgsql1 postgresql_peer_ipaddr=10.155.92.234 postgressql_master_standby_type=master
+pgsql2 postgresql_peer_ipaddr=10.155.92.202 postgressql_master_standby_type=standby
 
-
-<p><code>lxd_container</code> モジュールを使うため、 github から最新のAnsibleをインストールします。</p>
-<div class="highlight"><pre><span></span><span class="n">virtualenv</span> <span class="n">venv</span>
-<span class="k">source</span> <span class="n">venv</span><span class="o">/</span><span class="n">bin</span><span class="o">/</span><span class="n">activate</span>
-<span class="n">pip</span> <span class="n">install</span> <span class="n">git</span><span class="o">+</span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="p">.</span><span class="n">com</span><span class="o">/</span><span class="n">ansible</span><span class="o">/</span><span class="n">ansible</span>
-</pre></div>
-
-
-<h2>masterとstandbyのコンテナを作成</h2>
-<div class="highlight"><pre><span></span><span class="n">ansible</span><span class="o">-</span><span class="n">playbook</span> <span class="n">launch_containers</span><span class="p">.</span><span class="n">yml</span>
-</pre></div>
-
-
-<p>実行すると <code>development</code> というインベントリファイルを生成します。初期状態ではコンテナ <code>pgsql1</code> が master, コンテナ <code>pgsql2</code> が standby になります。</p>
-<div class="highlight"><pre><span></span><span class="k">[development]</span>
-<span class="na">pgsql1 postgresql_peer_ipaddr</span><span class="o">=</span><span class="s">10.155.92.234 postgressql_master_standby_type=master</span>
-<span class="na">pgsql2 postgresql_peer_ipaddr</span><span class="o">=</span><span class="s">10.155.92.202 postgressql_master_standby_type=standby</span>
-
-<span class="k">[development:vars]</span>
-<span class="na">ansible_connection</span><span class="o">=</span><span class="s">lxd</span>
-</pre></div>
-
-
-<h2>コンテナ内にPostgreSQLの非同期レプリケーションの環境設定</h2>
+[development:vars]
+ansible_connection=lxd
+</code></pre><h2 id="postgresql">コンテナ内にPostgreSQLの非同期レプリケーションの環境設定</h2>
 <p>以下のコマンドを実行してセットアップを実行します。</p>
-<div class="highlight"><pre><span></span><span class="n">ansible</span><span class="o">-</span><span class="n">playbook</span> <span class="n">initial_setup</span><span class="p">.</span><span class="n">yml</span>
-</pre></div>
-
-
-<p>完了したら、2つ端末を開いて片方で</p>
-<div class="highlight"><pre><span></span><span class="nv">lxc</span> <span class="k">exec</span> <span class="nv">pgsql1</span> <span class="nv">bash</span>
-<span class="nv">sudo</span> <span class="o">-</span><span class="nv">u</span> <span class="nv">postgres</span> <span class="o">-</span><span class="nv">i</span>
-</pre></div>
-
-
-<p>を実行し、もう片方で</p>
-<div class="highlight"><pre><span></span><span class="nv">lxc</span> <span class="k">exec</span> <span class="nv">pgsql2</span> <span class="nv">bash</span>
-<span class="nv">sudo</span> <span class="o">-</span><span class="nv">u</span> <span class="nv">postgres</span> <span class="o">-</span><span class="nv">i</span>
-</pre></div>
-
-
-<p>を実行し、データベースを作ったり pgbench を動かしたりして変更が同期されるのを確認します。</p>
+<pre><code>ansible-playbook initial_setup.yml
+</code></pre><p>完了したら、2つ端末を開いて片方で</p>
+<pre><code>lxc exec pgsql1 bash
+sudo -u postgres -i
+</code></pre><p>を実行し、もう片方で</p>
+<pre><code>lxc exec pgsql2 bash
+sudo -u postgres -i
+</code></pre><p>を実行し、データベースを作ったり pgbench を動かしたりして変更が同期されるのを確認します。</p>
 <p>test というデータベースを作ってpgbenchを実行する手順は以下の通りです。</p>
-<div class="highlight"><pre><span></span><span class="k">createdb</span> <span class="n">test</span>
-<span class="o">/</span><span class="n">usr</span><span class="o">/</span><span class="n">pgsql</span><span class="o">-</span><span class="mi">9</span><span class="p">.</span><span class="mi">5</span><span class="o">/</span><span class="n">bin</span><span class="o">/</span><span class="n">pgbench</span> <span class="o">-</span><span class="n">i</span> <span class="n">test</span>
-<span class="o">/</span><span class="n">usr</span><span class="o">/</span><span class="n">pgsql</span><span class="o">-</span><span class="mi">9</span><span class="p">.</span><span class="mi">5</span><span class="o">/</span><span class="n">bin</span><span class="o">/</span><span class="n">pgbench</span> <span class="o">-</span><span class="n">T</span> <span class="mi">180</span> <span class="n">test</span>
-</pre></div>
-
-
-<p>上記の手順を1歩ずつ試し、 test データベースを作る前は pgsql2 では <code>psql test</code> が失敗しますが作った後は成功するなどで同期が確認できます。</p>
-<h2>レプリケーションの状態確認</h2>
-<h3>master側での確認</h3>
+<pre><code>createdb test
+/usr/pgsql-9.5/bin/pgbench -i test
+/usr/pgsql-9.5/bin/pgbench -T 180 test
+</code></pre><p>上記の手順を1歩ずつ試し、 test データベースを作る前は pgsql2 では <code>psql test</code> が失敗しますが作った後は成功するなどで同期が確認できます。</p>
+<h2 id="heading-1">レプリケーションの状態確認</h2>
+<h3 id="master">master側での確認</h3>
 <p>以下のコマンドを実行します。</p>
-<div class="highlight"><pre><span></span><span class="n">watch</span> <span class="o">-</span><span class="n">n</span> <span class="mi">0</span><span class="p">.</span><span class="mi">5</span> <span class="s1">&#39;psql -x -c &quot;SELECT * FROM pg_stat_replication&quot;&#39;</span>
-</pre></div>
+<pre><code>watch -n 0.5 'psql -x -c &quot;SELECT * FROM pg_stat_replication&quot;'
+</code></pre><p>こんな感じで確認できます。</p>
+<pre><code>Every 0.5s: psql -x -c &quot;SELECT * FROM pg_stat_replication&quot;         Sat Jul 23 12:47:27 2016
 
-
-<p>こんな感じで確認できます。</p>
-<div class="highlight"><pre><span></span><span class="k">Every</span> <span class="mi">0</span><span class="p">.</span><span class="mi">5</span><span class="n">s</span><span class="p">:</span> <span class="n">psql</span> <span class="o">-</span><span class="n">x</span> <span class="o">-</span><span class="k">c</span> <span class="ss">&quot;SELECT * FROM pg_stat_replication&quot;</span>         <span class="n">Sat</span> <span class="n">Jul</span> <span class="mi">23</span> <span class="mi">12</span><span class="p">:</span><span class="mi">47</span><span class="p">:</span><span class="mi">27</span> <span class="mi">2016</span>
-
-<span class="o">-</span><span class="p">[</span> <span class="n">RECORD</span> <span class="mi">1</span> <span class="p">]</span><span class="c1">----+------------------------------</span>
-<span class="n">pid</span>              <span class="o">|</span> <span class="mi">2160</span>
-<span class="n">usesysid</span>         <span class="o">|</span> <span class="mi">16384</span>
-<span class="n">usename</span>          <span class="o">|</span> <span class="n">repl_user</span>
-<span class="n">application_name</span> <span class="o">|</span> <span class="n">walreceiver</span>
-<span class="n">client_addr</span>      <span class="o">|</span> <span class="mi">10</span><span class="p">.</span><span class="mi">155</span><span class="p">.</span><span class="mi">92</span><span class="p">.</span><span class="mi">234</span>
-<span class="n">client_hostname</span>  <span class="o">|</span>
-<span class="n">client_port</span>      <span class="o">|</span> <span class="mi">44822</span>
-<span class="n">backend_start</span>    <span class="o">|</span> <span class="mi">2016</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">23</span> <span class="mi">08</span><span class="p">:</span><span class="mi">34</span><span class="p">:</span><span class="mi">43</span><span class="p">.</span><span class="mi">696331</span><span class="o">+</span><span class="mi">00</span>
-<span class="n">backend_xmin</span>     <span class="o">|</span>
-<span class="k">state</span>            <span class="o">|</span> <span class="n">streaming</span>
-<span class="n">sent_location</span>    <span class="o">|</span> <span class="mi">0</span><span class="o">/</span><span class="mi">30031</span><span class="n">E0</span>
-<span class="n">write_location</span>   <span class="o">|</span> <span class="mi">0</span><span class="o">/</span><span class="mi">30031</span><span class="n">E0</span>
-<span class="n">flush_location</span>   <span class="o">|</span> <span class="mi">0</span><span class="o">/</span><span class="mi">30031</span><span class="n">E0</span>
-<span class="n">replay_location</span>  <span class="o">|</span> <span class="mi">0</span><span class="o">/</span><span class="mi">30031</span><span class="n">E0</span>
-<span class="n">sync_priority</span>    <span class="o">|</span> <span class="mi">0</span>
-<span class="n">sync_state</span>       <span class="o">|</span> <span class="n">async</span>
-</pre></div>
-
-
-<h3>standby側での確認</h3>
+-[ RECORD 1 ]----+------------------------------
+pid              | 2160
+usesysid         | 16384
+usename          | repl_user
+application_name | walreceiver
+client_addr      | 10.155.92.234
+client_hostname  |
+client_port      | 44822
+backend_start    | 2016-07-23 08:34:43.696331+00
+backend_xmin     |
+state            | streaming
+sent_location    | 0/30031E0
+write_location   | 0/30031E0
+flush_location   | 0/30031E0
+replay_location  | 0/30031E0
+sync_priority    | 0
+sync_state       | async
+</code></pre><h3 id="standby">standby側での確認</h3>
 <p>以下のコマンドを実行します。</p>
-<div class="highlight"><pre><span></span><span class="n">watch</span><span class="w"> </span><span class="o">-</span><span class="n">n</span><span class="w"> </span><span class="mf">0.5</span><span class="w"> </span><span class="s1">&#39;ps auxww | grep &quot;[p]ostgres:&quot;&#39;</span><span class="w"></span>
-</pre></div>
+<pre><code>watch -n 0.5 'ps auxww | grep &quot;[p]ostgres:&quot;'
+</code></pre><p>こんな感じで確認できます。</p>
+<pre><code>Every 0.5s: ps auxww | grep &quot;[p]ostgres:&quot;                                   Sat Jul 23 12:49:30 2016
+ailabl
+postgres  2051  0.0  0.0  86736  3420 ?        Ss   08:34   0:00 postgres: logger process
+postgres  2052  0.0  0.0 233948  5996 ?        Ss   08:34   0:00 postgres: startup process   recover
+ing 000000010000000000000003
+postgres  2071  0.0  0.0 234012  7016 ?        Ss   08:34   0:00 postgres: checkpointer process
+postgres  2072  0.0  0.0 233912  5916 ?        Ss   08:34   0:00 postgres: writer processl
+postgres  2073  0.0  0.0  88856  3444 ?        Ss   08:34   0:00 postgres: stats collector process
 
-
-<p>こんな感じで確認できます。</p>
-<div class="highlight"><pre><span></span><span class="k">Every</span><span class="w"> </span><span class="mf">0.5</span><span class="nl">s</span><span class="p">:</span><span class="w"> </span><span class="n">ps</span><span class="w"> </span><span class="n">auxww</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">grep</span><span class="w"> </span><span class="ss">&quot;[p]ostgres:&quot;</span><span class="w">                                   </span><span class="n">Sat</span><span class="w"> </span><span class="n">Jul</span><span class="w"> </span><span class="mi">23</span><span class="w"> </span><span class="mi">12</span><span class="err">:</span><span class="mi">49</span><span class="err">:</span><span class="mi">30</span><span class="w"> </span><span class="mi">2016</span><span class="w"></span>
-<span class="n">ailabl</span><span class="w"></span>
-<span class="n">postgres</span><span class="w">  </span><span class="mi">2051</span><span class="w">  </span><span class="mf">0.0</span><span class="w">  </span><span class="mf">0.0</span><span class="w">  </span><span class="mi">86736</span><span class="w">  </span><span class="mi">3420</span><span class="w"> </span><span class="vm">?</span><span class="w">        </span><span class="n">Ss</span><span class="w">   </span><span class="mi">08</span><span class="err">:</span><span class="mi">34</span><span class="w">   </span><span class="mi">0</span><span class="err">:</span><span class="mi">00</span><span class="w"> </span><span class="nl">postgres</span><span class="p">:</span><span class="w"> </span><span class="n">logger</span><span class="w"> </span><span class="n">process</span><span class="w"></span>
-<span class="n">postgres</span><span class="w">  </span><span class="mi">2052</span><span class="w">  </span><span class="mf">0.0</span><span class="w">  </span><span class="mf">0.0</span><span class="w"> </span><span class="mi">233948</span><span class="w">  </span><span class="mi">5996</span><span class="w"> </span><span class="vm">?</span><span class="w">        </span><span class="n">Ss</span><span class="w">   </span><span class="mi">08</span><span class="err">:</span><span class="mi">34</span><span class="w">   </span><span class="mi">0</span><span class="err">:</span><span class="mi">00</span><span class="w"> </span><span class="nl">postgres</span><span class="p">:</span><span class="w"> </span><span class="n">startup</span><span class="w"> </span><span class="n">process</span><span class="w">   </span><span class="n">recover</span><span class="w"></span>
-<span class="n">ing</span><span class="w"> </span><span class="mi">000000010000000000000003</span><span class="w"></span>
-<span class="n">postgres</span><span class="w">  </span><span class="mi">2071</span><span class="w">  </span><span class="mf">0.0</span><span class="w">  </span><span class="mf">0.0</span><span class="w"> </span><span class="mi">234012</span><span class="w">  </span><span class="mi">7016</span><span class="w"> </span><span class="vm">?</span><span class="w">        </span><span class="n">Ss</span><span class="w">   </span><span class="mi">08</span><span class="err">:</span><span class="mi">34</span><span class="w">   </span><span class="mi">0</span><span class="err">:</span><span class="mi">00</span><span class="w"> </span><span class="nl">postgres</span><span class="p">:</span><span class="w"> </span><span class="n">checkpointer</span><span class="w"> </span><span class="n">process</span><span class="w"></span>
-<span class="n">postgres</span><span class="w">  </span><span class="mi">2072</span><span class="w">  </span><span class="mf">0.0</span><span class="w">  </span><span class="mf">0.0</span><span class="w"> </span><span class="mi">233912</span><span class="w">  </span><span class="mi">5916</span><span class="w"> </span><span class="vm">?</span><span class="w">        </span><span class="n">Ss</span><span class="w">   </span><span class="mi">08</span><span class="err">:</span><span class="mi">34</span><span class="w">   </span><span class="mi">0</span><span class="err">:</span><span class="mi">00</span><span class="w"> </span><span class="nl">postgres</span><span class="p">:</span><span class="w"> </span><span class="n">writer</span><span class="w"> </span><span class="n">processl</span><span class="w"></span>
-<span class="n">postgres</span><span class="w">  </span><span class="mi">2073</span><span class="w">  </span><span class="mf">0.0</span><span class="w">  </span><span class="mf">0.0</span><span class="w">  </span><span class="mi">88856</span><span class="w">  </span><span class="mi">3444</span><span class="w"> </span><span class="vm">?</span><span class="w">        </span><span class="n">Ss</span><span class="w">   </span><span class="mi">08</span><span class="err">:</span><span class="mi">34</span><span class="w">   </span><span class="mi">0</span><span class="err">:</span><span class="mi">00</span><span class="w"> </span><span class="nl">postgres</span><span class="p">:</span><span class="w"> </span><span class="n">stats</span><span class="w"> </span><span class="n">collector</span><span class="w"> </span><span class="n">process</span><span class="w"></span>
-
-<span class="n">postgres</span><span class="w">  </span><span class="mi">2078</span><span class="w">  </span><span class="mf">0.0</span><span class="w">  </span><span class="mf">0.0</span><span class="w"> </span><span class="mi">240632</span><span class="w">  </span><span class="mi">7016</span><span class="w"> </span><span class="vm">?</span><span class="w">        </span><span class="n">Ss</span><span class="w">   </span><span class="mi">08</span><span class="err">:</span><span class="mi">34</span><span class="w">   </span><span class="mi">0</span><span class="err">:</span><span class="mi">05</span><span class="w"> </span><span class="nl">postgres</span><span class="p">:</span><span class="w"> </span><span class="n">wal</span><span class="w"> </span><span class="n">receiver</span><span class="w"> </span><span class="n">process</span><span class="w">   </span><span class="n">st</span><span class="w"></span>
-<span class="n">reaming</span><span class="w"> </span><span class="mi">0</span><span class="o">/</span><span class="mf">30031E0</span><span class="w"></span>
-</pre></div>
-
-
-<h2>フェイルオーバー</h2>
+postgres  2078  0.0  0.0 240632  7016 ?        Ss   08:34   0:05 postgres: wal receiver process   st
+reaming 0/30031E0
+</code></pre><h2 id="heading-2">フェイルオーバー</h2>
 <p>masterのPostgreSQLを停止し、 standbyをmasterにpromote (昇格)させます。</p>
-<div class="highlight"><pre><span></span><span class="n">ansible</span><span class="o">-</span><span class="n">playbook</span> <span class="n">failover</span><span class="p">.</span><span class="n">yml</span>
-</pre></div>
-
-
-<h2>旧masterを新standbyとして稼働再開</h2>
+<pre><code>ansible-playbook failover.yml
+</code></pre><h2 id="masterstandby-1">旧masterを新standbyとして稼働再開</h2>
 <p>ここでインベントリファイル <code>development</code> 内の <code>postgressql_master_standby_type</code> 変数の <code>master</code> と <code>standby</code> を入れ替えます。</p>
 <p>その後、新standbyのPostgreSQLを起動します。</p>
-<div class="highlight"><pre><span></span><span class="n">ansible</span><span class="o">-</span><span class="n">playbook</span> <span class="n">start_new_standby</span><span class="p">.</span><span class="n">yml</span>
-</pre></div>
-
-
-<p>もし復旧できない自体になった場合は、今のstandbyであるpgsql1 のデータディレクトリを退避して一からリプリケーション環境を構築します。</p>
-<div class="highlight"><pre><span></span><span class="nv">lxc</span> <span class="k">exec</span> <span class="nv">pgsql1</span> <span class="o">--</span> <span class="nv">mv</span> <span class="o">/</span><span class="nv">var</span><span class="o">/</span><span class="nv">lib</span><span class="o">/</span><span class="nv">pgsql</span><span class="o">/</span><span class="mi">9</span>.<span class="mi">5</span><span class="o">/</span><span class="nv">data</span> <span class="o">/</span><span class="nv">var</span><span class="o">/</span><span class="nv">lib</span><span class="o">/</span><span class="nv">pgsql</span><span class="o">/</span><span class="mi">9</span>.<span class="mi">5</span><span class="o">/</span><span class="nv">data</span>.<span class="nv">bak</span>
-<span class="nv">ansible</span><span class="o">-</span><span class="nv">playbook</span> <span class="nv">initial_setup</span>.<span class="nv">yml</span>
-</pre></div>
-
-
-<h2>フェイルバック</h2>
+<pre><code>ansible-playbook start_new_standby.yml
+</code></pre><p>もし復旧できない自体になった場合は、今のstandbyであるpgsql1 のデータディレクトリを退避して一からリプリケーション環境を構築します。</p>
+<pre><code>lxc exec pgsql1 -- mv /var/lib/pgsql/9.5/data /var/lib/pgsql/9.5/data.bak
+ansible-playbook initial_setup.yml
+</code></pre><h2 id="heading-3">フェイルバック</h2>
 <p>masterとstandbyを入れ替えているので、フェイルバックの手順はフェイルオーバーと同じです。</p>
-<div class="highlight"><pre><span></span><span class="n">ansible</span><span class="o">-</span><span class="n">playbook</span> <span class="n">failover</span><span class="p">.</span><span class="n">yml</span>
-</pre></div>
-
-
-<h2>コンテナの削除</h2>
-<div class="highlight"><pre><span></span><span class="n">ansible</span><span class="o">-</span><span class="n">playbook</span> <span class="n">delete_containers</span><span class="p">.</span><span class="n">yml</span>
-</pre></div>
-
-
-<h2>Ansible vaultを使う際の変数命名規則のtips</h2>
+<pre><code>ansible-playbook failover.yml
+</code></pre><h2 id="heading-4">コンテナの削除</h2>
+<pre><code>ansible-playbook delete_containers.yml
+</code></pre><h2 id="ansible-vaulttips">Ansible vaultを使う際の変数命名規則のtips</h2>
 <p><code>ansible-vault encrypt</code> で暗号化したファイルの内容を確認するには <code>ansible-vault decrypt</code> で復号化する必要があります。どんな変数があったかを確認する度に行うのは面倒なので、以下のように暗号化するファイル内で定義する変数を一旦別の変数で受け取ってplaybookではそれを参照するようにしました。</p>
 <p>playbookの構成として環境ごとに development, production のようにグループを分けるようにしています（このサンプルでは development だけです）。暗号化するファイルとしないファイルを以下のような配置で作っています。</p>
-<div class="highlight"><pre><span></span><span class="n">group_vars</span><span class="o">/</span><span class="n">development</span><span class="o">/</span><span class="n">secrets</span><span class="p">.</span><span class="n">yml</span>
-<span class="n">group_vars</span><span class="o">/</span><span class="n">development</span><span class="o">/</span><span class="n">vars</span><span class="p">.</span><span class="n">yml</span>
-</pre></div>
-
-
-<p><code>group_vars/development/secrets.yml</code> では</p>
-<div class="highlight"><pre><span></span><span class="n">development</span><span class="o">:</span>
-  <span class="n">secrets</span><span class="o">:</span>
-    <span class="n">postgresql_replication_password</span><span class="o">:</span> <span class="n">_YOUR_PASSWORD_HERE_</span>
-</pre></div>
-
-
-<p>のように定義します。</p>
+<pre><code>group_vars/development/secrets.yml
+group_vars/development/vars.yml
+</code></pre><p><code>group_vars/development/secrets.yml</code> では</p>
+<pre><code>development:
+  secrets:
+    postgresql_replication_password: _YOUR_PASSWORD_HERE_
+</code></pre><p>のように定義します。</p>
 <p><code>group_vars/development/vars.yml</code> では</p>
-<div class="highlight"><pre><span></span><span class="x">postgresql_replication_password: &quot;</span><span class="cp">{{</span> <span class="nv">development.secrets.postgresql_replication_password</span> <span class="cp">}}</span><span class="x">&quot;</span>
-</pre></div>
-
-
-<p>のようにその変数を参照するようにするという具合です。</p>
-<h2>おわりに</h2>
+<pre><code>postgresql_replication_password: &quot;{{ development.secrets.postgresql_replication_password }}&quot;
+</code></pre><p>のようにその変数を参照するようにするという具合です。</p>
+<h2 id="heading-5">おわりに</h2>
 <p>LXDを使えば複数サーバ構成のテスト環境も簡単に作れてとても便利です！</p>
-    </div><!-- /.entry-content -->
 
-  </article>
-</section>
-        <section id="extras" class="body">
-        </section><!-- /#extras -->
+</div>
 
-        <footer id="contentinfo" class="body">
-                <address id="about" class="vcard body">
-                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
-                </address><!-- /#about -->
 
-                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
-        </footer><!-- /#contentinfo -->
+    </main>
 
-    <script type="text/javascript">
-    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
 
-    ga('create', 'UA-53263855-1', 'auto');
-    ga('send', 'pageview');
-    </script>
-</body>
+  </body>
 </html>

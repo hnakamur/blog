@@ -1,232 +1,218 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
 <head>
-        <meta charset="utf-8" />
-        <title>分散SQLデータベースCockroachDBのキーバリューストレージのデバッグコマンドを試してみた</title>
-        <link rel="stylesheet" href="../../../../theme/css/main.css" />
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.62.0" />
 
-        <!--[if IE]>
-            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
-        <![endif]-->
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>分散SQLデータベースCockroachDBのキーバリューストレージのデバッグコマンドを試してみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
 </head>
 
-<body id="index" class="home">
-        <header id="banner" class="body">
-                <h1><a href="../../../../">hnakamur's blog at github </a></h1>
-                <nav><ul>
-                    <li class="active"><a href="../../../../category/blog.html">blog</a></li>
-                </ul></nav>
-        </header><!-- /#banner -->
-<section id="content" class="body">
-  <article>
-    <header>
-      <h1 class="entry-title">
-        <a href="../../../../2016/06/30/experiment-cockroachdb-key-value-store/" rel="bookmark"
-           title="Permalink to 分散SQLデータベースCockroachDBのキーバリューストレージのデバッグコマンドを試してみた">分散SQLデータベースCockroachDBのキーバリューストレージのデバッグコマンドを試してみた</a></h1>
-    </header>
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
 
-    <div class="entry-content">
-<footer class="post-info">
-        <abbr class="published" title="2016-06-30T06:40:00+09:00">
-                Published: 2016-06-30
-        </abbr>
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
 
-        <address class="vcard author">
-                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
-        </address>
-<p>In <a href="../../../../category/blog.html">blog</a>.</p>
-<p>tags: <a href="../../../../tag/golang.html">golang</a> <a href="../../../../tag/cockroachdb.html">cockroachdb</a> </p>
-</footer><!-- /.post-info -->      <h2>はじめに</h2>
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>分散SQLデータベースCockroachDBのキーバリューストレージのデバッグコマンドを試してみた</h1>
+  <time datetime=2016-06-30T06:40:12&#43;0900 class="post-date">2016-06-30</time>
+  <h2 id="heading">はじめに</h2>
 <p><a href="h/blog/2016/06/20/lsm-tree-and-rocksdb/">LSM-TreeとRocksDB、TiDB、CockroachDBが気になる</a> で紹介した <a href="https://github.com/cockroachdb/cockroach#client-drivers">CockroachDB</a> は <a href="https://github.com/cockroachdb/cockroach#what-is-cockroachdb">What is CockroachDB?</a> によるとスケールアウトできる分散SQLデータベースです。 <a href="https://github.com/cockroachdb/cockroach#client-drivers">PostgreSQLのワイヤープロトコルをサポート</a> していて、 <a href="https://github.com/cockroachdb/cockroach#quickstart">Quickstart</a> の例のようにPostgreSQLで扱えるSQLのサブセットが使えます。</p>
 <p><a href="https://github.com/cockroachdb/cockroach#overview">Overview</a> によるとストレージには <a href="http://rocksdb.org/">RocksDB</a> を使用し、複数台のサーバ間の合意アルゴリズムにはRaftを使用しています。</p>
 <p>分散SQLデータベースという本来の機能も魅力的なのですが、書き込みが多いケースに最適化したLSM Treeというデータ構造の実装であるRocksDBをRaftを使って分散トランザクションを実現しているという部分も個人的には興味があります。</p>
 <p>ということで、そのへんのソースを見ていこうと思います。といっても、まだ全体を把握しているわけではないので、だらだら書いていきます。
 CockroachDBにデバッグ用のコマンドが用意されていたので、それで実験しつつ読み進めたいと思います。</p>
-<h2>RocksDBラッパーレイヤとengineパッケージ</h2>
+<h2 id="rocksdbengine">RocksDBラッパーレイヤとengineパッケージ</h2>
 <p>RocksDBはC++で書かれているので、Goから呼び出すためcgoでラッピングしているレイヤがあります。 <a href="https://github.com/cockroachdb/cockroach/tree/master/storage/engine/rocksdb">cockroach/storage/engine/rocksdb</a> にC++で書かれたファイルがいくつかあります。 <a href="https://github.com/cockroachdb/cockroach/tree/master/storage/engine">cockroach/storage/engine</a> パッケージのドキュメント <a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine">engine - GoDoc</a> にこのパッケージで低レベルのストレージを提供しているという説明があります。</p>
 <p><a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#Engine">Engine</a> はRocksDBなどのストレージバックエンドとやり取りするためのインターフェースです。 Engineは <a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#ReadWriter">ReadWriter</a> インタフェースをエンベッドしていて、それがさらに <a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#Reader">Reader</a> と <a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#Writer">Writer</a> インタフェースをエンベッドしています。</p>
 <p>Reader や Writer インタフェースのメソッドを見るとキーバリューストアのキーは <a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#MVCCKey">MVCCKey</a> という型になっています。</p>
-<div class="highlight"><pre><span></span><span class="k">type</span> <span class="n">MVCCKey</span> <span class="n">struct</span> <span class="err">{</span>
-    <span class="k">Key</span>       <span class="n">roachpb</span><span class="p">.</span><span class="k">Key</span>
-    <span class="k">Timestamp</span> <span class="n">hlc</span><span class="p">.</span><span class="k">Timestamp</span>
-<span class="err">}</span>
-</pre></div>
-
-
-<p><a href="https://godoc.org/github.com/cockroachdb/cockroach/roachpb#Key">roachpb.Key</a> は <code>[]byte</code> と定義されており、 <a href="https://godoc.org/github.com/cockroachdb/cockroach/util/hlc#Timestamp">hlc.Timestamp</a> は以下のように定義されています。</p>
-<div class="highlight"><pre><span></span><span class="nv">type</span> <span class="nv">Timestamp</span> <span class="nv">struct</span> {
-    <span class="o">//</span> <span class="nv">Holds</span> <span class="nv">a</span> <span class="nv">wall</span> <span class="nv">time</span>, <span class="nv">typically</span> <span class="nv">a</span> <span class="nv">unix</span> <span class="nv">epoch</span> <span class="nv">time</span>
-    <span class="o">//</span> <span class="nv">expressed</span> <span class="nv">in</span> <span class="nv">nanoseconds</span>.
-    <span class="nv">WallTime</span> <span class="nv">int64</span> `<span class="nv">protobuf</span>:<span class="s2">&quot;</span><span class="s">varint,1,opt,name=wall_time,json=wallTime</span><span class="s2">&quot;</span> <span class="nv">json</span>:<span class="s2">&quot;</span><span class="s">wall_time</span><span class="s2">&quot;</span>`
-    <span class="o">//</span> <span class="nv">The</span> <span class="nv">logical</span> <span class="nv">component</span> <span class="nv">captures</span> <span class="nv">causality</span> <span class="k">for</span> <span class="nv">events</span> <span class="nv">whose</span> <span class="nv">wall</span>
-    <span class="o">//</span> <span class="nv">times</span> <span class="nv">are</span> <span class="nv">equal</span>. <span class="nv">It</span> <span class="nv">is</span> <span class="nv">effectively</span> <span class="nv">bounded</span> <span class="nv">by</span> <span class="ss">(</span><span class="nv">maximum</span> <span class="nv">clock</span>
-    <span class="o">//</span> <span class="nv">skew</span><span class="ss">)</span><span class="o">/</span><span class="ss">(</span><span class="nv">minimal</span> <span class="nv">ns</span> <span class="nv">between</span> <span class="nv">events</span><span class="ss">)</span> <span class="nv">and</span> <span class="nv">nearly</span> <span class="nv">impossible</span> <span class="nv">to</span>
-    <span class="o">//</span> <span class="nv">overflow</span>.
-    <span class="nv">Logical</span> <span class="nv">int32</span> `<span class="nv">protobuf</span>:<span class="s2">&quot;</span><span class="s">varint,2,opt,name=logical</span><span class="s2">&quot;</span> <span class="nv">json</span>:<span class="s2">&quot;</span><span class="s">logical</span><span class="s2">&quot;</span>`
+<pre><code>type MVCCKey struct {
+    Key       roachpb.Key
+    Timestamp hlc.Timestamp
 }
-</pre></div>
-
-
-<p><a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine">engine - GoDoc</a> にEngineインタフェースの上にMVCC (Multi-Version Concurrency Control) システムが提供されていて、それがCockroachDBが分散トランザクションをサポートするための基礎になっていると書かれています。</p>
+</code></pre><p><a href="https://godoc.org/github.com/cockroachdb/cockroach/roachpb#Key">roachpb.Key</a> は <code>[]byte</code> と定義されており、 <a href="https://godoc.org/github.com/cockroachdb/cockroach/util/hlc#Timestamp">hlc.Timestamp</a> は以下のように定義されています。</p>
+<pre><code>type Timestamp struct {
+    // Holds a wall time, typically a unix epoch time
+    // expressed in nanoseconds.
+    WallTime int64 `protobuf:&quot;varint,1,opt,name=wall_time,json=wallTime&quot; json:&quot;wall_time&quot;`
+    // The logical component captures causality for events whose wall
+    // times are equal. It is effectively bounded by (maximum clock
+    // skew)/(minimal ns between events) and nearly impossible to
+    // overflow.
+    Logical int32 `protobuf:&quot;varint,2,opt,name=logical&quot; json:&quot;logical&quot;`
+}
+</code></pre><p><a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine">engine - GoDoc</a> にEngineインタフェースの上にMVCC (Multi-Version Concurrency Control) システムが提供されていて、それがCockroachDBが分散トランザクションをサポートするための基礎になっていると書かれています。</p>
 <p>その下の <a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#hdr-Notes_on_MVCC_architecture">Notes on MVCC architecture</a> にMVCCアーキテクチャについて詳細な説明があります。じっくり読んだほうが良いと思いますが、一旦飛ばして先に進みます。</p>
 <p><a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#RocksDB">RocksDB</a> という構造体定義があり、これが Engine インタフェースを実装しています。  <a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#NewRocksDB">NewRocksDB</a> 関数で RocksDB を作成できます。</p>
-<h2>NewRocksDB関数の呼び出し箇所</h2>
+<h2 id="newrocksdb">NewRocksDB関数の呼び出し箇所</h2>
 <p>NewRocksDB関数は、テストコード以外では、以下の2箇所で呼ばれていました。</p>
 <ul>
-<li><a href="https://godoc.org/github.com/cockroachdb/cockroach/server">server</a> パッケージの <a href="https://godoc.org/github.com/cockroachdb/cockroach/server#Context.InitStores">func (*Context) InitStores</a>。<ul>
+<li><a href="https://godoc.org/github.com/cockroachdb/cockroach/server">server</a> パッケージの <a href="https://godoc.org/github.com/cockroachdb/cockroach/server#Context.InitStores">func (*Context) InitStores</a>。
+<ul>
 <li><a href="https://github.com/cockroachdb/cockroach/blob/549d9b575e06921fa96b6ff4881ea348d8b6d00c/server/context.go#L260-L261">cockroach/context.go at 549d9b575e06921fa96b6ff4881ea348d8b6d00c</a></li>
 </ul>
 </li>
-<li><a href="https://github.com/cockroachdb/cockroach/blob/master/cli/debug.go">cockroach/debug.go</a> の <code>cli.openStore(cmd *cobra.Command, dir string, stopper *stop.Stopper) (engine.Engine, error)</code><ul>
+<li><a href="https://github.com/cockroachdb/cockroach/blob/master/cli/debug.go">cockroach/debug.go</a> の <code>cli.openStore(cmd *cobra.Command, dir string, stopper *stop.Stopper) (engine.Engine, error)</code>
+<ul>
 <li><a href="https://github.com/cockroachdb/cockroach/blob/549d9b575e06921fa96b6ff4881ea348d8b6d00c/cli/debug.go#L65-L71">cockroach/debug.go at 549d9b575e06921fa96b6ff4881ea348d8b6d00c</a></li>
 </ul>
 </li>
 </ul>
 <p>後者を呼び出している箇所を見ていくとデバッグ用のサブコマンドがあることがわかりました。</p>
-<h2>デバッグ用サブコマンドを試してみた</h2>
+<h2 id="heading-1">デバッグ用サブコマンドを試してみた</h2>
 <p>前提条件としてLXDの3つのコンテナroach1, roach2, roach3で以下のようにCockroachDBを起動している状態とします。</p>
 <p>roach1</p>
-<div class="highlight"><pre><span></span><span class="o">/</span><span class="n">usr</span><span class="o">/</span><span class="k">local</span><span class="o">/</span><span class="n">sbin</span><span class="o">/</span><span class="n">cockroach</span> <span class="k">start</span> <span class="c1">--host 192.168.0.13 --insecure</span>
-</pre></div>
-
-
-<p>roach2</p>
-<div class="highlight"><pre><span></span><span class="o">/</span><span class="n">usr</span><span class="o">/</span><span class="k">local</span><span class="o">/</span><span class="n">sbin</span><span class="o">/</span><span class="n">cockroach</span> <span class="k">start</span> <span class="c1">--join 192.168.0.13:26257 --insecure --host 192.168.0.14</span>
-</pre></div>
-
-
-<p>roach3</p>
-<div class="highlight"><pre><span></span><span class="o">/</span><span class="n">usr</span><span class="o">/</span><span class="k">local</span><span class="o">/</span><span class="n">sbin</span><span class="o">/</span><span class="n">cockroach</span> <span class="k">start</span> <span class="c1">--join 192.168.0.13:26257 --insecure --host 192.168.0.15</span>
-</pre></div>
-
-
-<p>特にコンテナでなくても1台のサーバで <a href="https://github.com/cockroachdb/cockroach#quickstart">Quickstart</a>のlocal clusterでも構いません。その場合は下記のコマンドの <code>--host</code> の部分を適宜読み替えてください。</p>
-<h3>debug kv コマンドを試してみた</h3>
+<pre><code>/usr/local/sbin/cockroach start --host 192.168.0.13 --insecure
+</code></pre><p>roach2</p>
+<pre><code>/usr/local/sbin/cockroach start --join 192.168.0.13:26257 --insecure --host 192.168.0.14
+</code></pre><p>roach3</p>
+<pre><code>/usr/local/sbin/cockroach start --join 192.168.0.13:26257 --insecure --host 192.168.0.15
+</code></pre><p>特にコンテナでなくても1台のサーバで <a href="https://github.com/cockroachdb/cockroach#quickstart">Quickstart</a>のlocal clusterでも構いません。その場合は下記のコマンドの <code>--host</code> の部分を適宜読み替えてください。</p>
+<h3 id="debug-kv-">debug kv コマンドを試してみた</h3>
 <p>debug kvコマンドで、キー・バリュー・ストアに値を設定したり取得したり出来ます。</p>
 <p>コンテナroach1で値をセットして取得してみました。</p>
-<div class="highlight"><pre><span></span><span class="n">root</span><span class="nv">@roach1</span><span class="err">:</span><span class="o">~</span><span class="err">#</span><span class="w"> </span><span class="n">cockroach</span><span class="w"> </span><span class="n">debug</span><span class="w"> </span><span class="n">kv</span><span class="w"> </span><span class="n">scan</span><span class="w"> </span><span class="c1">--host 192.168.0.13</span>
-<span class="mi">0</span><span class="w"> </span><span class="k">result</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="w"></span>
-<span class="n">root</span><span class="nv">@roach1</span><span class="err">:</span><span class="o">~</span><span class="err">#</span><span class="w"> </span><span class="n">cockroach</span><span class="w"> </span><span class="n">debug</span><span class="w"> </span><span class="n">kv</span><span class="w"> </span><span class="n">put</span><span class="w"> </span><span class="c1">--host 192.168.0.13 foo bar</span>
-<span class="n">root</span><span class="nv">@roach1</span><span class="err">:</span><span class="o">~</span><span class="err">#</span><span class="w"> </span><span class="n">cockroach</span><span class="w"> </span><span class="n">debug</span><span class="w"> </span><span class="n">kv</span><span class="w"> </span><span class="k">get</span><span class="w"> </span><span class="c1">--host 192.168.0.13 foo</span>
-<span class="ss">&quot;bar&quot;</span><span class="w"></span>
-<span class="n">root</span><span class="nv">@roach1</span><span class="err">:</span><span class="o">~</span><span class="err">#</span><span class="w"> </span><span class="n">cockroach</span><span class="w"> </span><span class="n">debug</span><span class="w"> </span><span class="n">kv</span><span class="w"> </span><span class="n">scan</span><span class="w"> </span><span class="c1">--host 192.168.0.13</span>
-<span class="ss">&quot;foo&quot;</span><span class="w">   </span><span class="ss">&quot;bar&quot;</span><span class="w"></span>
-<span class="mi">1</span><span class="w"> </span><span class="k">result</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="w"></span>
-</pre></div>
-
-
-<p>上記で設定した値がコンテナroach2でも取得できました。</p>
-<div class="highlight"><pre><span></span><span class="n">root</span><span class="nv">@roach2</span><span class="err">:</span><span class="o">~</span><span class="err">#</span><span class="w"> </span><span class="n">cockroach</span><span class="w"> </span><span class="n">debug</span><span class="w"> </span><span class="n">kv</span><span class="w"> </span><span class="n">scan</span><span class="w"> </span><span class="c1">--host 192.168.0.14</span>
-<span class="ss">&quot;foo&quot;</span><span class="w">   </span><span class="ss">&quot;bar&quot;</span><span class="w"></span>
-<span class="mi">1</span><span class="w"> </span><span class="k">result</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="w"></span>
-</pre></div>
-
-
-<p>コンテナroach2からroach1上の値を変更も出来ます。</p>
-<div class="highlight"><pre><span></span><span class="n">root</span><span class="nv">@roach2</span><span class="err">:</span><span class="o">~</span><span class="err">#</span><span class="w"> </span><span class="n">cockroach</span><span class="w"> </span><span class="n">debug</span><span class="w"> </span><span class="n">kv</span><span class="w"> </span><span class="n">put</span><span class="w"> </span><span class="c1">--host 192.168.0.13 foo &#39;Hello, key value store in CockroachDB&#39;</span>
-</pre></div>
-
-
-<p>コンテナroach1上の値一覧を取得して更新されていることを確認しました。</p>
-<div class="highlight"><pre><span></span><span class="n">root</span><span class="nv">@roach1</span><span class="err">:</span><span class="o">~</span><span class="err">#</span><span class="w"> </span><span class="n">cockroach</span><span class="w"> </span><span class="n">debug</span><span class="w"> </span><span class="n">kv</span><span class="w"> </span><span class="n">scan</span><span class="w"> </span><span class="c1">--host 192.168.0.13</span>
-<span class="ss">&quot;foo&quot;</span><span class="w">   </span><span class="ss">&quot;Hello, key value store in CockroachDB&quot;</span><span class="w"></span>
-<span class="mi">1</span><span class="w"> </span><span class="k">result</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="w"></span>
-</pre></div>
-
-
-<h3>debug keys コマンドを試してみた</h3>
+<pre><code>root@roach1:~# cockroach debug kv scan --host 192.168.0.13
+0 result(s)
+root@roach1:~# cockroach debug kv put --host 192.168.0.13 foo bar
+root@roach1:~# cockroach debug kv get --host 192.168.0.13 foo
+&quot;bar&quot;
+root@roach1:~# cockroach debug kv scan --host 192.168.0.13
+&quot;foo&quot;   &quot;bar&quot;
+1 result(s)
+</code></pre><p>上記で設定した値がコンテナroach2でも取得できました。</p>
+<pre><code>root@roach2:~# cockroach debug kv scan --host 192.168.0.14
+&quot;foo&quot;   &quot;bar&quot;
+1 result(s)
+</code></pre><p>コンテナroach2からroach1上の値を変更も出来ます。</p>
+<pre><code>root@roach2:~# cockroach debug kv put --host 192.168.0.13 foo 'Hello, key value store in CockroachDB'
+</code></pre><p>コンテナroach1上の値一覧を取得して更新されていることを確認しました。</p>
+<pre><code>root@roach1:~# cockroach debug kv scan --host 192.168.0.13
+&quot;foo&quot;   &quot;Hello, key value store in CockroachDB&quot;
+1 result(s)
+</code></pre><h3 id="debug-keys-">debug keys コマンドを試してみた</h3>
 <p>debug keysコマンドで、キー・バリュー・ストアの内部構造をダンプして見ることが出来ます。このコマンドはサーバを停止した状態でデータのディレクトリを指定して実行するようになっています。</p>
 <p>サーバが起動したまま実行すると以下のようにロックが取得できないというエラーになります。</p>
-<div class="highlight"><pre><span></span><span class="n">root</span><span class="nv">@roach2</span><span class="err">:</span><span class="o">~</span><span class="err">#</span><span class="w"> </span><span class="n">cockroach</span><span class="w"> </span><span class="n">debug</span><span class="w"> </span><span class="n">keys</span><span class="w"> </span><span class="p">.</span><span class="o">/</span><span class="n">cockroach</span><span class="o">-</span><span class="k">data</span><span class="w"></span>
-<span class="nl">Error</span><span class="p">:</span><span class="w"> </span><span class="n">storage</span><span class="o">/</span><span class="n">engine</span><span class="o">/</span><span class="n">rocksdb</span><span class="p">.</span><span class="k">go</span><span class="err">:</span><span class="mi">158</span><span class="err">:</span><span class="w"> </span><span class="n">could</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="k">open</span><span class="w"> </span><span class="n">rocksdb</span><span class="w"> </span><span class="nl">instance</span><span class="p">:</span><span class="w"> </span><span class="n">IO</span><span class="w"> </span><span class="nl">error</span><span class="p">:</span><span class="w"> </span><span class="n">lock</span><span class="w"> </span><span class="p">.</span><span class="o">/</span><span class="n">cockroach</span><span class="o">-</span><span class="k">data</span><span class="o">/</span><span class="nl">LOCK</span><span class="p">:</span><span class="w"> </span><span class="n">Resource</span><span class="w"> </span><span class="n">temporarily</span><span class="w"> </span><span class="n">unavailable</span><span class="w"></span>
-<span class="k">Usage</span><span class="err">:</span><span class="w"></span>
-<span class="w">  </span><span class="n">cockroach</span><span class="w"> </span><span class="n">debug</span><span class="w"> </span><span class="n">keys</span><span class="w"> </span><span class="o">[</span><span class="n">directory</span><span class="o">]</span><span class="w"> </span><span class="o">[</span><span class="n">flags</span><span class="o">]</span><span class="w"></span>
+<pre><code>root@roach2:~# cockroach debug keys ./cockroach-data
+Error: storage/engine/rocksdb.go:158: could not open rocksdb instance: IO error: lock ./cockroach-data/LOCK: Resource temporarily unavailable
+Usage:
+  cockroach debug keys [directory] [flags]
 
-<span class="nl">Flags</span><span class="p">:</span><span class="w"></span>
-<span class="w">      </span><span class="c1">--from string</span>
-<span class="w">        </span><span class="k">Start</span><span class="w"> </span><span class="k">key</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">pretty</span><span class="o">-</span><span class="n">printed</span><span class="w"> </span><span class="nf">format</span><span class="p">.</span><span class="w"> </span><span class="n">See</span><span class="w"> </span><span class="n">also</span><span class="w"> </span><span class="c1">--raw.</span>
+Flags:
+      --from string
+        Start key in pretty-printed format. See also --raw.
 
-<span class="w">      </span><span class="c1">--raw</span>
-<span class="w">        </span><span class="n">Interpret</span><span class="w"> </span><span class="n">keys</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">raw</span><span class="w"> </span><span class="n">bytes</span><span class="p">.</span><span class="w"></span>
+      --raw
+        Interpret keys as raw bytes.
 
-<span class="w">      </span><span class="c1">--to string</span>
-<span class="w">        </span><span class="n">Exclusive</span><span class="w"> </span><span class="k">end</span><span class="w"> </span><span class="k">key</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">pretty</span><span class="o">-</span><span class="n">printed</span><span class="w"> </span><span class="nf">format</span><span class="p">.</span><span class="w"> </span><span class="n">See</span><span class="w"> </span><span class="n">also</span><span class="w"> </span><span class="c1">--raw.</span>
+      --to string
+        Exclusive end key in pretty-printed format. See also --raw.
 
-<span class="w">      </span><span class="c1">--values</span>
-<span class="w">        </span><span class="k">Print</span><span class="w"> </span><span class="k">values</span><span class="w"> </span><span class="n">along</span><span class="w"> </span><span class="k">with</span><span class="w"> </span><span class="n">their</span><span class="w"> </span><span class="n">associated</span><span class="w"> </span><span class="k">key</span><span class="p">.</span><span class="w"></span>
+      --values
+        Print values along with their associated key.
 
-<span class="k">Global</span><span class="w"> </span><span class="nl">Flags</span><span class="p">:</span><span class="w"></span>
-<span class="w">      </span><span class="c1">--alsologtostderr value[=INFO]   logs at or above this threshold go to stderr (default NONE)</span>
-<span class="w">      </span><span class="c1">--log-backtrace-at value         when logging hits line file:N, emit a stack trace (default :0)</span>
-<span class="w">      </span><span class="c1">--log-dir value                  if non-empty, write log files in this directory</span>
-<span class="w">      </span><span class="c1">--logtostderr                    log to standard error instead of files</span>
-<span class="w">      </span><span class="c1">--no-color value                 disable standard error log colorization</span>
-<span class="w">      </span><span class="c1">--verbosity value                log level for V logs</span>
-<span class="w">      </span><span class="c1">--vmodule value                  comma-separated list of pattern=N settings for file-filtered logging</span>
+Global Flags:
+      --alsologtostderr value[=INFO]   logs at or above this threshold go to stderr (default NONE)
+      --log-backtrace-at value         when logging hits line file:N, emit a stack trace (default :0)
+      --log-dir value                  if non-empty, write log files in this directory
+      --logtostderr                    log to standard error instead of files
+      --no-color value                 disable standard error log colorization
+      --verbosity value                log level for V logs
+      --vmodule value                  comma-separated list of pattern=N settings for file-filtered logging
 
-<span class="n">Failed</span><span class="w"> </span><span class="n">running</span><span class="w"> </span><span class="ss">&quot;debug&quot;</span><span class="w"></span>
-</pre></div>
-
-
-<p>そこでコンテナroach2のサーバを停止してみます。</p>
-<div class="highlight"><pre><span></span><span class="n">root</span><span class="nv">@roach2</span><span class="err">:</span><span class="o">~</span><span class="err">#</span><span class="w"> </span><span class="n">cockroach</span><span class="w"> </span><span class="n">quit</span><span class="w"> </span><span class="c1">--host 192.168.0.14</span>
-</pre></div>
-
-
-<p>サーバを停止したらキーの一覧を表示してみます。以下の例では <code>foo</code> の前後5行を表示しています。
+Failed running &quot;debug&quot;
+</code></pre><p>そこでコンテナroach2のサーバを停止してみます。</p>
+<pre><code>root@roach2:~# cockroach quit --host 192.168.0.14
+</code></pre><p>サーバを停止したらキーの一覧を表示してみます。以下の例では <code>foo</code> の前後5行を表示しています。
 fooという文字列の後にタイムスタンプがついているのがわかります。</p>
-<div class="highlight"><pre><span></span><span class="n">root</span><span class="nv">@roach2</span><span class="err">:</span><span class="o">~</span><span class="err">#</span><span class="w"> </span><span class="n">cockroach</span><span class="w"> </span><span class="n">debug</span><span class="w"> </span><span class="n">keys</span><span class="w"> </span><span class="p">.</span><span class="o">/</span><span class="n">cockroach</span><span class="o">-</span><span class="k">data</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">grep</span><span class="w"> </span><span class="o">-</span><span class="n">A</span><span class="w"> </span><span class="mi">5</span><span class="w"> </span><span class="o">-</span><span class="n">B</span><span class="w"> </span><span class="mi">5</span><span class="w"> </span><span class="n">foo</span><span class="w"></span>
-<span class="ss">&quot;/System/\&quot;</span><span class="k">update</span><span class="o">-</span><span class="n">cluster</span><span class="err">\</span><span class="ss">&quot;/1466351519.447511853,0&quot;</span><span class="w"></span>
-<span class="ss">&quot;/System/\&quot;</span><span class="k">update</span><span class="o">-</span><span class="n">cluster</span><span class="err">\</span><span class="ss">&quot;/1466265107.436191749,0&quot;</span><span class="w"></span>
-<span class="ss">&quot;/System/\&quot;</span><span class="k">update</span><span class="o">-</span><span class="n">cluster</span><span class="err">\</span><span class="ss">&quot;/1466265097.406397710,0&quot;</span><span class="w"></span>
-<span class="ss">&quot;/System/\&quot;</span><span class="k">update</span><span class="o">-</span><span class="n">cluster</span><span class="err">\</span><span class="ss">&quot;/1466178687.396782782,0&quot;</span><span class="w"></span>
-<span class="ss">&quot;/System/\&quot;</span><span class="k">update</span><span class="o">-</span><span class="n">cluster</span><span class="err">\</span><span class="ss">&quot;/1466178677.619687555,85&quot;</span><span class="w"></span>
-<span class="ss">&quot;\&quot;</span><span class="n">foo</span><span class="err">\</span><span class="ss">&quot;/1467234744.564568969,0&quot;</span><span class="w"></span>
-<span class="ss">&quot;\&quot;</span><span class="n">foo</span><span class="err">\</span><span class="ss">&quot;/1467221373.376922221,0&quot;</span><span class="w"></span>
-<span class="ss">&quot;/Table/2/1/0/\&quot;</span><span class="n">bank</span><span class="err">\</span><span class="ss">&quot;/3/1/1466178749.722011447,0&quot;</span><span class="w"></span>
-<span class="ss">&quot;/Table/2/1/0/\&quot;</span><span class="k">system</span><span class="err">\</span><span class="ss">&quot;/3/1/1466178677.367397368,0&quot;</span><span class="w"></span>
-<span class="ss">&quot;/Table/2/1/1/\&quot;</span><span class="k">descriptor</span><span class="err">\</span><span class="ss">&quot;/3/1/1466178677.367397368,0&quot;</span><span class="w"></span>
-<span class="ss">&quot;/Table/2/1/1/\&quot;</span><span class="n">eventlog</span><span class="err">\</span><span class="ss">&quot;/3/1/1466178677.367397368,0&quot;</span><span class="w"></span>
-<span class="ss">&quot;/Table/2/1/1/\&quot;</span><span class="n">lease</span><span class="err">\</span><span class="ss">&quot;/3/1/1466178677.367397368,0&quot;</span><span class="w"></span>
-</pre></div>
-
-
-<p><code>--values</code> オプションも追加すると、キーだけではなく値も表示されます。</p>
-<div class="highlight"><pre><span></span><span class="n">cockroach</span> <span class="n">debug</span> <span class="n">keys</span> <span class="c1">--values cockroach-data/ | less</span>
-</pre></div>
-
-
-<p>を実行して、 <code>foo</code> のキーに対応する部分を見てみると以下のようになっていました。横に長過ぎるので折り返して表示しています。</p>
+<pre><code>root@roach2:~# cockroach debug keys ./cockroach-data | grep -A 5 -B 5 foo
+&quot;/System/\&quot;update-cluster\&quot;/1466351519.447511853,0&quot;
+&quot;/System/\&quot;update-cluster\&quot;/1466265107.436191749,0&quot;
+&quot;/System/\&quot;update-cluster\&quot;/1466265097.406397710,0&quot;
+&quot;/System/\&quot;update-cluster\&quot;/1466178687.396782782,0&quot;
+&quot;/System/\&quot;update-cluster\&quot;/1466178677.619687555,85&quot;
+&quot;\&quot;foo\&quot;/1467234744.564568969,0&quot;
+&quot;\&quot;foo\&quot;/1467221373.376922221,0&quot;
+&quot;/Table/2/1/0/\&quot;bank\&quot;/3/1/1466178749.722011447,0&quot;
+&quot;/Table/2/1/0/\&quot;system\&quot;/3/1/1466178677.367397368,0&quot;
+&quot;/Table/2/1/1/\&quot;descriptor\&quot;/3/1/1466178677.367397368,0&quot;
+&quot;/Table/2/1/1/\&quot;eventlog\&quot;/3/1/1466178677.367397368,0&quot;
+&quot;/Table/2/1/1/\&quot;lease\&quot;/3/1/1466178677.367397368,0&quot;
+</code></pre><p><code>--values</code> オプションも追加すると、キーだけではなく値も表示されます。</p>
+<pre><code>cockroach debug keys --values cockroach-data/ | less
+</code></pre><p>を実行して、 <code>foo</code> のキーに対応する部分を見てみると以下のようになっていました。横に長過ぎるので折り返して表示しています。</p>
 <p>/Local/RangeID/21/u/RaftLog/logIndex:104861: Type:EntryNormal Term:51415 Index:104861  by {2 2 2}
-  Put ["foo",/Min)
-  range_id:21 origin_replica:<node_id:2 store_id:2 replica_id:2 > cmd:<header:<timestamp:<wall_time:1467234744564568969 logical:0 > replica:<node_id:2 store_id:2 replica_id:2 > range_id:21 user_priority:NORMAL read_consistency:CONSISTENT trace:<trace_id:4947902158296355776 span_id:7041358067641207168 > max_scan_results:0 distinct_spans:false &gt; requests:<put:<header:<key:"foo" > value:<raw_bytes:"s|S\306\003Hello, key value store in CockroachDB" timestamp:<wall_time:0 logical:0 > &gt; inline:false blind:false &gt; &gt; &gt; max_lease_index:990</p>
-<h2>おわりに</h2>
+Put [&ldquo;foo&rdquo;,/Min)
+range_id:21 origin_replica:&lt;node_id:2 store_id:2 replica_id:2 &gt; cmd:&lt;header:&lt;timestamp:&lt;wall_time:1467234744564568969 logical:0 &gt; replica:&lt;node_id:2 store_id:2 replica_id:2 &gt; range_id:21 user_priority:NORMAL read_consistency:CONSISTENT trace:&lt;trace_id:4947902158296355776 span_id:7041358067641207168 &gt; max_scan_results:0 distinct_spans:false &gt; requests:&lt;put:&lt;header:&lt;key:&ldquo;foo&rdquo; &gt; value:&lt;raw_bytes:&ldquo;s|S\306\003Hello, key value store in CockroachDB&rdquo; timestamp:&lt;wall_time:0 logical:0 &gt; &gt; inline:false blind:false &gt; &gt; &gt; max_lease_index:990</p>
+<h2 id="heading-2">おわりに</h2>
 <p>CockroachDBのキーバリューストレージのデバッグコマンドを試してみました。対応するソースコードも読んでみたいところですが、
 <a href="https://www.arangodb.com/2016/06/arangodb-3-0-a-solid-ground-to-scale/">ArangoDB 3.0 – A Solid Ground to Scale – ArangoDB</a>
 というニュースを知ったので、今後はArangoDBのほうを先に調べたいと思います。</p>
-    </div><!-- /.entry-content -->
 
-  </article>
-</section>
-        <section id="extras" class="body">
-        </section><!-- /#extras -->
+</div>
 
-        <footer id="contentinfo" class="body">
-                <address id="about" class="vcard body">
-                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
-                </address><!-- /#about -->
 
-                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
-        </footer><!-- /#contentinfo -->
+    </main>
 
-    <script type="text/javascript">
-    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
 
-    ga('create', 'UA-53263855-1', 'auto');
-    ga('send', 'pageview');
-    </script>
-</body>
+  </body>
 </html>

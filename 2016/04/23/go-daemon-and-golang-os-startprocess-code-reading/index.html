@@ -1,715 +1,705 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
 <head>
-        <meta charset="utf-8" />
-        <title>go-daemonとgoのos.StartProcess()のコードを読んでみた</title>
-        <link rel="stylesheet" href="../../../../theme/css/main.css" />
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.62.0" />
 
-        <!--[if IE]>
-            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
-        <![endif]-->
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>go-daemonとgoのos.StartProcess()のコードを読んでみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
 </head>
 
-<body id="index" class="home">
-        <header id="banner" class="body">
-                <h1><a href="../../../../">hnakamur's blog at github </a></h1>
-                <nav><ul>
-                    <li class="active"><a href="../../../../category/blog.html">blog</a></li>
-                </ul></nav>
-        </header><!-- /#banner -->
-<section id="content" class="body">
-  <article>
-    <header>
-      <h1 class="entry-title">
-        <a href="../../../../2016/04/23/go-daemon-and-golang-os-startprocess-code-reading/" rel="bookmark"
-           title="Permalink to go-daemonとgoのos.StartProcess()のコードを読んでみた">go-daemonとgoのos.StartProcess()のコードを読んでみた</a></h1>
-    </header>
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
 
-    <div class="entry-content">
-<footer class="post-info">
-        <abbr class="published" title="2016-04-23T16:45:00+09:00">
-                Published: 2016-04-23
-        </abbr>
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
 
-        <address class="vcard author">
-                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
-        </address>
-<p>In <a href="../../../../category/blog.html">blog</a>.</p>
-<p>tags: <a href="../../../../tag/golang.html">golang</a> </p>
-</footer><!-- /.post-info -->      <h2>発端: Goでデーモンを書くのは無理と思っていたら実は出来るらしい</h2>
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>go-daemonとgoのos.StartProcess()のコードを読んでみた</h1>
+  <time datetime=2016-04-23T16:45:09&#43;0900 class="post-date">2016-04-23</time>
+  <h2 id="-go">発端: Goでデーモンを書くのは無理と思っていたら実は出来るらしい</h2>
 <p>Goでデーモンを書くのは無理と以前どこかで読んだ気がします。
 ところが、Pythonで書かれた<a href="https://github.com/graphite-project">Graphite Project</a>の<a href="https://github.com/graphite-project/carbon">carbon</a>をGo言語で実装した<a href="https://github.com/lomik/go-carbon">lomik/go-carbon</a>の Features に Run as daemon と書かれていました。どうやって実現しているのか気になって調べてみたのでメモです。</p>
-<h2>go-carbonでデーモン化するための設定</h2>
+<h2 id="go-carbon">go-carbonでデーモン化するための設定</h2>
 <p><a href="https://github.com/lomik/go-carbon#configuration">Configuration</a>に書いてありますが、設定ファイルの <code>[common]</code> セクションの <code>user</code> を指定して、起動オプションに <code>-daemon</code> を指定すればデーモンとして起動します。</p>
-<h2>コードリーディング</h2>
+<h2 id="heading">コードリーディング</h2>
 <p>デーモンとして起動するためのコードは以下のようになっています。
-https://github.com/lomik/go-carbon/blob/v0.7.1/carbon-agent.go#L103-L137</p>
-<div class="highlight"><pre><span></span>    <span class="k">if</span> <span class="o">*</span><span class="nv">isDaemon</span> {
-        <span class="nv">runtime</span>.<span class="nv">LockOSThread</span><span class="ss">()</span>
+<a href="https://github.com/lomik/go-carbon/blob/v0.7.1/carbon-agent.go#L103-L137">https://github.com/lomik/go-carbon/blob/v0.7.1/carbon-agent.go#L103-L137</a></p>
+<pre><code>	if *isDaemon {
+		runtime.LockOSThread()
 
-        <span class="nv">context</span> :<span class="o">=</span> <span class="nv">new</span><span class="ss">(</span><span class="nv">daemon</span>.<span class="nv">Context</span><span class="ss">)</span>
-        <span class="k">if</span> <span class="o">*</span><span class="nv">pidfile</span> <span class="o">!=</span> <span class="s2">&quot;&quot;</span> {
-            <span class="nv">context</span>.<span class="nv">PidFileName</span> <span class="o">=</span> <span class="o">*</span><span class="nv">pidfile</span>
-            <span class="nv">context</span>.<span class="nv">PidFilePerm</span> <span class="o">=</span> <span class="mi">0644</span>
-        }
+		context := new(daemon.Context)
+		if *pidfile != &quot;&quot; {
+			context.PidFileName = *pidfile
+			context.PidFilePerm = 0644
+		}
 
-        <span class="k">if</span> <span class="nv">runAsUser</span> <span class="o">!=</span> <span class="nv">nil</span> {
-            <span class="nv">uid</span>, <span class="nv">err</span> :<span class="o">=</span> <span class="nv">strconv</span>.<span class="nv">ParseInt</span><span class="ss">(</span><span class="nv">runAsUser</span>.<span class="nv">Uid</span>, <span class="mi">10</span>, <span class="mi">0</span><span class="ss">)</span>
-            <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
-                <span class="nv">log</span>.<span class="nv">Fatal</span><span class="ss">(</span><span class="nv">err</span><span class="ss">)</span>
-            }
+		if runAsUser != nil {
+			uid, err := strconv.ParseInt(runAsUser.Uid, 10, 0)
+			if err != nil {
+				log.Fatal(err)
+			}
 
-            <span class="nv">gid</span>, <span class="nv">err</span> :<span class="o">=</span> <span class="nv">strconv</span>.<span class="nv">ParseInt</span><span class="ss">(</span><span class="nv">runAsUser</span>.<span class="nv">Gid</span>, <span class="mi">10</span>, <span class="mi">0</span><span class="ss">)</span>
-            <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
-                <span class="nv">log</span>.<span class="nv">Fatal</span><span class="ss">(</span><span class="nv">err</span><span class="ss">)</span>
-            }
+			gid, err := strconv.ParseInt(runAsUser.Gid, 10, 0)
+			if err != nil {
+				log.Fatal(err)
+			}
 
-            <span class="nv">context</span>.<span class="nv">Credential</span> <span class="o">=</span> <span class="o">&amp;</span><span class="nv">syscall</span>.<span class="nv">Credential</span>{
-                <span class="nv">Uid</span>: <span class="nv">uint32</span><span class="ss">(</span><span class="nv">uid</span><span class="ss">)</span>,
-                <span class="nv">Gid</span>: <span class="nv">uint32</span><span class="ss">(</span><span class="nv">gid</span><span class="ss">)</span>,
-            }
-        }
+			context.Credential = &amp;syscall.Credential{
+				Uid: uint32(uid),
+				Gid: uint32(gid),
+			}
+		}
 
-        <span class="nv">child</span>, <span class="nv">_</span> :<span class="o">=</span> <span class="nv">context</span>.<span class="nv">Reborn</span><span class="ss">()</span>
+		child, _ := context.Reborn()
 
-        <span class="k">if</span> <span class="nv">child</span> <span class="o">!=</span> <span class="nv">nil</span> {
-            <span class="k">return</span>
-        }
-        <span class="nv">defer</span> <span class="nv">context</span>.<span class="nv">Release</span><span class="ss">()</span>
+		if child != nil {
+			return
+		}
+		defer context.Release()
 
-        <span class="nv">runtime</span>.<span class="nv">UnlockOSThread</span><span class="ss">()</span>
-    }
-</pre></div>
-
-
-<p><code>daemon.Context</code> は <a href="https://github.com/sevlyar/go-daemon">github.com/sevlyar/go-daemon</a>のfork版の <a href="https://github.com/lomik/go-daemon">github.com/lomik/go-daemon</a>で定義されています。</p>
+		runtime.UnlockOSThread()
+	}
+</code></pre><p><code>daemon.Context</code> は <a href="https://github.com/sevlyar/go-daemon">github.com/sevlyar/go-daemon</a>のfork版の <a href="https://github.com/lomik/go-daemon">github.com/lomik/go-daemon</a>で定義されています。</p>
 <p><a href="https://github.com/lomik/go-daemon/blob/205ceae1aeac90abdbcae9fca16ba44b407c598d/daemon_posix.go#L20-L61">Contextの定義</a></p>
-<div class="highlight"><pre><span></span><span class="o">//</span> <span class="nv">A</span> <span class="nv">Context</span> <span class="nv">describes</span> <span class="nv">daemon</span> <span class="nv">context</span>.
-<span class="nv">type</span> <span class="nv">Context</span> <span class="nv">struct</span> {
-    <span class="o">//</span> <span class="k">If</span> <span class="nv">PidFileName</span> <span class="nv">is</span> <span class="nv">non</span><span class="o">-</span><span class="nv">empty</span>, <span class="nv">parent</span> <span class="nv">process</span> <span class="nv">will</span> <span class="nv">try</span> <span class="nv">to</span> <span class="nv">create</span> <span class="nv">and</span> <span class="nv">lock</span>
-    <span class="o">//</span> <span class="nv">pid</span> <span class="nv">file</span> <span class="nv">with</span> <span class="nv">given</span> <span class="nv">name</span>. <span class="nv">Child</span> <span class="nv">process</span> <span class="nv">writes</span> <span class="nv">process</span> <span class="nv">id</span> <span class="nv">to</span> <span class="nv">file</span>.
-    <span class="nv">PidFileName</span> <span class="nv">string</span>
-    <span class="o">//</span> <span class="nv">Permissions</span> <span class="k">for</span> <span class="nv">new</span> <span class="nv">pid</span> <span class="nv">file</span>.
-    <span class="nv">PidFilePerm</span> <span class="nv">os</span>.<span class="nv">FileMode</span>
+<pre><code>// A Context describes daemon context.
+type Context struct {
+	// If PidFileName is non-empty, parent process will try to create and lock
+	// pid file with given name. Child process writes process id to file.
+	PidFileName string
+	// Permissions for new pid file.
+	PidFilePerm os.FileMode
 
-    <span class="o">//</span> <span class="k">If</span> <span class="nv">LogFileName</span> <span class="nv">is</span> <span class="nv">non</span><span class="o">-</span><span class="nv">empty</span>, <span class="nv">parent</span> <span class="nv">process</span> <span class="nv">will</span> <span class="nv">create</span> <span class="nv">file</span> <span class="nv">with</span> <span class="nv">given</span> <span class="nv">name</span>
-    <span class="o">//</span> <span class="nv">and</span> <span class="nv">will</span> <span class="nv">link</span> <span class="nv">to</span> <span class="nv">fd</span> <span class="mi">2</span> <span class="ss">(</span><span class="nv">stderr</span><span class="ss">)</span> <span class="k">for</span> <span class="nv">child</span> <span class="nv">process</span>.
-    <span class="nv">LogFileName</span> <span class="nv">string</span>
-    <span class="o">//</span> <span class="nv">Permissions</span> <span class="k">for</span> <span class="nv">new</span> <span class="nv">log</span> <span class="nv">file</span>.
-    <span class="nv">LogFilePerm</span> <span class="nv">os</span>.<span class="nv">FileMode</span>
+	// If LogFileName is non-empty, parent process will create file with given name
+	// and will link to fd 2 (stderr) for child process.
+	LogFileName string
+	// Permissions for new log file.
+	LogFilePerm os.FileMode
 
-    <span class="o">//</span> <span class="k">If</span> <span class="nv">WorkDir</span> <span class="nv">is</span> <span class="nv">non</span><span class="o">-</span><span class="nv">empty</span>, <span class="nv">the</span> <span class="nv">child</span> <span class="nv">changes</span> <span class="nv">into</span> <span class="nv">the</span> <span class="nv">directory</span> <span class="nv">before</span>
-    <span class="o">//</span> <span class="nv">creating</span> <span class="nv">the</span> <span class="nv">process</span>.
-    <span class="nv">WorkDir</span> <span class="nv">string</span>
-    <span class="o">//</span> <span class="k">If</span> <span class="nv">Chroot</span> <span class="nv">is</span> <span class="nv">non</span><span class="o">-</span><span class="nv">empty</span>, <span class="nv">the</span> <span class="nv">child</span> <span class="nv">changes</span> <span class="nv">root</span> <span class="nv">directory</span>
-    <span class="nv">Chroot</span> <span class="nv">string</span>
+	// If WorkDir is non-empty, the child changes into the directory before
+	// creating the process.
+	WorkDir string
+	// If Chroot is non-empty, the child changes root directory
+	Chroot string
 
-    <span class="o">//</span> <span class="k">If</span> <span class="nv">Env</span> <span class="nv">is</span> <span class="nv">non</span><span class="o">-</span><span class="nv">nil</span>, <span class="nv">it</span> <span class="nv">gives</span> <span class="nv">the</span> <span class="nv">environment</span> <span class="nv">variables</span> <span class="k">for</span> <span class="nv">the</span>
-    <span class="o">//</span> <span class="nv">daemon</span><span class="o">-</span><span class="nv">process</span> <span class="nv">in</span> <span class="nv">the</span> <span class="nv">form</span> <span class="nv">returned</span> <span class="nv">by</span> <span class="nv">os</span>.<span class="nv">Environ</span>.
-    <span class="o">//</span> <span class="k">If</span> <span class="nv">it</span> <span class="nv">is</span> <span class="nv">nil</span>, <span class="nv">the</span> <span class="nb">result</span> <span class="nv">of</span> <span class="nv">os</span>.<span class="nv">Environ</span> <span class="nv">will</span> <span class="nv">be</span> <span class="nv">used</span>.
-    <span class="nv">Env</span> []<span class="nv">string</span>
-    <span class="o">//</span> <span class="k">If</span> <span class="nv">Args</span> <span class="nv">is</span> <span class="nv">non</span><span class="o">-</span><span class="nv">nil</span>, <span class="nv">it</span> <span class="nv">gives</span> <span class="nv">the</span> <span class="nv">command</span><span class="o">-</span><span class="nv">line</span> <span class="nv">args</span> <span class="k">for</span> <span class="nv">the</span>
-    <span class="o">//</span> <span class="nv">daemon</span><span class="o">-</span><span class="nv">process</span>. <span class="k">If</span> <span class="nv">it</span> <span class="nv">is</span> <span class="nv">nil</span>, <span class="nv">the</span> <span class="nb">result</span> <span class="nv">of</span> <span class="nv">os</span>.<span class="nv">Args</span> <span class="nv">will</span> <span class="nv">be</span> <span class="nv">used</span>
-    <span class="o">//</span> <span class="ss">(</span><span class="nv">without</span> <span class="nv">program</span> <span class="nv">name</span><span class="ss">)</span>.
-    <span class="nv">Args</span> []<span class="nv">string</span>
+	// If Env is non-nil, it gives the environment variables for the
+	// daemon-process in the form returned by os.Environ.
+	// If it is nil, the result of os.Environ will be used.
+	Env []string
+	// If Args is non-nil, it gives the command-line args for the
+	// daemon-process. If it is nil, the result of os.Args will be used
+	// (without program name).
+	Args []string
 
-    <span class="o">//</span> <span class="nv">Credential</span> <span class="nv">holds</span> <span class="nv">user</span> <span class="nv">and</span> <span class="nv">group</span> <span class="nv">identities</span> <span class="nv">to</span> <span class="nv">be</span> <span class="nv">assumed</span> <span class="nv">by</span> <span class="nv">a</span> <span class="nv">daemon</span><span class="o">-</span><span class="nv">process</span>.
-    <span class="nv">Credential</span> <span class="o">*</span><span class="nv">syscall</span>.<span class="nv">Credential</span>
-    <span class="o">//</span> <span class="k">If</span> <span class="nv">Umask</span> <span class="nv">is</span> <span class="nv">non</span><span class="o">-</span><span class="nv">zero</span>, <span class="nv">the</span> <span class="nv">daemon</span><span class="o">-</span><span class="nv">process</span> <span class="k">call</span> <span class="nl">Umask</span><span class="ss">()</span> <span class="nv">func</span> <span class="nv">with</span> <span class="nv">given</span> <span class="nv">value</span>.
-    <span class="nv">Umask</span> <span class="nv">int</span>
+	// Credential holds user and group identities to be assumed by a daemon-process.
+	Credential *syscall.Credential
+	// If Umask is non-zero, the daemon-process call Umask() func with given value.
+	Umask int
 
-    <span class="o">//</span> <span class="nv">Struct</span> <span class="nv">contains</span> <span class="nv">only</span> <span class="nv">serializable</span> <span class="nv">public</span> <span class="nv">fields</span> <span class="ss">(</span><span class="o">!!!</span><span class="ss">)</span>
-    <span class="nv">abspath</span>  <span class="nv">string</span>
-    <span class="nv">pidFile</span>  <span class="o">*</span><span class="nv">LockFile</span>
-    <span class="nv">logFile</span>  <span class="o">*</span><span class="nv">os</span>.<span class="nv">File</span>
-    <span class="nv">nullFile</span> <span class="o">*</span><span class="nv">os</span>.<span class="nv">File</span>
+	// Struct contains only serializable public fields (!!!)
+	abspath  string
+	pidFile  *LockFile
+	logFile  *os.File
+	nullFile *os.File
 
-    <span class="nv">rpipe</span>, <span class="nv">wpipe</span> <span class="o">*</span><span class="nv">os</span>.<span class="nv">File</span>
+	rpipe, wpipe *os.File
 }
-</pre></div>
-
-
-<p>go-carbonのcarbon-agent.goから呼び出していた <code>Context.Reborn()</code> の定義はこちらです。
+</code></pre><p>go-carbonのcarbon-agent.goから呼び出していた <code>Context.Reborn()</code> の定義はこちらです。
 <a href="https://github.com/lomik/go-daemon/blob/205ceae1aeac90abdbcae9fca16ba44b407c598d/daemon_posix.go#L63-L76">Context.Reborn()</a></p>
-<div class="highlight"><pre><span></span><span class="o">//</span> <span class="nv">Reborn</span> <span class="nv">runs</span> <span class="nv">second</span> <span class="nv">copy</span> <span class="nv">of</span> <span class="nv">current</span> <span class="nv">process</span> <span class="nv">in</span> <span class="nv">the</span> <span class="nv">given</span> <span class="nv">context</span>.
-<span class="o">//</span> <span class="nv">function</span> <span class="nv">executes</span> <span class="nv">separate</span> <span class="nv">parts</span> <span class="nv">of</span> <span class="nv">code</span> <span class="nv">in</span> <span class="nv">child</span> <span class="nv">process</span> <span class="nv">and</span> <span class="nv">parent</span> <span class="nv">process</span>
-<span class="o">//</span> <span class="nv">and</span> <span class="nv">provides</span> <span class="nv">demonization</span> <span class="nv">of</span> <span class="nv">child</span> <span class="nv">process</span>. <span class="nv">It</span> <span class="nv">look</span> <span class="nv">similar</span> <span class="nv">as</span> <span class="nv">the</span>
-<span class="o">//</span> <span class="nv">fork</span><span class="o">-</span><span class="nv">daemonization</span>, <span class="nv">but</span> <span class="nv">goroutine</span><span class="o">-</span><span class="nv">safe</span>.
-<span class="o">//</span> <span class="nv">In</span> <span class="nv">success</span> <span class="nv">returns</span> <span class="o">*</span><span class="nv">os</span>.<span class="nv">Process</span> <span class="nv">in</span> <span class="nv">parent</span> <span class="nv">process</span> <span class="nv">and</span> <span class="nv">nil</span> <span class="nv">in</span> <span class="nv">child</span> <span class="nv">process</span>.
-<span class="o">//</span> <span class="nv">Otherwise</span> <span class="nv">returns</span> <span class="nv">error</span>.
-<span class="nv">func</span> <span class="ss">(</span><span class="nv">d</span> <span class="o">*</span><span class="nv">Context</span><span class="ss">)</span> <span class="nv">Reborn</span><span class="ss">()</span> <span class="ss">(</span><span class="nv">child</span> <span class="o">*</span><span class="nv">os</span>.<span class="nv">Process</span>, <span class="nv">err</span> <span class="nv">error</span><span class="ss">)</span> {
-    <span class="k">if</span> <span class="o">!</span><span class="nv">WasReborn</span><span class="ss">()</span> {
-        <span class="nv">child</span>, <span class="nv">err</span> <span class="o">=</span> <span class="nv">d</span>.<span class="nv">parent</span><span class="ss">()</span>
-    } <span class="k">else</span> {
-        <span class="nv">err</span> <span class="o">=</span> <span class="nv">d</span>.<span class="nv">child</span><span class="ss">()</span>
-    }
-    <span class="k">return</span>
+<pre><code>// Reborn runs second copy of current process in the given context.
+// function executes separate parts of code in child process and parent process
+// and provides demonization of child process. It look similar as the
+// fork-daemonization, but goroutine-safe.
+// In success returns *os.Process in parent process and nil in child process.
+// Otherwise returns error.
+func (d *Context) Reborn() (child *os.Process, err error) {
+	if !WasReborn() {
+		child, err = d.parent()
+	} else {
+		err = d.child()
+	}
+	return
 }
-</pre></div>
-
-
-<p>そしてここで読んでいる <code>Context.parent()</code> の定義がこちらです。</p>
+</code></pre><p>そしてここで読んでいる <code>Context.parent()</code> の定義がこちらです。</p>
 <p><a href="https://github.com/lomik/go-daemon/blob/205ceae1aeac90abdbcae9fca16ba44b407c598d/daemon_posix.go#L97-L130">Context.parent()</a></p>
-<div class="highlight"><pre><span></span><span class="nv">func</span> <span class="ss">(</span><span class="nv">d</span> <span class="o">*</span><span class="nv">Context</span><span class="ss">)</span> <span class="nv">parent</span><span class="ss">()</span> <span class="ss">(</span><span class="nv">child</span> <span class="o">*</span><span class="nv">os</span>.<span class="nv">Process</span>, <span class="nv">err</span> <span class="nv">error</span><span class="ss">)</span> {
-    <span class="k">if</span> <span class="nv">err</span> <span class="o">=</span> <span class="nv">d</span>.<span class="nv">prepareEnv</span><span class="ss">()</span><span class="c1">; err != nil {</span>
-        <span class="k">return</span>
-    }
+<pre><code>func (d *Context) parent() (child *os.Process, err error) {
+	if err = d.prepareEnv(); err != nil {
+		return
+	}
 
-    <span class="nv">defer</span> <span class="nv">d</span>.<span class="nv">closeFiles</span><span class="ss">()</span>
-    <span class="k">if</span> <span class="nv">err</span> <span class="o">=</span> <span class="nv">d</span>.<span class="nv">openFiles</span><span class="ss">()</span><span class="c1">; err != nil {</span>
-        <span class="k">return</span>
-    }
+	defer d.closeFiles()
+	if err = d.openFiles(); err != nil {
+		return
+	}
 
-    <span class="nv">attr</span> :<span class="o">=</span> <span class="o">&amp;</span><span class="nv">os</span>.<span class="nv">ProcAttr</span>{
-        <span class="nv">Dir</span>:   <span class="nv">d</span>.<span class="nv">WorkDir</span>,
-        <span class="nv">Env</span>:   <span class="nv">d</span>.<span class="nv">Env</span>,
-        <span class="nv">Files</span>: <span class="nv">d</span>.<span class="nv">files</span><span class="ss">()</span>,
-        <span class="nv">Sys</span>: <span class="o">&amp;</span><span class="nv">syscall</span>.<span class="nv">SysProcAttr</span>{
-            <span class="o">//</span><span class="nv">Chroot</span>:     <span class="nv">d</span>.<span class="nv">Chroot</span>,
-            <span class="nv">Credential</span>: <span class="nv">d</span>.<span class="nv">Credential</span>,
-            <span class="nv">Setsid</span>:     <span class="nv">true</span>,
-        },
-    }
+	attr := &amp;os.ProcAttr{
+		Dir:   d.WorkDir,
+		Env:   d.Env,
+		Files: d.files(),
+		Sys: &amp;syscall.SysProcAttr{
+			//Chroot:     d.Chroot,
+			Credential: d.Credential,
+			Setsid:     true,
+		},
+	}
 
-    <span class="k">if</span> <span class="nv">child</span>, <span class="nv">err</span> <span class="o">=</span> <span class="nv">os</span>.<span class="nv">StartProcess</span><span class="ss">(</span><span class="nv">d</span>.<span class="nv">abspath</span>, <span class="nv">d</span>.<span class="nv">Args</span>, <span class="nv">attr</span><span class="ss">)</span><span class="c1">; err != nil {</span>
-        <span class="k">if</span> <span class="nv">d</span>.<span class="nv">pidFile</span> <span class="o">!=</span> <span class="nv">nil</span> {
-            <span class="nv">d</span>.<span class="nv">pidFile</span>.<span class="nv">Remove</span><span class="ss">()</span>
-        }
-        <span class="k">return</span>
-    }
+	if child, err = os.StartProcess(d.abspath, d.Args, attr); err != nil {
+		if d.pidFile != nil {
+			d.pidFile.Remove()
+		}
+		return
+	}
 
-    <span class="nv">d</span>.<span class="nv">rpipe</span>.<span class="nv">Close</span><span class="ss">()</span>
-    <span class="nv">encoder</span> :<span class="o">=</span> <span class="nv">json</span>.<span class="nv">NewEncoder</span><span class="ss">(</span><span class="nv">d</span>.<span class="nv">wpipe</span><span class="ss">)</span>
-    <span class="nv">err</span> <span class="o">=</span> <span class="nv">encoder</span>.<span class="nv">Encode</span><span class="ss">(</span><span class="nv">d</span><span class="ss">)</span>
+	d.rpipe.Close()
+	encoder := json.NewEncoder(d.wpipe)
+	err = encoder.Encode(d)
 
-    <span class="k">return</span>
+	return
 }
-</pre></div>
-
-
-<p>Goの標準ライブラリで <code>os.StartProcess()</code> というのがあったんですね。APIドキュメントはこちらです。<a href="https://golang.org/pkg/os/#StartProcess">os.StartProcess()</a></p>
+</code></pre><p>Goの標準ライブラリで <code>os.StartProcess()</code> というのがあったんですね。APIドキュメントはこちらです。<a href="https://golang.org/pkg/os/#StartProcess">os.StartProcess()</a></p>
 <p><a href="https://github.com/golang/go/blob/go1.6.2/src/os/doc.go#L20-L29">os.StartProcess()の実装</a></p>
-<div class="highlight"><pre><span></span><span class="o">//</span> <span class="nv">StartProcess</span> <span class="nv">starts</span> <span class="nv">a</span> <span class="nv">new</span> <span class="nv">process</span> <span class="nv">with</span> <span class="nv">the</span> <span class="nv">program</span>, <span class="nv">arguments</span> <span class="nv">and</span> <span class="nv">attributes</span>
-<span class="o">//</span> <span class="nv">specified</span> <span class="nv">by</span> <span class="nv">name</span>, <span class="nv">argv</span> <span class="nv">and</span> <span class="nv">attr</span>.
-<span class="o">//</span>
-<span class="o">//</span> <span class="nv">StartProcess</span> <span class="nv">is</span> <span class="nv">a</span> <span class="nv">low</span><span class="o">-</span><span class="nv">level</span> <span class="nv">interface</span>. <span class="nv">The</span> <span class="nv">os</span><span class="o">/</span><span class="k">exec</span> <span class="nv">package</span> <span class="nv">provides</span>
-<span class="o">//</span> <span class="nv">higher</span><span class="o">-</span><span class="nv">level</span> <span class="nv">interfaces</span>.
-<span class="o">//</span>
-<span class="o">//</span> <span class="k">If</span> <span class="nv">there</span> <span class="nv">is</span> <span class="nv">an</span> <span class="nv">error</span>, <span class="nv">it</span> <span class="nv">will</span> <span class="nv">be</span> <span class="nv">of</span> <span class="nv">type</span> <span class="o">*</span><span class="nv">PathError</span>.
-<span class="nv">func</span> <span class="nv">StartProcess</span><span class="ss">(</span><span class="nv">name</span> <span class="nv">string</span>, <span class="nv">argv</span> []<span class="nv">string</span>, <span class="nv">attr</span> <span class="o">*</span><span class="nv">ProcAttr</span><span class="ss">)</span> <span class="ss">(</span><span class="o">*</span><span class="nv">Process</span>, <span class="nv">error</span><span class="ss">)</span> {
-    <span class="k">return</span> <span class="nv">startProcess</span><span class="ss">(</span><span class="nv">name</span>, <span class="nv">argv</span>, <span class="nv">attr</span><span class="ss">)</span>
+<pre><code>// StartProcess starts a new process with the program, arguments and attributes
+// specified by name, argv and attr.
+//
+// StartProcess is a low-level interface. The os/exec package provides
+// higher-level interfaces.
+//
+// If there is an error, it will be of type *PathError.
+func StartProcess(name string, argv []string, attr *ProcAttr) (*Process, error) {
+	return startProcess(name, argv, attr)
 }
-</pre></div>
+</code></pre><p><a href="https://github.com/golang/go/blob/go1.6.2/src/os/exec.go#L34-L56">os.ProcAttrの定義</a></p>
+<pre><code>// ProcAttr holds the attributes that will be applied to a new process
+// started by StartProcess.
+type ProcAttr struct {
+	// If Dir is non-empty, the child changes into the directory before
+	// creating the process.
+	Dir string
+	// If Env is non-nil, it gives the environment variables for the
+	// new process in the form returned by Environ.
+	// If it is nil, the result of Environ will be used.
+	Env []string
+	// Files specifies the open files inherited by the new process.  The
+	// first three entries correspond to standard input, standard output, and
+	// standard error.  An implementation may support additional entries,
+	// depending on the underlying operating system.  A nil entry corresponds
+	// to that file being closed when the process starts.
+	Files []*File
 
-
-<p><a href="https://github.com/golang/go/blob/go1.6.2/src/os/exec.go#L34-L56">os.ProcAttrの定義</a></p>
-<div class="highlight"><pre><span></span><span class="o">//</span> <span class="nv">ProcAttr</span> <span class="nv">holds</span> <span class="nv">the</span> <span class="nv">attributes</span> <span class="nv">that</span> <span class="nv">will</span> <span class="nv">be</span> <span class="nv">applied</span> <span class="nv">to</span> <span class="nv">a</span> <span class="nv">new</span> <span class="nv">process</span>
-<span class="o">//</span> <span class="nv">started</span> <span class="nv">by</span> <span class="nv">StartProcess</span>.
-<span class="nv">type</span> <span class="nv">ProcAttr</span> <span class="nv">struct</span> {
-    <span class="o">//</span> <span class="k">If</span> <span class="nv">Dir</span> <span class="nv">is</span> <span class="nv">non</span><span class="o">-</span><span class="nv">empty</span>, <span class="nv">the</span> <span class="nv">child</span> <span class="nv">changes</span> <span class="nv">into</span> <span class="nv">the</span> <span class="nv">directory</span> <span class="nv">before</span>
-    <span class="o">//</span> <span class="nv">creating</span> <span class="nv">the</span> <span class="nv">process</span>.
-    <span class="nv">Dir</span> <span class="nv">string</span>
-    <span class="o">//</span> <span class="k">If</span> <span class="nv">Env</span> <span class="nv">is</span> <span class="nv">non</span><span class="o">-</span><span class="nv">nil</span>, <span class="nv">it</span> <span class="nv">gives</span> <span class="nv">the</span> <span class="nv">environment</span> <span class="nv">variables</span> <span class="k">for</span> <span class="nv">the</span>
-    <span class="o">//</span> <span class="nv">new</span> <span class="nv">process</span> <span class="nv">in</span> <span class="nv">the</span> <span class="nv">form</span> <span class="nv">returned</span> <span class="nv">by</span> <span class="nv">Environ</span>.
-    <span class="o">//</span> <span class="k">If</span> <span class="nv">it</span> <span class="nv">is</span> <span class="nv">nil</span>, <span class="nv">the</span> <span class="nb">result</span> <span class="nv">of</span> <span class="nv">Environ</span> <span class="nv">will</span> <span class="nv">be</span> <span class="nv">used</span>.
-    <span class="nv">Env</span> []<span class="nv">string</span>
-    <span class="o">//</span> <span class="nv">Files</span> <span class="nv">specifies</span> <span class="nv">the</span> <span class="nv">open</span> <span class="nv">files</span> <span class="nv">inherited</span> <span class="nv">by</span> <span class="nv">the</span> <span class="nv">new</span> <span class="nv">process</span>.  <span class="nv">The</span>
-    <span class="o">//</span> <span class="nv">first</span> <span class="nv">three</span> <span class="nv">entries</span> <span class="nv">correspond</span> <span class="nv">to</span> <span class="nv">standard</span> <span class="nv">input</span>, <span class="nv">standard</span> <span class="nv">output</span>, <span class="nv">and</span>
-    <span class="o">//</span> <span class="nv">standard</span> <span class="nv">error</span>.  <span class="nv">An</span> <span class="nv">implementation</span> <span class="nv">may</span> <span class="nv">support</span> <span class="nv">additional</span> <span class="nv">entries</span>,
-    <span class="o">//</span> <span class="nv">depending</span> <span class="nv">on</span> <span class="nv">the</span> <span class="nv">underlying</span> <span class="nv">operating</span> <span class="nv">system</span>.  <span class="nv">A</span> <span class="nv">nil</span> <span class="nv">entry</span> <span class="nv">corresponds</span>
-    <span class="o">//</span> <span class="nv">to</span> <span class="nv">that</span> <span class="nv">file</span> <span class="nv">being</span> <span class="nv">closed</span> <span class="nv">when</span> <span class="nv">the</span> <span class="nv">process</span> <span class="nv">starts</span>.
-    <span class="nv">Files</span> []<span class="o">*</span><span class="nv">File</span>
-
-    <span class="o">//</span> <span class="nv">Operating</span> <span class="nv">system</span><span class="o">-</span><span class="nv">specific</span> <span class="nv">process</span> <span class="nv">creation</span> <span class="nv">attributes</span>.
-    <span class="o">//</span> <span class="nv">Note</span> <span class="nv">that</span> <span class="nv">setting</span> <span class="nv">this</span> <span class="nv">field</span> <span class="nv">means</span> <span class="nv">that</span> <span class="nv">your</span> <span class="nv">program</span>
-    <span class="o">//</span> <span class="nv">may</span> <span class="nv">not</span> <span class="nv">execute</span> <span class="nv">properly</span> <span class="nv">or</span> <span class="nv">even</span> <span class="nv">compile</span> <span class="nv">on</span> <span class="nv">some</span>
-    <span class="o">//</span> <span class="nv">operating</span> <span class="nv">systems</span>.
-    <span class="nv">Sys</span> <span class="o">*</span><span class="nv">syscall</span>.<span class="nv">SysProcAttr</span>
+	// Operating system-specific process creation attributes.
+	// Note that setting this field means that your program
+	// may not execute properly or even compile on some
+	// operating systems.
+	Sys *syscall.SysProcAttr
 }
-</pre></div>
-
-
-<p>ここからはOS依存になりますが、Linuxの実装を見ていきます。</p>
+</code></pre><p>ここからはOS依存になりますが、Linuxの実装を見ていきます。</p>
 <p><a href="https://github.com/golang/go/blob/go1.6.2/src/syscall/exec_linux.go#L21-L41">SysProcAttrのLinuxでの実装</a></p>
-<div class="highlight"><pre><span></span><span class="nv">type</span> <span class="nv">SysProcAttr</span> <span class="nv">struct</span> {
-    <span class="nv">Chroot</span>      <span class="nv">string</span>         <span class="o">//</span> <span class="nv">Chroot</span>.
-    <span class="nv">Credential</span>  <span class="o">*</span><span class="nv">Credential</span>    <span class="o">//</span> <span class="nv">Credential</span>.
-    <span class="nv">Ptrace</span>      <span class="nv">bool</span>           <span class="o">//</span> <span class="nv">Enable</span> <span class="nv">tracing</span>.
-    <span class="nv">Setsid</span>      <span class="nv">bool</span>           <span class="o">//</span> <span class="nv">Create</span> <span class="nv">session</span>.
-    <span class="nv">Setpgid</span>     <span class="nv">bool</span>           <span class="o">//</span> <span class="nv">Set</span> <span class="nv">process</span> <span class="nv">group</span> <span class="nv">ID</span> <span class="nv">to</span> <span class="nv">Pgid</span>, <span class="nv">or</span>, <span class="k">if</span> <span class="nv">Pgid</span> <span class="o">==</span> <span class="mi">0</span>, <span class="nv">to</span> <span class="nv">new</span> <span class="nv">pid</span>.
-    <span class="nv">Setctty</span>     <span class="nv">bool</span>           <span class="o">//</span> <span class="nv">Set</span> <span class="nv">controlling</span> <span class="nv">terminal</span> <span class="nv">to</span> <span class="nv">fd</span> <span class="nv">Ctty</span> <span class="ss">(</span><span class="nv">only</span> <span class="nv">meaningful</span> <span class="k">if</span> <span class="nv">Setsid</span> <span class="nv">is</span> <span class="nv">set</span><span class="ss">)</span>
-    <span class="nv">Noctty</span>      <span class="nv">bool</span>           <span class="o">//</span> <span class="nv">Detach</span> <span class="nv">fd</span> <span class="mi">0</span> <span class="nv">from</span> <span class="nv">controlling</span> <span class="nv">terminal</span>
-    <span class="nv">Ctty</span>        <span class="nv">int</span>            <span class="o">//</span> <span class="nv">Controlling</span> <span class="nv">TTY</span> <span class="nv">fd</span>
-    <span class="nv">Foreground</span>  <span class="nv">bool</span>           <span class="o">//</span> <span class="nv">Place</span> <span class="nv">child</span><span class="s1">&#39;</span><span class="s">s process group in foreground. (Implies Setpgid. Uses Ctty as fd of controlling TTY)</span>
-    <span class="nv">Pgid</span>        <span class="nv">int</span>            <span class="o">//</span> <span class="nv">Child</span><span class="s1">&#39;</span><span class="s">s process group ID if Setpgid.</span>
-    <span class="nv">Pdeathsig</span>   <span class="nv">Signal</span>         <span class="o">//</span> <span class="nv">Signal</span> <span class="nv">that</span> <span class="nv">the</span> <span class="nv">process</span> <span class="nv">will</span> <span class="nv">get</span> <span class="nv">when</span> <span class="nv">its</span> <span class="nv">parent</span> <span class="nv">dies</span> <span class="ss">(</span><span class="nv">Linux</span> <span class="nv">only</span><span class="ss">)</span>
-    <span class="nv">Cloneflags</span>  <span class="nv">uintptr</span>        <span class="o">//</span> <span class="nv">Flags</span> <span class="k">for</span> <span class="nv">clone</span> <span class="nv">calls</span> <span class="ss">(</span><span class="nv">Linux</span> <span class="nv">only</span><span class="ss">)</span>
-    <span class="nv">UidMappings</span> []<span class="nv">SysProcIDMap</span> <span class="o">//</span> <span class="nv">User</span> <span class="nv">ID</span> <span class="nv">mappings</span> <span class="k">for</span> <span class="nv">user</span> <span class="nv">namespaces</span>.
-    <span class="nv">GidMappings</span> []<span class="nv">SysProcIDMap</span> <span class="o">//</span> <span class="nv">Group</span> <span class="nv">ID</span> <span class="nv">mappings</span> <span class="k">for</span> <span class="nv">user</span> <span class="nv">namespaces</span>.
-    <span class="o">//</span> <span class="nv">GidMappingsEnableSetgroups</span> <span class="nv">enabling</span> <span class="nv">setgroups</span> <span class="nv">syscall</span>.
-    <span class="o">//</span> <span class="k">If</span> <span class="nv">false</span>, <span class="k">then</span> <span class="nv">setgroups</span> <span class="nv">syscall</span> <span class="nv">will</span> <span class="nv">be</span> <span class="nv">disabled</span> <span class="k">for</span> <span class="nv">the</span> <span class="nv">child</span> <span class="nv">process</span>.
-    <span class="o">//</span> <span class="nv">This</span> <span class="nv">parameter</span> <span class="nv">is</span> <span class="nv">no</span><span class="o">-</span><span class="nv">op</span> <span class="k">if</span> <span class="nv">GidMappings</span> <span class="o">==</span> <span class="nv">nil</span>. <span class="nv">Otherwise</span> <span class="k">for</span> <span class="nv">unprivileged</span>
-    <span class="o">//</span> <span class="nv">users</span> <span class="nv">this</span> <span class="nv">should</span> <span class="nv">be</span> <span class="nv">set</span> <span class="nv">to</span> <span class="nv">false</span> <span class="k">for</span> <span class="nv">mappings</span> <span class="nv">work</span>.
-    <span class="nv">GidMappingsEnableSetgroups</span> <span class="nv">bool</span>
+<pre><code>type SysProcAttr struct {
+	Chroot      string         // Chroot.
+	Credential  *Credential    // Credential.
+	Ptrace      bool           // Enable tracing.
+	Setsid      bool           // Create session.
+	Setpgid     bool           // Set process group ID to Pgid, or, if Pgid == 0, to new pid.
+	Setctty     bool           // Set controlling terminal to fd Ctty (only meaningful if Setsid is set)
+	Noctty      bool           // Detach fd 0 from controlling terminal
+	Ctty        int            // Controlling TTY fd
+	Foreground  bool           // Place child's process group in foreground. (Implies Setpgid. Uses Ctty as fd of controlling TTY)
+	Pgid        int            // Child's process group ID if Setpgid.
+	Pdeathsig   Signal         // Signal that the process will get when its parent dies (Linux only)
+	Cloneflags  uintptr        // Flags for clone calls (Linux only)
+	UidMappings []SysProcIDMap // User ID mappings for user namespaces.
+	GidMappings []SysProcIDMap // Group ID mappings for user namespaces.
+	// GidMappingsEnableSetgroups enabling setgroups syscall.
+	// If false, then setgroups syscall will be disabled for the child process.
+	// This parameter is no-op if GidMappings == nil. Otherwise for unprivileged
+	// users this should be set to false for mappings work.
+	GidMappingsEnableSetgroups bool
 }
-</pre></div>
-
-
-<p><a href="https://github.com/golang/go/blob/go1.6.2/src/syscall/exec_unix.go#L112-L118">syscall.CredentialのLinuxなどでの実装</a></p>
-<div class="highlight"><pre><span></span><span class="o">//</span> <span class="n">Credential</span> <span class="n">holds</span> <span class="k">user</span> <span class="k">and</span> <span class="k">group</span> <span class="n">identities</span> <span class="k">to</span> <span class="n">be</span> <span class="n">assumed</span>
-<span class="o">//</span> <span class="k">by</span> <span class="n">a</span> <span class="n">child</span> <span class="n">process</span> <span class="n">started</span> <span class="k">by</span> <span class="n">StartProcess</span><span class="p">.</span>
-<span class="k">type</span> <span class="n">Credential</span> <span class="n">struct</span> <span class="err">{</span>
-    <span class="n">Uid</span>    <span class="n">uint32</span>   <span class="o">//</span> <span class="k">User</span> <span class="n">ID</span><span class="p">.</span>
-    <span class="n">Gid</span>    <span class="n">uint32</span>   <span class="o">//</span> <span class="k">Group</span> <span class="n">ID</span><span class="p">.</span>
-    <span class="n">Groups</span> <span class="p">[]</span><span class="n">uint32</span> <span class="o">//</span> <span class="n">Supplementary</span> <span class="k">group</span> <span class="n">IDs</span><span class="p">.</span>
-<span class="err">}</span>
-</pre></div>
-
-
-<p><a href="https://github.com/golang/go/blob/go1.6.2/src/os/exec_posix.go#L21-L50">os.startProcess()のLinuxなどでの実装</a></p>
-<div class="highlight"><pre><span></span><span class="nv">func</span> <span class="nv">startProcess</span><span class="ss">(</span><span class="nv">name</span> <span class="nv">string</span>, <span class="nv">argv</span> []<span class="nv">string</span>, <span class="nv">attr</span> <span class="o">*</span><span class="nv">ProcAttr</span><span class="ss">)</span> <span class="ss">(</span><span class="nv">p</span> <span class="o">*</span><span class="nv">Process</span>, <span class="nv">err</span> <span class="nv">error</span><span class="ss">)</span> {
-    <span class="o">//</span> <span class="k">If</span> <span class="nv">there</span> <span class="nv">is</span> <span class="nv">no</span> <span class="nv">SysProcAttr</span> <span class="ss">(</span><span class="nv">ie</span>. <span class="nv">no</span> <span class="nv">Chroot</span> <span class="nv">or</span> <span class="nv">changed</span>
-    <span class="o">//</span> <span class="nv">UID</span><span class="o">/</span><span class="nv">GID</span><span class="ss">)</span>, <span class="nv">double</span><span class="o">-</span><span class="nv">check</span> <span class="nv">existence</span> <span class="nv">of</span> <span class="nv">the</span> <span class="nv">directory</span> <span class="nv">we</span> <span class="nv">want</span>
-    <span class="o">//</span> <span class="nv">to</span> <span class="nv">chdir</span> <span class="nv">into</span>.  <span class="nv">We</span> <span class="nv">can</span> <span class="nv">make</span> <span class="nv">the</span> <span class="nv">error</span> <span class="nv">clearer</span> <span class="nv">this</span> <span class="nv">way</span>.
-    <span class="k">if</span> <span class="nv">attr</span> <span class="o">!=</span> <span class="nv">nil</span> <span class="o">&amp;&amp;</span> <span class="nv">attr</span>.<span class="nv">Sys</span> <span class="o">==</span> <span class="nv">nil</span> <span class="o">&amp;&amp;</span> <span class="nv">attr</span>.<span class="nv">Dir</span> <span class="o">!=</span> <span class="s2">&quot;&quot;</span> {
-        <span class="k">if</span> <span class="nv">_</span>, <span class="nv">err</span> :<span class="o">=</span> <span class="nv">Stat</span><span class="ss">(</span><span class="nv">attr</span>.<span class="nv">Dir</span><span class="ss">)</span><span class="c1">; err != nil {</span>
-            <span class="nv">pe</span> :<span class="o">=</span> <span class="nv">err</span>.<span class="ss">(</span><span class="o">*</span><span class="nv">PathError</span><span class="ss">)</span>
-            <span class="nv">pe</span>.<span class="nv">Op</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="s">chdir</span><span class="s2">&quot;</span>
-            <span class="k">return</span> <span class="nv">nil</span>, <span class="nv">pe</span>
-        }
-    }
-
-    <span class="nv">sysattr</span> :<span class="o">=</span> <span class="o">&amp;</span><span class="nv">syscall</span>.<span class="nv">ProcAttr</span>{
-        <span class="nv">Dir</span>: <span class="nv">attr</span>.<span class="nv">Dir</span>,
-        <span class="nv">Env</span>: <span class="nv">attr</span>.<span class="nv">Env</span>,
-        <span class="nv">Sys</span>: <span class="nv">attr</span>.<span class="nv">Sys</span>,
-    }
-    <span class="k">if</span> <span class="nv">sysattr</span>.<span class="nv">Env</span> <span class="o">==</span> <span class="nv">nil</span> {
-        <span class="nv">sysattr</span>.<span class="nv">Env</span> <span class="o">=</span> <span class="nv">Environ</span><span class="ss">()</span>
-    }
-    <span class="k">for</span> <span class="nv">_</span>, <span class="nv">f</span> :<span class="o">=</span> <span class="nv">range</span> <span class="nv">attr</span>.<span class="nv">Files</span> {
-        <span class="nv">sysattr</span>.<span class="nv">Files</span> <span class="o">=</span> <span class="nv">append</span><span class="ss">(</span><span class="nv">sysattr</span>.<span class="nv">Files</span>, <span class="nv">f</span>.<span class="nv">Fd</span><span class="ss">())</span>
-    }
-
-    <span class="nv">pid</span>, <span class="nv">h</span>, <span class="nv">e</span> :<span class="o">=</span> <span class="nv">syscall</span>.<span class="nv">StartProcess</span><span class="ss">(</span><span class="nv">name</span>, <span class="nv">argv</span>, <span class="nv">sysattr</span><span class="ss">)</span>
-    <span class="k">if</span> <span class="nv">e</span> <span class="o">!=</span> <span class="nv">nil</span> {
-        <span class="k">return</span> <span class="nv">nil</span>, <span class="o">&amp;</span><span class="nv">PathError</span>{<span class="s2">&quot;</span><span class="s">fork/exec</span><span class="s2">&quot;</span>, <span class="nv">name</span>, <span class="nv">e</span>}
-    }
-    <span class="k">return</span> <span class="nv">newProcess</span><span class="ss">(</span><span class="nv">pid</span>, <span class="nv">h</span><span class="ss">)</span>, <span class="nv">nil</span>
+</code></pre><p><a href="https://github.com/golang/go/blob/go1.6.2/src/syscall/exec_unix.go#L112-L118">syscall.CredentialのLinuxなどでの実装</a></p>
+<pre><code>// Credential holds user and group identities to be assumed
+// by a child process started by StartProcess.
+type Credential struct {
+	Uid    uint32   // User ID.
+	Gid    uint32   // Group ID.
+	Groups []uint32 // Supplementary group IDs.
 }
-</pre></div>
+</code></pre><p><a href="https://github.com/golang/go/blob/go1.6.2/src/os/exec_posix.go#L21-L50">os.startProcess()のLinuxなどでの実装</a></p>
+<pre><code>func startProcess(name string, argv []string, attr *ProcAttr) (p *Process, err error) {
+	// If there is no SysProcAttr (ie. no Chroot or changed
+	// UID/GID), double-check existence of the directory we want
+	// to chdir into.  We can make the error clearer this way.
+	if attr != nil &amp;&amp; attr.Sys == nil &amp;&amp; attr.Dir != &quot;&quot; {
+		if _, err := Stat(attr.Dir); err != nil {
+			pe := err.(*PathError)
+			pe.Op = &quot;chdir&quot;
+			return nil, pe
+		}
+	}
 
+	sysattr := &amp;syscall.ProcAttr{
+		Dir: attr.Dir,
+		Env: attr.Env,
+		Sys: attr.Sys,
+	}
+	if sysattr.Env == nil {
+		sysattr.Env = Environ()
+	}
+	for _, f := range attr.Files {
+		sysattr.Files = append(sysattr.Files, f.Fd())
+	}
 
-<p><a href="https://github.com/golang/go/blob/go1.6.2/src/syscall/exec_unix.go#L120-L127">os.ProcAttrのLinuxなどでの実装</a></p>
-<div class="highlight"><pre><span></span><span class="o">//</span> <span class="n">ProcAttr</span> <span class="n">holds</span> <span class="n">attributes</span> <span class="n">that</span> <span class="n">will</span> <span class="n">be</span> <span class="n">applied</span> <span class="k">to</span> <span class="n">a</span> <span class="k">new</span> <span class="n">process</span> <span class="n">started</span>
-<span class="o">//</span> <span class="k">by</span> <span class="n">StartProcess</span><span class="p">.</span>
-<span class="k">type</span> <span class="n">ProcAttr</span> <span class="n">struct</span> <span class="err">{</span>
-    <span class="n">Dir</span>   <span class="n">string</span>    <span class="o">//</span> <span class="k">Current</span> <span class="n">working</span> <span class="n">directory</span><span class="p">.</span>
-    <span class="n">Env</span>   <span class="p">[]</span><span class="n">string</span>  <span class="o">//</span> <span class="n">Environment</span><span class="p">.</span>
-    <span class="n">Files</span> <span class="p">[]</span><span class="n">uintptr</span> <span class="o">//</span> <span class="n">File</span> <span class="n">descriptors</span><span class="p">.</span>
-    <span class="n">Sys</span>   <span class="o">*</span><span class="n">SysProcAttr</span>
-<span class="err">}</span>
-</pre></div>
-
-
-<p><a href="https://github.com/golang/go/blob/go1.6.2/src/syscall/exec_unix.go#L238-L242">syscall.StartProcess()のLinuxなどでの実装</a></p>
-<div class="highlight"><pre><span></span><span class="o">//</span> <span class="nv">StartProcess</span> <span class="nv">wraps</span> <span class="nv">ForkExec</span> <span class="k">for</span> <span class="nv">package</span> <span class="nv">os</span>.
-<span class="nv">func</span> <span class="nv">StartProcess</span><span class="ss">(</span><span class="nv">argv0</span> <span class="nv">string</span>, <span class="nv">argv</span> []<span class="nv">string</span>, <span class="nv">attr</span> <span class="o">*</span><span class="nv">ProcAttr</span><span class="ss">)</span> <span class="ss">(</span><span class="nv">pid</span> <span class="nv">int</span>, <span class="nv">handle</span> <span class="nv">uintptr</span>, <span class="nv">err</span> <span class="nv">error</span><span class="ss">)</span> {
-    <span class="nv">pid</span>, <span class="nv">err</span> <span class="o">=</span> <span class="nv">forkExec</span><span class="ss">(</span><span class="nv">argv0</span>, <span class="nv">argv</span>, <span class="nv">attr</span><span class="ss">)</span>
-    <span class="k">return</span> <span class="nv">pid</span>, <span class="mi">0</span>, <span class="nv">err</span>
+	pid, h, e := syscall.StartProcess(name, argv, sysattr)
+	if e != nil {
+		return nil, &amp;PathError{&quot;fork/exec&quot;, name, e}
+	}
+	return newProcess(pid, h), nil
 }
-</pre></div>
-
-
-<p><a href="https://github.com/golang/go/blob/go1.6.2/src/syscall/exec_unix.go#L132-L231">syscall.forkExec()のLinuxなどでの実装</a></p>
-<div class="highlight"><pre><span></span><span class="nv">func</span> <span class="nv">forkExec</span><span class="ss">(</span><span class="nv">argv0</span> <span class="nv">string</span>, <span class="nv">argv</span> []<span class="nv">string</span>, <span class="nv">attr</span> <span class="o">*</span><span class="nv">ProcAttr</span><span class="ss">)</span> <span class="ss">(</span><span class="nv">pid</span> <span class="nv">int</span>, <span class="nv">err</span> <span class="nv">error</span><span class="ss">)</span> {
-    <span class="nv">var</span> <span class="nv">p</span> [<span class="mi">2</span>]<span class="nv">int</span>
-    <span class="nv">var</span> <span class="nv">n</span> <span class="nv">int</span>
-    <span class="nv">var</span> <span class="nv">err1</span> <span class="nv">Errno</span>
-    <span class="nv">var</span> <span class="nv">wstatus</span> <span class="nv">WaitStatus</span>
-
-    <span class="k">if</span> <span class="nv">attr</span> <span class="o">==</span> <span class="nv">nil</span> {
-        <span class="nv">attr</span> <span class="o">=</span> <span class="o">&amp;</span><span class="nv">zeroProcAttr</span>
-    }
-    <span class="nv">sys</span> :<span class="o">=</span> <span class="nv">attr</span>.<span class="nv">Sys</span>
-    <span class="k">if</span> <span class="nv">sys</span> <span class="o">==</span> <span class="nv">nil</span> {
-        <span class="nv">sys</span> <span class="o">=</span> <span class="o">&amp;</span><span class="nv">zeroSysProcAttr</span>
-    }
-
-    <span class="nv">p</span>[<span class="mi">0</span>] <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
-    <span class="nv">p</span>[<span class="mi">1</span>] <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
-
-    <span class="o">//</span> <span class="nv">Convert</span> <span class="nv">args</span> <span class="nv">to</span> <span class="nv">C</span> <span class="nv">form</span>.
-    <span class="nv">argv0p</span>, <span class="nv">err</span> :<span class="o">=</span> <span class="nv">BytePtrFromString</span><span class="ss">(</span><span class="nv">argv0</span><span class="ss">)</span>
-    <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
-        <span class="k">return</span> <span class="mi">0</span>, <span class="nv">err</span>
-    }
-    <span class="nv">argvp</span>, <span class="nv">err</span> :<span class="o">=</span> <span class="nv">SlicePtrFromStrings</span><span class="ss">(</span><span class="nv">argv</span><span class="ss">)</span>
-    <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
-        <span class="k">return</span> <span class="mi">0</span>, <span class="nv">err</span>
-    }
-    <span class="nv">envvp</span>, <span class="nv">err</span> :<span class="o">=</span> <span class="nv">SlicePtrFromStrings</span><span class="ss">(</span><span class="nv">attr</span>.<span class="nv">Env</span><span class="ss">)</span>
-    <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
-        <span class="k">return</span> <span class="mi">0</span>, <span class="nv">err</span>
-    }
-
-    <span class="k">if</span> <span class="ss">(</span><span class="nv">runtime</span>.<span class="nv">GOOS</span> <span class="o">==</span> <span class="s2">&quot;</span><span class="s">freebsd</span><span class="s2">&quot;</span> <span class="o">||</span> <span class="nv">runtime</span>.<span class="nv">GOOS</span> <span class="o">==</span> <span class="s2">&quot;</span><span class="s">dragonfly</span><span class="s2">&quot;</span><span class="ss">)</span> <span class="o">&amp;&amp;</span> <span class="nv">len</span><span class="ss">(</span><span class="nv">argv</span>[<span class="mi">0</span>]<span class="ss">)</span> <span class="o">&gt;</span> <span class="nv">len</span><span class="ss">(</span><span class="nv">argv0</span><span class="ss">)</span> {
-        <span class="nv">argvp</span>[<span class="mi">0</span>] <span class="o">=</span> <span class="nv">argv0p</span>
-    }
-
-    <span class="nv">var</span> <span class="nv">chroot</span> <span class="o">*</span><span class="nv">byte</span>
-    <span class="k">if</span> <span class="nv">sys</span>.<span class="nv">Chroot</span> <span class="o">!=</span> <span class="s2">&quot;&quot;</span> {
-        <span class="nv">chroot</span>, <span class="nv">err</span> <span class="o">=</span> <span class="nv">BytePtrFromString</span><span class="ss">(</span><span class="nv">sys</span>.<span class="nv">Chroot</span><span class="ss">)</span>
-        <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
-            <span class="k">return</span> <span class="mi">0</span>, <span class="nv">err</span>
-        }
-    }
-    <span class="nv">var</span> <span class="nv">dir</span> <span class="o">*</span><span class="nv">byte</span>
-    <span class="k">if</span> <span class="nv">attr</span>.<span class="nv">Dir</span> <span class="o">!=</span> <span class="s2">&quot;&quot;</span> {
-        <span class="nv">dir</span>, <span class="nv">err</span> <span class="o">=</span> <span class="nv">BytePtrFromString</span><span class="ss">(</span><span class="nv">attr</span>.<span class="nv">Dir</span><span class="ss">)</span>
-        <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
-            <span class="k">return</span> <span class="mi">0</span>, <span class="nv">err</span>
-        }
-    }
-
-    <span class="o">//</span> <span class="nv">Acquire</span> <span class="nv">the</span> <span class="nv">fork</span> <span class="nv">lock</span> <span class="nv">so</span> <span class="nv">that</span> <span class="nv">no</span> <span class="nv">other</span> <span class="nv">threads</span>
-    <span class="o">//</span> <span class="nv">create</span> <span class="nv">new</span> <span class="nv">fds</span> <span class="nv">that</span> <span class="nv">are</span> <span class="nv">not</span> <span class="nv">yet</span> <span class="nv">close</span><span class="o">-</span><span class="nv">on</span><span class="o">-</span><span class="k">exec</span>
-    <span class="o">//</span> <span class="nv">before</span> <span class="nv">we</span> <span class="nv">fork</span>.
-    <span class="nv">ForkLock</span>.<span class="nv">Lock</span><span class="ss">()</span>
-
-    <span class="o">//</span> <span class="nv">Allocate</span> <span class="nv">child</span> <span class="nv">status</span> <span class="nv">pipe</span> <span class="nv">close</span> <span class="nv">on</span> <span class="k">exec</span>.
-    <span class="k">if</span> <span class="nv">err</span> <span class="o">=</span> <span class="nv">forkExecPipe</span><span class="ss">(</span><span class="nv">p</span>[:]<span class="ss">)</span><span class="c1">; err != nil {</span>
-        <span class="k">goto</span> <span class="nl">error</span>
-    }
-
-    <span class="o">//</span> <span class="nv">Kick</span> <span class="nv">off</span> <span class="nv">child</span>.
-    <span class="nv">pid</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">forkAndExecInChild</span><span class="ss">(</span><span class="nv">argv0p</span>, <span class="nv">argvp</span>, <span class="nv">envvp</span>, <span class="nv">chroot</span>, <span class="nv">dir</span>, <span class="nv">attr</span>, <span class="nv">sys</span>, <span class="nv">p</span>[<span class="mi">1</span>]<span class="ss">)</span>
-    <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-        <span class="nv">err</span> <span class="o">=</span> <span class="nv">Errno</span><span class="ss">(</span><span class="nv">err1</span><span class="ss">)</span>
-        <span class="k">goto</span> <span class="nl">error</span>
-    }
-    <span class="nv">ForkLock</span>.<span class="nv">Unlock</span><span class="ss">()</span>
-
-    <span class="o">//</span> <span class="nv">Read</span> <span class="nv">child</span> <span class="nv">error</span> <span class="nv">status</span> <span class="nv">from</span> <span class="nv">pipe</span>.
-    <span class="nv">Close</span><span class="ss">(</span><span class="nv">p</span>[<span class="mi">1</span>]<span class="ss">)</span>
-    <span class="nv">n</span>, <span class="nv">err</span> <span class="o">=</span> <span class="nv">readlen</span><span class="ss">(</span><span class="nv">p</span>[<span class="mi">0</span>], <span class="ss">(</span><span class="o">*</span><span class="nv">byte</span><span class="ss">)(</span><span class="nv">unsafe</span>.<span class="nv">Pointer</span><span class="ss">(</span><span class="o">&amp;</span><span class="nv">err1</span><span class="ss">))</span>, <span class="nv">int</span><span class="ss">(</span><span class="nv">unsafe</span>.<span class="nv">Sizeof</span><span class="ss">(</span><span class="nv">err1</span><span class="ss">)))</span>
-    <span class="nv">Close</span><span class="ss">(</span><span class="nv">p</span>[<span class="mi">0</span>]<span class="ss">)</span>
-    <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> <span class="o">||</span> <span class="nv">n</span> <span class="o">!=</span> <span class="mi">0</span> {
-        <span class="k">if</span> <span class="nv">n</span> <span class="o">==</span> <span class="nv">int</span><span class="ss">(</span><span class="nv">unsafe</span>.<span class="nv">Sizeof</span><span class="ss">(</span><span class="nv">err1</span><span class="ss">))</span> {
-            <span class="nv">err</span> <span class="o">=</span> <span class="nv">Errno</span><span class="ss">(</span><span class="nv">err1</span><span class="ss">)</span>
-        }
-        <span class="k">if</span> <span class="nv">err</span> <span class="o">==</span> <span class="nv">nil</span> {
-            <span class="nv">err</span> <span class="o">=</span> <span class="nv">EPIPE</span>
-        }
-
-        <span class="o">//</span> <span class="nv">Child</span> <span class="nv">failed</span><span class="c1">; wait for it to exit, to make sure</span>
-        <span class="o">//</span> <span class="nv">the</span> <span class="nv">zombies</span> <span class="nv">don</span><span class="s1">&#39;</span><span class="s">t accumulate.</span>
-        <span class="nv">_</span>, <span class="nv">err1</span> :<span class="o">=</span> <span class="nv">Wait4</span><span class="ss">(</span><span class="nv">pid</span>, <span class="o">&amp;</span><span class="nv">wstatus</span>, <span class="mi">0</span>, <span class="nv">nil</span><span class="ss">)</span>
-        <span class="k">for</span> <span class="nv">err1</span> <span class="o">==</span> <span class="nv">EINTR</span> {
-            <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">Wait4</span><span class="ss">(</span><span class="nv">pid</span>, <span class="o">&amp;</span><span class="nv">wstatus</span>, <span class="mi">0</span>, <span class="nv">nil</span><span class="ss">)</span>
-        }
-        <span class="k">return</span> <span class="mi">0</span>, <span class="nv">err</span>
-    }
-
-    <span class="o">//</span> <span class="nv">Read</span> <span class="nv">got</span> <span class="nv">EOF</span>, <span class="nv">so</span> <span class="nv">pipe</span> <span class="nv">closed</span> <span class="nv">on</span> <span class="k">exec</span>, <span class="nv">so</span> <span class="k">exec</span> <span class="nv">succeeded</span>.
-    <span class="k">return</span> <span class="nv">pid</span>, <span class="nv">nil</span>
-
-<span class="nv">error</span>:
-    <span class="k">if</span> <span class="nv">p</span>[<span class="mi">0</span>] <span class="o">&gt;=</span> <span class="mi">0</span> {
-        <span class="nv">Close</span><span class="ss">(</span><span class="nv">p</span>[<span class="mi">0</span>]<span class="ss">)</span>
-        <span class="nv">Close</span><span class="ss">(</span><span class="nv">p</span>[<span class="mi">1</span>]<span class="ss">)</span>
-    }
-    <span class="nv">ForkLock</span>.<span class="nv">Unlock</span><span class="ss">()</span>
-    <span class="k">return</span> <span class="mi">0</span>, <span class="nv">err</span>
+</code></pre><p><a href="https://github.com/golang/go/blob/go1.6.2/src/syscall/exec_unix.go#L120-L127">os.ProcAttrのLinuxなどでの実装</a></p>
+<pre><code>// ProcAttr holds attributes that will be applied to a new process started
+// by StartProcess.
+type ProcAttr struct {
+	Dir   string    // Current working directory.
+	Env   []string  // Environment.
+	Files []uintptr // File descriptors.
+	Sys   *SysProcAttr
 }
-</pre></div>
+</code></pre><p><a href="https://github.com/golang/go/blob/go1.6.2/src/syscall/exec_unix.go#L238-L242">syscall.StartProcess()のLinuxなどでの実装</a></p>
+<pre><code>// StartProcess wraps ForkExec for package os.
+func StartProcess(argv0 string, argv []string, attr *ProcAttr) (pid int, handle uintptr, err error) {
+	pid, err = forkExec(argv0, argv, attr)
+	return pid, 0, err
+}
+</code></pre><p><a href="https://github.com/golang/go/blob/go1.6.2/src/syscall/exec_unix.go#L132-L231">syscall.forkExec()のLinuxなどでの実装</a></p>
+<pre><code>func forkExec(argv0 string, argv []string, attr *ProcAttr) (pid int, err error) {
+	var p [2]int
+	var n int
+	var err1 Errno
+	var wstatus WaitStatus
 
+	if attr == nil {
+		attr = &amp;zeroProcAttr
+	}
+	sys := attr.Sys
+	if sys == nil {
+		sys = &amp;zeroSysProcAttr
+	}
 
-<p>いよいよ核心に迫ります。
+	p[0] = -1
+	p[1] = -1
+
+	// Convert args to C form.
+	argv0p, err := BytePtrFromString(argv0)
+	if err != nil {
+		return 0, err
+	}
+	argvp, err := SlicePtrFromStrings(argv)
+	if err != nil {
+		return 0, err
+	}
+	envvp, err := SlicePtrFromStrings(attr.Env)
+	if err != nil {
+		return 0, err
+	}
+
+	if (runtime.GOOS == &quot;freebsd&quot; || runtime.GOOS == &quot;dragonfly&quot;) &amp;&amp; len(argv[0]) &gt; len(argv0) {
+		argvp[0] = argv0p
+	}
+
+	var chroot *byte
+	if sys.Chroot != &quot;&quot; {
+		chroot, err = BytePtrFromString(sys.Chroot)
+		if err != nil {
+			return 0, err
+		}
+	}
+	var dir *byte
+	if attr.Dir != &quot;&quot; {
+		dir, err = BytePtrFromString(attr.Dir)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	// Acquire the fork lock so that no other threads
+	// create new fds that are not yet close-on-exec
+	// before we fork.
+	ForkLock.Lock()
+
+	// Allocate child status pipe close on exec.
+	if err = forkExecPipe(p[:]); err != nil {
+		goto error
+	}
+
+	// Kick off child.
+	pid, err1 = forkAndExecInChild(argv0p, argvp, envvp, chroot, dir, attr, sys, p[1])
+	if err1 != 0 {
+		err = Errno(err1)
+		goto error
+	}
+	ForkLock.Unlock()
+
+	// Read child error status from pipe.
+	Close(p[1])
+	n, err = readlen(p[0], (*byte)(unsafe.Pointer(&amp;err1)), int(unsafe.Sizeof(err1)))
+	Close(p[0])
+	if err != nil || n != 0 {
+		if n == int(unsafe.Sizeof(err1)) {
+			err = Errno(err1)
+		}
+		if err == nil {
+			err = EPIPE
+		}
+
+		// Child failed; wait for it to exit, to make sure
+		// the zombies don't accumulate.
+		_, err1 := Wait4(pid, &amp;wstatus, 0, nil)
+		for err1 == EINTR {
+			_, err1 = Wait4(pid, &amp;wstatus, 0, nil)
+		}
+		return 0, err
+	}
+
+	// Read got EOF, so pipe closed on exec, so exec succeeded.
+	return pid, nil
+
+error:
+	if p[0] &gt;= 0 {
+		Close(p[0])
+		Close(p[1])
+	}
+	ForkLock.Unlock()
+	return 0, err
+}
+</code></pre><p>いよいよ核心に迫ります。
 <a href="https://github.com/golang/go/blob/go1.6.2/src/syscall/exec_linux.go#L47-L325">syscall.forkAndExecInChild()のLinuxでの実装</a></p>
-<div class="highlight"><pre><span></span><span class="o">//</span> <span class="nv">Fork</span>, <span class="nv">dup</span> <span class="nv">fd</span> <span class="nv">onto</span> <span class="mi">0</span>..<span class="nv">len</span><span class="ss">(</span><span class="nv">fd</span><span class="ss">)</span>, <span class="nv">and</span> <span class="k">exec</span><span class="ss">(</span><span class="nv">argv0</span>, <span class="nv">argvv</span>, <span class="nv">envv</span><span class="ss">)</span> <span class="nv">in</span> <span class="nv">child</span>.
-<span class="o">//</span> <span class="k">If</span> <span class="nv">a</span> <span class="nv">dup</span> <span class="nv">or</span> <span class="k">exec</span> <span class="nv">fails</span>, <span class="nv">write</span> <span class="nv">the</span> <span class="nv">errno</span> <span class="nv">error</span> <span class="nv">to</span> <span class="nv">pipe</span>.
-<span class="o">//</span> <span class="ss">(</span><span class="nv">Pipe</span> <span class="nv">is</span> <span class="nv">close</span><span class="o">-</span><span class="nv">on</span><span class="o">-</span><span class="k">exec</span> <span class="nv">so</span> <span class="k">if</span> <span class="k">exec</span> <span class="nv">succeeds</span>, <span class="nv">it</span> <span class="nv">will</span> <span class="nv">be</span> <span class="nv">closed</span>.<span class="ss">)</span>
-<span class="o">//</span> <span class="nv">In</span> <span class="nv">the</span> <span class="nv">child</span>, <span class="nv">this</span> <span class="nv">function</span> <span class="nv">must</span> <span class="nv">not</span> <span class="nv">acquire</span> <span class="nv">any</span> <span class="nv">locks</span>, <span class="nv">because</span>
-<span class="o">//</span> <span class="nv">they</span> <span class="nv">might</span> <span class="nv">have</span> <span class="nv">been</span> <span class="nv">locked</span> <span class="nv">at</span> <span class="nv">the</span> <span class="nv">time</span> <span class="nv">of</span> <span class="nv">the</span> <span class="nv">fork</span>.  <span class="nv">This</span> <span class="nv">means</span>
-<span class="o">//</span> <span class="nv">no</span> <span class="nv">rescheduling</span>, <span class="nv">no</span> <span class="nv">malloc</span> <span class="nv">calls</span>, <span class="nv">and</span> <span class="nv">no</span> <span class="nv">new</span> <span class="nv">stack</span> <span class="nv">segments</span>.
-<span class="o">//</span> <span class="k">For</span> <span class="nv">the</span> <span class="nv">same</span> <span class="nv">reason</span> <span class="nv">compiler</span> <span class="nv">does</span> <span class="nv">not</span> <span class="nv">race</span> <span class="nv">instrument</span> <span class="nv">it</span>.
-<span class="o">//</span> <span class="nv">The</span> <span class="nv">calls</span> <span class="nv">to</span> <span class="nv">RawSyscall</span> <span class="nv">are</span> <span class="nv">okay</span> <span class="nv">because</span> <span class="nv">they</span> <span class="nv">are</span> <span class="nv">assembly</span>
-<span class="o">//</span> <span class="nv">functions</span> <span class="nv">that</span> <span class="k">do</span> <span class="nv">not</span> <span class="nv">grow</span> <span class="nv">the</span> <span class="nv">stack</span>.
-<span class="o">//</span><span class="nv">go</span>:<span class="nv">norace</span>
-<span class="nv">func</span> <span class="nv">forkAndExecInChild</span><span class="ss">(</span><span class="nv">argv0</span> <span class="o">*</span><span class="nv">byte</span>, <span class="nv">argv</span>, <span class="nv">envv</span> []<span class="o">*</span><span class="nv">byte</span>, <span class="nv">chroot</span>, <span class="nv">dir</span> <span class="o">*</span><span class="nv">byte</span>, <span class="nv">attr</span> <span class="o">*</span><span class="nv">ProcAttr</span>, <span class="nv">sys</span> <span class="o">*</span><span class="nv">SysProcAttr</span>, <span class="nv">pipe</span> <span class="nv">int</span><span class="ss">)</span> <span class="ss">(</span><span class="nv">pid</span> <span class="nv">int</span>, <span class="nv">err</span> <span class="nv">Errno</span><span class="ss">)</span> {
-    <span class="o">//</span> <span class="nv">Declare</span> <span class="nv">all</span> <span class="nv">variables</span> <span class="nv">at</span> <span class="nv">top</span> <span class="nv">in</span> <span class="nv">case</span> <span class="nv">any</span>
-    <span class="o">//</span> <span class="nv">declarations</span> <span class="nv">require</span> <span class="nv">heap</span> <span class="nv">allocation</span> <span class="ss">(</span><span class="nv">e</span>.<span class="nv">g</span>., <span class="nv">err1</span><span class="ss">)</span>.
-    <span class="nv">var</span> <span class="ss">(</span>
-        <span class="nv">r1</span>     <span class="nv">uintptr</span>
-        <span class="nv">err1</span>   <span class="nv">Errno</span>
-        <span class="nv">err2</span>   <span class="nv">Errno</span>
-        <span class="nv">nextfd</span> <span class="nv">int</span>
-        <span class="nv">i</span>      <span class="nv">int</span>
-        <span class="nv">p</span>      [<span class="mi">2</span>]<span class="nv">int</span>
-    <span class="ss">)</span>
+<pre><code>// Fork, dup fd onto 0..len(fd), and exec(argv0, argvv, envv) in child.
+// If a dup or exec fails, write the errno error to pipe.
+// (Pipe is close-on-exec so if exec succeeds, it will be closed.)
+// In the child, this function must not acquire any locks, because
+// they might have been locked at the time of the fork.  This means
+// no rescheduling, no malloc calls, and no new stack segments.
+// For the same reason compiler does not race instrument it.
+// The calls to RawSyscall are okay because they are assembly
+// functions that do not grow the stack.
+//go:norace
+func forkAndExecInChild(argv0 *byte, argv, envv []*byte, chroot, dir *byte, attr *ProcAttr, sys *SysProcAttr, pipe int) (pid int, err Errno) {
+	// Declare all variables at top in case any
+	// declarations require heap allocation (e.g., err1).
+	var (
+		r1     uintptr
+		err1   Errno
+		err2   Errno
+		nextfd int
+		i      int
+		p      [2]int
+	)
 
-    <span class="o">//</span> <span class="nv">Record</span> <span class="nv">parent</span> <span class="nv">PID</span> <span class="nv">so</span> <span class="nv">child</span> <span class="nv">can</span> <span class="nv">test</span> <span class="k">if</span> <span class="nv">it</span> <span class="nv">has</span> <span class="nv">died</span>.
-    <span class="nv">ppid</span>, <span class="nv">_</span>, <span class="nv">_</span> :<span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_GETPID</span>, <span class="mi">0</span>, <span class="mi">0</span>, <span class="mi">0</span><span class="ss">)</span>
+	// Record parent PID so child can test if it has died.
+	ppid, _, _ := RawSyscall(SYS_GETPID, 0, 0, 0)
 
-    <span class="o">//</span> <span class="nv">Guard</span> <span class="nv">against</span> <span class="nv">side</span> <span class="nv">effects</span> <span class="nv">of</span> <span class="nv">shuffling</span> <span class="nv">fds</span> <span class="nv">below</span>.
-    <span class="o">//</span> <span class="nv">Make</span> <span class="nv">sure</span> <span class="nv">that</span> <span class="nv">nextfd</span> <span class="nv">is</span> <span class="nv">beyond</span> <span class="nv">any</span> <span class="nv">currently</span> <span class="nv">open</span> <span class="nv">files</span> <span class="nv">so</span>
-    <span class="o">//</span> <span class="nv">that</span> <span class="nv">we</span> <span class="nv">can</span><span class="s1">&#39;</span><span class="s">t run the risk of overwriting any of them.</span>
-    <span class="nv">fd</span> :<span class="o">=</span> <span class="nv">make</span><span class="ss">(</span>[]<span class="nv">int</span>, <span class="nv">len</span><span class="ss">(</span><span class="nv">attr</span>.<span class="nv">Files</span><span class="ss">))</span>
-    <span class="nv">nextfd</span> <span class="o">=</span> <span class="nv">len</span><span class="ss">(</span><span class="nv">attr</span>.<span class="nv">Files</span><span class="ss">)</span>
-    <span class="k">for</span> <span class="nv">i</span>, <span class="nv">ufd</span> :<span class="o">=</span> <span class="nv">range</span> <span class="nv">attr</span>.<span class="nv">Files</span> {
-        <span class="k">if</span> <span class="nv">nextfd</span> <span class="o">&lt;</span> <span class="nv">int</span><span class="ss">(</span><span class="nv">ufd</span><span class="ss">)</span> {
-            <span class="nv">nextfd</span> <span class="o">=</span> <span class="nv">int</span><span class="ss">(</span><span class="nv">ufd</span><span class="ss">)</span>
-        }
-        <span class="nv">fd</span>[<span class="nv">i</span>] <span class="o">=</span> <span class="nv">int</span><span class="ss">(</span><span class="nv">ufd</span><span class="ss">)</span>
-    }
-    <span class="nv">nextfd</span><span class="o">++</span>
+	// Guard against side effects of shuffling fds below.
+	// Make sure that nextfd is beyond any currently open files so
+	// that we can't run the risk of overwriting any of them.
+	fd := make([]int, len(attr.Files))
+	nextfd = len(attr.Files)
+	for i, ufd := range attr.Files {
+		if nextfd &lt; int(ufd) {
+			nextfd = int(ufd)
+		}
+		fd[i] = int(ufd)
+	}
+	nextfd++
 
-    <span class="o">//</span> <span class="nv">Allocate</span> <span class="nv">another</span> <span class="nv">pipe</span> <span class="k">for</span> <span class="nv">parent</span> <span class="nv">to</span> <span class="nv">child</span> <span class="nv">communication</span> <span class="k">for</span>
-    <span class="o">//</span> <span class="nv">synchronizing</span> <span class="nv">writing</span> <span class="nv">of</span> <span class="nv">User</span> <span class="nv">ID</span><span class="o">/</span><span class="nv">Group</span> <span class="nv">ID</span> <span class="nv">mappings</span>.
-    <span class="k">if</span> <span class="nv">sys</span>.<span class="nv">UidMappings</span> <span class="o">!=</span> <span class="nv">nil</span> <span class="o">||</span> <span class="nv">sys</span>.<span class="nv">GidMappings</span> <span class="o">!=</span> <span class="nv">nil</span> {
-        <span class="k">if</span> <span class="nv">err</span> :<span class="o">=</span> <span class="nv">forkExecPipe</span><span class="ss">(</span><span class="nv">p</span>[:]<span class="ss">)</span><span class="c1">; err != nil {</span>
-            <span class="k">return</span> <span class="mi">0</span>, <span class="nv">err</span>.<span class="ss">(</span><span class="nv">Errno</span><span class="ss">)</span>
-        }
-    }
+	// Allocate another pipe for parent to child communication for
+	// synchronizing writing of User ID/Group ID mappings.
+	if sys.UidMappings != nil || sys.GidMappings != nil {
+		if err := forkExecPipe(p[:]); err != nil {
+			return 0, err.(Errno)
+		}
+	}
 
-    <span class="o">//</span> <span class="nv">About</span> <span class="nv">to</span> <span class="k">call</span> <span class="nl">fork</span>.
-    <span class="o">//</span> <span class="nv">No</span> <span class="nv">more</span> <span class="nv">allocation</span> <span class="nv">or</span> <span class="nv">calls</span> <span class="nv">of</span> <span class="nv">non</span><span class="o">-</span><span class="nv">assembly</span> <span class="nv">functions</span>.
-    <span class="nv">runtime_BeforeFork</span><span class="ss">()</span>
-    <span class="nv">r1</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall6</span><span class="ss">(</span><span class="nv">SYS_CLONE</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">SIGCHLD</span><span class="ss">)</span><span class="o">|</span><span class="nv">sys</span>.<span class="nv">Cloneflags</span>, <span class="mi">0</span>, <span class="mi">0</span>, <span class="mi">0</span>, <span class="mi">0</span>, <span class="mi">0</span><span class="ss">)</span>
-    <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-        <span class="nv">runtime_AfterFork</span><span class="ss">()</span>
-        <span class="k">return</span> <span class="mi">0</span>, <span class="nv">err1</span>
-    }
+	// About to call fork.
+	// No more allocation or calls of non-assembly functions.
+	runtime_BeforeFork()
+	r1, _, err1 = RawSyscall6(SYS_CLONE, uintptr(SIGCHLD)|sys.Cloneflags, 0, 0, 0, 0, 0)
+	if err1 != 0 {
+		runtime_AfterFork()
+		return 0, err1
+	}
 
-    <span class="k">if</span> <span class="nv">r1</span> <span class="o">!=</span> <span class="mi">0</span> {
-        <span class="o">//</span> <span class="nv">parent</span><span class="c1">; return PID</span>
-        <span class="nv">runtime_AfterFork</span><span class="ss">()</span>
-        <span class="nv">pid</span> <span class="o">=</span> <span class="nv">int</span><span class="ss">(</span><span class="nv">r1</span><span class="ss">)</span>
+	if r1 != 0 {
+		// parent; return PID
+		runtime_AfterFork()
+		pid = int(r1)
 
-        <span class="k">if</span> <span class="nv">sys</span>.<span class="nv">UidMappings</span> <span class="o">!=</span> <span class="nv">nil</span> <span class="o">||</span> <span class="nv">sys</span>.<span class="nv">GidMappings</span> <span class="o">!=</span> <span class="nv">nil</span> {
-            <span class="nv">Close</span><span class="ss">(</span><span class="nv">p</span>[<span class="mi">0</span>]<span class="ss">)</span>
-            <span class="nv">err</span> :<span class="o">=</span> <span class="nv">writeUidGidMappings</span><span class="ss">(</span><span class="nv">pid</span>, <span class="nv">sys</span><span class="ss">)</span>
-            <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
-                <span class="nv">err2</span> <span class="o">=</span> <span class="nv">err</span>.<span class="ss">(</span><span class="nv">Errno</span><span class="ss">)</span>
-            }
-            <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_WRITE</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">p</span>[<span class="mi">1</span>]<span class="ss">)</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">unsafe</span>.<span class="nv">Pointer</span><span class="ss">(</span><span class="o">&amp;</span><span class="nv">err2</span><span class="ss">))</span>, <span class="nv">unsafe</span>.<span class="nv">Sizeof</span><span class="ss">(</span><span class="nv">err2</span><span class="ss">))</span>
-            <span class="nv">Close</span><span class="ss">(</span><span class="nv">p</span>[<span class="mi">1</span>]<span class="ss">)</span>
-        }
+		if sys.UidMappings != nil || sys.GidMappings != nil {
+			Close(p[0])
+			err := writeUidGidMappings(pid, sys)
+			if err != nil {
+				err2 = err.(Errno)
+			}
+			RawSyscall(SYS_WRITE, uintptr(p[1]), uintptr(unsafe.Pointer(&amp;err2)), unsafe.Sizeof(err2))
+			Close(p[1])
+		}
 
-        <span class="k">return</span> <span class="nv">pid</span>, <span class="mi">0</span>
-    }
+		return pid, 0
+	}
 
-    <span class="o">//</span> <span class="nv">Fork</span> <span class="nv">succeeded</span>, <span class="nv">now</span> <span class="nv">in</span> <span class="nv">child</span>.
+	// Fork succeeded, now in child.
 
-    <span class="o">//</span> <span class="k">Wait</span> <span class="k">for</span> <span class="nv">User</span> <span class="nv">ID</span><span class="o">/</span><span class="nv">Group</span> <span class="nv">ID</span> <span class="nv">mappings</span> <span class="nv">to</span> <span class="nv">be</span> <span class="nv">written</span>.
-    <span class="k">if</span> <span class="nv">sys</span>.<span class="nv">UidMappings</span> <span class="o">!=</span> <span class="nv">nil</span> <span class="o">||</span> <span class="nv">sys</span>.<span class="nv">GidMappings</span> <span class="o">!=</span> <span class="nv">nil</span> {
-        <span class="k">if</span> <span class="nv">_</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_CLOSE</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">p</span>[<span class="mi">1</span>]<span class="ss">)</span>, <span class="mi">0</span>, <span class="mi">0</span><span class="ss">)</span><span class="c1">; err1 != 0 {</span>
-            <span class="k">goto</span> <span class="nl">childerror</span>
-        }
-        <span class="nv">r1</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_READ</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">p</span>[<span class="mi">0</span>]<span class="ss">)</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">unsafe</span>.<span class="nv">Pointer</span><span class="ss">(</span><span class="o">&amp;</span><span class="nv">err2</span><span class="ss">))</span>, <span class="nv">unsafe</span>.<span class="nv">Sizeof</span><span class="ss">(</span><span class="nv">err2</span><span class="ss">))</span>
-        <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-            <span class="k">goto</span> <span class="nl">childerror</span>
-        }
-        <span class="k">if</span> <span class="nv">r1</span> <span class="o">!=</span> <span class="nv">unsafe</span>.<span class="nv">Sizeof</span><span class="ss">(</span><span class="nv">err2</span><span class="ss">)</span> {
-            <span class="nv">err1</span> <span class="o">=</span> <span class="nv">EINVAL</span>
-            <span class="k">goto</span> <span class="nl">childerror</span>
-        }
-        <span class="k">if</span> <span class="nv">err2</span> <span class="o">!=</span> <span class="mi">0</span> {
-            <span class="nv">err1</span> <span class="o">=</span> <span class="nv">err2</span>
-            <span class="k">goto</span> <span class="nl">childerror</span>
-        }
-    }
+	// Wait for User ID/Group ID mappings to be written.
+	if sys.UidMappings != nil || sys.GidMappings != nil {
+		if _, _, err1 = RawSyscall(SYS_CLOSE, uintptr(p[1]), 0, 0); err1 != 0 {
+			goto childerror
+		}
+		r1, _, err1 = RawSyscall(SYS_READ, uintptr(p[0]), uintptr(unsafe.Pointer(&amp;err2)), unsafe.Sizeof(err2))
+		if err1 != 0 {
+			goto childerror
+		}
+		if r1 != unsafe.Sizeof(err2) {
+			err1 = EINVAL
+			goto childerror
+		}
+		if err2 != 0 {
+			err1 = err2
+			goto childerror
+		}
+	}
 
-    <span class="o">//</span> <span class="nv">Enable</span> <span class="nv">tracing</span> <span class="k">if</span> <span class="nv">requested</span>.
-    <span class="k">if</span> <span class="nv">sys</span>.<span class="nv">Ptrace</span> {
-        <span class="nv">_</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_PTRACE</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">PTRACE_TRACEME</span><span class="ss">)</span>, <span class="mi">0</span>, <span class="mi">0</span><span class="ss">)</span>
-        <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-            <span class="k">goto</span> <span class="nl">childerror</span>
-        }
-    }
+	// Enable tracing if requested.
+	if sys.Ptrace {
+		_, _, err1 = RawSyscall(SYS_PTRACE, uintptr(PTRACE_TRACEME), 0, 0)
+		if err1 != 0 {
+			goto childerror
+		}
+	}
 
-    <span class="o">//</span> <span class="nv">Session</span> <span class="nv">ID</span>
-    <span class="k">if</span> <span class="nv">sys</span>.<span class="nv">Setsid</span> {
-        <span class="nv">_</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_SETSID</span>, <span class="mi">0</span>, <span class="mi">0</span>, <span class="mi">0</span><span class="ss">)</span>
-        <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-            <span class="k">goto</span> <span class="nl">childerror</span>
-        }
-    }
+	// Session ID
+	if sys.Setsid {
+		_, _, err1 = RawSyscall(SYS_SETSID, 0, 0, 0)
+		if err1 != 0 {
+			goto childerror
+		}
+	}
 
-    <span class="o">//</span> <span class="nv">Set</span> <span class="nv">process</span> <span class="nv">group</span>
-    <span class="k">if</span> <span class="nv">sys</span>.<span class="nv">Setpgid</span> <span class="o">||</span> <span class="nv">sys</span>.<span class="nv">Foreground</span> {
-        <span class="o">//</span> <span class="nv">Place</span> <span class="nv">child</span> <span class="nv">in</span> <span class="nv">process</span> <span class="nv">group</span>.
-        <span class="nv">_</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_SETPGID</span>, <span class="mi">0</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">sys</span>.<span class="nv">Pgid</span><span class="ss">)</span>, <span class="mi">0</span><span class="ss">)</span>
-        <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-            <span class="k">goto</span> <span class="nl">childerror</span>
-        }
-    }
+	// Set process group
+	if sys.Setpgid || sys.Foreground {
+		// Place child in process group.
+		_, _, err1 = RawSyscall(SYS_SETPGID, 0, uintptr(sys.Pgid), 0)
+		if err1 != 0 {
+			goto childerror
+		}
+	}
 
-    <span class="k">if</span> <span class="nv">sys</span>.<span class="nv">Foreground</span> {
-        <span class="nv">pgrp</span> :<span class="o">=</span> <span class="nv">int32</span><span class="ss">(</span><span class="nv">sys</span>.<span class="nv">Pgid</span><span class="ss">)</span>
-        <span class="k">if</span> <span class="nv">pgrp</span> <span class="o">==</span> <span class="mi">0</span> {
-            <span class="nv">r1</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_GETPID</span>, <span class="mi">0</span>, <span class="mi">0</span>, <span class="mi">0</span><span class="ss">)</span>
-            <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-                <span class="k">goto</span> <span class="nl">childerror</span>
-            }
+	if sys.Foreground {
+		pgrp := int32(sys.Pgid)
+		if pgrp == 0 {
+			r1, _, err1 = RawSyscall(SYS_GETPID, 0, 0, 0)
+			if err1 != 0 {
+				goto childerror
+			}
 
-            <span class="nv">pgrp</span> <span class="o">=</span> <span class="nv">int32</span><span class="ss">(</span><span class="nv">r1</span><span class="ss">)</span>
-        }
+			pgrp = int32(r1)
+		}
 
-        <span class="o">//</span> <span class="nv">Place</span> <span class="nv">process</span> <span class="nv">group</span> <span class="nv">in</span> <span class="nv">foreground</span>.
-        <span class="nv">_</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_IOCTL</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">sys</span>.<span class="nv">Ctty</span><span class="ss">)</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">TIOCSPGRP</span><span class="ss">)</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">unsafe</span>.<span class="nv">Pointer</span><span class="ss">(</span><span class="o">&amp;</span><span class="nv">pgrp</span><span class="ss">)))</span>
-        <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-            <span class="k">goto</span> <span class="nl">childerror</span>
-        }
-    }
+		// Place process group in foreground.
+		_, _, err1 = RawSyscall(SYS_IOCTL, uintptr(sys.Ctty), uintptr(TIOCSPGRP), uintptr(unsafe.Pointer(&amp;pgrp)))
+		if err1 != 0 {
+			goto childerror
+		}
+	}
 
-    <span class="o">//</span> <span class="nv">Chroot</span>
-    <span class="k">if</span> <span class="nv">chroot</span> <span class="o">!=</span> <span class="nv">nil</span> {
-        <span class="nv">_</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_CHROOT</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">unsafe</span>.<span class="nv">Pointer</span><span class="ss">(</span><span class="nv">chroot</span><span class="ss">))</span>, <span class="mi">0</span>, <span class="mi">0</span><span class="ss">)</span>
-        <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-            <span class="k">goto</span> <span class="nl">childerror</span>
-        }
-    }
+	// Chroot
+	if chroot != nil {
+		_, _, err1 = RawSyscall(SYS_CHROOT, uintptr(unsafe.Pointer(chroot)), 0, 0)
+		if err1 != 0 {
+			goto childerror
+		}
+	}
 
-    <span class="o">//</span> <span class="nv">User</span> <span class="nv">and</span> <span class="nv">groups</span>
-    <span class="k">if</span> <span class="nv">cred</span> :<span class="o">=</span> <span class="nv">sys</span>.<span class="nv">Credential</span><span class="c1">; cred != nil {</span>
-        <span class="nv">ngroups</span> :<span class="o">=</span> <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">len</span><span class="ss">(</span><span class="nv">cred</span>.<span class="nv">Groups</span><span class="ss">))</span>
-        <span class="k">if</span> <span class="nv">ngroups</span> <span class="o">&gt;</span> <span class="mi">0</span> {
-            <span class="nv">groups</span> :<span class="o">=</span> <span class="nv">unsafe</span>.<span class="nv">Pointer</span><span class="ss">(</span><span class="o">&amp;</span><span class="nv">cred</span>.<span class="nv">Groups</span>[<span class="mi">0</span>]<span class="ss">)</span>
-            <span class="nv">_</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_SETGROUPS</span>, <span class="nv">ngroups</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">groups</span><span class="ss">)</span>, <span class="mi">0</span><span class="ss">)</span>
-            <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-                <span class="k">goto</span> <span class="nl">childerror</span>
-            }
-        }
-        <span class="nv">_</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_SETGID</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">cred</span>.<span class="nv">Gid</span><span class="ss">)</span>, <span class="mi">0</span>, <span class="mi">0</span><span class="ss">)</span>
-        <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-            <span class="k">goto</span> <span class="nl">childerror</span>
-        }
-        <span class="nv">_</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_SETUID</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">cred</span>.<span class="nv">Uid</span><span class="ss">)</span>, <span class="mi">0</span>, <span class="mi">0</span><span class="ss">)</span>
-        <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-            <span class="k">goto</span> <span class="nl">childerror</span>
-        }
-    }
+	// User and groups
+	if cred := sys.Credential; cred != nil {
+		ngroups := uintptr(len(cred.Groups))
+		if ngroups &gt; 0 {
+			groups := unsafe.Pointer(&amp;cred.Groups[0])
+			_, _, err1 = RawSyscall(SYS_SETGROUPS, ngroups, uintptr(groups), 0)
+			if err1 != 0 {
+				goto childerror
+			}
+		}
+		_, _, err1 = RawSyscall(SYS_SETGID, uintptr(cred.Gid), 0, 0)
+		if err1 != 0 {
+			goto childerror
+		}
+		_, _, err1 = RawSyscall(SYS_SETUID, uintptr(cred.Uid), 0, 0)
+		if err1 != 0 {
+			goto childerror
+		}
+	}
 
-    <span class="o">//</span> <span class="nv">Chdir</span>
-    <span class="k">if</span> <span class="nv">dir</span> <span class="o">!=</span> <span class="nv">nil</span> {
-        <span class="nv">_</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_CHDIR</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">unsafe</span>.<span class="nv">Pointer</span><span class="ss">(</span><span class="nv">dir</span><span class="ss">))</span>, <span class="mi">0</span>, <span class="mi">0</span><span class="ss">)</span>
-        <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-            <span class="k">goto</span> <span class="nl">childerror</span>
-        }
-    }
+	// Chdir
+	if dir != nil {
+		_, _, err1 = RawSyscall(SYS_CHDIR, uintptr(unsafe.Pointer(dir)), 0, 0)
+		if err1 != 0 {
+			goto childerror
+		}
+	}
 
-    <span class="o">//</span> <span class="nv">Parent</span> <span class="nv">death</span> <span class="nv">signal</span>
-    <span class="k">if</span> <span class="nv">sys</span>.<span class="nv">Pdeathsig</span> <span class="o">!=</span> <span class="mi">0</span> {
-        <span class="nv">_</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall6</span><span class="ss">(</span><span class="nv">SYS_PRCTL</span>, <span class="nv">PR_SET_PDEATHSIG</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">sys</span>.<span class="nv">Pdeathsig</span><span class="ss">)</span>, <span class="mi">0</span>, <span class="mi">0</span>, <span class="mi">0</span>, <span class="mi">0</span><span class="ss">)</span>
-        <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-            <span class="k">goto</span> <span class="nl">childerror</span>
-        }
+	// Parent death signal
+	if sys.Pdeathsig != 0 {
+		_, _, err1 = RawSyscall6(SYS_PRCTL, PR_SET_PDEATHSIG, uintptr(sys.Pdeathsig), 0, 0, 0, 0)
+		if err1 != 0 {
+			goto childerror
+		}
 
-        <span class="o">//</span> <span class="nv">Signal</span> <span class="nv">self</span> <span class="k">if</span> <span class="nv">parent</span> <span class="nv">is</span> <span class="nv">already</span> <span class="nv">dead</span>. <span class="nv">This</span> <span class="nv">might</span> <span class="nv">cause</span> <span class="nv">a</span>
-        <span class="o">//</span> <span class="nv">duplicate</span> <span class="nv">signal</span> <span class="nv">in</span> <span class="nv">rare</span> <span class="nv">cases</span>, <span class="nv">but</span> <span class="nv">it</span> <span class="nv">won</span><span class="s1">&#39;</span><span class="s">t matter when</span>
-        <span class="o">//</span> <span class="nv">using</span> <span class="nv">SIGKILL</span>.
-        <span class="nv">r1</span>, <span class="nv">_</span>, <span class="nv">_</span> <span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_GETPPID</span>, <span class="mi">0</span>, <span class="mi">0</span>, <span class="mi">0</span><span class="ss">)</span>
-        <span class="k">if</span> <span class="nv">r1</span> <span class="o">!=</span> <span class="nv">ppid</span> {
-            <span class="nv">pid</span>, <span class="nv">_</span>, <span class="nv">_</span> :<span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_GETPID</span>, <span class="mi">0</span>, <span class="mi">0</span>, <span class="mi">0</span><span class="ss">)</span>
-            <span class="nv">_</span>, <span class="nv">_</span>, <span class="nv">err1</span> :<span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_KILL</span>, <span class="nv">pid</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">sys</span>.<span class="nv">Pdeathsig</span><span class="ss">)</span>, <span class="mi">0</span><span class="ss">)</span>
-            <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-                <span class="k">goto</span> <span class="nl">childerror</span>
-            }
-        }
-    }
+		// Signal self if parent is already dead. This might cause a
+		// duplicate signal in rare cases, but it won't matter when
+		// using SIGKILL.
+		r1, _, _ = RawSyscall(SYS_GETPPID, 0, 0, 0)
+		if r1 != ppid {
+			pid, _, _ := RawSyscall(SYS_GETPID, 0, 0, 0)
+			_, _, err1 := RawSyscall(SYS_KILL, pid, uintptr(sys.Pdeathsig), 0)
+			if err1 != 0 {
+				goto childerror
+			}
+		}
+	}
 
-    <span class="o">//</span> <span class="nv">Pass</span> <span class="mi">1</span>: <span class="nv">look</span> <span class="k">for</span> <span class="nv">fd</span>[<span class="nv">i</span>] <span class="o">&lt;</span> <span class="nv">i</span> <span class="nv">and</span> <span class="nv">move</span> <span class="nv">those</span> <span class="nv">up</span> <span class="nv">above</span> <span class="nv">len</span><span class="ss">(</span><span class="nv">fd</span><span class="ss">)</span>
-    <span class="o">//</span> <span class="nv">so</span> <span class="nv">that</span> <span class="nv">pass</span> <span class="mi">2</span> <span class="nv">won</span><span class="s1">&#39;</span><span class="s">t stomp on an fd it needs later.</span>
-    <span class="k">if</span> <span class="nv">pipe</span> <span class="o">&lt;</span> <span class="nv">nextfd</span> {
-        <span class="nv">_</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">_SYS_dup</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">pipe</span><span class="ss">)</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">nextfd</span><span class="ss">)</span>, <span class="mi">0</span><span class="ss">)</span>
-        <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-            <span class="k">goto</span> <span class="nl">childerror</span>
-        }
-        <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_FCNTL</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">nextfd</span><span class="ss">)</span>, <span class="nv">F_SETFD</span>, <span class="nv">FD_CLOEXEC</span><span class="ss">)</span>
-        <span class="nv">pipe</span> <span class="o">=</span> <span class="nv">nextfd</span>
-        <span class="nv">nextfd</span><span class="o">++</span>
-    }
-    <span class="k">for</span> <span class="nv">i</span> <span class="o">=</span> <span class="mi">0</span><span class="c1">; i &lt; len(fd); i++ {</span>
-        <span class="k">if</span> <span class="nv">fd</span>[<span class="nv">i</span>] <span class="o">&gt;=</span> <span class="mi">0</span> <span class="o">&amp;&amp;</span> <span class="nv">fd</span>[<span class="nv">i</span>] <span class="o">&lt;</span> <span class="nv">int</span><span class="ss">(</span><span class="nv">i</span><span class="ss">)</span> {
-            <span class="nv">_</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">_SYS_dup</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">fd</span>[<span class="nv">i</span>]<span class="ss">)</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">nextfd</span><span class="ss">)</span>, <span class="mi">0</span><span class="ss">)</span>
-            <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-                <span class="k">goto</span> <span class="nl">childerror</span>
-            }
-            <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_FCNTL</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">nextfd</span><span class="ss">)</span>, <span class="nv">F_SETFD</span>, <span class="nv">FD_CLOEXEC</span><span class="ss">)</span>
-            <span class="nv">fd</span>[<span class="nv">i</span>] <span class="o">=</span> <span class="nv">nextfd</span>
-            <span class="nv">nextfd</span><span class="o">++</span>
-            <span class="k">if</span> <span class="nv">nextfd</span> <span class="o">==</span> <span class="nv">pipe</span> { <span class="o">//</span> <span class="nv">don</span><span class="s1">&#39;</span><span class="s">t stomp on pipe</span>
-                <span class="nv">nextfd</span><span class="o">++</span>
-            }
-        }
-    }
+	// Pass 1: look for fd[i] &lt; i and move those up above len(fd)
+	// so that pass 2 won't stomp on an fd it needs later.
+	if pipe &lt; nextfd {
+		_, _, err1 = RawSyscall(_SYS_dup, uintptr(pipe), uintptr(nextfd), 0)
+		if err1 != 0 {
+			goto childerror
+		}
+		RawSyscall(SYS_FCNTL, uintptr(nextfd), F_SETFD, FD_CLOEXEC)
+		pipe = nextfd
+		nextfd++
+	}
+	for i = 0; i &lt; len(fd); i++ {
+		if fd[i] &gt;= 0 &amp;&amp; fd[i] &lt; int(i) {
+			_, _, err1 = RawSyscall(_SYS_dup, uintptr(fd[i]), uintptr(nextfd), 0)
+			if err1 != 0 {
+				goto childerror
+			}
+			RawSyscall(SYS_FCNTL, uintptr(nextfd), F_SETFD, FD_CLOEXEC)
+			fd[i] = nextfd
+			nextfd++
+			if nextfd == pipe { // don't stomp on pipe
+				nextfd++
+			}
+		}
+	}
 
-    <span class="o">//</span> <span class="nv">Pass</span> <span class="mi">2</span>: <span class="nv">dup</span> <span class="nv">fd</span>[<span class="nv">i</span>] <span class="nv">down</span> <span class="nv">onto</span> <span class="nv">i</span>.
-    <span class="k">for</span> <span class="nv">i</span> <span class="o">=</span> <span class="mi">0</span><span class="c1">; i &lt; len(fd); i++ {</span>
-        <span class="k">if</span> <span class="nv">fd</span>[<span class="nv">i</span>] <span class="o">==</span> <span class="o">-</span><span class="mi">1</span> {
-            <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_CLOSE</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">i</span><span class="ss">)</span>, <span class="mi">0</span>, <span class="mi">0</span><span class="ss">)</span>
-            <span class="k">continue</span>
-        }
-        <span class="k">if</span> <span class="nv">fd</span>[<span class="nv">i</span>] <span class="o">==</span> <span class="nv">int</span><span class="ss">(</span><span class="nv">i</span><span class="ss">)</span> {
-            <span class="o">//</span> <span class="nv">dup2</span><span class="ss">(</span><span class="nv">i</span>, <span class="nv">i</span><span class="ss">)</span> <span class="nv">won</span><span class="s1">&#39;</span><span class="s">t clear close-on-exec flag on Linux,</span>
-            <span class="o">//</span> <span class="nv">probably</span> <span class="nv">not</span> <span class="nv">elsewhere</span> <span class="nv">either</span>.
-            <span class="nv">_</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_FCNTL</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">fd</span>[<span class="nv">i</span>]<span class="ss">)</span>, <span class="nv">F_SETFD</span>, <span class="mi">0</span><span class="ss">)</span>
-            <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-                <span class="k">goto</span> <span class="nl">childerror</span>
-            }
-            <span class="k">continue</span>
-        }
-        <span class="o">//</span> <span class="nv">The</span> <span class="nv">new</span> <span class="nv">fd</span> <span class="nv">is</span> <span class="nv">created</span> <span class="nv">NOT</span> <span class="nv">close</span><span class="o">-</span><span class="nv">on</span><span class="o">-</span><span class="k">exec</span>,
-        <span class="o">//</span> <span class="nv">which</span> <span class="nv">is</span> <span class="nv">exactly</span> <span class="nv">what</span> <span class="nv">we</span> <span class="nv">want</span>.
-        <span class="nv">_</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">_SYS_dup</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">fd</span>[<span class="nv">i</span>]<span class="ss">)</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">i</span><span class="ss">)</span>, <span class="mi">0</span><span class="ss">)</span>
-        <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-            <span class="k">goto</span> <span class="nl">childerror</span>
-        }
-    }
+	// Pass 2: dup fd[i] down onto i.
+	for i = 0; i &lt; len(fd); i++ {
+		if fd[i] == -1 {
+			RawSyscall(SYS_CLOSE, uintptr(i), 0, 0)
+			continue
+		}
+		if fd[i] == int(i) {
+			// dup2(i, i) won't clear close-on-exec flag on Linux,
+			// probably not elsewhere either.
+			_, _, err1 = RawSyscall(SYS_FCNTL, uintptr(fd[i]), F_SETFD, 0)
+			if err1 != 0 {
+				goto childerror
+			}
+			continue
+		}
+		// The new fd is created NOT close-on-exec,
+		// which is exactly what we want.
+		_, _, err1 = RawSyscall(_SYS_dup, uintptr(fd[i]), uintptr(i), 0)
+		if err1 != 0 {
+			goto childerror
+		}
+	}
 
-    <span class="o">//</span> <span class="nv">By</span> <span class="nv">convention</span>, <span class="nv">we</span> <span class="nv">don</span><span class="s1">&#39;</span><span class="s">t close-on-exec the fds we are</span>
-    <span class="o">//</span> <span class="nv">started</span> <span class="nv">with</span>, <span class="nv">so</span> <span class="k">if</span> <span class="nv">len</span><span class="ss">(</span><span class="nv">fd</span><span class="ss">)</span> <span class="o">&lt;</span> <span class="mi">3</span>, <span class="nv">close</span> <span class="mi">0</span>, <span class="mi">1</span>, <span class="mi">2</span> <span class="nv">as</span> <span class="nv">needed</span>.
-    <span class="o">//</span> <span class="nv">Programs</span> <span class="nv">that</span> <span class="nv">know</span> <span class="nv">they</span> <span class="nv">inherit</span> <span class="nv">fds</span> <span class="o">&gt;=</span> <span class="mi">3</span> <span class="nv">will</span> <span class="nv">need</span>
-    <span class="o">//</span> <span class="nv">to</span> <span class="nv">set</span> <span class="nv">them</span> <span class="nv">close</span><span class="o">-</span><span class="nv">on</span><span class="o">-</span><span class="k">exec</span>.
-    <span class="k">for</span> <span class="nv">i</span> <span class="o">=</span> <span class="nv">len</span><span class="ss">(</span><span class="nv">fd</span><span class="ss">)</span><span class="c1">; i &lt; 3; i++ {</span>
-        <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_CLOSE</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">i</span><span class="ss">)</span>, <span class="mi">0</span>, <span class="mi">0</span><span class="ss">)</span>
-    }
+	// By convention, we don't close-on-exec the fds we are
+	// started with, so if len(fd) &lt; 3, close 0, 1, 2 as needed.
+	// Programs that know they inherit fds &gt;= 3 will need
+	// to set them close-on-exec.
+	for i = len(fd); i &lt; 3; i++ {
+		RawSyscall(SYS_CLOSE, uintptr(i), 0, 0)
+	}
 
-    <span class="o">//</span> <span class="nv">Detach</span> <span class="nv">fd</span> <span class="mi">0</span> <span class="nv">from</span> <span class="nv">tty</span>
-    <span class="k">if</span> <span class="nv">sys</span>.<span class="nv">Noctty</span> {
-        <span class="nv">_</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_IOCTL</span>, <span class="mi">0</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">TIOCNOTTY</span><span class="ss">)</span>, <span class="mi">0</span><span class="ss">)</span>
-        <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-            <span class="k">goto</span> <span class="nl">childerror</span>
-        }
-    }
+	// Detach fd 0 from tty
+	if sys.Noctty {
+		_, _, err1 = RawSyscall(SYS_IOCTL, 0, uintptr(TIOCNOTTY), 0)
+		if err1 != 0 {
+			goto childerror
+		}
+	}
 
-    <span class="o">//</span> <span class="nv">Set</span> <span class="nv">the</span> <span class="nv">controlling</span> <span class="nv">TTY</span> <span class="nv">to</span> <span class="nv">Ctty</span>
-    <span class="k">if</span> <span class="nv">sys</span>.<span class="nv">Setctty</span> {
-        <span class="nv">_</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_IOCTL</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">sys</span>.<span class="nv">Ctty</span><span class="ss">)</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">TIOCSCTTY</span><span class="ss">)</span>, <span class="mi">0</span><span class="ss">)</span>
-        <span class="k">if</span> <span class="nv">err1</span> <span class="o">!=</span> <span class="mi">0</span> {
-            <span class="k">goto</span> <span class="nl">childerror</span>
-        }
-    }
+	// Set the controlling TTY to Ctty
+	if sys.Setctty {
+		_, _, err1 = RawSyscall(SYS_IOCTL, uintptr(sys.Ctty), uintptr(TIOCSCTTY), 0)
+		if err1 != 0 {
+			goto childerror
+		}
+	}
 
-    <span class="o">//</span> <span class="nv">Time</span> <span class="nv">to</span> <span class="k">exec</span>.
-    <span class="nv">_</span>, <span class="nv">_</span>, <span class="nv">err1</span> <span class="o">=</span> <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_EXECVE</span>,
-        <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">unsafe</span>.<span class="nv">Pointer</span><span class="ss">(</span><span class="nv">argv0</span><span class="ss">))</span>,
-        <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">unsafe</span>.<span class="nv">Pointer</span><span class="ss">(</span><span class="o">&amp;</span><span class="nv">argv</span>[<span class="mi">0</span>]<span class="ss">))</span>,
-        <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">unsafe</span>.<span class="nv">Pointer</span><span class="ss">(</span><span class="o">&amp;</span><span class="nv">envv</span>[<span class="mi">0</span>]<span class="ss">)))</span>
+	// Time to exec.
+	_, _, err1 = RawSyscall(SYS_EXECVE,
+		uintptr(unsafe.Pointer(argv0)),
+		uintptr(unsafe.Pointer(&amp;argv[0])),
+		uintptr(unsafe.Pointer(&amp;envv[0])))
 
-<span class="nv">childerror</span>:
-    <span class="o">//</span> <span class="k">send</span> <span class="nv">error</span> <span class="nv">code</span> <span class="nv">on</span> <span class="nv">pipe</span>
-    <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_WRITE</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">pipe</span><span class="ss">)</span>, <span class="nv">uintptr</span><span class="ss">(</span><span class="nv">unsafe</span>.<span class="nv">Pointer</span><span class="ss">(</span><span class="o">&amp;</span><span class="nv">err1</span><span class="ss">))</span>, <span class="nv">unsafe</span>.<span class="nv">Sizeof</span><span class="ss">(</span><span class="nv">err1</span><span class="ss">))</span>
-    <span class="k">for</span> {
-        <span class="nv">RawSyscall</span><span class="ss">(</span><span class="nv">SYS_EXIT</span>, <span class="mi">253</span>, <span class="mi">0</span>, <span class="mi">0</span><span class="ss">)</span>
-    }
+childerror:
+	// send error code on pipe
+	RawSyscall(SYS_WRITE, uintptr(pipe), uintptr(unsafe.Pointer(&amp;err1)), unsafe.Sizeof(err1))
+	for {
+		RawSyscall(SYS_EXIT, 253, 0, 0)
+	}
 }
-</pre></div>
-
-
-<p>Linuxシステムコールの呼び出しのうち気になったところだけをピックアップします。</p>
+</code></pre><p>Linuxシステムコールの呼び出しのうち気になったところだけをピックアップします。</p>
 <ul>
 <li><a href="http://man7.org/linux/man-pages/man2/clone.2.html">clone(2) - Linux manual page</a></li>
 <li><a href="http://man7.org/linux/man-pages/man2/setsid.2.html">setsid(2) - Linux manual page</a></li>
@@ -724,29 +714,23 @@ https://github.com/lomik/go-carbon/blob/v0.7.1/carbon-agent.go#L103-L137</p>
 <p>端末デバイスからの切り離しは <a href="http://man7.org/linux/man-pages/man2/ioctl.2.html">ioctl(2) - Linux manual page</a> に <code>TIOCNOTTY</code> を指定して行っています。 <code>TIOCNOTTY</code> については <a href="http://man7.org/linux/man-pages/man4/tty.4.html">tty(4) - Linux manual page</a> に説明がありました。</p>
 <p><code>syscall.SysProcAttr</code> の <code>Setctty</code> に <code>true</code> を指定していた場合は、 <a href="http://man7.org/linux/man-pages/man2/ioctl.2.html">ioctl(2) - Linux manual page</a> に <code>TIOCSCTTY</code> を指定して制御端末の設定を行っています。 <code>TIOCSCTTY</code> については <a href="http://man7.org/linux/man-pages/man4/tty.4.html">tty(4) - Linux manual page</a> に説明がありました。</p>
 <p>ということで、<a href="http://www.oreilly.co.jp/books/9784873115856/">O'Reilly Japan - Linuxプログラミングインタフェース</a>のデーモン化の手順の全てではないですが、かなりの部分は <a href="https://golang.org/pkg/os/#StartProcess">os - The Go Programming Language</a> で実現できるということがわかりました。</p>
-    </div><!-- /.entry-content -->
 
-  </article>
-</section>
-        <section id="extras" class="body">
-        </section><!-- /#extras -->
+</div>
 
-        <footer id="contentinfo" class="body">
-                <address id="about" class="vcard body">
-                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
-                </address><!-- /#about -->
 
-                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
-        </footer><!-- /#contentinfo -->
+    </main>
 
-    <script type="text/javascript">
-    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
 
-    ga('create', 'UA-53263855-1', 'auto');
-    ga('send', 'pageview');
-    </script>
-</body>
+  </body>
 </html>

@@ -1,66 +1,90 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
 <head>
-        <meta charset="utf-8" />
-        <title>CoreDNSをWindowsのサービスとして登録するためのラッパをGoで書いてみた</title>
-        <link rel="stylesheet" href="../../../../theme/css/main.css" />
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.62.0" />
 
-        <!--[if IE]>
-            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
-        <![endif]-->
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>CoreDNSをWindowsのサービスとして登録するためのラッパをGoで書いてみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
 </head>
 
-<body id="index" class="home">
-        <header id="banner" class="body">
-                <h1><a href="../../../../">hnakamur's blog at github </a></h1>
-                <nav><ul>
-                    <li class="active"><a href="../../../../category/blog.html">blog</a></li>
-                </ul></nav>
-        </header><!-- /#banner -->
-<section id="content" class="body">
-  <article>
-    <header>
-      <h1 class="entry-title">
-        <a href="../../../../2019/10/30/coredns-wrapper-for-runnning-as-windows-service/" rel="bookmark"
-           title="Permalink to CoreDNSをWindowsのサービスとして登録するためのラッパをGoで書いてみた">CoreDNSをWindowsのサービスとして登録するためのラッパをGoで書いてみた</a></h1>
-    </header>
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
 
-    <div class="entry-content">
-<footer class="post-info">
-        <abbr class="published" title="2019-10-30T15:25:00+09:00">
-                Published: 2019-10-30
-        </abbr>
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
 
-        <address class="vcard author">
-                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
-        </address>
-<p>In <a href="../../../../category/blog.html">blog</a>.</p>
-<p>tags: <a href="../../../../tag/dns.html">dns</a> <a href="../../../../tag/go.html">go</a> <a href="../../../../tag/windows.html">windows</a> </p>
-</footer><!-- /.post-info -->      <div class="section" id="id1">
-<h2>はじめに</h2>
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>CoreDNSをWindowsのサービスとして登録するためのラッパをGoで書いてみた</h1>
+  <time datetime=2019-10-30T15:25:00&#43;0900 class="post-date">2019-10-30</time>
+  <h1 id="heading">はじめに</h1>
 <p>Windows の Hyper-V の Linux 上でサーバサイドの開発をしていると Windows 上のウェブブラウザや Windows Subsystem for Linux の curl からアクセスする際に好みの FQDN でアクセスできるようにしたいというニーズがあります。</p>
 <p>Windows は <code>C:\Windows\System32\drivers\etc\hosts</code> 、 Windows Subsystm for Linux は <code>/etc/hosts</code> を編集してエントリを追加して対応していたのですが 2 箇所変更するのが面倒です。</p>
 <p>そんなときふと、手元でDNSサーバを動かせば良いのではと思いました。そうすれば、変更が1か所で済むしCNAMEやTXTレコードも扱えるという利点もあります。</p>
-<p>そこで <a class="reference external" href="https://coredns.io/">CoreDNS</a> を試してみたら、手軽に使えて良さそうでした。</p>
-<p>常用するとなると Windows の起動時に自動で CoreDNS も起動したいところです。スタートアップアプリとして実行するのでも良さそうですが、サービスとして実行できると便利かと思い、調べてみるとGoの良さそうなライブラリ <a class="reference external" href="https://github.com/kardianos/service">kardianos/service: Run go programs as a service on major platforms.</a> を見つけたので、サービス登録用のラッパ <a class="reference external" href="https://github.com/hnakamur/corednsservice">hnakamur/corednsservice</a> を書いてみました。</p>
+<p>そこで <a href="https://coredns.io/">CoreDNS</a> を試してみたら、手軽に使えて良さそうでした。</p>
+<p>常用するとなると Windows の起動時に自動で CoreDNS も起動したいところです。スタートアップアプリとして実行するのでも良さそうですが、サービスとして実行できると便利かと思い、調べてみるとGoの良さそうなライブラリ <a href="https://github.com/kardianos/service">kardianos/service: Run go programs as a service on major platforms.</a> を見つけたので、サービス登録用のラッパ <a href="https://github.com/hnakamur/corednsservice">hnakamur/corednsservice</a> を書いてみました。</p>
 <p>以下に設定手順とラッパの実装についてメモしておきます。</p>
-</div>
-<div class="section" id="id2">
-<h2>環境構築手順</h2>
-<div class="section" id="coredns">
-<h3>CoreDNS のインストールと設定</h3>
-<p><a class="reference external" href="https://coredns.io/">CoreDNS</a> の Download から Windows 用の実行ファイルを含んだ tarball （例: coredns_1.6.4_windows_amd64.tgz） をダウンロードします。</p>
+<h1 id="heading-1">環境構築手順</h1>
+<h2 id="coredns-">CoreDNS のインストールと設定</h2>
+<p><a href="https://coredns.io/">CoreDNS</a> の Download から Windows 用の実行ファイルを含んだ tarball （例: coredns_1.6.4_windows_amd64.tgz） をダウンロードします。</p>
 <p>CoreDNS 用のディレクトリを作成してそこに展開します。以下は <code>C:\CoreDNS</code> として説明します。</p>
 <p>以下は Windows Subsystem for Linux での実行例を示します（なお真面目には tarball を保存して sha256 ファイルとチェックしたほうが良いです）。</p>
-<div class="highlight"><pre><span></span><span class="go">mkdir /mnt/c/CoreDNS</span>
-<span class="go">cd /mnt/c/CoreDNS</span>
-<span class="go">curl -LO https://github.com/coredns/coredns/releases/download/v1.6.4/coredns_1.6.4_windows_amd64.tgz | tar zxf -</span>
-</pre></div>
-<p>設定は <a class="reference external" href="https://coredns.io/manual/toc/">CoreDNS: DNS and Service Discovery</a> を参考に適宜行います。</p>
+<pre><code class="language-console" data-lang="console">mkdir /mnt/c/CoreDNS
+cd /mnt/c/CoreDNS
+curl -LO https://github.com/coredns/coredns/releases/download/v1.6.4/coredns_1.6.4_windows_amd64.tgz | tar zxf -
+</code></pre><p>設定は <a href="https://coredns.io/manual/toc/">CoreDNS: DNS and Service Discovery</a> を参考に適宜行います。</p>
 <p>例として以下のファイルを作ってみました。
 <code>example.org</code> のドメインはファイルでDNSレコードを設定してそれ以外は Google Public DNSにフォワードする設定です。</p>
 <p><code>C:\CoreDNS\Corefile</code></p>
-<div class="highlight"><pre><span></span>example.org {
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">example.org {
     file C:\CoreDNS\db.example.org
     log
 }
@@ -69,9 +93,8 @@
     forward . 8.8.8.8 8.8.4.4
     log
 }
-</pre></div>
-<p><code>C:\CoreDNS\db.example.org</code></p>
-<div class="highlight"><pre><span></span>$ORIGIN example.org.
+</code></pre></div><p><code>C:\CoreDNS\db.example.org</code></p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">$ORIGIN example.org.
 @       3600 IN SOA sns.dns.icann.org. noc.dns.icann.org. (
                                 2019103001 ; serial
                                 7200       ; refresh (2 hours)
@@ -82,189 +105,152 @@
 
 sv01    IN A 192.0.2.11
 sv02    IN A 192.0.2.12
-</pre></div>
-<p>ローカルで使うだけなら上記のようにNSレコードは省略しても動きました。</p>
-</div>
-<div class="section" id="corednsservice">
-<h3>corednsserviceのインストールと設定</h3>
-<p><a class="reference external" href="https://github.com/hnakamur/corednsservice">hnakamur/corednsservice</a> の releases から <code>corednsservice.exe</code> をダウンロードして <code>C:\CoreDNS</code> に保存します。</p>
+</code></pre></div><p>ローカルで使うだけなら上記のようにNSレコードは省略しても動きました。</p>
+<h2 id="corednsservice">corednsserviceのインストールと設定</h2>
+<p><a href="https://github.com/hnakamur/corednsservice">hnakamur/corednsservice</a> の releases から <code>corednsservice.exe</code> をダウンロードして <code>C:\CoreDNS</code> に保存します。</p>
 <p>Windows Subsystem for Linux での実行例を示します。</p>
-<div class="highlight"><pre><span></span><span class="go">curl -LO https://github.com/hnakamur/corednsservice/releases/download/v0.1.0/corednsservice.exe -C /mnt/c/CoreDNS</span>
-</pre></div>
-<p>設定ファイルは <code>corednsservice.exe</code> と同じディレクトリに <code>corednsservice.yml</code> というファイル名で配置する必要があります。</p>
+<pre><code class="language-console" data-lang="console">curl -LO https://github.com/hnakamur/corednsservice/releases/download/v0.1.0/corednsservice.exe -C /mnt/c/CoreDNS
+</code></pre><p>設定ファイルは <code>corednsservice.exe</code> と同じディレクトリに <code>corednsservice.yml</code> というファイル名で配置する必要があります。</p>
 <p>以下に例を示します。</p>
-<div class="highlight"><pre><span></span><span class="nt">name</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">CoreDNS</span>
-<span class="nt">display_name</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">CoreDNS service</span>
-<span class="nt">description</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">CoreDNS service for local development.</span>
-<span class="nt">exec</span><span class="p">:</span> <span class="s">&quot;C:\\CoreDNS\\coredns.exe&quot;</span>
-<span class="nt">args</span><span class="p">:</span> <span class="p p-Indicator">[</span><span class="s">&quot;-conf&quot;</span><span class="p p-Indicator">,</span> <span class="s">&quot;Corefile&quot;</span><span class="p p-Indicator">]</span>
-<span class="nt">dir</span><span class="p">:</span> <span class="s">&quot;C:\\CoreDNS&quot;</span>
-<span class="nt">stdout</span><span class="p">:</span>
-  <span class="nt">filename</span><span class="p">:</span> <span class="s">&quot;C:\\CoreDNS\\coredns.log&quot;</span>
-  <span class="nt">maxsize</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">100</span>
-  <span class="nt">maxbackups</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">50</span>
-  <span class="nt">maxage</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">30</span>
-  <span class="nt">compress</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">true</span>
-</pre></div>
-<p>サービスの登録は管理者権限のコマンドプロンプトを開いて以下のように実行します。
+<div class="highlight"><pre class="chroma"><code class="language-yaml" data-lang="yaml">name<span class="p">:</span><span class="w"> </span>CoreDNS<span class="w">
+</span><span class="w"></span>display_name<span class="p">:</span><span class="w"> </span>CoreDNS<span class="w"> </span>service<span class="w">
+</span><span class="w"></span>description<span class="p">:</span><span class="w"> </span>CoreDNS<span class="w"> </span>service<span class="w"> </span>for<span class="w"> </span>local<span class="w"> </span>development.<span class="w">
+</span><span class="w"></span>exec<span class="p">:</span><span class="w"> </span><span class="s2">&#34;C:\\CoreDNS\\coredns.exe&#34;</span><span class="w">
+</span><span class="w"></span>args<span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&#34;-conf&#34;</span><span class="p">,</span><span class="w"> </span><span class="s2">&#34;Corefile&#34;</span><span class="p">]</span><span class="w">
+</span><span class="w"></span>dir<span class="p">:</span><span class="w"> </span><span class="s2">&#34;C:\\CoreDNS&#34;</span><span class="w">
+</span><span class="w"></span>stdout<span class="p">:</span><span class="w">
+</span><span class="w">  </span>filename<span class="p">:</span><span class="w"> </span><span class="s2">&#34;C:\\CoreDNS\\coredns.log&#34;</span><span class="w">
+</span><span class="w">  </span>maxsize<span class="p">:</span><span class="w"> </span><span class="m">100</span><span class="w">
+</span><span class="w">  </span>maxbackups<span class="p">:</span><span class="w"> </span><span class="m">50</span><span class="w">
+</span><span class="w">  </span>maxage<span class="p">:</span><span class="w"> </span><span class="m">30</span><span class="w">
+</span><span class="w">  </span>compress<span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w">
+</span></code></pre></div><p>サービスの登録は管理者権限のコマンドプロンプトを開いて以下のように実行します。
 タスクマネージャを開いて[サービス]タブに CoreDNS というサービスが登録されたことを確認します。</p>
-<div class="highlight"><pre><span></span>cd \CoreDNS
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">cd \CoreDNS
 corednsservice -service install
-</pre></div>
-<p>サービス起動はコマンドプロンプトで以下のように実行します。あるいはタスクマネージャの[サービス]タブで CoreDNS を選んでポップアップメニューの開始でも良いです。</p>
+</code></pre></div><p>サービス起動はコマンドプロンプトで以下のように実行します。あるいはタスクマネージャの[サービス]タブで CoreDNS を選んでポップアップメニューの開始でも良いです。</p>
 <p>起動成功するとタスクマネージャの[サービス]タブの CoreDNS が実行中になり、[詳細]タブでは <code>coredns.exe</code> と <code>corednsservice.exe</code> が実行中になります。</p>
-<div class="highlight"><pre><span></span>corednsservice -service start
-</pre></div>
-<p>ちなみにサービス停止は以下のようにします。</p>
-<div class="highlight"><pre><span></span>corednsservice -service stop
-</pre></div>
-<p>サービスの登録解除は以下のようにします。</p>
-<div class="highlight"><pre><span></span>corednsservice -service uninstall
-</pre></div>
-<p>CoreDNS のサービスを動かした状態で Windows Subsystem for Linux の端末から動作確認した例を示します。</p>
-<div class="highlight"><pre><span></span><span class="gp">$</span> dig @localhost sv01.example.org
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">corednsservice -service start
+</code></pre></div><p>ちなみにサービス停止は以下のようにします。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">corednsservice -service stop
+</code></pre></div><p>サービスの登録解除は以下のようにします。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">corednsservice -service uninstall
+</code></pre></div><p>CoreDNS のサービスを動かした状態で Windows Subsystem for Linux の端末から動作確認した例を示します。</p>
+<pre><code class="language-console" data-lang="console">$ dig @localhost sv01.example.org
 
-<span class="go">; &lt;&lt;&gt;&gt; DiG 9.11.3-1ubuntu1.9-Ubuntu &lt;&lt;&gt;&gt; @localhost sv01.example.org</span>
-<span class="go">; (1 server found)</span>
-<span class="go">;; global options: +cmd</span>
-<span class="go">;; Got answer:</span>
-<span class="go">;; -&gt;&gt;HEADER&lt;&lt;- opcode: QUERY, status: NOERROR, id: 9988</span>
-<span class="go">;; flags: qr aa rd; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1</span>
-<span class="go">;; WARNING: recursion requested but not available</span>
+; &lt;&lt;&gt;&gt; DiG 9.11.3-1ubuntu1.9-Ubuntu &lt;&lt;&gt;&gt; @localhost sv01.example.org
+; (1 server found)
+;; global options: +cmd
+;; Got answer:
+;; -&gt;&gt;HEADER&lt;&lt;- opcode: QUERY, status: NOERROR, id: 9988
+;; flags: qr aa rd; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1
+;; WARNING: recursion requested but not available
 
-<span class="go">;; OPT PSEUDOSECTION:</span>
-<span class="go">; EDNS: version: 0, flags:; udp: 4096</span>
-<span class="go">; COOKIE: 9f20a2550c810519 (echoed)</span>
-<span class="go">;; QUESTION SECTION:</span>
-<span class="go">;sv01.example.org.              IN      A</span>
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 4096
+; COOKIE: 9f20a2550c810519 (echoed)
+;; QUESTION SECTION:
+;sv01.example.org.              IN      A
 
-<span class="go">;; ANSWER SECTION:</span>
-<span class="go">sv01.example.org.       3600    IN      A       192.0.2.11</span>
+;; ANSWER SECTION:
+sv01.example.org.       3600    IN      A       192.0.2.11
 
-<span class="go">;; Query time: 0 msec</span>
-<span class="go">;; SERVER: 127.0.0.1#53(127.0.0.1)</span>
-<span class="go">;; WHEN: Wed Oct 30 12:25:14 JST 2019</span>
-<span class="go">;; MSG SIZE  rcvd: 89</span>
-</pre></div>
-<p>また <code>dig &#64;localhost example.net</code> など <code>example.org</code> 以外のドメインの名前解決も試してフォワーディングが動いていることを確認します。</p>
-</div>
-<div class="section" id="windowsdns">
-<h3>WindowsでローカルのDNSを使う設定</h3>
+;; Query time: 0 msec
+;; SERVER: 127.0.0.1#53(127.0.0.1)
+;; WHEN: Wed Oct 30 12:25:14 JST 2019
+;; MSG SIZE  rcvd: 89
+</code></pre><p>また <code>dig @localhost example.net</code> など <code>example.org</code> 以外のドメインの名前解決も試してフォワーディングが動いていることを確認します。</p>
+<h2 id="windowsdns">WindowsでローカルのDNSを使う設定</h2>
 <p>コントロールパネルの[ネットワークとインターネット]→[イーサネット]と進んで、[アダプターのオプションを変更する]リンクをクリックします。</p>
 <p>[Wi-Fi]と[イーサネット]についてそれぞれ以下の設定を行います。</p>
-<ul class="simple">
+<ul>
 <li>プロパティの[インターネット プロトコル バージョン 4 (TCP/IP)]で優先DNSサーバを <code>127.0.0.1</code> 、代替DNSサーバを空に変更。もし元々固定で設定していた場合は元の構成に戻すときのために変更前の値をどこかにメモしておきます。</li>
 <li>プロパティの[インターネット プロトコル バージョン 4 (TCP/IP)]で優先DNSサーバを <code>::1</code> 、 代替DNSサーバを空に変更。</li>
 </ul>
 <p>設定したらコマンドプロンプトを開いて動作確認します。</p>
-<div class="highlight"><pre><span></span>C:\&gt;nslookup sv01.example.org
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">C:\&gt;nslookup sv01.example.org
 サーバー:  UnKnown
 Address:  ::1
 
 名前:    sv01.example.org
 Address:  192.0.2.11
-</pre></div>
-</div>
-<div class="section" id="windows-subsystem-for-linuxdns">
-<h3>Windows Subsystem for LinuxでローカルのDNSを使う設定</h3>
-<p><a class="reference external" href="https://github.com/microsoft/WSL/issues/3268">DNS not working in fresh Ubuntu 18.04 that installed from Windows Store · Issue #3268 · microsoft/WSL</a> というイシューの <a class="reference external" href="https://github.com/microsoft/WSL/issues/3268#issuecomment-543190053">コメント</a> で知った <a class="reference external" href="https://gist.github.com/coltenkrauter/608cfe02319ce60facd76373249b8ca6">Fix DNS resolution in WSL2</a> の手順で設定します。 WSL2 と書かれていますが WSL1 でもこの手順で行けました。</p>
+</code></pre></div><h2 id="windows-subsystem-for-linuxdns">Windows Subsystem for LinuxでローカルのDNSを使う設定</h2>
+<p><a href="https://github.com/microsoft/WSL/issues/3268">DNS not working in fresh Ubuntu 18.04 that installed from Windows Store · Issue #3268 · microsoft/WSL</a> というイシューの <a href="https://github.com/microsoft/WSL/issues/3268#issuecomment-543190053">コメント</a> で知った <a href="https://gist.github.com/coltenkrauter/608cfe02319ce60facd76373249b8ca6">Fix DNS resolution in WSL2</a> の手順で設定します。 WSL2 と書かれていますが WSL1 でもこの手順で行けました。</p>
 <p>Windows Subsystem for Linux の端末で変更前の <code>/etc/resolve.conf</code> を確認してみると上記のリンク先に書かれているように <code>../run/resolvconf/resolv.conf</code> へのシンボリックリンクになっていました。</p>
-<div class="highlight"><pre><span></span><span class="gp">$</span> ls -l /etc/resolv.conf
-<span class="go">lrwxrwxrwx 1 root root 29 May 25  2018 /etc/resolv.conf -&gt; ../run/resolvconf/resolv.conf</span>
-</pre></div>
-<p>Windows Subsystem for Linux の端末で以下のように実行して設定を変更します。</p>
-<div class="highlight"><pre><span></span><span class="go">mv /etc/resolv.conf{,.bak}</span>
-<span class="go">echo &#39;nameserver 127.0.0.1&#39; | sudo tee /etc/resolv.conf</span>
-</pre></div>
-<p>これで今度は <code>&#64;localhost</code> なしで <code>dig sv01.example.org</code> などとして動作確認します。</p>
-<div class="highlight"><pre><span></span><span class="gp">$</span> dig sv01.example.org
+<pre><code class="language-console" data-lang="console">$ ls -l /etc/resolv.conf
+lrwxrwxrwx 1 root root 29 May 25  2018 /etc/resolv.conf -&gt; ../run/resolvconf/resolv.conf
+</code></pre><p>Windows Subsystem for Linux の端末で以下のように実行して設定を変更します。</p>
+<pre><code class="language-console" data-lang="console">mv /etc/resolv.conf{,.bak}
+echo 'nameserver 127.0.0.1' | sudo tee /etc/resolv.conf
+</code></pre><p>これで今度は <code>@localhost</code> なしで <code>dig sv01.example.org</code> などとして動作確認します。</p>
+<pre><code class="language-console" data-lang="console">$ dig sv01.example.org
 
-<span class="go">; &lt;&lt;&gt;&gt; DiG 9.11.3-1ubuntu1.9-Ubuntu &lt;&lt;&gt;&gt; sv01.example.org</span>
-<span class="go">;; global options: +cmd</span>
-<span class="go">;; Got answer:</span>
-<span class="go">;; -&gt;&gt;HEADER&lt;&lt;- opcode: QUERY, status: NOERROR, id: 38075</span>
-<span class="go">;; flags: qr aa rd; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1</span>
-<span class="go">;; WARNING: recursion requested but not available</span>
+; &lt;&lt;&gt;&gt; DiG 9.11.3-1ubuntu1.9-Ubuntu &lt;&lt;&gt;&gt; sv01.example.org
+;; global options: +cmd
+;; Got answer:
+;; -&gt;&gt;HEADER&lt;&lt;- opcode: QUERY, status: NOERROR, id: 38075
+;; flags: qr aa rd; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1
+;; WARNING: recursion requested but not available
 
-<span class="go">;; OPT PSEUDOSECTION:</span>
-<span class="go">; EDNS: version: 0, flags:; udp: 4096</span>
-<span class="go">; COOKIE: 797c9c0a9107764c (echoed)</span>
-<span class="go">;; QUESTION SECTION:</span>
-<span class="go">;sv01.example.org.              IN      A</span>
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 4096
+; COOKIE: 797c9c0a9107764c (echoed)
+;; QUESTION SECTION:
+;sv01.example.org.              IN      A
 
-<span class="go">;; ANSWER SECTION:</span>
-<span class="go">sv01.example.org.       3600    IN      A       192.0.2.11</span>
+;; ANSWER SECTION:
+sv01.example.org.       3600    IN      A       192.0.2.11
 
-<span class="go">;; Query time: 0 msec</span>
-<span class="go">;; SERVER: 127.0.0.1#53(127.0.0.1)</span>
-<span class="go">;; WHEN: Wed Oct 30 12:51:03 JST 2019</span>
-<span class="go">;; MSG SIZE  rcvd: 89</span>
-</pre></div>
-<p>ここまで確認出来たら後は実際の利用ケースに応じて、設定ファイルを書き換えて CoreDNS のサービスを再起動すればOKです。</p>
-</div>
-</div>
-<div class="section" id="id4">
-<h2>開発メモ</h2>
-<p><a class="reference external" href="https://github.com/hnakamur/corednsservice">hnakamur/corednsservice</a> は
-<a class="reference external" href="https://github.com/kardianos/service">kardianos/service</a> の
-<a class="reference external" href="https://github.com/kardianos/service/blob/4df36c9fc1c6ac86231851ad6fa5627e184c94e5/example/runner/runner.go">example/runner/runner.go</a> をベースにしています。</p>
+;; Query time: 0 msec
+;; SERVER: 127.0.0.1#53(127.0.0.1)
+;; WHEN: Wed Oct 30 12:51:03 JST 2019
+;; MSG SIZE  rcvd: 89
+</code></pre><p>ここまで確認出来たら後は実際の利用ケースに応じて、設定ファイルを書き換えて CoreDNS のサービスを再起動すればOKです。</p>
+<h1 id="heading-2">開発メモ</h1>
+<p><a href="https://github.com/hnakamur/corednsservice">hnakamur/corednsservice</a> は
+<a href="https://github.com/kardianos/service">kardianos/service</a> の
+<a href="https://github.com/kardianos/service/blob/4df36c9fc1c6ac86231851ad6fa5627e184c94e5/example/runner/runner.go">example/runner/runner.go</a> をベースにしています。</p>
 <p>変更点は以下の通りです。</p>
-<ul class="simple">
+<ul>
 <li>設定ファイルをJSONからYAMLに変更。</li>
-<li><dl class="first docutils">
-<dt>ログをファイルに保存するようにした。</dt>
-<dd><ul class="first last">
+<li>ログをファイルに保存するようにした。
+<ul>
 <li><code>gopkg.in/natefinch/lumberjack.v2</code> パッケージを使ってローテートするようにしています。といいつつ実際にログがローテートされるかの確認はまだです。</li>
 </ul>
-</dd>
-</dl>
 </li>
-<li><dl class="first docutils">
-<dt>ログの各行にタイムスタンプを追加。</dt>
-<dd><ul class="first last">
-<li>CoreDNS の <a class="reference external" href="https://coredns.io/plugins/log/">log</a> プラグインはドキュメントを見るとログに日時を出力できるとあるのですが設定項目が見当たりません。調べてみると <a class="reference external" href="https://github.com/coredns/coredns/pull/3218">pkg/log: remove timestamp by miekg · Pull Request #3218 · coredns/coredns</a> で出力しないように変更されていました。ということで自前で出力するようにしました。</li>
+<li>ログの各行にタイムスタンプを追加。
+<ul>
+<li>CoreDNS の <a href="https://coredns.io/plugins/log/">log</a> プラグインはドキュメントを見るとログに日時を出力できるとあるのですが設定項目が見当たりません。調べてみると <a href="https://github.com/coredns/coredns/pull/3218">pkg/log: remove timestamp by miekg · Pull Request #3218 · coredns/coredns</a> で出力しないように変更されていました。ということで自前で出力するようにしました。</li>
 </ul>
-</dd>
-</dl>
 </li>
 </ul>
-</div>
-<div class="section" id="vethernet-default-switch">
-<h2>脱線: vEthernet (Default Switch) のアドレス</h2>
+<h1 id="-vethernet-default-switch-">脱線: vEthernet (Default Switch) のアドレス</h1>
 <p>はじめにに入れるには長すぎるので別項目にしました。</p>
 <p>Multipass で作成した VM は vEthernet (Default Switch) のネットワークインターフェースを使うのですが、Windowsの再起動の都度IPアドレスが変わってしまいます。</p>
-<p><a class="reference external" href="https://github.com/CanonicalLtd/multipass/issues/1153">[feature request] Support for NAT network on Hyper-V virtual switch · Issue #1153 · CanonicalLtd/multipass</a> にNAT対応の要望を上げてみたところ、 <code>インスタンス名.mshome.net</code> で名前解決できると教わりました。例えば <code>primary</code> という VM なら <code>primary.mshome.net</code> です。</p>
+<p><a href="https://github.com/CanonicalLtd/multipass/issues/1153">[feature request] Support for NAT network on Hyper-V virtual switch · Issue #1153 · CanonicalLtd/multipass</a> にNAT対応の要望を上げてみたところ、 <code>インスタンス名.mshome.net</code> で名前解決できると教わりました。例えば <code>primary</code> という VM なら <code>primary.mshome.net</code> です。</p>
 <p>調べてみると <code>C:\Windows\System32\drivers\etc\hosts.ics</code> というファイルにVMに対応したエントリが作られていました。</p>
-<p><a class="reference external" href="https://en.wikipedia.org/wiki/Internet_Connection_Sharing">Internet Connection Sharing</a> （インターネット接続共有）というWinodwsの機能らしいです。</p>
+<p><a href="https://en.wikipedia.org/wiki/Internet_Connection_Sharing">Internet Connection Sharing</a> （インターネット接続共有）というWinodwsの機能らしいです。</p>
 <p>ですが、これだと Windows 上のブラウザでは名前解決できるのですが、 Windows Subsystem for Linux の curl や ssh からは参照できないのと、 <code>mshome.net</code> 以外のドメインを使いたいというニーズも満たせないなあと思いました。</p>
 <p>で、DNSサーバをローカルに立てて CNAME で <code>primary.mshome.net</code> に向ければ良いかもと思ったのが発端です。</p>
 <p>ただ、やっぱり Multipass で扱えなくても NAT にして Hyper-V で直接VMを使う方式のほうが良いかなあと考え中です。</p>
 <p>いずれにせよローカルでDNSが動いていると開発には便利なのでCoreDNS使ってみようと思います。</p>
+
 </div>
 
-    </div><!-- /.entry-content -->
 
-  </article>
-</section>
-        <section id="extras" class="body">
-        </section><!-- /#extras -->
+    </main>
 
-        <footer id="contentinfo" class="body">
-                <address id="about" class="vcard body">
-                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
-                </address><!-- /#about -->
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
 
-                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
-        </footer><!-- /#contentinfo -->
-
-    <script type="text/javascript">
-    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
-
-    ga('create', 'UA-53263855-1', 'auto');
-    ga('send', 'pageview');
-    </script>
-</body>
+  </body>
 </html>

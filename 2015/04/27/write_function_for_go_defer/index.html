@@ -1,172 +1,186 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
 <head>
-        <meta charset="utf-8" />
-        <title>Goでdeferの処理中のエラーを返す書き方を工夫してみた</title>
-        <link rel="stylesheet" href="../../../../theme/css/main.css" />
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.62.0" />
 
-        <!--[if IE]>
-            <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
-        <![endif]-->
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Goでdeferの処理中のエラーを返す書き方を工夫してみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
 </head>
 
-<body id="index" class="home">
-        <header id="banner" class="body">
-                <h1><a href="../../../../">hnakamur's blog at github </a></h1>
-                <nav><ul>
-                    <li class="active"><a href="../../../../category/blog.html">blog</a></li>
-                </ul></nav>
-        </header><!-- /#banner -->
-<section id="content" class="body">
-  <article>
-    <header>
-      <h1 class="entry-title">
-        <a href="../../../../2015/04/27/write_function_for_go_defer/" rel="bookmark"
-           title="Permalink to Goでdeferの処理中のエラーを返す書き方を工夫してみた">Goでdeferの処理中のエラーを返す書き方を工夫してみた</a></h1>
-    </header>
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
 
-    <div class="entry-content">
-<footer class="post-info">
-        <abbr class="published" title="2015-04-27T02:06:00+09:00">
-                Published: 2015-04-27
-        </abbr>
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
 
-        <address class="vcard author">
-                By                         <a class="url fn" href="https://hnakamur.github.io">Hiroaki Nakamura</a>
-        </address>
-<p>In <a href="../../../../category/blog.html">blog</a>.</p>
-<p>tags: <a href="../../../../tag/go.html">go</a> </p>
-</footer><!-- /.post-info -->      <p>go-nutsのメーリングリストの記事
-https://groups.google.com/d/msg/golang-nuts/qTTBENO_Em0/Y4MCVZZ3c5sJ
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Goでdeferの処理中のエラーを返す書き方を工夫してみた</h1>
+  <time datetime=2015-04-27T02:06:02&#43;0900 class="post-date">2015-04-27</time>
+  <p>go-nutsのメーリングリストの記事
+<a href="https://groups.google.com/d/msg/golang-nuts/qTTBENO_Em0/Y4MCVZZ3c5sJ">https://groups.google.com/d/msg/golang-nuts/qTTBENO_Em0/Y4MCVZZ3c5sJ</a>
 によるとdeferで呼ばれた関数の戻り値は捨てられるそうです。
-https://groups.google.com/d/msg/golang-nuts/qTTBENO_Em0/UlI77BM2PUkJ
+<a href="https://groups.google.com/d/msg/golang-nuts/qTTBENO_Em0/UlI77BM2PUkJ">https://groups.google.com/d/msg/golang-nuts/qTTBENO_Em0/UlI77BM2PUkJ</a>
 で戻り値の変数に代入するという方法が紹介されていました。</p>
 <p>これを参考に、deferでの後処理でエラーが起きた時はそのエラーを返す、ただし複数のエラーが起きた時は最初のエラーを返したいというときの書き方を考えてみました。</p>
 <p>最初に書いたのは、上の記事で紹介されていたように無名関数を即時呼び出しする方式です。
-https://github.com/hnakamur/cgoroonga/blob/70aafdeb2eb754505efe60afa1ae6d995831a063/examples/add_record/main.go</p>
-<div class="highlight"><pre><span></span><span class="nv">func</span> <span class="nv">run</span><span class="ss">()</span> <span class="ss">(</span><span class="nv">err</span> <span class="nv">error</span><span class="ss">)</span> {
-    <span class="nv">err</span> <span class="o">=</span> <span class="nv">grn</span>.<span class="nv">Init</span><span class="ss">()</span>
-    <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
-        <span class="k">return</span>
-    }
-    <span class="nv">defer</span> <span class="nv">func</span><span class="ss">()</span> {
-        <span class="nv">err2</span> :<span class="o">=</span> <span class="nv">grn</span>.<span class="nv">Fin</span><span class="ss">()</span>
-        <span class="k">if</span> <span class="nv">err2</span> <span class="o">!=</span> <span class="nv">nil</span> <span class="o">&amp;&amp;</span> <span class="nv">err</span> <span class="o">==</span> <span class="nv">nil</span> {
-            <span class="nv">err</span> <span class="o">=</span> <span class="nv">err2</span>
-        }
-    }<span class="ss">()</span>
+<a href="https://github.com/hnakamur/cgoroonga/blob/70aafdeb2eb754505efe60afa1ae6d995831a063/examples/add_record/main.go">https://github.com/hnakamur/cgoroonga/blob/70aafdeb2eb754505efe60afa1ae6d995831a063/examples/add_record/main.go</a></p>
+<pre><code>func run() (err error) {
+	err = grn.Init()
+	if err != nil {
+		return
+	}
+	defer func() {
+		err2 := grn.Fin()
+		if err2 != nil &amp;&amp; err == nil {
+			err = err2
+		}
+	}()
 
-    <span class="nv">ctx</span>, <span class="nv">err</span> :<span class="o">=</span> <span class="nv">grn</span>.<span class="nv">CtxOpen</span><span class="ss">(</span><span class="mi">0</span><span class="ss">)</span>
-    <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
-        <span class="k">return</span>
-    }
-    <span class="nv">defer</span> <span class="nv">func</span><span class="ss">()</span> {
-        <span class="nv">err2</span> :<span class="o">=</span> <span class="nv">ctx</span>.<span class="nv">Close</span><span class="ss">()</span>
-        <span class="k">if</span> <span class="nv">err2</span> <span class="o">!=</span> <span class="nv">nil</span> <span class="o">&amp;&amp;</span> <span class="nv">err</span> <span class="o">==</span> <span class="nv">nil</span> {
-            <span class="nv">err</span> <span class="o">=</span> <span class="nv">err2</span>
-        }
-    }<span class="ss">()</span>
+	ctx, err := grn.CtxOpen(0)
+	if err != nil {
+		return
+	}
+	defer func() {
+		err2 := ctx.Close()
+		if err2 != nil &amp;&amp; err == nil {
+			err = err2
+		}
+	}()
 
-    <span class="nv">var</span> <span class="nv">db</span> <span class="o">*</span><span class="nv">grn</span>.<span class="nv">Obj</span>
-    <span class="nv">db</span>, <span class="nv">err</span> <span class="o">=</span> <span class="nv">ctx</span>.<span class="nv">DBOpenOrCreate</span><span class="ss">(</span><span class="s2">&quot;</span><span class="s">hello.db</span><span class="s2">&quot;</span>, <span class="nv">nil</span><span class="ss">)</span>
-    <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
-        <span class="k">return</span>
-    }
-    <span class="nv">defer</span> <span class="nv">func</span><span class="ss">()</span> {
-        <span class="nv">err2</span> :<span class="o">=</span> <span class="nv">ctx</span>.<span class="nv">ObjClose</span><span class="ss">(</span><span class="nv">db</span><span class="ss">)</span>
-        <span class="k">if</span> <span class="nv">err2</span> <span class="o">!=</span> <span class="nv">nil</span> <span class="o">&amp;&amp;</span> <span class="nv">err</span> <span class="o">==</span> <span class="nv">nil</span> {
-            <span class="nv">err</span> <span class="o">=</span> <span class="nv">err2</span>
-        }
-    }<span class="ss">()</span>
+	var db *grn.Obj
+	db, err = ctx.DBOpenOrCreate(&quot;hello.db&quot;, nil)
+	if err != nil {
+		return
+	}
+	defer func() {
+		err2 := ctx.ObjClose(db)
+		if err2 != nil &amp;&amp; err == nil {
+			err = err2
+		}
+	}()
 
-    <span class="nv">keyType</span> :<span class="o">=</span> <span class="nv">ctx</span>.<span class="nv">At</span><span class="ss">(</span><span class="nv">grn</span>.<span class="nv">DB_SHORT_TEXT</span><span class="ss">)</span>
-    <span class="nv">table</span>, <span class="nv">err</span> :<span class="o">=</span> <span class="nv">ctx</span>.<span class="nv">TableOpenOrCreate</span><span class="ss">(</span><span class="s2">&quot;</span><span class="s">table1</span><span class="s2">&quot;</span>, <span class="s2">&quot;&quot;</span>,
-        <span class="nv">grn</span>.<span class="nv">OBJ_TABLE_HASH_KEY</span><span class="o">|</span><span class="nv">grn</span>.<span class="nv">OBJ_PERSISTENT</span>, <span class="nv">keyType</span>, <span class="nv">nil</span><span class="ss">)</span>
-    <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
-        <span class="k">return</span>
-    }
-    <span class="nv">fmt</span>.<span class="nv">Printf</span><span class="ss">(</span><span class="s2">&quot;</span><span class="s">table=%x</span><span class="se">\n</span><span class="s2">&quot;</span>, <span class="nv">table</span><span class="ss">)</span>
-    <span class="nv">defer</span> <span class="nv">func</span><span class="ss">()</span> {
-        <span class="nv">err2</span> :<span class="o">=</span> <span class="nv">ctx</span>.<span class="nv">ObjClose</span><span class="ss">(</span><span class="nv">table</span><span class="ss">)</span>
-        <span class="k">if</span> <span class="nv">err2</span> <span class="o">!=</span> <span class="nv">nil</span> <span class="o">&amp;&amp;</span> <span class="nv">err</span> <span class="o">==</span> <span class="nv">nil</span> {
-            <span class="nv">err</span> <span class="o">=</span> <span class="nv">err2</span>
-        }
-    }<span class="ss">()</span>
-…<span class="ss">(</span>略<span class="ss">)</span>…
-</pre></div>
-
-
-<p>これでやりたいことは実現できているのですが、deferのところの行数が多すぎて読みにくいコードになっています。</p>
+	keyType := ctx.At(grn.DB_SHORT_TEXT)
+	table, err := ctx.TableOpenOrCreate(&quot;table1&quot;, &quot;&quot;,
+		grn.OBJ_TABLE_HASH_KEY|grn.OBJ_PERSISTENT, keyType, nil)
+	if err != nil {
+		return
+	}
+	fmt.Printf(&quot;table=%x\n&quot;, table)
+	defer func() {
+		err2 := ctx.ObjClose(table)
+		if err2 != nil &amp;&amp; err == nil {
+			err = err2
+		}
+	}()
+…(略)…
+</code></pre><p>これでやりたいことは実現できているのですが、deferのところの行数が多すぎて読みにくいコードになっています。</p>
 <p>そこでこの部分を関数として定義するようにしてみました。</p>
-<p>https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/add_record/main.go</p>
-<div class="highlight"><pre><span></span><span class="nv">func</span> <span class="nv">run</span><span class="ss">()</span> <span class="ss">(</span><span class="nv">err</span> <span class="nv">error</span><span class="ss">)</span> {
-    <span class="nv">err</span> <span class="o">=</span> <span class="nv">grn</span>.<span class="nv">Init</span><span class="ss">()</span>
-    <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
-        <span class="k">return</span>
-    }
-    <span class="nv">defer</span> <span class="nv">grn</span>.<span class="nv">FinDefer</span><span class="ss">(</span><span class="o">&amp;</span><span class="nv">err</span><span class="ss">)</span>
+<p><a href="https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/add_record/main.go">https://github.com/hnakamur/cgoroonga/blob/5eb6e092c4f6d53257b499cffacd51b8dd194ca3/examples/add_record/main.go</a></p>
+<pre><code>func run() (err error) {
+	err = grn.Init()
+	if err != nil {
+		return
+	}
+	defer grn.FinDefer(&amp;err)
 
-    <span class="nv">ctx</span>, <span class="nv">err</span> :<span class="o">=</span> <span class="nv">grn</span>.<span class="nv">CtxOpen</span><span class="ss">(</span><span class="mi">0</span><span class="ss">)</span>
-    <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
-        <span class="k">return</span>
-    }
-    <span class="nv">defer</span> <span class="nv">ctx</span>.<span class="nv">CloseDefer</span><span class="ss">(</span><span class="o">&amp;</span><span class="nv">err</span><span class="ss">)</span>
+	ctx, err := grn.CtxOpen(0)
+	if err != nil {
+		return
+	}
+	defer ctx.CloseDefer(&amp;err)
 
-    <span class="nv">var</span> <span class="nv">db</span> <span class="o">*</span><span class="nv">grn</span>.<span class="nv">Obj</span>
-    <span class="nv">db</span>, <span class="nv">err</span> <span class="o">=</span> <span class="nv">ctx</span>.<span class="nv">DBOpenOrCreate</span><span class="ss">(</span><span class="s2">&quot;</span><span class="s">hello.db</span><span class="s2">&quot;</span>, <span class="nv">nil</span><span class="ss">)</span>
-    <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
-        <span class="k">return</span>
-    }
-    <span class="nv">defer</span> <span class="nv">ctx</span>.<span class="nv">ObjCloseDefer</span><span class="ss">(</span><span class="o">&amp;</span><span class="nv">err</span>, <span class="nv">db</span><span class="ss">)</span>
+	var db *grn.Obj
+	db, err = ctx.DBOpenOrCreate(&quot;hello.db&quot;, nil)
+	if err != nil {
+		return
+	}
+	defer ctx.ObjCloseDefer(&amp;err, db)
 
-    <span class="nv">keyType</span> :<span class="o">=</span> <span class="nv">ctx</span>.<span class="nv">At</span><span class="ss">(</span><span class="nv">grn</span>.<span class="nv">DB_SHORT_TEXT</span><span class="ss">)</span>
-    <span class="nv">table</span>, <span class="nv">err</span> :<span class="o">=</span> <span class="nv">ctx</span>.<span class="nv">TableOpenOrCreate</span><span class="ss">(</span><span class="s2">&quot;</span><span class="s">table1</span><span class="s2">&quot;</span>, <span class="s2">&quot;&quot;</span>,
-        <span class="nv">grn</span>.<span class="nv">OBJ_TABLE_HASH_KEY</span><span class="o">|</span><span class="nv">grn</span>.<span class="nv">OBJ_PERSISTENT</span>, <span class="nv">keyType</span>, <span class="nv">nil</span><span class="ss">)</span>
-    <span class="k">if</span> <span class="nv">err</span> <span class="o">!=</span> <span class="nv">nil</span> {
-        <span class="k">return</span>
-    }
-    <span class="nv">fmt</span>.<span class="nv">Printf</span><span class="ss">(</span><span class="s2">&quot;</span><span class="s">table=%x</span><span class="se">\n</span><span class="s2">&quot;</span>, <span class="nv">table</span><span class="ss">)</span>
-    <span class="nv">defer</span> <span class="nv">ctx</span>.<span class="nv">ObjCloseDefer</span><span class="ss">(</span><span class="o">&amp;</span><span class="nv">err</span>, <span class="nv">table</span><span class="ss">)</span>
-…<span class="ss">(</span>略<span class="ss">)</span>…
-</pre></div>
-
-
-<p>関数定義は例えば <code>FinDefer</code> なら
-https://github.com/hnakamur/cgoroonga/blob/master/init.go#L25-L30</p>
-<div class="highlight"><pre><span></span><span class="nv">func</span> <span class="nv">FinDefer</span><span class="ss">(</span><span class="nv">err</span> <span class="o">*</span><span class="nv">error</span><span class="ss">)</span> {
-    <span class="nv">err2</span> :<span class="o">=</span> <span class="nv">Fin</span><span class="ss">()</span>
-    <span class="k">if</span> <span class="nv">err2</span> <span class="o">!=</span> <span class="nv">nil</span> <span class="o">&amp;&amp;</span> <span class="o">*</span><span class="nv">err</span> <span class="o">==</span> <span class="nv">nil</span> {
-        <span class="o">*</span><span class="nv">err</span> <span class="o">=</span> <span class="nv">err2</span>
-    }
+	keyType := ctx.At(grn.DB_SHORT_TEXT)
+	table, err := ctx.TableOpenOrCreate(&quot;table1&quot;, &quot;&quot;,
+		grn.OBJ_TABLE_HASH_KEY|grn.OBJ_PERSISTENT, keyType, nil)
+	if err != nil {
+		return
+	}
+	fmt.Printf(&quot;table=%x\n&quot;, table)
+	defer ctx.ObjCloseDefer(&amp;err, table)
+…(略)…
+</code></pre><p>関数定義は例えば <code>FinDefer</code> なら
+<a href="https://github.com/hnakamur/cgoroonga/blob/master/init.go#L25-L30">https://github.com/hnakamur/cgoroonga/blob/master/init.go#L25-L30</a></p>
+<pre><code>func FinDefer(err *error) {
+	err2 := Fin()
+	if err2 != nil &amp;&amp; *err == nil {
+		*err = err2
+	}
 }
-</pre></div>
-
-
-<p>のようになります。他の関数も同様です。</p>
+</code></pre><p>のようになります。他の関数も同様です。</p>
 <p>書き換えた <code>run()</code> のほうが読みやすくていい感じです。</p>
-    </div><!-- /.entry-content -->
 
-  </article>
-</section>
-        <section id="extras" class="body">
-        </section><!-- /#extras -->
+</div>
 
-        <footer id="contentinfo" class="body">
-                <address id="about" class="vcard body">
-                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
-                </address><!-- /#about -->
 
-                <p>The theme is a custom version based on <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
-        </footer><!-- /#contentinfo -->
+    </main>
 
-    <script type="text/javascript">
-    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
 
-    ga('create', 'UA-53263855-1', 'auto');
-    ga('send', 'pageview');
-    </script>
-</body>
+  </body>
 </html>
