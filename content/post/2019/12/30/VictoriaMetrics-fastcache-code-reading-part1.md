@@ -1,5 +1,5 @@
 +++
-title="VictoriMetrics/fastcacheのコードリーディングその1"
+title="VictoriaMetrics/fastcacheのコードリーディングその1"
 date = "2019-12-30T01:20:00+09:00"
 tags = ["go", "key-value-store", "victoria-metrics"]
 categories = ["blog"]
