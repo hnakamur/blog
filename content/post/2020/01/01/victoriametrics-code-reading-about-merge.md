@@ -1,6 +1,7 @@
 ---
 title: "VictoriaMetricsのマージに関してコードリーディング"
-date: 2019-12-30T22:07:52+09:00
+date: 2020-01-01T22:07:52+09:00
+draft: true
 ---
 
 ## はじめに
@@ -15,7 +16,207 @@ Rows are split into moderately sized blocks とその次の Blocks are merged in
 
 今回はこのマージについてコードリーディングします。
 
-## コードリーディング
+## lib/mergeset パッケージ
+
+`OpenTable` 関数内で `Table` 型の `startPartMergers` メソッド呼び出し
+[lib/mergeset/table.go#L176-L186](https://github.com/VictoriaMetrics/VictoriaMetrics/blob/61c9d320ed924b8cc0202b4c5feee547010f8416/lib/mergeset/table.go#L176-L186)
+```go
+  tb := &Table{
+    path:          path,
+    flushCallback: flushCallback,
+    prepareBlock:  prepareBlock,
+    parts:         pws,
+    mergeIdx:      uint64(time.Now().UnixNano()),
+    flockF:        flockF,
+    stopCh:        make(chan struct{}),
+  }
+  tb.startPartMergers()
+  tb.startRawItemsFlusher()
+```
+
+`Table` 型の `startPartMergers` メソッド
+[lib/mergeset/table.go#L635-L645](https://github.com/VictoriaMetrics/VictoriaMetrics/blob/61c9d320ed924b8cc0202b4c5feee547010f8416/lib/mergeset/table.go#L635-L645)
+```go
+func (tb *Table) startPartMergers() {
+  for i := 0; i < mergeWorkersCount; i++ {
+    tb.partMergersWG.Add(1)
+    go func() {
+      if err := tb.partMerger(); err != nil {
+        logger.Panicf("FATAL: unrecoverable error when merging parts in %q: %s", tb.path, err)
+      }
+      tb.partMergersWG.Done()
+    }()
+  }
+}
+```
+
+`Table` 型の `partMerger` メソッドとそこから参照している定数とエラー変数
+[lib/mergeset/table.go#L660-L706](https://github.com/VictoriaMetrics/VictoriaMetrics/blob/61c9d320ed924b8cc0202b4c5feee547010f8416/lib/mergeset/table.go#L660-L706)
+```go
+const (
+  minMergeSleepTime = time.Millisecond
+  maxMergeSleepTime = time.Second
+)
+
+func (tb *Table) partMerger() error {
+  sleepTime := minMergeSleepTime
+  var lastMergeTime time.Time
+  isFinal := false
+  t := time.NewTimer(sleepTime)
+  for {
+    err := tb.mergeExistingParts(isFinal)
+    if err == nil {
+      // Try merging additional parts.
+      sleepTime = minMergeSleepTime
+      lastMergeTime = time.Now()
+      isFinal = false
+      continue
+    }
+    if err == errForciblyStopped {
+      // The merger has been stopped.
+      return nil
+    }
+    if err != errNothingToMerge {
+      return err
+    }
+    if time.Since(lastMergeTime) > 30*time.Second {
+      // We have free time for merging into bigger parts.
+      // This should improve select performance.
+      lastMergeTime = time.Now()
+      isFinal = true
+      continue
+    }
+
+    // Nothing to merge. Sleep for a while and try again.
+    sleepTime *= 2
+    if sleepTime > maxMergeSleepTime {
+      sleepTime = maxMergeSleepTime
+    }
+    select {
+    case <-tb.stopCh:
+      return nil
+    case <-t.C:
+      t.Reset(sleepTime)
+    }
+  }
+}
+
+var errNothingToMerge = fmt.Errorf("nothing to merge")
+```
+* まず `mergeExistingParts` メソッドを呼ぶ。
+* 戻り値の `err` が `nil` なら再度呼ぶ。
+* 戻り値の `err` が `errForciblyStopped` なら終了。
+* 戻り値の `err` が `errNothingToMerge` 以外なら異常終了。
+* 戻り値の `err` が `errNothingToMerge` のときは待ち時間を倍にしてsleepしたのち `mergeExistingParts` メソッドを呼ぶ。待ち時間は初回は 2ms で最大 1s。前回のマージから30sを超えた場合は `isFinal` を `true` にして `mergeExistingParts` メソッドを呼ぶ。
+
+`Table` 型の `mergeExistingParts` メソッド
+[lib/mergeset/table.go#L647-L658](https://github.com/VictoriaMetrics/VictoriaMetrics/blob/61c9d320ed924b8cc0202b4c5feee547010f8416/lib/mergeset/table.go#L647-L658)
+```go
+func (tb *Table) mergeExistingParts(isFinal bool) error {
+  maxItems := tb.maxOutPartItems()
+  if maxItems > maxItemsPerPart {
+    maxItems = maxItemsPerPart
+  }
+
+  tb.partsLock.Lock()
+  pws := getPartsToMerge(tb.parts, maxItems, isFinal)
+  tb.partsLock.Unlock()
+
+  return tb.mergeParts(pws, tb.stopCh, false)
+}
+```
+
+`Table` 型の `maxOutPartItems` メソッドと関連する変数とメソッド
+[lib/mergeset/table.go#L882-L907](https://github.com/VictoriaMetrics/VictoriaMetrics/blob/61c9d320ed924b8cc0202b4c5feee547010f8416/lib/mergeset/table.go#L882-L907)
+```go
+var (
+  maxOutPartItemsLock     sync.Mutex
+  maxOutPartItemsDeadline time.Time
+  lastMaxOutPartItems     uint64
+)
+
+func (tb *Table) maxOutPartItems() uint64 {
+  maxOutPartItemsLock.Lock()
+  if time.Until(maxOutPartItemsDeadline) < 0 {
+    lastMaxOutPartItems = tb.maxOutPartItemsSlow()
+    maxOutPartItemsDeadline = time.Now().Add(time.Second)
+  }
+  n := lastMaxOutPartItems
+  maxOutPartItemsLock.Unlock()
+  return n
+}
+
+func (tb *Table) maxOutPartItemsSlow() uint64 {
+  freeSpace := fs.MustGetFreeSpace(tb.path)
+
+  // Calculate the maximum number of items in the output merge part
+  // by dividing the freeSpace by 4 and by the number of concurrent
+  // mergeWorkersCount.
+  // This assumes each item is compressed into 4 bytes.
+  return freeSpace / uint64(mergeWorkersCount) / 4
+}
+```
+* `maxOutPartItems` メソッドが初回呼ばれたときは `maxOutPartItemsDeadline` がゼロ値なので `if time.Until(maxOutPartItemsDeadline) < 0` のブロックに入り `maxOutPartItemsSlow` メソッドが呼ばれる。`maxOutPartItemsDeadline` が現在時刻の1秒後に設定されるので、2回目以降の `maxOutPartItems` 呼び出しで前回から1秒以上経っていれば `if` ブロックが実行される。
+
+`lib/fs` パッケージの `MustGetFreeSpace` 関数
+[lib/fs/fs.go#L357-L372](https://github.com/VictoriaMetrics/VictoriaMetrics/blob/61c9d320ed924b8cc0202b4c5feee547010f8416/lib/fs/fs.go#L357-L372)
+```go
+// MustGetFreeSpace returns free space for the given directory path.
+func MustGetFreeSpace(path string) uint64 {
+  d, err := os.Open(path)
+  if err != nil {
+    logger.Panicf("FATAL: cannot determine free disk space on %q: %s", path, err)
+  }
+  defer MustClose(d)
+
+  fd := d.Fd()
+  var stat unix.Statfs_t
+  if err := unix.Fstatfs(int(fd), &stat); err != nil {
+    logger.Panicf("FATAL: cannot determine free disk space on %q: %s", path, err)
+  }
+  freeSpace := uint64(stat.Bavail) * uint64(stat.Bsize)
+  return freeSpace
+}
+```
+* `path` 引数のパスを含むパーティションの空き容量をバイト単位で返す。
+* 参考: [fstatfs (2)](https://manpages.ubuntu.com/manpages/bionic/en/man2/fstatfs.2.html)
+
+`getPartsToMerge` 関数。 `Table` 型の `mergeExistingParts` メソッドから呼ばれる。
+[lib/mergeset/table.go#L1200-L1229](https://github.com/VictoriaMetrics/VictoriaMetrics/blob/61c9d320ed924b8cc0202b4c5feee547010f8416/lib/mergeset/table.go#L1200-L1229)
+```go
+// getPartsToMerge returns optimal parts to merge from pws.
+//
+// if isFinal is set, then merge harder.
+//
+// The returned parts will contain less than maxItems items.
+func getPartsToMerge(pws []*partWrapper, maxItems uint64, isFinal bool) []*partWrapper {
+  pwsRemaining := make([]*partWrapper, 0, len(pws))
+  for _, pw := range pws {
+    if !pw.isInMerge {
+      pwsRemaining = append(pwsRemaining, pw)
+    }
+  }
+  maxPartsToMerge := defaultPartsToMerge
+  var dst []*partWrapper
+  if isFinal {
+    for len(dst) == 0 && maxPartsToMerge >= finalPartsToMerge {
+      dst = appendPartsToMerge(dst[:0], pwsRemaining, maxPartsToMerge, maxItems)
+      maxPartsToMerge--
+    }
+  } else {
+    dst = appendPartsToMerge(dst[:0], pwsRemaining, maxPartsToMerge, maxItems)
+  }
+  for _, pw := range dst {
+    if pw.isInMerge {
+      logger.Panicf("BUG: partWrapper.isInMerge is already set")
+    }
+    pw.isInMerge = true
+  }
+  return dst
+}
+```
+
+## 旧コードリーディング
 
 `merge.go` という名前のファイルが以下の2つあったのでこれらを見ていきます。
 
