@@ -1,6 +1,7 @@
 ---
 title: "VictoriaMetrics/fastcacheのコードリーディングその2"
 date: 2019-12-30T05:11:55+09:00
+lastmod: 2020-01-01T07:30:00+09:00
 tag: go, victoria-metrics
 ---
 
@@ -175,6 +176,7 @@ func (c *Cache) save(dir string, workersCount int) error {
 * 各 goroutine は `saveBuckets` 関数を呼び出します。
 * `workCh` には `c.buckets` の要素数分のインデクスを送って、これを各 goroutine が受け取って処理を実行します。
 * `result != nil && err != nil` は `result != nil && err == nil` の間違いだと思います。 `results` から `nil` 以外の値が返ってきたときは最初のエラーを保管しておくという意図のはずです。 `result != nil && err != nil` だと `err` が初期値の `nil` のままで `result` は `nil` 以外でも捨てられることになってしまいます。
+    * 2020-01-01追記: これを修正するプルリクエスト [Fix taking the first error from workers in save by hnakamur · Pull Request #28 · VictoriaMetrics/fastcache](https://github.com/VictoriaMetrics/fastcache/pull/28) を送っていたのが無事マージされました。
 
 ### load 関数
 
