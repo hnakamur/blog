@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,27 +65,27 @@
     <div class="post">
   <h1>debパッケージを使ってnginxモジュールをビルド・デバッグする</h1>
   <time datetime=2018-05-10T09:25:00&#43;0900 class="post-date">2018-05-10</time>
-  <h1 id="heading">はじめに</h1>
+  <h1 id="はじめに">はじめに</h1>
 <p>私は <a href="https://hnakamur.github.io/blog/2018/04/05/building-my-custom-nginx-rpm-and-deb/">私のnginxのカスタムrpmとdebをビルドする手順</a> でサードパーティモジュールを含んだnginxのパッケージをビルドしています。</p>
 <p>このパッケージに自作モジュールを追加して開発するためのビルド手順を考えてみたのでメモです。</p>
 <p>普通にソースのtarballを展開してconfigure, make, make installでも良いのですが、本番運用時はdebパッケージを使うので同じ構成のほうが良いというのとnginx-dbgというデバッグシンボルパッケージも作ってくれるのでこれも活用したいということで、以下の手順にしてみました。</p>
 <p>例として <a href="http://cubicdaiya.github.io/blog/ja/blog/2013/01/08/nginx1/">nginx moduleをつくろう その1〜Hello, World〜 - bokko bokkoにしてやんよ</a> の <a href="https://github.com/cubicdaiya/ngx_http_hello_world">cubicdaiya/ngx_http_hello_world: Hello, World with nginx</a> を使わせて頂きました。</p>
-<h1 id="heading-1">セットアップ手順</h1>
-<h2 id="lxd">LXDコンテナ作成</h2>
+<h1 id="セットアップ手順">セットアップ手順</h1>
+<h2 id="lxdコンテナ作成">LXDコンテナ作成</h2>
 <p>ホストの環境を汚したくないので、開発用にLXDのコンテナを作ってそこで作業します。</p>
 <pre><code class="language-console" data-lang="console">lxc launch images:ubuntu/18.04 nginx-dev
 lxc exec nginx-dev bash
 </code></pre><p>ここ以降は全てコンテナ内で実行します。 <code>lxc exec</code> ではコンテナ内で root ユーザになっているので <code>sudo</code> は使いません。また、以下のコマンド実行例でプロンプトを示す場合はrootユーザということで <code>#</code> とします。</p>
-<h2 id="heading-2">ビルドに必要なパッケージをインストール</h2>
+<h2 id="ビルドに必要なパッケージをインストール">ビルドに必要なパッケージをインストール</h2>
 <p>debパッケージのビルドに必要なツールをインストールします。 <code>equivs</code> は後述の <code>mk-build-deps</code> コマンドで必要になります。</p>
 <pre><code class="language-console" data-lang="console">apt install build-essential devscripts equivs
-</code></pre><h2 id="deb">自作debパッケージのソースを取得</h2>
+</code></pre><h2 id="自作debパッケージのソースを取得">自作debパッケージのソースを取得</h2>
 <pre><code class="language-console" data-lang="console">git clone https://github.com/hnakamur/nginx-deb
 cd nginx-deb
-</code></pre><h2 id="hello-world">hello_worldモジュールのソースを取得</h2>
+</code></pre><h2 id="hello_worldモジュールのソースを取得">hello_worldモジュールのソースを取得</h2>
 <p>gitサブモジュールとして追加します。</p>
 <pre><code class="language-console" data-lang="console">git submodule add https://github.com/cubicdaiya/ngx_http_hello_world
-</code></pre><h2 id="hello-worlddeb">hello_worldモジュール開発用にdebパッケージのファイルを編集</h2>
+</code></pre><h2 id="hello_worldモジュール開発用にdebパッケージのファイルを編集">hello_worldモジュール開発用にdebパッケージのファイルを編集</h2>
 <h4 id="debianrules">debian/rules</h4>
 <p><code>debian/rules</code> は1行目に <code>#!/usr/bin/make -f</code> と書いてあるので Makefile の書式になっています。
 通常の Makefile なら <code>make ターゲット</code> と実行するところを <code>./debian/rules ターゲット</code> で実行できます。</p>
@@ -207,7 +207,7 @@ cd nginx-deb
      # redirect server error pages to the static page /50x.html
 </code></pre></div><h4 id="debiancontrol">debian/control</h4>
 <p>今回は不要ですが、ビルド時の依存ライブラリが増える場合は <code>debian/control</code> の <code>Build-Depends</code> に追加します。</p>
-<h2 id="heading-3">依存ライブラリのインストール</h2>
+<h2 id="依存ライブラリのインストール">依存ライブラリのインストール</h2>
 <p><code>mk-build-deps</code> コマンドを使って依存ライブラリをインストールするためのdebパッケージを作成します。</p>
 <pre><code class="language-console" data-lang="console"># mk-build-deps debian/control
 …(略)…
@@ -222,7 +222,7 @@ not in &quot;..&quot; as indicated by the message above!
 </code></pre><p>これでこのパッケージ自体はインストールされるのですが、依存ライブラリはまだインストールされていない状態です。</p>
 <p><a href="https://askubuntu.com/questions/40011/how-to-let-dpkg-i-install-dependencies-for-me?utm_medium=organic&amp;utm_source=google_rich_qa&amp;utm_campaign=google_rich_qa">How to let `dpkg -i` install dependencies for me? - Ask Ubuntu</a> を参考に以下のようにしてインストールします。</p>
 <pre><code class="language-console" data-lang="console">apt install -f -y
-</code></pre><h1 id="heading-4">初回のビルドと動作確認</h1>
+</code></pre><h1 id="初回のビルドと動作確認">初回のビルドと動作確認</h1>
 <p>初回のビルドは通常通り行います。</p>
 <pre><code class="language-console" data-lang="console"># dpkg-buildpackage -b
 …(略)…
@@ -237,10 +237,10 @@ dpkg-deb: building package 'nginx-dbg' in '../nginx-dbg_1.13.11+mod.1-1ubuntu1pp
 </code></pre><p><code>/hello_world</code> のロケーションにアクセスして動作確認します。</p>
 <pre><code class="language-console" data-lang="console"># curl localhost/hello_world
 Hello, World!
-</code></pre><h1 id="2">2回め以降のビルドと動作確認</h1>
+</code></pre><h1 id="2回め以降のビルドと動作確認">2回め以降のビルドと動作確認</h1>
 <p>初回のビルドが終わると <code>debian/build-nginx</code> にリリースビルド、 <code>debian/build-nginx-debug</code> にデバッグビルドのソースとビルド結果が残っています。</p>
 <p>hello_world モジュールのソースを変更してビルド、インストール、動作確認をしてみます。</p>
-<h2 id="hello-world-">hello_world モジュールのソース変更</h2>
+<h2 id="hello_world-モジュールのソース変更">hello_world モジュールのソース変更</h2>
 <p><code>vim ngx_http_hello_world/ngx_http_hello_world_module.c</code> でソースを変更します。</p>
 <p>なお <code>ngx_http_hello_world</code> はgitサブモジュールにした関係で、差分を表示するときは <code>git diff ngx_http_hello_world/ngx_http_hello_world_module.c</code> ではなく以下のようにする必要がありました（サブシェルで実行しているのはカレントディレクトリを移動したくないため）。</p>
 <pre><code class="language-console" data-lang="console">(cd ngx_http_hello_world/; git diff)
@@ -259,7 +259,7 @@ index 2760468..6a84d12 100644
  static char *ngx_http_hello_world(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
  static ngx_int_t ngx_http_hello_world_handler(ngx_http_request_t *r);
 </code></pre>
-<h2 id="heading-5">ビルド、インストール、動作確認</h2>
+<h2 id="ビルドインストール動作確認">ビルド、インストール、動作確認</h2>
 <p>ソース変更とビルド、インストール、動作確認は繰り返し行うので以下のように <code>&amp;&amp;</code> で繋いで一連で実行するようにします。あるいはシェルスクリプトファイルを作って実行しても良いでしょう。</p>
 <pre><code class="language-console" data-lang="console">./debian/rules copy_hello_src &amp;&amp; \
   dpkg-buildpackage -nc &amp;&amp; \
@@ -286,7 +286,7 @@ index 2760468..6a84d12 100644
 &lt; Connection: keep-alive
 &lt;
 Hello, World!!
-</code></pre></div><h1 id="heading-6">デバッガの実行</h1>
+</code></pre></div><h1 id="デバッガの実行">デバッガの実行</h1>
 <p>ついでにデバッガで実行する手順もメモしておきます。</p>
 <p>gdbの操作方法は公式ドキュメントのページ  <a href="http://www.gnu.org/software/gdb/documentation/">GDB Documentation</a> にあるGDB User Manualを参照してください。</p>
 <p>まずgdbをインストールします。</p>

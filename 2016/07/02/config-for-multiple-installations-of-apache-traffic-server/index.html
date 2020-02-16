@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,19 +65,19 @@
     <div class="post">
   <h1>1台のサーバに異なる設定でApache Traffic Serverを複数立ち上げるためのビルド設定</h1>
   <time datetime=2016-07-02T01:00:00&#43;0900 class="post-date">2016-07-02</time>
-  <h2 id="heading">はじめに</h2>
+  <h2 id="はじめに">はじめに</h2>
 <p>Apache Traffic Serverには<a href="https://docs.trafficserver.apache.org/en/latest/admin-guide/configuration/hierachical-caching.en.html">Hierarchical Caching</a>という機能があって、キャッシュを親と子の2階層にすることが出来ます。</p>
 <p>CentOSで1つのサーバに親と子の2つのTraffic Server 6.1.1を異なる設定で起動するような構成にしたかったのですが、本家のrpmでは出来ないようでした。
 ソースを見ていたらconfigureオプションをうまく指定すれば可能だとわかり、カスタムrpmを作りました。</p>
 <p>rpmのspecファイルは<a href="https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec">apache-traffic-server-rpm/trafficserver.spec</a>、ビルドしたrpmは <a href="https://copr.fedorainfracloud.org/coprs/hnakamur/apache-traffic-server-6/">hnakamur/apache-traffic-server-6 Copr</a> で公開しています。</p>
-<h2 id="heading-1">起動オプションではやりたいことは出来なさそうでした</h2>
+<h2 id="起動オプションではやりたいことは出来なさそうでした">起動オプションではやりたいことは出来なさそうでした</h2>
 <p>カスタムrpmを作る前に、本家のrpmを使いつつコマンドラインオプションや環境変数の設定によってやりたいことが実現できないか調べてみたのですが、出来なさそうでした。</p>
 <p>バージョン6.1.1のソースを見た時のメモです。</p>
 <p>まず、 <code>traffic_server</code> コマンドには <code>-conf_dir</code> というオプションがあります。ソースは <a href="https://github.com/apache/trafficserver/blob/6.1.1/proxy/Main.cc#L206">proxy/Main.cc</a> です。<a href="https://docs.trafficserver.apache.org/en/6.1.x/appendices/command-line/traffic_server.en.html">traffic_serverのドキュメント</a>には記載がありません。</p>
 <p>一方、 <code>traffic_manager</code> コマンドには <code>-tsArgs</code> というオプションがあります。 ソースは <a href="https://github.com/apache/trafficserver/blob/6.1.1/cmd/traffic_manager/traffic_manager.cc#L453">cmd/traffic_manager/traffic_manager.cc</a> で <a href="https://docs.trafficserver.apache.org/en/6.1.x/appendices/command-line/traffic_manager.en.html#cmdoption-traffic_manager--tsArgs">traffic_managerのドキュメント</a> にも説明はありませんが載っています。</p>
 <p>しかし、 <code>traffic_cop</code> コマンドが <code>traffic_manager</code> コマンドを起動する際には <code>-tsArgs</code> オプションは指定していません。ソースは <a href="https://github.com/apache/trafficserver/blob/6.1.1/cmd/traffic_cop/traffic_cop.cc#L758">cmd/traffic_cop/traffic_cop.cc</a> です。 <a href="https://docs.trafficserver.apache.org/en/6.1.x/appendices/command-line/traffic_cop.en.html">traffic_cop</a> のドキュメントを見ても traffic_manager にオプションを渡すためのオプションは無いようです。</p>
 <p>rpmでインストールされるサービス起動スクリプトだと <code>traffic_cop</code> →　<code>traffic_manger</code> →　<code>traffic_sever</code> という呼び出し関係になるので、こ <code>traffic_server</code>   に <code>-conf_dir</code> オプションを渡すことは出来なさそうです。</p>
-<h2 id="ts-root">TS_ROOTという環境変数を発見</h2>
+<h2 id="ts_rootという環境変数を発見">TS_ROOTという環境変数を発見</h2>
 <p><a href="https://github.com/apache/trafficserver/blob/6.1.1/lib/ts/Layout.cc#L146-L187">lib/ts/Layout.cc</a> で <code>TS_ROOT</code> という環境変数を参照しているのを見つけました。</p>
 <pre><code>Layout::Layout(const char *_prefix)
 {
@@ -173,7 +173,7 @@ else
 fi
 ])
 </code></pre><p>ということで、例えば <code>sysconfdir</code> の値が <code>prefix</code> の値で始まっていれば <code>rel_sysconfdir</code> は <code>prefix</code> からの相対パスになり、そうでなければ <code>sysconfdir</code> そのままになるということがわかりました。</p>
-<h2 id="configure">configureオプションの指定方法</h2>
+<h2 id="configureオプションの指定方法">configureオプションの指定方法</h2>
 <p>上記を踏まえて、私が作成した <a href="https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec">/trafficserver.spec</a> では <a href="https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec#L1">1行目</a>で</p>
 <pre><code>%define _prefix /opt/trafficserver
 </code></pre><p>と設定し、 <a href="https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec#L85-L94">85〜94行目</a> で以下のような configure オプションを指定しています。</p>
@@ -193,7 +193,7 @@ fi
 <li>localstatedir: ${TS_ROOT}/var/run</li>
 <li>libexecdir: ${TS_ROOT}/lib64/plugins</li>
 </ul>
-<h2 id="heading-2">私が使っているディレクトリ構成</h2>
+<h2 id="私が使っているディレクトリ構成">私が使っているディレクトリ構成</h2>
 <p>実際には以下のようなシンボリックリンクを貼って使っています。</p>
 <ul>
 <li>1段目
@@ -217,7 +217,7 @@ fi
 </ul>
 </li>
 </ul>
-<h2 id="heading-3">コマンド実行時の環境変数指定</h2>
+<h2 id="コマンド実行時の環境変数指定">コマンド実行時の環境変数指定</h2>
 <p>コマンドを実行するときはPATHを通すかフルパスで指定するだけではなく、 TS_ROOT 環境変数も指定する必要があります。</p>
 <p>例えば、1段目のキャッシュを全クリアするときは <a href="https://docs.trafficserver.apache.org/en/6.1.x/admin-guide/storage/index.en.html#clearing-the-cache">Clearing the Cache</a> の説明では <code>traffic_server -Cclear</code> ですが、このrpmの場合は</p>
 <pre><code>TS_ROOT=/opt/trafficserver-first /opt/trafficserver-first/bin/traffic_server -Cclear

@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,9 +65,9 @@
     <div class="post">
   <h1>VictoriaMetrics/fastcacheのコードリーディングその1</h1>
   <time datetime=2019-12-30T01:20:00&#43;0900 class="post-date">2019-12-30</time>
-  <h2 id="heading">はじめに</h2>
+  <h2 id="はじめに">はじめに</h2>
 <p><a href="https://github.com/VictoriaMetrics/fastcache">VictoriaMetrics/fastcache</a> のコードリーディングのメモです。対象バージョンはこの記事を書いた時点の最新コミット <a href="https://github.com/VictoriaMetrics/fastcache/commit/c9a5939fd508ba790b708b23929feea13623d735">c9a5939</a> です。</p>
-<h2 id="heading-1">仕様</h2>
+<h2 id="仕様">仕様</h2>
 <p><a href="https://github.com/VictoriaMetrics/fastcache">VictoriaMetrics/fastcache</a> は <a href="https://github.com/VictoriaMetrics/VictoriaMetrics">VictoriaMetrics/VictoriaMetrics</a> のメトリクス名の管理に使っているキーバリューストアを切り出したものなので、 VictoriaMetrics での要件に沿った仕様となっています。</p>
 <ul>
 <li>ストア作成時に使用可能な最大メモリ容量を指定</li>
@@ -75,9 +75,9 @@
 </ul>
 <p>大量のエントリを GC のオーバーヘッドなしに登録可能なデザインとありますが、 VictoriaMetrics という時系列DBのメトリクス名からIDへのマッピングなどを保管する用途なのでキーと値の集合は一旦一通り登録したら、それ以降は基本的には増えないような使い方を想定していると推測します。</p>
 <p>動的にコンテナが増えまくって、その際違うメトリクス名を使うような使い方をするなら別ですが。</p>
-<h2 id="heading-2">コードリーディング</h2>
+<h2 id="コードリーディング">コードリーディング</h2>
 <p><a href="https://github.com/VictoriaMetrics/fastcache#architecture-details">Architecture details</a> にある通り、多数のバケットから構成されるハッシュテーブルになっています。バケット毎にロックが分かれているのでマルチコアの CPU で別のバケットにアクセスする場合は並列に実行可能です。</p>
-<h3 id="heading-3">主な定数</h3>
+<h3 id="主な定数">主な定数</h3>
 <p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/fastcache.go#L14-L24">fastcache.go#L14-L24</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">const</span> <span class="nx">bucketsCount</span> <span class="p">=</span> <span class="mi">512</span>
 
@@ -93,7 +93,7 @@
 </code></pre></div><p>バケット数は 512 固定。チャンクサイズは 64 KiB。
 <code>uint64</code> の 8 バイトの領域のうち 40bit をバケットサイズに使い、残りの 24bit を世代に使うようになっています。
 <code>maxBucketSize</code> は <code>1&lt;&lt;40</code> つまり 1 TiB です。</p>
-<h3 id="cache-">メインのCache 構造体</h3>
+<h3 id="メインのcache-構造体">メインのCache 構造体</h3>
 <p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/fastcache.go#L108-L112">fastcache.go#L108-L112</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">Cache</span> <span class="kd">struct</span> <span class="p">{</span>
   <span class="nx">buckets</span> <span class="p">[</span><span class="nx">bucketsCount</span><span class="p">]</span><span class="nx">bucket</span>
@@ -101,7 +101,7 @@
   <span class="nx">bigStats</span> <span class="nx">BigStats</span>
 <span class="p">}</span>
 </code></pre></div><p>512 個のバケットと統計情報のフィールドを持ちます。</p>
-<h3 id="new-">New 関数</h3>
+<h3 id="new-関数">New 関数</h3>
 <p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/fastcache.go#L114-L130">fastcache.go#L114-L130</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// New returns new cache with the given maxBytes capacity in bytes.
 </span><span class="c1"></span><span class="c1">//
@@ -121,7 +121,7 @@
   <span class="k">return</span> <span class="o">&amp;</span><span class="nx">c</span>
 <span class="p">}</span>
 </code></pre></div><p>引数の <code>maxBytes</code> をバケットの数 512 で割って切り上げたものを、1 つのバケット当たりの最大バイト数とし各バケットを初期化します。</p>
-<h3 id="bucket--init-">bucket 構造体と Init メソッド</h3>
+<h3 id="bucket-構造体と-init-メソッド">bucket 構造体と Init メソッド</h3>
 <p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/fastcache.go#L214-L248">fastcache.go#L214-L248</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">bucket</span> <span class="kd">struct</span> <span class="p">{</span>
   <span class="nx">mu</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">RWMutex</span>
@@ -165,7 +165,7 @@
 <li><code>gen</code> は <code>chunks</code> の世代。</li>
 <li><code>chunks</code> の長さ（要素数）は引数の <code>maxBytes</code> （1つのバケットの最大バイト数）を 1つの <code>chunk</code> のサイズ 64 KiB で割って切り上げた数としている。</li>
 </ul>
-<h3 id="cache--set-">Cache の Set メソッド</h3>
+<h3 id="cache-の-set-メソッド">Cache の Set メソッド</h3>
 <p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/fastcache.go#L132-L149">fastcache.go#L132-L149</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Set stores (k, v) in the cache.
 </span><span class="c1"></span><span class="c1">//
@@ -188,7 +188,7 @@
 </code></pre></div><p><code>xxhash.Sum64</code> でキーのハッシュ値を計算し、バケット数で割った余りをインデクスとして対応するバケットを決定しその <code>Set</code> メソッドに移譲。</p>
 <p>ハッシュ値が衝突する場合は同じハッシュ値の古いキーが上書きされる。衝突が頻繁に起こるようなら <code>maxBytes</code> ともっと大きい値にして <code>New</code> を呼んで <code>Cache</code> を作るようにしておく。</p>
 <p><code>Get</code> など他のメソッドもほぼ同じパターン。</p>
-<h3 id="bucket--set-">bucket の Set メソッド</h3>
+<h3 id="bucket-の-set-メソッド">bucket の Set メソッド</h3>
 <p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/fastcache.go#L302-L358">fastcache.go#L302-L358</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">bucket</span><span class="p">)</span> <span class="nf">Set</span><span class="p">(</span><span class="nx">k</span><span class="p">,</span> <span class="nx">v</span> <span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">h</span> <span class="kt">uint64</span><span class="p">)</span> <span class="p">{</span>
   <span class="nx">setCalls</span> <span class="o">:=</span> <span class="nx">atomic</span><span class="p">.</span><span class="nf">AddUint64</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">b</span><span class="p">.</span><span class="nx">setCalls</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
@@ -258,7 +258,7 @@
 <li>さらに <code>chunkIdxNew &gt;= uint64(len(b.chunks))</code> は <code>chunks</code> の最後のチャンクの終端を超える場合。この場合は世代 <code>b.gen</code> を増やして <code>chunks</code> の最初の要素に書き込む。</li>
 <li><code>b.gen</code> を増やしたとき <code>b.gen&amp;((1&lt;&lt;genSizeBits)-1) == 0</code> になる場合というのは下位 24bit が 0 になる場合。1週目は <code>1&lt;&lt;24</code> で 2週目だと <code>2&lt;&lt;24</code> 。この値は下位24bitを取ると初期値の 0 と区別がつかなくなるのでさらに1足すようにしている。</li>
 </ul>
-<h3 id="cache--get-">Cache の Get メソッド</h3>
+<h3 id="cache-の-get-メソッド">Cache の Get メソッド</h3>
 <p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/fastcache.go#L151-L163">fastcache.go#L151-L163</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Get appends value by the key k to dst and returns the result.
 </span><span class="c1"></span><span class="c1">//
@@ -274,7 +274,7 @@
   <span class="k">return</span> <span class="nx">dst</span>
 <span class="p">}</span>
 </code></pre></div><p>まずシグネチャが <code>Get(k []byte) []byte</code> でなく、値の書き込み先 <code>dst</code> を引数で渡すことに注意。 Go のビルトイン関数 <code>append</code> と同じパターン。これにより <code>dst</code> の <code>cap</code> に余裕があればメモリ割り当てをしなくて済む。</p>
-<h3 id="bucket--get-">bucket の Get メソッド</h3>
+<h3 id="bucket-の-get-メソッド">bucket の Get メソッド</h3>
 <p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/fastcache.go#L360-L409">fastcache.go#L360-L409</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">bucket</span><span class="p">)</span> <span class="nf">Get</span><span class="p">(</span><span class="nx">dst</span><span class="p">,</span> <span class="nx">k</span> <span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">h</span> <span class="kt">uint64</span><span class="p">,</span> <span class="nx">returnDst</span> <span class="kt">bool</span><span class="p">)</span> <span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">,</span> <span class="kt">bool</span><span class="p">)</span> <span class="p">{</span>
   <span class="nx">atomic</span><span class="p">.</span><span class="nf">AddUint64</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">b</span><span class="p">.</span><span class="nx">getCalls</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
@@ -338,7 +338,7 @@
 <li><code>returnDst</code> が <code>true</code> の場合は値を <code>dst</code> に <code>append</code> しつつ結果を戻り値でも返す。</li>
 <li><code>Cache</code> にキーが存在するかしないかだけチェックする <code>Has</code> メソッドでは <code>returnDst</code> が <code>false</code> で呼び出される。</li>
 </ul>
-<h3 id="cache--del-">Cache の Del メソッド</h3>
+<h3 id="cache-の-del-メソッド">Cache の Del メソッド</h3>
 <p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/fastcache.go#L182-L189">fastcache.go#L182-L189</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go">
 <span class="c1">// Del deletes value for the given k from the cache.
@@ -349,7 +349,7 @@
   <span class="nx">idx</span> <span class="o">:=</span> <span class="nx">h</span> <span class="o">%</span> <span class="nx">bucketsCount</span>
   <span class="nx">c</span><span class="p">.</span><span class="nx">buckets</span><span class="p">[</span><span class="nx">idx</span><span class="p">]</span><span class="p">.</span><span class="nf">Del</span><span class="p">(</span><span class="nx">h</span><span class="p">)</span>
 <span class="p">}</span>
-</code></pre></div><h3 id="bucket--del-">bucket の Del メソッド</h3>
+</code></pre></div><h3 id="bucket-の-del-メソッド">bucket の Del メソッド</h3>
 <p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/fastcache.go#L411-L415">fastcache.go#L411-L415</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">bucket</span><span class="p">)</span> <span class="nf">Del</span><span class="p">(</span><span class="nx">h</span> <span class="kt">uint64</span><span class="p">)</span> <span class="p">{</span>
   <span class="nx">b</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">(</span><span class="p">)</span>
@@ -360,7 +360,7 @@
 <li>単に <code>b.m</code> から対象のキーのハッシュ値のエントリを削除するだけ。</li>
 <li><code>b.chunks</code> 内のキーバリューは単なるバイト列なので放置で良い。</li>
 </ul>
-<h3 id="malloc-mmapgo">malloc_mmap.go</h3>
+<h3 id="malloc_mmapgo">malloc_mmap.go</h3>
 <p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/malloc_mmap.go">malloc_mmap.go</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// +build !appengine,!windows
 </span><span class="c1"></span>
@@ -423,7 +423,7 @@
 <li><code>data</code> 変数の指す先を <code>chunkSize</code> バイト進めた点にしているのも理由が理解できていない。 GoのGCが Mmap で割り当てったメモリ領域を解放しないようにするためか。</li>
 <li><code>freechunks</code> は最後の要素から使用し、使い終わったら <code>putChunk</code> で <code>freeChunks</code> の最後に追加する。</li>
 </ul>
-<h3 id="malloc-heapgo">malloc_heap.go</h3>
+<h3 id="malloc_heapgo">malloc_heap.go</h3>
 <p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/malloc_heap.go">malloc_heap.go</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// +build appengine windows
 </span><span class="c1"></span>
@@ -441,7 +441,7 @@
 <li>ごく素直に Go の <code>make</code> で <code>chunkSize</code> バイト数のメモリ領域を割り当てる。</li>
 <li>使い終わった後の <code>putChunk</code> では解放は GC に任せればよいので何もしない。</li>
 </ul>
-<h3 id="setbig--getbig-">SetBig と GetBig に関連する定数</h3>
+<h3 id="setbig-と-getbig-に関連する定数">SetBig と GetBig に関連する定数</h3>
 <p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/bigcache.go#L10-L22">bigcache.go#L10-L22</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// maxSubvalueLen is the maximum size of subvalue chunk.
 </span><span class="c1"></span><span class="c1">//
@@ -463,7 +463,7 @@
 <li>key, subvalue, subkey の長さは全て 64KiB 以下なのでそれぞれ2バイトでエンコードする（が、この分を引く理由は <code>SetBig</code> と <code>GetBig</code> メソッドのコードを見ても良く分からなかった）。</li>
 <li>fastcache の実装詳細で1バイト使う（とコメントには書いてあるが <code>SetBig</code> と <code>GetBig</code> メソッドのコードを見ても良く分からなかった）。</li>
 </ul>
-<h3 id="cache--setbig-">Cache の SetBig メソッド</h3>
+<h3 id="cache-の-setbig-メソッド">Cache の SetBig メソッド</h3>
 <p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/bigcache.go#L24-L66">bigcache.go#L24-L66</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// SetBig sets (k, v) to c where len(v) may exceed 64KB.
 </span><span class="c1"></span><span class="c1">//
@@ -514,7 +514,7 @@
 <li>subvalue は <code>v</code> のハッシュ値と分割の連番をエンコードした値を subkey としてハッシュに設定する。 subkey も <code>uint64</code> 2つで <code>maxSubvalueLen</code> の16引いてる分。</li>
 <li>例えば 128KiB の値だと subvalue は3つになり、 <code>k</code> と合わせて合計4エントリが追加されることになる。</li>
 </ul>
-<h3 id="cache--getbig-">Cache の GetBig メソッド</h3>
+<h3 id="cache-の-getbig-メソッド">Cache の GetBig メソッド</h3>
 <p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/bigcache.go#L68-L124">bigcache.go#L68-L124</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// GetBig searches for the value for the given k, appends it to dst
 </span><span class="c1"></span><span class="c1">// and returns the result.

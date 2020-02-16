@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,17 +65,17 @@
     <div class="post">
   <h1>git-buildpackageでdebパッケージをビルドしてPPAにアップロードする手順</h1>
   <time datetime=2017-07-05T21:04:00&#43;0900 class="post-date">2017-07-05</time>
-  <h2 id="heading">はじめに</h2>
+  <h2 id="はじめに">はじめに</h2>
 <p>.. _git-buildpackage: <a href="https://honk.sigxcpu.org/piki/projects/git-buildpackage/">https://honk.sigxcpu.org/piki/projects/git-buildpackage/</a></p>
 <p>git-buildpackage_ を使ってカスタムdebパッケージをビルドして <a href="https://launchpad.net/ubuntu/+ppas">Personal Package Archives : Ubuntu</a> (PPA) にアップロードする手順のメモです。</p>
 <p>自分で試行錯誤してまとめた手順なので、他のニーズには合わなかったり、改善の余地があるかもしれません。</p>
 <p>UbuntuのLTS (Long Time Support)版を使うにあたって、古いdebパッケージをアップデートしてPPAにアップデートするのが主な用途です。</p>
 <p>ということで以下では Ubuntu 16.04 (xenial) で提供されている luajit 2.0.4 を2.0.5にアップデートしてPPAにアップロードする例で説明します。</p>
-<h2 id="heading-1">まず読む参考文献</h2>
+<h2 id="まず読む参考文献">まず読む参考文献</h2>
 <p>debパッケージ作成についての文書はたくさんあるのですが、
 <a href="https://www.debian.org/doc/devel-manuals#packaging-tutorial">Debian 開発者向けマニュアル</a> が概要を把握するのに役立ちました。</p>
 <p>次に <a href="https://www.debian.org/doc/devel-manuals#maint-guide">Debian 新メンテナガイド</a> を見ました。といってもどちらも斜め読みです。</p>
-<h2 id="heading-2">使用するツールの選択</h2>
+<h2 id="使用するツールの選択">使用するツールの選択</h2>
 <p>debパッケージをビルドするツールも多数あるのですが、
 <a href="https://www.debian.org/doc/manuals/maint-guide/build.ja.html#git-buildpackage">git-buildpackageコマンドとその仲間</a> でお勧めされていた git-buildpackage_ を使うことにしました。</p>
 <p><a href="http://honk.sigxcpu.org/projects/git-buildpackage/manual-html/gbp.html">Building Debian Packages with git-buildpackage</a> を読んで試行錯誤した結果、以下のツールを使う手順にひとまず落ち着きました。</p>
@@ -85,10 +85,10 @@
 <li>pbuilder (personal builder): chrootでクリーンな環境でdebパッケージをビルドするためのツール。</li>
 <li>dput: debのソースパッケージをPPAにアップロードするツール</li>
 </ul>
-<h2 id="heading-3">事前準備</h2>
-<h3 id="gpg">gpgで秘密鍵作成</h3>
+<h2 id="事前準備">事前準備</h2>
+<h3 id="gpgで秘密鍵作成">gpgで秘密鍵作成</h3>
 <p>PPAにdebパッケージをアップロードするにはdebソースパッケージに署名する必要があるので <a href="https://hnakamur.github.io/blog/2017/07/01/generate-secret-key-with-gpg/">gpgで秘密鍵を作成する</a> の手順で秘密鍵を生成しておきます。</p>
-<h3 id="gpg-1">gpgの設定追加</h3>
+<h3 id="gpgの設定追加">gpgの設定追加</h3>
 <p><a href="https://askubuntu.com/questions/186329/how-to-automate-the-pass-phrases-when-gpg-signing-dpkg-buildpackage/186359#186359">packaging - How to automate the pass phrases when GPG signing dpkg-buildpackage? - Ask Ubuntu</a>
 を参考にして <code>~/.bash_profile</code> に以下のような設定を追加しました。
 <code>DEBFULLNAME</code> 、 <code>DEBEMAIL</code> 、 <code>GPGKEY</code> 環境変数の値は、適宜自分のものに書き換えてください。</p>
@@ -105,15 +105,15 @@ export GPGKEY=0x1DFBC664
 fi
 </code></pre></div><p>ログインし直すか以下のコマンドを実行して、上記の設定を反映します。</p>
 <pre><code class="language-console" data-lang="console">exec $SHELL -l
-</code></pre><h3 id="heading-4">必要なパッケージのインストール</h3>
+</code></pre><h3 id="必要なパッケージのインストール">必要なパッケージのインストール</h3>
 <p>次に Ubuntu 16.04 xenialで以下のコマンドを実行して必要なツールをインストールします。</p>
 <pre><code class="language-console" data-lang="console">sudo apt install git-buildpackage quilt pbuilder debootstrap devscripts dput debhelper
 </code></pre><p>2018-03-20 追記 debhelper も必要だったので上記に追記しました。</p>
-<h3 id="pbuilderchroot">pbuilderで使うchroot環境作成</h3>
+<h3 id="pbuilderで使うchroot環境作成">pbuilderで使うchroot環境作成</h3>
 <p><a href="https://wiki.ubuntu.com/PbuilderHowto">PbuilderHowto - Ubuntu Wiki</a> と <a href="http://manpages.ubuntu.com/manpages/xenial/en/man8/pbuilder.8.html">Ubuntu Manpage: pbuilder - personal package builder</a> を参考に、以下のコマンドでdebパッケージビルド用のchroot環境のtarballを作成します。</p>
 <p><code>--components</code> オプションで <code>main</code> に加えて <code>universe</code> も指定しているのはビルド時に必要となる <code>quilt</code> が <code>main</code> ではなく <code>universe</code> に含まれるからです。</p>
 <pre><code class="language-console" data-lang="console">sudo pbuilder create --components 'main universe' --debootstrapopts --variant=buildd
-</code></pre><h3 id="quilt">quiltのセットアップ</h3>
+</code></pre><h3 id="quiltのセットアップ">quiltのセットアップ</h3>
 <p><a href="https://www.debian.org/doc/manuals/maint-guide/modify.ja.html#quiltrc">quilt のセットアップ</a> の手順に沿ってdebパッケージビルド用にquiltの設定を追加し、 <code>dquilt</code> というエイリアスを登録します。</p>
 <p><code>~/.bashrc</code> に以下の2行を追加します。</p>
 <div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">alias dquilt=&#34;quilt --quiltrc=${HOME}/.quiltrc-dpkg&#34;
@@ -129,7 +129,7 @@ if [ -d $d/debian ] &amp;&amp; [ -z $QUILT_PATCHES ]; then
     QUILT_COLORS=&#34;diff_hdr=1;32:diff_add=1;34:diff_rem=1;31:diff_hunk=1;33:diff_ctx=35:diff_cctx=33&#34;
     if ! [ -d $d/debian/patches ]; then mkdir $d/debian/patches; fi
 fi
-</code></pre></div><h3 id="ppa">PPAのアカウント作成</h3>
+</code></pre></div><h3 id="ppaのアカウント作成">PPAのアカウント作成</h3>
 <p>その前に、なぜPPAでdebパッケージをビルド・配布することにしたかですが、これは
 <a href="http://www.clear-code.com/blog/2014/6/10.html">Launchpadを利用してパッケージを公開するには - ククログ(2014-06-10)</a>
 の記事を読んで、私の場合もデメリットよりメリットが大きいと思ったからです。</p>
@@ -142,7 +142,7 @@ fi
 <p>PPA (Personal Package Archive) についての公式な説明は
 <a href="https://help.launchpad.net/Packaging/PPA">Packaging/PPA - Launchpad Help</a>
 にあります。</p>
-<h2 id="deb">既存のdebパッケージのソースを取得</h2>
+<h2 id="既存のdebパッケージのソースを取得">既存のdebパッケージのソースを取得</h2>
 <p><code>/etc/apt/sources.list</code> に以下のように <code>deb-src</code> の行があるか確認します。私の環境では対応する <code>deb</code> の行の下にばらけて書かれていました。</p>
 <div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">deb-src http://jp.archive.ubuntu.com/ubuntu/ xenial main restricted
 deb-src http://jp.archive.ubuntu.com/ubuntu/ xenial-updates main restricted
@@ -157,12 +157,12 @@ cd !$
 </code></pre><p>以下のような1つのディレクトリと3つのファイルが作成されます。</p>
 <pre><code class="language-console" data-lang="console">$ ls -F
 luajit-2.0.4+dfsg/  luajit_2.0.4+dfsg-1.debian.tar.xz  luajit_2.0.4+dfsg-1.dsc  luajit_2.0.4+dfsg.orig.tar.gz
-</code></pre><h2 id="debgit">debパッケージのgitレポジトリを作成</h2>
-<h3 id="debgit-1">debパッケージ用にgitレポジトリを分けて管理する理由</h3>
+</code></pre><h2 id="debパッケージのgitレポジトリを作成">debパッケージのgitレポジトリを作成</h2>
+<h3 id="debパッケージ用にgitレポジトリを分けて管理する理由">debパッケージ用にgitレポジトリを分けて管理する理由</h3>
 <p>当初はupstreamであるluajitのgitレポジトリにdebパッケージ用のブランチを作って管理しようかと思っていました。</p>
 <p>ですが <a href="http://dep.debian.net/">Debian Enhancement Proposals</a> に <a href="http://dep.debian.net/deps/dep14/">DEP-14: Recommended layout for Git packaging repositories</a> という文書があって、なるべくこのgitブランチモデルに合わせたほうが良いかなと思い、 <a href="https://anonscm.debian.org/cgit/">git.debian.org</a> にあるDebianのパッケージのgitレポジトリの実例をいくつか見て合わせることにしました。</p>
 <p>それにupstreamのgitコミットログとdebパッケージ用のコミットログが混在するより、debパッケージのgitレポジトリが分かれているほうがdebパッケージのコミットログだけを見やすそうだと思い直しました。</p>
-<h3 id="upstreamdebgit">upstreamのソースをインポートしてdebパッケージのgitレポジトリを作成</h3>
+<h3 id="upstreamのソースをインポートしてdebパッケージのgitレポジトリを作成">upstreamのソースをインポートしてdebパッケージのgitレポジトリを作成</h3>
 <p><a href="http://honk.sigxcpu.org/projects/git-buildpackage/manual-html/gbp.import.html">Importing Sources</a> の <a href="http://honk.sigxcpu.org/projects/git-buildpackage/manual-html/gbp.import.html#GBP.IMPORT.EXISTING">Importing already existing Debian packages</a> の手順でインポートします。
 コマンド名は <code>git-buildpackage</code> の略で <code>gbp</code> となっています。</p>
 <pre><code class="language-console" data-lang="console">gbp import-dsc --pristine-tar luajit_2.0.4+dfsg-1.dsc
@@ -180,7 +180,7 @@ cd !$
 </code></pre><p><code>ls -F</code> で見ると luajit のソースに加えてdebパッケージ用の <code>debian/</code> ディレクトリがあることがわかります。</p>
 <pre><code class="language-console" data-lang="console">$ ls -F
 COPYRIGHT  debian/  dynasm/  etc/  Makefile  README  src/
-</code></pre><h2 id="luajitgit205">luajitのgitレポジトリをクローンしてバージョン2.0.5のソースを準備</h2>
+</code></pre><h2 id="luajitのgitレポジトリをクローンしてバージョン205のソースを準備">luajitのgitレポジトリをクローンしてバージョン2.0.5のソースを準備</h2>
 <p><code>pushd</code> で一旦別のディレクトリに移動して、そちらでluajitのgitレポジトリをクローンし、 <code>v2.0.5</code> のタグに切り替えて <code>~/deb-tutorial/luajit/luajit_2.0.5.orig.tar.gz</code> というtarballを作成し <code>popd</code> で元の作業ディレクトリに戻ります。</p>
 <pre><code class="language-console" data-lang="console">pushd ..
 git clone http://luajit.org/git/luajit-2.0.git
@@ -220,8 +220,8 @@ v2.1.0-beta3
 </code></pre>
 <pre><code class="language-console" data-lang="console">hnakamur@express:~/deb-tutorial/luajit/luajit-2.0$ popd
 ~/deb-tutorial/luajit/luajit-deb
-</code></pre><h2 id="luajit205">luajitバージョン2.0.5のソースをインポート</h2>
-<h3 id="debdfsg">debパッケージのDFSG対応</h3>
+</code></pre><h2 id="luajitバージョン205のソースをインポート">luajitバージョン2.0.5のソースをインポート</h2>
+<h3 id="debパッケージのdfsg対応">debパッケージのDFSG対応</h3>
 <p>luajitのdebパッケージのバージョンは <code>2.0.4+dfsg-1</code> のように <code>+dfsg</code> を含んでいます。</p>
 <p>DFSGについては <a href="https://www.debian.org/social_contract#guidelines">Debian フリーソフトウェアガイドライン (DFSG)</a> に説明があり、 debパッケージの DFSG 対応については <a href="https://www.debian.org/doc/manuals/maint-guide/first.ja.html#namever">第2章 はじめの一歩</a> に説明があります。</p>
 <p>luajitの場合は <code>debian/README.source</code> に具体的な説明があり、 <code>doc/</code> ディレクトリにあるファイルのライセンスが DSFG に合わないので削除してdebパッケージに含めないという対応にしているそうです。</p>
@@ -249,7 +249,7 @@ under terms not suitable for Debian:
   for the docs is e.g. printed at startup.
 
 The sources has been repackaged removing doc/*.
-</code></pre><h3 id="dfsgupstream">DFSGクリーンでないupstreamのソースのインポート</h3>
+</code></pre><h3 id="dfsgクリーンでないupstreamのソースのインポート">DFSGクリーンでないupstreamのソースのインポート</h3>
 <p><a href="http://honk.sigxcpu.org/projects/git-buildpackage/manual-html/gbp.special.html#GBP.SPECIAL.DFSGFREE">Handling non-DFSG clean upstream sources</a> に沿ってluajitのバージョン2.0.5のソースをインポートしていきます。</p>
 <p>まず <code>upstream</code> ブランチから <code>dfsg_clean</code> というブランチを作成します。</p>
 <pre><code class="language-console" data-lang="console">git branch dfsg_clean upstream
@@ -277,15 +277,15 @@ git commit -m &quot;Make source dfsg clean&quot;
 <p>次に <code>master</code> ブランチに切り替えて <code>dfsg_clean</code> ブランチの内容をマージして取り込みます。</p>
 <pre><code class="language-console" data-lang="console">git checkout master
 git pull . dfsg_clean
-</code></pre><h2 id="dquilt">dquiltでパッチファイルを更新</h2>
-<h3 id="deb-1">debパッケージでのパッチファイルのファイル構成</h3>
+</code></pre><h2 id="dquiltでパッチファイルを更新">dquiltでパッチファイルを更新</h2>
+<h3 id="debパッケージでのパッチファイルのファイル構成">debパッケージでのパッチファイルのファイル構成</h3>
 <p><code>debian/patches/</code> ディレクトリを見ると以下のように1つのパッチファイルがあります。</p>
 <pre><code class="language-console" data-lang="console">hnakamur@express:~/deb-tutorial/luajit/luajit-deb$ ls debian/patches/
 0001-consider-Hurd-as-a-POSIX-system.patch  series
 </code></pre><p><code>debian/patches/series</code> ファイルにパッチファイル名一覧が書かれています。</p>
 <pre><code class="language-console" data-lang="console">hnakamur@express:~/deb-tutorial/luajit/luajit-deb$ cat debian/patches/series
 0001-consider-Hurd-as-a-POSIX-system.patch
-</code></pre><h3 id="dquilt-1">dquiltでのパッチの更新</h3>
+</code></pre><h3 id="dquiltでのパッチの更新">dquiltでのパッチの更新</h3>
 <p><a href="https://www.debian.org/doc/manuals/maint-guide/modify.ja.html#fixupstream">アップストリームのバグを修正する</a> に新規パッチ作成例が書かれていますが、今回は既存のパッチの更新なのでこれとは違います。</p>
 <p><code>man quilt</code> やそこで紹介されていた <code>/usr/share/doc/quilt/quilt.pdf</code> を読むべきところですが、 `パッチ管理ツール quilt の使い方](<a href="http://tokyodebian.alioth.debian.org/html/debianmeetingresume200701se7.html.tmp">http://tokyodebian.alioth.debian.org/html/debianmeetingresume200701se7.html.tmp</a>) がわかりやすかったのでお勧めです。</p>
 <p>ここでは上記の事前準備に書いたように <code>quilt</code> そのままではなく をカスタマイズしたエイリアス <code>dquilt</code> を利用します。</p>
@@ -339,7 +339,7 @@ Refreshed patch 0001-consider-Hurd-as-a-POSIX-system.patch
 </code></pre><p><code>.pc/</code> というディレクトリが出来ていますが不要なので削除し、 <code>src/Makefile</code> と <code>src/lj_arch.h</code> はコミットします。</p>
 <pre><code class="language-console" data-lang="console">rm -rf .pc
 git commit -a -m 'Update patch'
-</code></pre><h2 id="debianchangelog">debian/changelogの更新</h2>
+</code></pre><h2 id="debianchangelogの更新">debian/changelogの更新</h2>
 <p><a href="http://honk.sigxcpu.org/projects/git-buildpackage/manual-html/gbp.releases.html">Releases and Snapshots</a> を参考に以下のコマンドを実行します。</p>
 <pre><code class="language-console" data-lang="console">gbp dch --release
 </code></pre><p>するとエディタが起動して <code>debian/changelog</code> ファイルを開いた状態になり、ファイルの先頭には <code>gbp</code> コマンドが追加した以下のようなエントリが表示されていました。</p>
@@ -365,7 +365,7 @@ luajit (2.0.4+dfsg-1) unstable; urgency=medium
  M debian/changelog
 </code></pre><p><code>debian/changelog</code> をコミットします。</p>
 <pre><code class="language-console" data-lang="console">git commit -m 'Release 2.0.5' debian/changelog
-</code></pre><h2 id="heading-5">ソースパッケージのビルド</h2>
+</code></pre><h2 id="ソースパッケージのビルド">ソースパッケージのビルド</h2>
 <p>後ほどPPAにアップロードするときはdebのソースパッケージのみをアップロードする必要があります。</p>
 <p>まず以下のコマンドを実行してソースパッケージのみをビルドします。
 <a href="https://help.launchpad.net/Packaging/PPA/BuildingASourcePackage">Options when building</a>
@@ -437,7 +437,7 @@ Successfully signed dsc and changes files
 luajit_2.0.5+dfsg-1ppa1.debian.tar.xz  luajit_2.0.5+dfsg-1ppa1_source.changes
 luajit_2.0.5+dfsg-1ppa1.dsc            luajit_2.0.5+dfsg.orig.tar.gz
 luajit_2.0.5+dfsg-1ppa1_source.build
-</code></pre><h2 id="heading-6">バイナリパッケージのビルド</h2>
+</code></pre><h2 id="バイナリパッケージのビルド">バイナリパッケージのビルド</h2>
 <p>上記で作成したソースパッケージの内容に絶対の自信があれば <code>dput</code> コマンドでLaunchPadにアップロードしてバイナリパッケージをビルドしても良いですが、ローカルでバイナリパッケージが正常にビルドできることを確認してからアップロードするほうが良いです。</p>
 <p>以下のコマンドでバイナリパッケージをビルドします。</p>
 <pre><code class="language-console" data-lang="console">sudo pbuilder build ../build-area/luajit_2.0.5+dfsg-1ppa1.dsc
@@ -453,13 +453,13 @@ luajit_2.0.5+dfsg-1ppa1_source.build
 /var/cache/pbuilder/result/luajit_2.0.5+dfsg.orig.tar.gz
 </code></pre><p><code>*.deb</code> ファイルを新規に作成したLXDコンテナなどの別環境にコピー、インストールして動作確認します。
 動作確認して大丈夫であれば、ソースパッケージをPPAにアップロードします。</p>
-<h2 id="ppa-1">ソースパッケージをPPAにアップロード</h2>
-<h3 id="ppa-2">PPAの作成とアクティベート</h3>
+<h2 id="ソースパッケージをppaにアップロード">ソースパッケージをPPAにアップロード</h2>
+<h3 id="ppaの作成とアクティベート">PPAの作成とアクティベート</h3>
 <p>初回はパッケージのアップロード先となるPPAを作成しアクティベートする必要があります。
 手順は <a href="https://help.launchpad.net/Packaging/PPA">Activating a PPA</a> に説明があります。
 自分のアカウントのプロファイルページにある Create a new PPA というリンクをクリックし、Activate a Personal Package ArchiveというページでURL、Display Nameと必要に応じてDescriptionを入力してActivateボタンを押しアクティベートします。</p>
 <p>今回私は <code>ppa:hnakamur/luajit</code> というPPAを作成しました。</p>
-<h3 id="heading-7">ソースパッケージのアップロード</h3>
+<h3 id="ソースパッケージのアップロード">ソースパッケージのアップロード</h3>
 <p><a href="https://help.launchpad.net/Packaging/PPA/Uploading">Packaging/PPA/Uploading - Launchpad Help</a> に説明があります。
 ソースパッケージの <code>.dsc</code> ファイルを指定して以下のコマンドを実行します。</p>
 <pre><code class="language-console" data-lang="console">$ dput ppa:hnakamur/luajit ../build-area/luajit_2.0.5+dfsg-1ppa1_source.changes
@@ -487,7 +487,7 @@ Uploading to ppa (via ftp to ppa.launchpad.net):
   Uploading luajit_2.0.5+dfsg-1ppa1_source.changes: done.
 Successfully uploaded packages.
 </code></pre><p>上記のように <code>Successfully uploaded packages.</code> と表示されたらひとまずはアップロード成功です。</p>
-<h3 id="heading-8">アップロード受付結果のメール確認</h3>
+<h3 id="アップロード受付結果のメール確認">アップロード受付結果のメール確認</h3>
 <p>アップロードしたあと数分ぐらいするとアップロード受付結果のメールが届きます。</p>
 <p>以下は受付拒否のメールの例です。間違ってソースパッケージとバイナリパッケージをアップロードしてしまったときのものです。
 <a href="https://help.launchpad.net/Packaging/UploadErrors">Packaging/UploadErrors - Launchpad Help</a> にアップロードに関するエラーについての説明があるのでこちらも参照してください。</p>
@@ -521,11 +521,11 @@ luajit (2.0.5+dfsg-1ubuntu1ppa1) xenial; urgency=medium
 --
 https://launchpad.net/~hnakamur/+archive/ubuntu/luajit
 You are receiving this email because you made this upload.
-</code></pre><h3 id="heading-9">ビルド経過の確認</h3>
+</code></pre><h3 id="ビルド経過の確認">ビルド経過の確認</h3>
 <p><a href="https://launchpad.net/builders">The Launchpad build farm</a> で各ビルドサーバが今どのパッケージをビルドしているか見られます。ビルドサーバがすいているときはすぐここに表示されます。</p>
 <p>また <a href="https://launchpad.net/~hnakamur/+archive/ubuntu/luajit">ppa:hnakamur/luajit</a> のページの右上にある
 View package details リンクをクリックし、Packages in “luajit” ページの右上にある View all builds リンクをクリックするとBuilds for luajitというページが開き、ここの検索フォームでPPA内のパッケージの状態を確認できます。</p>
-<h2 id="heading-10">注意：パッケージを消して同じバージョンで上げ直すことは出来ません</h2>
+<h2 id="注意パッケージを消して同じバージョンで上げ直すことは出来ません">注意：パッケージを消して同じバージョンで上げ直すことは出来ません</h2>
 <p>ここでハマりネタです。</p>
 <p>今回実は一度 <code>2.0.5+dfsg-1ubuntu1ppa1</code> というバージョンでパッケージをアップロードしてビルド成功した後、ビルド手順を整理して再度試そうと思い、パッケージの詳細ページからView package detailsリンク、Delete packagesリンクと辿ってバージョン <code>2.0.5+dfsg-1ubuntu1ppa1</code> を削除していました。</p>
 <p>元のパッケージのバージョンは <code>2.0.4+dfsg-1</code> とバージョン名に <code>ubuntu1</code> はついていなかったので、再度作り直す際は上記のように <code>2.0.5+dfsg-1ppa1</code> というバージョンにしてみました。</p>
@@ -553,12 +553,12 @@ You are receiving this email because you made this upload.
 <p>調べてみると
 <a href="https://help.launchpad.net/Packaging/PPA/Deleting">Packaging/PPA/Deleting - Launchpad Help</a> の最後にファイルが削除された後に同じバージョンのソースを再度アップロードしても拒否されると書かれていました。
 ですので、何か間違えた場合もリリースの番号を上げて再度アップロードすることで対応する必要があります。</p>
-<h3 id="heading-11">今回の回避策</h3>
+<h3 id="今回の回避策">今回の回避策</h3>
 <p>今回はupstreamのtarballで引っかかっているのでリリース番号ではなくupstreamのバージョンを上げる必要があります。
 とはいっても、本当は2.0.5なのに2.0.5.1とかにするわけにも行かないしなーと悩みました。</p>
 <p><a href="https://wiki.debian.org/DebianMentorsFaq#What_does_.2BIBw-dfsg.2BIB0_in_the_version_string_mean.3F">What does “dfsg” in the version string mean?</a> を見て、DFSGのために調整されたパッケージのバージョンは <code>&lt;UPSTREAM_VERSION&gt;+dfsg.&lt;REPACK_COUNT&gt;-&lt;DEBIAN_RELEASE&gt;</code> という形式が良いというのを知りました。</p>
 <p>そこで今回は <code>2.0.5+dfsg.2-1ppa1</code> というバージョンに変更（手順は省略）して再度アップロードすることで回避しました。</p>
-<h2 id="heading-12">ビルドされたパッケージを他の環境にインストールしてみる</h2>
+<h2 id="ビルドされたパッケージを他の環境にインストールしてみる">ビルドされたパッケージを他の環境にインストールしてみる</h2>
 <p>LXDで新たなコンテナを作るなどしてテストするサーバを用意し、そこで以下のコマンドを実行してインストールしてみます。</p>
 <pre><code class="language-console" data-lang="console">sudo apt update
 sudo apt install software-properties-common
@@ -576,10 +576,10 @@ JIT: ON CMOV SSE2 SSE3 SSE4.1 fold cse dce fwd dse narrow loop abc sink fuse
 &gt; print('Hello luajit!')
 Hello luajit!
 &gt; （Ctrl-Dを入力して抜ける）
-</code></pre><h2 id="heading-13">新しいリリースのタグ作成</h2>
+</code></pre><h2 id="新しいリリースのタグ作成">新しいリリースのタグ作成</h2>
 <p>動作確認がOKだったので、新しいリリースのタグを作成しておきます。</p>
 <pre><code class="language-console" data-lang="console">git tag debian/2.0.5+dfsg.2-1ppa1 master
-</code></pre><h2 id="heading-14">おわりに</h2>
+</code></pre><h2 id="おわりに">おわりに</h2>
 <p>以上で Ubuntu 16.04 (xenial) で提供されている luajit 2.0.4 を2.0.5にアップデートしてPPAにアップロードすることができました。パッケージによってはパッチの更新の手順がもっと複雑になったりといろいろ変わってくると思いますが、とりあえずこれで基本パターンは出来たということで。</p>
 
 </div>

@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,22 +65,22 @@
     <div class="post">
   <h1>mockを使ったrpmビルドが失敗した時の調査方法</h1>
   <time datetime=2015-12-16T01:10:33&#43;0900 class="post-date">2015-12-16</time>
-  <h2 id="heading">はじめに</h2>
-<p><a href="/blog/2015/12/15/using_mock_and_copr_to_build_nginx_rpm_on_docker/">nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました · hnakamur's blog at github</a>でspecファイルを書いている最中はmockでのrpmのビルドに失敗することがよくあります。</p>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="/blog/2015/12/15/using_mock_and_copr_to_build_nginx_rpm_on_docker/">nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました · hnakamur&rsquo;s blog at github</a>でspecファイルを書いている最中はmockでのrpmのビルドに失敗することがよくあります。</p>
 <p>私は「なんとなくこんな感じか？」と書いて動かしてみてエラーを見て修正していくスタイルなので、失敗時の調査は重要です。</p>
-<h2 id="heading-1">ビルドログ</h2>
+<h2 id="ビルドログ">ビルドログ</h2>
 <p><code>sudo mock -r epel-7-x86_64 --rebuild ${srpmファイル名}</code> のように実行してビルドした場合、 <code>/var/lib/mock/epel-7-x86_64/result/</code> に <code>build.log</code> というファイルができるのでそれを見ます。</p>
-<h2 id="mockchroot">mockコマンドでchroot環境内に入る</h2>
+<h2 id="mockコマンドでchroot環境内に入る">mockコマンドでchroot環境内に入る</h2>
 <p><a href="http://linux.die.net/man/1/mock">mock(1)のmanページ</a>によると <code>sudo mock -r epel-7-x86_64 --shell</code> でchroot環境内に入ることが出来ます。 <code>exit</code> で抜けます。</p>
 <p>mockで作られるchroot環境はビルドに必要な最低限のパッケージしかインストールされておらず、 <code>vim</code> や <code>less</code> も使えません。 <code>yum</code> で入れようにも <code>yum</code> も無いと言われてしまいます。</p>
 <p>chroot環境に入る前に <code>sudo mock -r epel-7-x86_64 --install vim less</code> のようにしてインストールしておけばchroot内でvimやlessが使えます。</p>
 <p>あるいはchroot外で <code>/var/lib/mock/epel-7-x86_64/root/</code> 配下のファイルをvimやlessで見るという手もあります。</p>
-<h2 id="chrootrpm">chroot環境内のrpmビルドディレクトリ</h2>
+<h2 id="chroot環境内のrpmビルドディレクトリ">chroot環境内のrpmビルドディレクトリ</h2>
 <p>chroot環境内では <code>/builddir/build/</code> 以下に <code>BUILD</code>, <code>BUILDDIR</code>, <code>SOURCES</code>, <code>SPECS</code> などのディレクトリが作られているので、これらの中を見ればビルド失敗時の状況を調べられます。</p>
-<h2 id="chroot">chroot環境内でファイルを修正してビルドを再実行</h2>
+<h2 id="chroot環境内でファイルを修正してビルドを再実行">chroot環境内でファイルを修正してビルドを再実行</h2>
 <p>mockを使ったrpmビルドはchroot環境を作成してその中で行われるのですが、毎回chroot環境を作るところからやっていると時間がかかって効率が悪いです。</p>
 <p>ですので、chroot環境内のspecファイルや <code>SOURCES</code> ディレクトリ下のファイルを直接修正して、その後 <code>rpmbuild -bb ${specファイル名}</code> でrpmのビルドを再度試します。</p>
-<h2 id="docker">修正したファイルをdockerコンテナ外に取り出す</h2>
+<h2 id="修正したファイルをdockerコンテナ外に取り出す">修正したファイルをdockerコンテナ外に取り出す</h2>
 <p>修正のきりが良い所で、chroot環境内の修正したファイルを <code>docker cp</code> コマンドでdockerコンテナ内からコンテナ外に取り出します。</p>
 <p>まずdockerホストで <code>docker ps</code> コマンドでコンテナIDかコンテナ名を調べます。</p>
 <pre><code>$ docker ps
@@ -89,8 +89,8 @@ CONTAINER ID        IMAGE               COMMAND             CREATED             
 </code></pre><p>次に <code>docker cp</code> コマンドでファイルをコピーします。例えばこんな感じです。</p>
 <pre><code>$ docker cp romantic_fermi:/var/lib/mock/epel-7-x86_64/root/builddir/build/SPECS/nginx.spec SPECS/nginx.spec
 </code></pre><p>取り出した修正ファイルはgitにコミットして、さらに修正作業を続けていきます。</p>
-<p>修正が一通り終わったら、クリーンな状態からビルドが成功することを確認するため、dockerコンテナを一度破棄して<a href="http://localhost:1313/blog/2015/12/15/using_mock_and_copr_to_build_nginx_rpm_on_docker/">nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました · hnakamur's blog at github</a> の手順で再度ビルドしてみます。これでエラーが出なければOKです。</p>
-<h2 id="heading-2">まとめ</h2>
+<p>修正が一通り終わったら、クリーンな状態からビルドが成功することを確認するため、dockerコンテナを一度破棄して<a href="http://localhost:1313/blog/2015/12/15/using_mock_and_copr_to_build_nginx_rpm_on_docker/">nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました · hnakamur&rsquo;s blog at github</a> の手順で再度ビルドしてみます。これでエラーが出なければOKです。</p>
+<h2 id="まとめ">まとめ</h2>
 <p>mockを使ったrpmのビルドが失敗した場合の調査方法を紹介しました。もっと良い方法などありましたら、ぜひ教えてください。</p>
 
 </div>

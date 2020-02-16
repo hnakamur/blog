@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,17 +65,17 @@
     <div class="post">
   <h1>Hyper-VのWindows NAT機能を使ってVMのIPアドレスを固定</h1>
   <time datetime=2019-10-29T12:00:00&#43;0900 class="post-date">2019-10-29</time>
-  <h1 id="heading">はじめに</h1>
+  <h1 id="はじめに">はじめに</h1>
 <p>multipassでVMを作成すると vEthernet (Default Switch) という仮想イーサネットアダプタが使用されますが、Windowsの再起動のたびにIPアドレスが変わるという問題があります。このため hosts ファイルのVMのアドレスを Windows を再起動するたびに書き換えなければなりません。これは面倒です。</p>
 <p><a href="https://www.atmarkit.co.jp/ait/articles/1612/16/news039.html">Windows 10／Windows Server 2016のHyper-VでNAT（ネットワークアドレス変換）機能を利用する：Tech TIPS - ＠IT</a>
 で紹介されているHyper-Vの「Windows NAT（以下WinNATと呼ぶ）」機能を使えば、VMのIPアドレスを固定することができます。ただし、multipass 0.8.0 は非対応なのでWinNATに切り替えるのは手作業で行う必要があります。さらに切り替え後のVMはmultipassでは操作できないのでHyper-Vマネージャで起動・停止を行う必要があります。multipass の管理からは外れることになりますが、IPアドレスが固定されるメリットのほうが大きいと判断しこの設定で使うことにしてみました。</p>
 <p>以下に WinNAT のネットワークインタフェースのアドレスを <code>192.168.254.1/24</code> 、VMのIPアドレスを <code>192.168.254.2/24</code> に設定するという例の設定手順をメモしておきます。</p>
-<h1 id="vmmultipass">VMのmultipassユーザにパスワードを設定</h1>
+<h1 id="vmのmultipassユーザにパスワードを設定">VMのmultipassユーザにパスワードを設定</h1>
 <p>まずVMのmultipassユーザにパスワードを設定しておきます。これはネットワーク設定を間違えた場合にHyper-VマネージャからVMのコンソールを開いてログインできるようにするためです。</p>
 <p><code>multiapss shell</code> あるいは <code>ssh wa-pdev-vm</code> でVMにmultipassユーザでログインした状態で以下のコマンドを実行してパスワードを設定します。</p>
 <pre><code class="language-console" data-lang="console">sudo passwd multipass
 </code></pre><p>パスワードはお好みで設定してください。</p>
-<h1 id="winnat">WinNAT用のネットワークインタフェースを作成</h1>
+<h1 id="winnat用のネットワークインタフェースを作成">WinNAT用のネットワークインタフェースを作成</h1>
 <p>PowerShellを管理者権限で開いて <a href="https://docs.microsoft.com/en-us/powershell/module/hyper-v/New-VMSwitch?view=win10-ps">New-VMSwitch</a> コマンドを使って以下のように実行します。</p>
 <div class="highlight"><pre class="chroma"><code class="language-powershell" data-lang="powershell"><span class="nb">New-VMSwitch</span> <span class="n">-SwitchName</span> <span class="n">WinNAT</span> <span class="n">-SwitchType</span> <span class="n">Internal</span>
 </code></pre></div><p><a href="https://docs.microsoft.com/en-us/powershell/module/netadapter/Get-NetAdapter?view=win10-ps">Get-NetAdapter</a> コマンドを実行してネットワークインタフェース一覧を表示します。</p>
@@ -118,7 +118,7 @@ InterfaceIndex    : 5
 InterfaceAlias    : vEthernet (WinNAT)
 AddressFamily     : IPv4
 Type              : Unicast
-</code></pre><h1 id="winnat-1">WinNATの設定</h1>
+</code></pre><h1 id="winnatの設定">WinNATの設定</h1>
 <p><a href="https://docs.microsoft.com/en-us/powershell/module/netnat/New-NetNat?view=win10-ps">New-NetNat</a> コマンドを実行して作成します。</p>
 <div class="highlight"><pre class="chroma"><code class="language-powershell" data-lang="powershell"><span class="nb">New-NetNat</span> <span class="n">-Name</span> <span class="n">WinNAT</span> <span class="n">-InternalIPInterfaceAddressPrefix</span> <span class="n">192</span><span class="p">.</span><span class="n">168</span><span class="p">.</span><span class="n">254</span><span class="p">.</span><span class="n">0</span><span class="p">/</span><span class="n">24</span>
 </code></pre></div><p>作成後の状態は <a href="https://docs.microsoft.com/en-us/powershell/module/netnat/Get-NetNat?view=win10-ps">Get-NetNat</a> コマンドで確認できます。</p>
@@ -137,7 +137,7 @@ UdpIdleSessionTimeout            : 120
 UdpInboundRefresh                : False
 Store                            : Local
 Active                           : True
-</code></pre><h1 id="vmip">VM側のネットワーク設定を固定IPアドレスに変更</h1>
+</code></pre><h1 id="vm側のネットワーク設定を固定ipアドレスに変更">VM側のネットワーク設定を固定IPアドレスに変更</h1>
 <p>VMにログインした状態で以下のコマンドを実行して <code>/etc/netplan/50-cloud-init.yaml</code> を編集します。</p>
 <pre><code class="language-console" data-lang="console">sudo vim /etc/netplan/50-cloud-init.yaml
 </code></pre><p>変更前（macaddressの値はVM毎に異なるはずなのでコピペしないよう注意）</p>
@@ -146,41 +146,41 @@ Active                           : True
 </span><span class="w"></span><span class="c"># To disable cloud-init&#39;s network configuration capabilities, write a file</span><span class="w">
 </span><span class="w"></span><span class="c"># /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg with the following:</span><span class="w">
 </span><span class="w"></span><span class="c"># network: {config: disabled}</span><span class="w">
-</span><span class="w"></span>network<span class="p">:</span><span class="w">
-</span><span class="w">    </span>ethernets<span class="p">:</span><span class="w">
-</span><span class="w">        </span>eth0<span class="p">:</span><span class="w">
-</span><span class="w">            </span>dhcp4<span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w">
-</span><span class="w">            </span>match<span class="p">:</span><span class="w">
-</span><span class="w">                </span>macaddress<span class="p">:</span><span class="w"> </span><span class="m">00</span><span class="p">:</span><span class="m">15</span><span class="p">:</span>5d<span class="p">:</span>df<span class="p">:</span><span class="m">51</span><span class="p">:</span>0e<span class="w">
-</span><span class="w">            </span>set-name<span class="p">:</span><span class="w"> </span>eth0<span class="w">
-</span><span class="w">    </span>version<span class="p">:</span><span class="w"> </span><span class="m">2</span><span class="w">
+</span><span class="w"></span><span class="k">network</span><span class="p">:</span><span class="w">
+</span><span class="w"></span><span class="w">    </span><span class="k">ethernets</span><span class="p">:</span><span class="w">
+</span><span class="w"></span><span class="w">        </span><span class="k">eth0</span><span class="p">:</span><span class="w">
+</span><span class="w"></span><span class="w">            </span><span class="k">dhcp4</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w">
+</span><span class="w">            </span><span class="k">match</span><span class="p">:</span><span class="w">
+</span><span class="w"></span><span class="w">                </span><span class="k">macaddress</span><span class="p">:</span><span class="w"> </span><span class="m">00</span><span class="p">:</span><span class="m">15</span><span class="p">:</span>5d<span class="p">:</span>df<span class="p">:</span><span class="m">51</span><span class="p">:</span>0e<span class="w">
+</span><span class="w">            </span><span class="k">set-name</span><span class="p">:</span><span class="w"> </span>eth0<span class="w">
+</span><span class="w">    </span><span class="k">version</span><span class="p">:</span><span class="w"> </span><span class="m">2</span><span class="w">
 </span></code></pre></div><p>変更後</p>
 <div class="highlight"><pre class="chroma"><code class="language-yaml" data-lang="yaml"><span class="c"># This file is generated from information provided by</span><span class="w">
 </span><span class="w"></span><span class="c"># the datasource.  Changes to it will not persist across an instance.</span><span class="w">
 </span><span class="w"></span><span class="c"># To disable cloud-init&#39;s network configuration capabilities, write a file</span><span class="w">
 </span><span class="w"></span><span class="c"># /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg with the following:</span><span class="w">
 </span><span class="w"></span><span class="c"># network: {config: disabled}</span><span class="w">
-</span><span class="w"></span>network<span class="p">:</span><span class="w">
-</span><span class="w">    </span>ethernets<span class="p">:</span><span class="w">
-</span><span class="w">        </span>eth0<span class="p">:</span><span class="w">
-</span><span class="w">            </span>dhcp4<span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="w">
-</span><span class="w">            </span>addresses<span class="p">:</span><span class="w">
-</span><span class="w">                </span>-<span class="w"> </span><span class="m">192.168</span><span class="m">.254</span><span class="m">.2</span>/<span class="m">24</span><span class="w">
-</span><span class="w">            </span>gateway4<span class="p">:</span><span class="w"> </span><span class="m">192.168</span><span class="m">.254</span><span class="m">.1</span><span class="w">
-</span><span class="w">            </span>match<span class="p">:</span><span class="w">
-</span><span class="w">                </span>macaddress<span class="p">:</span><span class="w"> </span><span class="m">00</span><span class="p">:</span><span class="m">15</span><span class="p">:</span>5d<span class="p">:</span>df<span class="p">:</span><span class="m">51</span><span class="p">:</span>0e<span class="w">
-</span><span class="w">            </span>set-name<span class="p">:</span><span class="w"> </span>eth0<span class="w">
-</span><span class="w">    </span>version<span class="p">:</span><span class="w"> </span><span class="m">2</span><span class="w">
-</span></code></pre></div><h1 id="hyper-vvmwinnat">Hyper-VマネージャでVMのネットワークアダプタをWinNATに変更</h1>
+</span><span class="w"></span><span class="k">network</span><span class="p">:</span><span class="w">
+</span><span class="w"></span><span class="w">    </span><span class="k">ethernets</span><span class="p">:</span><span class="w">
+</span><span class="w"></span><span class="w">        </span><span class="k">eth0</span><span class="p">:</span><span class="w">
+</span><span class="w"></span><span class="w">            </span><span class="k">dhcp4</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="w">
+</span><span class="w">            </span><span class="k">addresses</span><span class="p">:</span><span class="w">
+</span><span class="w"></span><span class="w">                </span>- <span class="m">192.168</span><span class="m">.254</span><span class="m">.2</span>/<span class="m">24</span><span class="w">
+</span><span class="w">            </span><span class="k">gateway4</span><span class="p">:</span><span class="w"> </span><span class="m">192.168</span><span class="m">.254</span><span class="m">.1</span><span class="w">
+</span><span class="w">            </span><span class="k">match</span><span class="p">:</span><span class="w">
+</span><span class="w"></span><span class="w">                </span><span class="k">macaddress</span><span class="p">:</span><span class="w"> </span><span class="m">00</span><span class="p">:</span><span class="m">15</span><span class="p">:</span>5d<span class="p">:</span>df<span class="p">:</span><span class="m">51</span><span class="p">:</span>0e<span class="w">
+</span><span class="w">            </span><span class="k">set-name</span><span class="p">:</span><span class="w"> </span>eth0<span class="w">
+</span><span class="w">    </span><span class="k">version</span><span class="p">:</span><span class="w"> </span><span class="m">2</span><span class="w">
+</span></code></pre></div><h1 id="hyper-vマネージャでvmのネットワークアダプタをwinnatに変更">Hyper-VマネージャでVMのネットワークアダプタをWinNATに変更</h1>
 <ul>
 <li>Hyper-Vマネージャでmultipassで作成したVMを選択して[操作]/[シャットダウン]メニューを選んでVMをシャットダウンします。</li>
 <li>[ファイル]/[設定]メニューで設定を開き、設定ダイアログの左のツリーで[ネットワークアダプター]を選択します。</li>
 <li>画面右の仮想スイッチのドロップダウンを開きDefault SwitchからWinNATに変更して[OK]ボタンを押します。</li>
 </ul>
-<h1 id="oshostsvm">ホストOSのhostsファイルのVMのアドレスを変更する</h1>
+<h1 id="ホストosのhostsファイルのvmのアドレスを変更する">ホストOSのhostsファイルのVMのアドレスを変更する</h1>
 <p>Windows 上のブラウザや Windows Subsystem for Linux の ssh や curl で VMにアクセスできるように VM のIPアドレスを hosts ファイルに書いている場合は変更します。</p>
 <p>Windows の <code>C:\Windows\System32\drivers\etc\hosts</code> と Windows Subsystem for Linux の <code>/etc/hosts</code> でVMのアドレスを <code>192.168.254.2</code> に変更します。</p>
-<h1 id="vm">VMの起動と接続</h1>
+<h1 id="vmの起動と接続">VMの起動と接続</h1>
 <p>Hyper-V マネージャから VM を起動してください。</p>
 <p>WinNAT に切り替え後は multipass のサービスが起動できなくなり、 multipass start や multipass shell は一切使えなくなります。</p>
 <p>VMへの接続は ssh を使ってください。</p>

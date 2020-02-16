@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,10 +65,10 @@
     <div class="post">
   <h1>VictoriMetrics/fastcacheによるGoのGC負荷の回避方法</h1>
   <time datetime=2019-12-29T16:00:00&#43;0900 class="post-date">2019-12-29</time>
-  <h2 id="heading">背景</h2>
+  <h2 id="背景">背景</h2>
 <p><a href="https://github.com/VictoriaMetrics/VictoriaMetrics">VictoriaMetrics</a> で <code>foo.bar.baz</code> といったメトリクス名からIDへのマッピングは
 <a href="https://github.com/VictoriaMetrics/fastcache">VictoriaMetrics/fastcache</a> というキーバリューストアで保管されています。ということで調査したメモ。</p>
-<h2 id="heading-1">ベンチマーク</h2>
+<h2 id="ベンチマーク">ベンチマーク</h2>
 <p>ベンチマークがついているので自分のサーバでも試してみました。</p>
 <pre><code class="language-console" data-lang="console">$ GOMAXPROCS=4 go test github.com/VictoriaMetrics/fastcache -bench='Set|Get' -benchtime=10s
 go: downloading github.com/allegro/bigcache v1.2.1-0.20190218064605-e24eb225f156
@@ -99,15 +99,15 @@ c9a5939fd508ba790b708b23929feea13623d735
 </code></pre><p>CPU は <a href="https://ark.intel.com/content/www/jp/ja/ark/products/43546/intel-core-i5-650-processor-4m-cache-3-20-ghz.html">インテル® Core™ i5-650 プロセッサー (4M キャッシュ、3.20 GHz) 製品仕様</a> で2コア4スレッドです。</p>
 <p>API <a href="https://pkg.go.dev/github.com/VictoriaMetrics/fastcache?tab=doc">fastcache package · go.dev</a> は README にある通りシンプルです。ちょっと変わっているのは <code>Get</code>, <code>Set</code> の他に 64KB 以上の値用に <code>GetBig</code>, <code>SetBig</code> という別の API が用意されている点です。</p>
 <p>上記のベンチマークのうち SetBig, GetBig, CacheSet, CacheGet, CacheSetGet が fastcache の API です。どれも1操作当たりのメモリ割り当て回数 (allocs/op) が非常に少なく高速であることがわかります。メモリ割り当て回数が少ないのは <a href="https://golang.org/pkg/sync/#Pool">sync.Pool</a> を活用しているからです。 VictoriaMetrics の開発者は <a href="https://github.com/valyala/fasthttp">valyala/fasthttp</a> と同じ方でそちらでも <a href="https://golang.org/pkg/sync/#Pool">sync.Pool</a> を活用することで高速化を実現されています。</p>
-<h2 id="fastcache-">fastcache のアーキテクチャ</h2>
+<h2 id="fastcache-のアーキテクチャ">fastcache のアーキテクチャ</h2>
 <p>READMEの <a href="https://github.com/VictoriaMetrics/fastcache#architecture-details">Architecture details</a> に説明があります。</p>
 <p>そこからリンクされている <a href="https://syslog.ravelin.com/further-dangers-of-large-heaps-in-go-7a267b57d487">Further Dangers of Large Heaps in Go - Ravelin Tech Blog</a> が GC のオーバーヘッドについての素晴らしい記事でした。一言で言うとポインタが増えすぎると GC がそれらをスキャンして回るのが追い付かなくなるということです。 GC も銀の弾丸ではなく限界があるというわけです。冷静に考えれば当然のことで、アプリケーションの処理を進めるために GC に使う時間を限定すると、その時間の中で出来ることには限界があるわけです。</p>
 <p>（実は私も過去に似た体験をしてました。 <a href="https://github.com/lomik/go-carbon">lomik/go-carbon</a> の負荷テストの CLI を Go で書いて1週間流しっぱなしにしたときに ps でみると使用メモリがじわじわ増えていくという現象が起きました）</p>
 <p>回避策として mmap でメモリ割り当てして GC の対象外 (off-heap) なところでデータを扱うという方法があります。ただしその中に Go のオブジェクトは置けないので、バイト列として <a href="https://golang.org/pkg/unsafe/">unsafe</a> でアクセスするか、そこから読み取った値を元に Go のオブジェクトを別途作成する必要があります。でも後者だと二重管理になってメモリも二重に必要になるので、極力前者の方式をとるべきです。すると mmap で割り当てたメモリ領域の中で整数や浮動小数点やバイト列を置くのは良いとして、ポインタに関してはポインタを使わずなんらかのインデクスやオフセットでデータ構造を実現することになります。もしくはポインタの先を Go でメモリ割り当てしたデータ構造ではなく別の mmap 呼び出しで割り当てたメモリ領域内のアドレスにする手もありますね。</p>
 <p><a href="https://github.com/VictoriaMetrics/fastcache#architecture-details">Architecture details</a> に戻ると mmap で一度に割り当てるメモリのチャンクサイズが大きいと GC の負荷が大きくなるので fastcache では 64KiB にしているそうです。これによりメモリのフラグメンテーションとトータルのメモリ使用量が抑えられるとのことです。</p>
-<p>（<a href="/blog/2019/12/29/cgo-and-unsafe/">cgoとunsafeについてのメモ · hnakamur's blog</a> を書いたときは mmap の代わりに <code>C.malloc</code> でも良いかもと思ったのですが <a href="https://stackoverflow.com/questions/52417318/why-does-the-free-function-not-return-memory-to-the-operating-system/52417370">c++ - Why does the free() function not return memory to the operating system? - Stack Overflow</a> や <a href="https://www.linuxquestions.org/questions/linux-newbie-8/freed-memory-does-not-return-to-system-is-it-able-to-used-by-running-application-4175521572/">freed memory does not return to system , is it able to used by running application</a> を見ると <code>free</code> を読んでも OS にメモリが返却されないので mmap を使うほうが良さそうです。）</p>
+<p>（<a href="/blog/2019/12/29/cgo-and-unsafe/">cgoとunsafeについてのメモ · hnakamur&rsquo;s blog</a> を書いたときは mmap の代わりに <code>C.malloc</code> でも良いかもと思ったのですが <a href="https://stackoverflow.com/questions/52417318/why-does-the-free-function-not-return-memory-to-the-operating-system/52417370">c++ - Why does the free() function not return memory to the operating system? - Stack Overflow</a> や <a href="https://www.linuxquestions.org/questions/linux-newbie-8/freed-memory-does-not-return-to-system-is-it-able-to-used-by-running-application-4175521572/">freed memory does not return to system , is it able to used by running application</a> を見ると <code>free</code> を読んでも OS にメモリが返却されないので mmap を使うほうが良さそうです。）</p>
 <p>上で書いた 64KB 以上の値用に <code>GetBig</code>, <code>SetBig</code> という別の API が用意されているのはこれが理由だったんですね。</p>
-<h2 id="heading-2">まとめ</h2>
+<h2 id="まとめ">まとめ</h2>
 <p>まとめると VictoriMetrics/fastcache によるGoのGC負荷の回避方法は以下の2点です。</p>
 <ul>
 <li>Goのオブジェクトは極力 <a href="https://golang.org/pkg/sync/#Pool">sync.Pool</a> を使って再利用することでメモリ割り当て回数を減らす。</li>

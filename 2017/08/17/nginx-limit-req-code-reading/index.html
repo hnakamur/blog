@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,7 +65,7 @@
     <div class="post">
   <h1>ngx_http_limit_req_moduleのコードリーディング</h1>
   <time datetime=2017-08-17T09:38:00&#43;0900 class="post-date">2017-08-17</time>
-  <h2 id="heading">はじめに</h2>
+  <h2 id="はじめに">はじめに</h2>
 <p><a href="http://nginx.org/en/docs/http/ngx_http_limit_req_module.html">Module ngx_http_limit_req_module</a>
 を使おうと思ってコードを読んでみたのでメモです。</p>
 <h2 id="leaky-bucket">leaky bucket</h2>
@@ -73,8 +73,8 @@
 <p>leaky bucketについては
 <a href="http://www.geeksforgeeks.org/leaky-bucket-algorithm/">Leaky Bucket Algorithm| Computer Networks - GeeksforGeeks</a>
 の説明が具体例もあってわかりやすかったです。</p>
-<h2 id="nginx">nginxの実装</h2>
-<h3 id="ratelimit">rateとlimitの値を読み取る</h3>
+<h2 id="nginxの実装">nginxの実装</h2>
+<h3 id="rateとlimitの値を読み取る">rateとlimitの値を読み取る</h3>
 <p>設定からrateとlimitを読み取るコードは以下の部分です。内部的には秒間リクエスト数を1000倍して管理しています。</p>
 <p><a href="https://github.com/nginx/nginx/blob/release-1.13.4/src/http/modules/ngx_http_limit_req_module.c#L792-L828">ngx_http_limit_req_module.c#L792-L828</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">if</span> <span class="p">(</span><span class="n">ngx_strncmp</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="p">.</span><span class="n">data</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">rate=</span><span class="s">&#34;</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span> <span class="o">=</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
@@ -170,7 +170,7 @@ if (limit == NULL) {
 limit-&gt;shm_zone = shm_zone;
 limit-&gt;burst = burst * 1000;
 </code></pre>
-<h3 id="nginxlimit-reqleaky-bucket">nginxのlimit_reqのleaky bucket</h3>
+<h3 id="nginxのlimit_reqのleaky-bucket">nginxのlimit_reqのleaky bucket</h3>
 <p>nginxの実装は（おそらく軽く動かすために）ちょっと変わった方法をとっていて、タイマーで定期的に許容できる量を更新していくのではなく、以下のように前回のアクセスから今回のアクセスまでの時間にレートを掛けて引くという方式を取っています。</p>
 <p><a href="https://github.com/nginx/nginx/blob/release-1.13.4/src/http/modules/ngx_http_limit_req_module.c#L400-L412">ngx_http_limit_req_module.c#L400-L412</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="n">ms</span> <span class="o">=</span> <span class="p">(</span><span class="n">ngx_msec_int_t</span><span class="p">)</span> <span class="p">(</span><span class="n">now</span> <span class="o">-</span> <span class="n">lr</span><span class="o">-</span><span class="o">&gt;</span><span class="n">last</span><span class="p">)</span><span class="p">;</span>

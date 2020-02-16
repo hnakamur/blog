@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,13 +65,13 @@
     <div class="post">
   <h1>ngx_http_v2_upstreamモジュールを追加したnginxのdebパッケージを作ってみた</h1>
   <time datetime=2017-07-14T06:07:00&#43;0900 class="post-date">2017-07-14</time>
-  <h2 id="heading">はじめに</h2>
+  <h2 id="はじめに">はじめに</h2>
 <p><a href="http://asnokaze.hatenablog.com/entry/2017/07/03/083530">Nginxのリバースプロキシでバックエンドとhttp2通信する - ASnoKaze blog</a> で紹介されていたngx_http_v2_upstreamモジュールを組み込んだnginxのdebianパッケージを作ってみたのでメモです。</p>
 <p><a href="/blog/2017/07/05/how-to-build-deb-with-git-buildpackage/">git-buildpackageでdebパッケージをビルドしてPPAにアップロードする手順</a> のdquiltでパッチを適用するところでこの記事とは違うパターンが出てきたので、そこを重点的に書いておきます。</p>
 <p>なお、なるべくupstreamに近いものを使いたいので、ベースはUbuntuのパッケージではなく <a href="http://nginx.org/">nginx.org</a> のパッケージを使います。</p>
 <p><a href="http://nginx.org/en/download.html">nginx: download</a> のページのPre-Built Packagesにはstable versionとmainline versionの2種類がありますが、 <a href="http://bokko.hatenablog.com/entry/2014/05/24/220554">どのバージョンのnginxを使うべきか？ - 考える人、コードを書く人</a> を読んで以来私はmainlineを使っています。</p>
 <p>今回使用した nginx のバージョンは 1.13.3 で、作業した環境は Ubuntu 16.04 です。</p>
-<h2 id="heading-1">ソースパッケージのダウンロード</h2>
+<h2 id="ソースパッケージのダウンロード">ソースパッケージのダウンロード</h2>
 <p><a href="http://nginx.org/en/linux_packages.html#mainline">Pre-Built Packages for Mainline version</a> を参考に以下の内容を <code>/etc/apt/sources.list.d/nginx-org.list</code> というファイルに保存します。</p>
 <div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">deb http://nginx.org/packages/mainline/ubuntu/ xenial nginx
 deb-src http://nginx.org/packages/mainline/ubuntu/ xenial nginx
@@ -84,7 +84,7 @@ sudo apt source nginx
 <pre><code class="language-console" data-lang="console">$ ls -F
 nginx-1.13.3/                        nginx_1.13.3-1~xenial.dsc
 nginx_1.13.3-1~xenial.debian.tar.xz  nginx_1.13.3.orig.tar.gz
-</code></pre><h2 id="dep-3">パッチファイルをDEP-3準拠にして保存</h2>
+</code></pre><h2 id="パッチファイルをdep-3準拠にして保存">パッチファイルをDEP-3準拠にして保存</h2>
 <p><code>~/nginx.org-deb/ngx_http_v2_upstream-patches</code> というディレクトリを作り、そこに以下の14個のパッチを保存しました。</p>
 <ul>
 <li><a href="http://mailman.nginx.org/pipermail/nginx-devel/2017-June/010209.html">[PATCH 01 of 14] Output chain: propagate last_buf flag to c-&gt;send_chain()</a></li>
@@ -143,7 +143,7 @@ diff -r 154ca6c5e62a -r 96075d4cd2a6 src/event/ngx_event_openssl.c
 <li>そしてその間の部分を <code>Description</code> にしました。継続行はスペース1つでインデントし、空行は <code> .</code> にします。間の部分がない場合は <code>Description</code> ヘッダを省略します。</li>
 <li>最後に上記のパッチのメーリングリストでのアーカイブのURLを <code>Origin</code> にしました。 <code>#</code> のコメントの先頭行にHG (Mercurial)のchangeset patchと書いてあるので、それの公開URLがあればそちらにしたほうが良いと思いますが、不明なのでこれで良しとしました。</li>
 </ul>
-<h2 id="git">ソースパッケージをインポートしてgitレポジトリを作成</h2>
+<h2 id="ソースパッケージをインポートしてgitレポジトリを作成">ソースパッケージをインポートしてgitレポジトリを作成</h2>
 <p>レポジトリのディレクトリは <code>~/.ghq/github.com/hnakamur/nginx-deb</code> にしたいので、その親ディレクトリの <code>~/.ghq/github.com/hnakamur</code> に移動してインポートします。</p>
 <pre><code class="language-console" data-lang="console">cd ~/.ghq/github.com/hnakamur
 gbp import-dsc --pristine-tar ~/nginx.org-deb/nginx-1.13.3-deb/nginx_1.13.3-1~xenial.dsc
@@ -151,7 +151,7 @@ gbp import-dsc --pristine-tar ~/nginx.org-deb/nginx-1.13.3-deb/nginx_1.13.3-1~xe
 <code>~/.ghq/github.com/hnakamur/nginx-deb</code> にリネームしてそこに移動します。</p>
 <pre><code class="language-console" data-lang="console">mv nginx nginx-deb
 cd !$
-</code></pre><h2 id="dquilt">dquiltでパッチをインポート</h2>
+</code></pre><h2 id="dquiltでパッチをインポート">dquiltでパッチをインポート</h2>
 <p><code>quilt</code> の使い方については以下の2つの記事が参考になりました。</p>
 <ul>
 <li><a href="https://raphaelhertzog.com/2012/08/08/how-to-use-quilt-to-manage-patches-in-debian-packages/">How to use quilt to manage patches in Debian packages</a></li>
@@ -472,7 +472,7 @@ Now at patch ngx_http_v2_upstream-12-of-14.diff
 <pre><code class="language-console" data-lang="console">$ find . -name '*.rej' -exec rm {} \;
 $ git add .
 $ git commit -m 'Apply ngx_http_v2_upstream patches'
-</code></pre><h2 id="debianchangelog">debian/changelogの編集</h2>
+</code></pre><h2 id="debianchangelogの編集">debian/changelogの編集</h2>
 <p>以下のコマンドを実行して <code>debian/changelog</code> を編集します。</p>
 <pre><code class="language-console" data-lang="console">$ gbp dch --release
 </code></pre><p>エディタが起動されて、ファイルの先頭は以下のようになっていました。</p>
@@ -492,14 +492,14 @@ nginx (1.13.3-1~xenial) xenial; urgency=low
 </code></pre><p>.. code-block:: console</p>
 <pre><code>$ git commit -m 'Release 1.13.3-1~xenial1ppa1' debian/changelog
 </code></pre>
-<h2 id="heading-2">ソースパッケージのビルド</h2>
+<h2 id="ソースパッケージのビルド">ソースパッケージのビルド</h2>
 <p>ソースパッケージのビルドですが、今回はupstreamのソースに対してdfsg対応の修正は加えておらずそのままなので <code>--git-pristine-tar-commit</code> オプションは指定せず以下のコマンドを実行します。</p>
 <pre><code class="language-console" data-lang="console">gbp buildpackage --git-export-dir=../build-area -S -sa
 </code></pre><p>gpgのパスフレーズを2回聞かれるので入力します。</p>
-<h2 id="heading-3">バイナリパッケージのビルド</h2>
+<h2 id="バイナリパッケージのビルド">バイナリパッケージのビルド</h2>
 <p>以下のコマンドでバイナリパッケージをビルドします。</p>
 <pre><code class="language-console" data-lang="console">sudo pbuilder build ../build-area/nginx_1.13.3-1~xenial1ppa1.dsc
-</code></pre><h2 id="git-1">gitのタグ作成</h2>
+</code></pre><h2 id="gitのタグ作成">gitのタグ作成</h2>
 <p>ビルドしたバイナリパッケージを壊しても良いコンテナなどにインストールして動作確認が取れたらgitのタグを打っておきます。</p>
 <p>debのバージョンに <code>~</code> が入っていますが、gitのタグに <code>~</code> は使えないだろうからどうしようかと思って、今のタグを見ると <code>~</code> は <code>_</code> で置き換えていました。</p>
 <pre><code class="language-console" data-lang="console">$ git tag

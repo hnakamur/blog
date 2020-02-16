@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,7 +65,7 @@
     <div class="post">
   <h1>lua-nginx-moduleのshared dictの空き容量について</h1>
   <time datetime=2017-10-11T11:10:00&#43;0900 class="post-date">2017-10-11</time>
-  <h2 id="heading">はじめに</h2>
+  <h2 id="はじめに">はじめに</h2>
 <p><a href="https://github.com/openresty/lua-nginx-module">openresty/lua-nginx-module: Embed the Power of Lua into NGINX HTTP servers</a> の
 <a href="https://github.com/openresty/lua-nginx-module#ngxshareddict">ngx.shared.DICT</a>
 は複数ワーカープロセス間でデータを共有することができ、非常に便利です。</p>
@@ -77,7 +77,7 @@
 <p>そこでコードを読んで、おおよそのメモリ使用量の目安の計算について調査しました。
 また、概略の残り容量を把握するための仕組みを追加するプルリクエストを送ってマージされました。
 ということでメモしておきます。</p>
-<h2 id="shared-dict">shared dictのメモリ管理</h2>
+<h2 id="shared-dictのメモリ管理">shared dictのメモリ管理</h2>
 <p><a href="/blog/2017/09/27/code-reading-lua-nginx-shared-dict/">lua-nginx-moduleのshared dictのコードリーディング</a> で shared dict のメモリ割り当てについてコードを読んでみました。</p>
 <p><a href="https://github.com/openresty/lua-nginx-module/tree/bf14723e4e7749c989134c029742185db1c78255">https://github.com/openresty/lua-nginx-module/tree/bf14723e4e7749c989134c029742185db1c78255</a></p>
 <p>要約すると以下のようになっています。</p>
@@ -104,7 +104,7 @@
 名前が4バイト以下なら17〜32バイトのスロットになりますし、37〜100バイトなら65〜128バイトのスロットになります。</p>
 <p>名前が 37〜100バイトで128バイトのスロットを使う場合は、上記の <code>ngx_http_lua_shdict_shctx_t</code> の割り当てに使うのと同じページを使うことになります。
 が、ほとんどの場合はそこまで長い名前にはしないでしょうから、 <code>ngx_http_lua_shdict_shctx_t</code> で128バイトのスロットに1ページ、 <code>sizeof(&quot; in lua_shared_dict zone \&quot;\&quot;&quot;) + shm_zone-&gt;shm.name.len</code> で32バイトか64バイトのスロットに1ページが初期状態で割り当てられることになります。</p>
-<h2 id="heading-1">ページ数の見積もり</h2>
+<h2 id="ページ数の見積もり">ページ数の見積もり</h2>
 <p>例えば <code>lua_shared_dict</code> で <code>12k</code> と最低容量で宣言していたケースを考えます。</p>
 <p>管理領域の合計は
 <code>sizeof(ngx_slab_pool_t) + 9 * (sizeof(ngx_slab_page_t) + sizeof(ngx_slab_stat_t))</code>
@@ -116,7 +116,7 @@
 2
 </code></pre></div><p>しかし、上記の通り <code>ngx_http_lua_shdict_init_zone</code> で 64バイトと128バイトのスロットを1つずつ使っていますので、それぞれのスロットにページが割り当てられて、空きページ数は0となっています。</p>
 <p>ですので、この後これ以外のスロットに対応するメモリ割り当てを行おうとすると空きページが無いのでエラーになります。</p>
-<h2 id="heading-2">エントリ追加時のメモリ消費量</h2>
+<h2 id="エントリ追加時のメモリ消費量">エントリ追加時のメモリ消費量</h2>
 <p>以下のコードの通り、追加しようとするキーの長さ <code>key.len</code> と値の長さ <code>value.len</code> に
 <code>offsetof(ngx_rbtree_node_t, color)</code> と <code>offsetof(ngx_http_lua_shdict_node_t, data)</code> を加えたサイズのメモリ割り当てを行います。</p>
 <p><a href="https://github.com/openresty/lua-nginx-module/blob/97fbeb0bef1aa85e758210d58063376de8eaed31/src/ngx_http_lua_shdict.c#L1164-L1167">lua-nginx-module/ngx_http_lua_shdict.c#L1164-L1167</a></p>
@@ -241,7 +241,7 @@ key=key00003, val=val00003
 </ul>
 <p>つまり、空きページが無い場合は古いキーを破棄させてスロットに空きを作って新しいキーを設定しています。
 上記の例では <code>key00001</code> と <code>key00002</code> のキーが破棄されており値を参照しても <code>nil</code> になってしまいます。</p>
-<h2 id="capacity-free-space">空き容量の確認のためのcapacity, free_spaceメソッド</h2>
+<h2 id="空き容量の確認のためのcapacity-free_spaceメソッド">空き容量の確認のためのcapacity, free_spaceメソッド</h2>
 <p>空き容量を監視するために以下のプルリクエストを送りました。</p>
 <ul>
 <li><a href="https://github.com/openresty/lua-nginx-module/pull/1149">Add FFI methods for taking stats to ngx.shared.DICT by hnakamur · Pull Request #1149 · openresty/lua-nginx-module</a></li>
@@ -261,13 +261,13 @@ key=key00003, val=val00003
 <p><code>ngx.shared.DICT</code> の <code>free_space</code> メソッドで slab allocator の空きページの合計バイト数が取得できます。</p>
 <p>監視用のロケーションを作って free_space の値を capacity で割って100をかければ空き容量をパーセントで計算できますし、free_space そのものを見れば空き容量のバイト数が得られます。</p>
 <p>ただし、上記の通りこれはあくまで目安であって実際には free_space がゼロであっても、キーの追加に成功するケースもあります。ですが余裕を持っておきたいので、悲観的なケースに倒して空き容量を計算しています。</p>
-<h2 id="capacity-free-spacenginxrpm-deb">capacity, free_spaceメソッド入りのnginxのrpm, debパッケージ</h2>
+<h2 id="capacity-free_spaceメソッド入りのnginxのrpm-debパッケージ">capacity, free_spaceメソッド入りのnginxのrpm, debパッケージ</h2>
 <p>CentOS 6/7用のrpmパッケージとUbuntu 16.04 用のdebパッケージをビルドしました。</p>
 <ul>
 <li><a href="https://copr.fedorainfracloud.org/coprs/hnakamur/nginx/">hnakamur/nginx Copr</a></li>
 <li><a href="https://launchpad.net/~hnakamur/+archive/ubuntu/nginx">nginx with thirdparty modules : Hiroaki Nakamura</a></li>
 </ul>
-<h2 id="heading-3">まとめ</h2>
+<h2 id="まとめ">まとめ</h2>
 <ul>
 <li><code>lua_shared_dict</code> で指定したサイズから 704 バイトを引いたものを4096バイトで割ってページ数を計算する</li>
 <li>slab allocatorには8, 16, 32, 64, 128, 256, 512, 1024, 2048 バイト用に9個のスロットがあり、各スロットにページを割り当てて分割して使用する。</li>

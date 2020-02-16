@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -66,9 +66,9 @@
   <h1>LXDコンテナ上でPacemakerを使って仮想IPとApacheのアクティブ・パッシブ・クラスタを試してみた</h1>
   <time datetime=2016-08-12T18:54:27&#43;0900 class="post-date">2016-08-12</time>
   <p><a href="http://clusterlabs.org/doc/">Cluster Labs - Pacemaker Documentation</a> の &ldquo;Pacemaker 1.1 for Corosync 2.x and pcs&rdquo; の &ldquo;Clusters from Scratch (en-US)&rdquo; を参考にしつつ、多少手順を変更して試してみました。</p>
-<h2 id="heading">実験用コンテナの環境構築</h2>
-<h3 id="heading-1">コンテナの作成</h3>
-<p><a href="/blog/2016/08/12/update-lxd-dnsmasq-dhcp-hosts-config-with-sighup/">LXDのdnsmasqの固定IP設定をSIGHUPで更新する · hnakamur's blog at github</a> の手法を使って、2つのコンテナ用のIPアドレスを設定しておきます。</p>
+<h2 id="実験用コンテナの環境構築">実験用コンテナの環境構築</h2>
+<h3 id="コンテナの作成">コンテナの作成</h3>
+<p><a href="/blog/2016/08/12/update-lxd-dnsmasq-dhcp-hosts-config-with-sighup/">LXDのdnsmasqの固定IP設定をSIGHUPで更新する · hnakamur&rsquo;s blog at github</a> の手法を使って、2つのコンテナ用のIPアドレスを設定しておきます。</p>
 <pre><code>lxdhost:~$ cat /var/lib/lxd-bridge/dhcp-hosts 
 pcmk-1,10.155.92.101
 pcmk-2,10.155.92.102
@@ -79,7 +79,7 @@ pcmk-2,10.155.92.102
 <p>以下のコマンドでコンテナ <code>pcmk-1</code> と <code>pcmk-2</code> を作成します。</p>
 <pre><code>lxdhost:~$ lxc launch images:centos/7/amd64 pcmk-1
 lxdhost:~$ lxc launch images:centos/7/amd64 pcmk-2
-</code></pre><h3 id="-etchosts-">コンテナ内の /etc/hosts 設定</h3>
+</code></pre><h3 id="コンテナ内の-etchosts-設定">コンテナ内の /etc/hosts 設定</h3>
 <p>端末を2つ開いて <code>lxc exec pcmk-1 bash</code> と <code>lxc exec pcmk-2 bash</code> を実行し、それぞれ環境構築していきます。</p>
 <p>まず、コンテナ作成直後の <code>pcmk-1</code> の <code>/etc/hosts</code> を確認すると以下のようになっていました。</p>
 <pre><code>127.0.0.1   localhost
@@ -114,7 +114,7 @@ ff00::0 ip6-mcastprefix
 ff02::1 ip6-allnodes
 ff02::2 ip6-allrouters
 EOF
-</code></pre><h3 id="pacemaker">Pacemakerのインストール</h3>
+</code></pre><h3 id="pacemakerのインストール">Pacemakerのインストール</h3>
 <p><code>pcmk-1</code> と <code>pcmk-2</code> で以下のコマンドを実行します。</p>
 <pre><code># yum -y update
 # yum -y install pacemaker pcs psmisc policycoreutils-python which
@@ -122,8 +122,8 @@ EOF
 <p><code>pcsd</code> サービスを起動し、OS起動時に自動起動するようにします。</p>
 <pre><code># systemctl start pcsd
 # systemctl enable pcsd
-</code></pre><h2 id="ip">クラスタを作成して仮想IPの作成・移動実験</h2>
-<h3 id="heading-2">クラスタの作成と開始</h3>
+</code></pre><h2 id="クラスタを作成して仮想ipの作成移動実験">クラスタを作成して仮想IPの作成・移動実験</h2>
+<h3 id="クラスタの作成と開始">クラスタの作成と開始</h3>
 <p><code>hacluster</code> のパスワードを設定します。ここでは <code>password</code> という値にしていますが適宜変更してください。</p>
 <pre><code># echo password | passwd --stdin hacluster
 </code></pre><p>ここから先は <code>pcmk-1</code> だけでコマンドを実行します。 <code>-p</code> の値は上で設定したパスワードに合わせてください。</p>
@@ -177,7 +177,7 @@ Daemon Status:
   corosync: active/disabled
   pacemaker: active/disabled
   pcsd: active/enabled
-</code></pre><h3 id="stonith">STONITHを無効化</h3>
+</code></pre><h3 id="stonithを無効化">STONITHを無効化</h3>
 <p><a href="http://clusterlabs.org/doc/en-US/Pacemaker/1.1-pcs/html/Clusters_from_Scratch/ch05.html">Chapter 5. Create an Active/Passive Cluster</a>の手順でクラスタの設定エラーを確認します。</p>
 <pre><code># crm_verify -L -V
    error: unpack_resources:     Resource start-up disabled since no STONITH resources have been defined
@@ -188,7 +188,7 @@ Errors found during check: config not valid
 <pre><code># pcs property set stonith-enabled=false
 # crm_verify -L -V
 </code></pre><p>なお、 <a href="http://clusterlabs.org/doc/en-US/Pacemaker/1.1-pcs/html/Clusters_from_Scratch/ch05.html">Chapter 5. Create an Active/Passive Cluster</a> の最後の Warning にもある通り、 <strong>実運用では STONITH を無効にするのは全く不適切</strong> とのことなので、きちんと設定する必要があります。 STONITH についての説明は上記の Warning の囲み内からもリンクされている <a href="http://clusterlabs.org/doc/en-US/Pacemaker/1.1-pcs/html/Clusters_from_Scratch/ch08.html#_what_is_stonith">Chapter 8. Configure STONITH</a> を参照してください。</p>
-<h3 id="ip-1">仮想IPアドレス用のリソース作成</h3>
+<h3 id="仮想ipアドレス用のリソース作成">仮想IPアドレス用のリソース作成</h3>
 <p><code>pcmk-1</code> で以下のコマンドを実行して、仮想IPアドレス <code>10.155.92.100</code> 用のリソースを作成します。</p>
 <pre><code># pcs resource create ClusterIP ocf:heartbeat:IPaddr2 \
     ip=10.155.92.100 cidr_netmask=32 op monitor interval=30s
@@ -237,7 +237,7 @@ Daemon Status:
        valid_lft 3560sec preferred_lft 3560sec
     inet6 fe80::216:3eff:fe4b:6db1/64 scope link 
        valid_lft forever preferred_lft forever
-</code></pre><h3 id="pcmk-1-ip-pcmk-2-"><code>pcmk-1</code> をクラスタから離脱させて仮想IPアドレスが <code>pcmk-2</code> に移動するか確認</h3>
+</code></pre><h3 id="pcmk-1-をクラスタから離脱させて仮想ipアドレスが-pcmk-2-に移動するか確認"><code>pcmk-1</code> をクラスタから離脱させて仮想IPアドレスが <code>pcmk-2</code> に移動するか確認</h3>
 <p>以下のコマンドで <code>pcmk-1</code> をクラスタから離脱させます。</p>
 <pre><code>[root@pcmk-1 ~]# pcs cluster stop pcmk-1
 pcmk-1: Stopping Cluster (pacemaker)...
@@ -285,7 +285,7 @@ Daemon Status:
        valid_lft forever preferred_lft forever
     inet6 fe80::216:3eff:fe4b:6db1/64 scope link 
        valid_lft forever preferred_lft forever
-</code></pre><h3 id="pcmk-1-"><code>pcmk-1</code> をクラスタに復帰させる</h3>
+</code></pre><h3 id="pcmk-1-をクラスタに復帰させる"><code>pcmk-1</code> をクラスタに復帰させる</h3>
 <p>以下のコマンドで <code>pcmk-1</code> をクラスタに復帰させます。</p>
 <pre><code>[root@pcmk-1 ~]# pcs cluster start pcmk-1
 pcmk-1: Starting Cluster...
@@ -314,13 +314,13 @@ Daemon Status:
   pcsd: active/enabled
 </code></pre><p>以下のコマンドを実行して、仮想IPを <code>pcmk-1</code> のほうに移動します。</p>
 <pre><code>pcs cluster stop pcmk-2 &amp;&amp; pcs cluster start pcmk-2
-</code></pre><h2 id="apacheactivepassiveip">ApacheのActive/Passiveクラスタを作って仮想IPと連動させる</h2>
-<h3 id="heading-3">リソースのスティッキネスのデフォルト値を設定</h3>
+</code></pre><h2 id="apacheのactivepassiveクラスタを作って仮想ipと連動させる">ApacheのActive/Passiveクラスタを作って仮想IPと連動させる</h2>
+<h3 id="リソースのスティッキネスのデフォルト値を設定">リソースのスティッキネスのデフォルト値を設定</h3>
 <p><a href="http://clusterlabs.org/doc/en-US/Pacemaker/1.1-pcs/html/Clusters_from_Scratch/_prevent_resources_from_moving_after_recovery.html">5.4. Prevent Resources from Moving after Recovery</a> を見て設定します。</p>
 <pre><code>[root@pcmk-1 ~]# pcs resource defaults resource-stickiness=100
 [root@pcmk-1 ~]# pcs resource defaults 
 resource-stickiness: 100
-</code></pre><h3 id="apache-">Apache のインストールと設定</h3>
+</code></pre><h3 id="apache-のインストールと設定">Apache のインストールと設定</h3>
 <p><code>pcmk-1</code> と <code>pcmk-2</code> で以下のコマンドを実行します。</p>
 <pre><code># yum -y install httpd wget
 # mkdir -p /var/www/html /var/log/httpd
@@ -335,7 +335,7 @@ EOF
   Require ip 127.0.0.1
 &lt;/Location&gt;
 EOF
-</code></pre><h3 id="apache--activepassive-">Apache の Active/Passive クラスタ作成</h3>
+</code></pre><h3 id="apache-の-activepassive-クラスタ作成">Apache の Active/Passive クラスタ作成</h3>
 <p><code>pcmk-1</code> か <code>pcmk-2</code> のどちらか一方で以下のコマンドを実行します。
 公式のドキュメントでは、 <code>pcmk-2</code> で開始した後、制約を追加しただけでは <code>pcmk-1</code> に移動しないというデモをしていますが、ここでは <code>--disabled</code> つきでリソースを作成後、制約を追加してから有効化することで最初から <code>pcmk-1</code> で開始させています。</p>
 <p>また、制約を追加するごとに <code>crm_simulate -sL</code> を実行してリソースをどのノードに割り当てるかのスコアを確認しています。</p>
@@ -399,7 +399,7 @@ native_color: WebSite allocation score on pcmk-2: -INFINITY
 
 Transition Summary:
 </code></pre><p><code>pcmk-1</code> と <code>pcmk-2</code> で <code>ps auxww | grep httpd</code> すると <code>pcmk-1</code> 側で Apache が稼働して <code>pcmk-2</code> 側では稼働していないことを確認できます。</p>
-<h3 id="ipapache-pcmk-2-">手動で制約を調整して仮想IPとApacheを <code>pcmk-2</code> に移動する</h3>
+<h3 id="手動で制約を調整して仮想ipとapacheを-pcmk-2-に移動する">手動で制約を調整して仮想IPとApacheを <code>pcmk-2</code> に移動する</h3>
 <p>以下のコマンドで制約を調整し、移動が完了するまでのスコアの変遷を確認します。 <code>500</code> という値は前項の最後の <code>pcmk-1</code> の ClusterIP のスコアを上回る値として選びました。</p>
 <pre><code># pcs constraint location WebSite prefers pcmk-2=500 \
   &amp;&amp; for i in `seq 1 20`; do crm_simulate -sL; sleep 0.1; done
@@ -465,7 +465,7 @@ native_color: WebSite allocation score on pcmk-1: -INFINITY
 native_color: WebSite allocation score on pcmk-2: 600
 
 Transition Summary:
-</code></pre><h3 id="ipapache-pcmk-1-">手動で制約を調整して仮想IPとApacheを <code>pcmk-1</code> に戻す</h3>
+</code></pre><h3 id="手動で制約を調整して仮想ipとapacheを-pcmk-1-に戻す">手動で制約を調整して仮想IPとApacheを <code>pcmk-1</code> に戻す</h3>
 <p>次に <code>pcmk-2</code> から <code>pcmk-1</code> に戻してみます。
 以下のコマンドで制約のIDを確認します。</p>
 <pre><code>[root@pcmk-1 ~]# pcs constraint --full
@@ -541,8 +541,8 @@ native_color: WebSite allocation score on pcmk-1: 350
 native_color: WebSite allocation score on pcmk-2: -INFINITY
 
 Transition Summary:
-</code></pre><h2 id="active">Active側のコンテナに障害が発生してコンテナごと落ちるケースの模擬実験</h2>
-<h3 id="active-pcmk-1-">Active側 <code>pcmk-1</code> のコンテナを停止させたときの挙動を確認</h3>
+</code></pre><h2 id="active側のコンテナに障害が発生してコンテナごと落ちるケースの模擬実験">Active側のコンテナに障害が発生してコンテナごと落ちるケースの模擬実験</h2>
+<h3 id="active側-pcmk-1-のコンテナを停止させたときの挙動を確認">Active側 <code>pcmk-1</code> のコンテナを停止させたときの挙動を確認</h3>
 <p>LXDホストで以下のコマンドを実行して <code>pcmk-1</code> を停止させます。</p>
 <pre><code>$ lxc stop -f pcmk-1
 </code></pre><p><code>pcmk-2</code> で <code>pcs status</code> を実行すると <code>pcmk-1</code> が OFFLINE になったことがわかりますが、 <code>PCSD Status:</code> の後を表示するところでブロックしたので Ctrl-C で止めました。</p>
@@ -564,7 +564,7 @@ Full list of resources:
 PCSD Status:
 ^C
 </code></pre><p><code>ip a s eth0</code> と <code>ps auxww | grep httpd</code> で仮想IPとApacheが <code>pcmk-2</code> で動いていることが確認できました。</p>
-<h3 id="pcmk-1--1"><code>pcmk-1</code> のコンテナを起動させた時の挙動を確認</h3>
+<h3 id="pcmk-1-のコンテナを起動させた時の挙動を確認"><code>pcmk-1</code> のコンテナを起動させた時の挙動を確認</h3>
 <p>LXDホストで以下のコマンドを実行して <code>pcmk-1</code> を起動し、コンテナ内に入ります。</p>
 <pre><code>$ lxc satrt pcmk-1
 $ lxc exec pcmk-1 bash

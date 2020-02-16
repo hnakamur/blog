@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,7 +65,7 @@
     <div class="post">
   <h1>GoでLTSV形式でログ出力するライブラリを書いた</h1>
   <time datetime=2016-06-13T21:42:53&#43;0900 class="post-date">2016-06-13</time>
-  <h2 id="heading">なぜ書いたか</h2>
+  <h2 id="なぜ書いたか">なぜ書いたか</h2>
 <p>Goで高機能なサードパーティのログ出力ライブラリと言えば<a href="https://github.com/Sirupsen/logrus">Sirupsen/logrus</a>が有名です。私も<a href="https://github.com/doloopwhile/logrusltsv">doloopwhile/logrusltsv</a>と組み合わせてLTSV形式のログ出力するのに使っていました。</p>
 <p>しかし、<a href="http://methane.hatenablog.jp/entry/2015/09/17/logger_%E3%81%AE%E3%83%91%E3%83%95%E3%82%A9%E3%83%BC%E3%83%9E%E3%83%B3%E3%82%B9%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6_%5BGo%5D">logger のパフォーマンスについて [Go] - methaneのブログ</a>にも書かれていますが、<a href="https://godoc.org/github.com/Sirupsen/logrus#WithFields">logrus.WithFields</a>は<a href="https://godoc.org/github.com/Sirupsen/logrus#Fields">Fields</a>、つまり <code>map[string]interface{}</code> の値を渡す必要があります。これはGCに負荷をかけそうというのも気になりますが、Goのmapは順不同なのでログ出力の際にキーの順番がソースに書いた順番と必ずしも一致しないというのがイマイチだよなーと思っていました。</p>
 <p>ログ出力ライブラリはライブラリによって違うものを使うのはよくないから、自作するよりメジャーなものを使うほうが良いと自重する思いもありました。</p>
@@ -76,8 +76,8 @@
 <li>APIドキュメント: <a href="https://godoc.org/github.com/hnakamur/ltsvlog">ltsvlog - GoDoc</a></li>
 </ul>
 <p>githubレポジトリのREADMEに使用例のコードがあります。</p>
-<h2 id="ltsvlog">ltsvlogの設計と実装</h2>
-<h3 id="ltsvlog-1">ltsvlogのログレベル</h3>
+<h2 id="ltsvlogの設計と実装">ltsvlogの設計と実装</h2>
+<h3 id="ltsvlogのログレベル">ltsvlogのログレベル</h3>
 <p><a href="http://dave.cheney.net/2015/11/05/lets-talk-about-logging">Let’s talk about logging | Dave Cheney</a>にもありましたが、ログレベルが多すぎると使い分けで悩むので少ないほうが良いと私も思います。ただ、エラー以外にもなにかが成功したときに記録しておきたいことはあるので、ErrorとInfoは分けたほうが良いと思います。あと私はprintデバッグ信者なのでデバッグログ用のDebugレベルは必要です。</p>
 <p>ということで、ltsvlogのログレベルはDebug, Info, Errorの3つです。</p>
 <p>レベル毎に出力するかしないかの切り替えはDebugレベルのみ許可することにしました。InfoとErrorは本番運用時にもログ出力するものだけに使うという考えです。Debugレベルを出力するかどうかは<a href="https://godoc.org/github.com/hnakamur/ltsvlog#NewLTSVLogger">NewLTSVLogger</a>でロガーを作るときに指定します。</p>
@@ -86,15 +86,15 @@
         <span class="nx">ltsvlog</span><span class="p">.</span><span class="nx">Logger</span><span class="p">.</span><span class="nf">Debug</span><span class="p">(</span><span class="nx">ltsvlog</span><span class="p">.</span><span class="nx">LV</span><span class="p">{</span><span class="s">&#34;msg&#34;</span><span class="p">,</span> <span class="s">&#34;This is a debug message&#34;</span><span class="p">}</span><span class="p">,</span>
             <span class="nx">ltsvlog</span><span class="p">.</span><span class="nx">LV</span><span class="p">{</span><span class="s">&#34;key&#34;</span><span class="p">,</span> <span class="s">&#34;key1&#34;</span><span class="p">}</span><span class="p">,</span> <span class="nx">ltsvlog</span><span class="p">.</span><span class="nx">LV</span><span class="p">{</span><span class="s">&#34;intValue&#34;</span><span class="p">,</span> <span class="mi">234</span><span class="p">}</span><span class="p">)</span>
     <span class="p">}</span>
-</code></pre></div><h3 id="heading-1">スタックトレースの出力</h3>
+</code></pre></div><h3 id="スタックトレースの出力">スタックトレースの出力</h3>
 <p><a href="https://godoc.org/github.com/hnakamur/ltsvlog#LTSVLogger.ErrorWithStack">LTSVLogger.ErrorWithStack</a>でスタックトレース付きでログ出力できます。</p>
 <p>LTSV形式ではログは1レコードで1行にする必要があります。<a href="https://golang.org/pkg/runtime/#Stack">runtime.Stack</a>でスタックトレースをバッファに書いてくれるのですが、こちらは複数行の出力になっています。コードを適宜コピペして好きな形式で出力するようにしようかと思ったのですが、<a href="https://golang.org/src/runtime/mprof.go?s=16037:16073#L574">src/runtime/mprof.go</a>のソースコードを見て思いとどまりました。</p>
 <p>ということで、runtime.Stackの出力結果を加工するという方式で実装しています。
 実際のコードは<a href="https://github.com/hnakamur/ltsvlog/blob/v0.9.3/stack.go#L13-L60">ltsvlog/stack.go</a>です。コールスタックから不要な部分を取り除きつつ複数行から1行に変形するということで必ず元の長さより縮むので runtime.Stack で出力したバッファをそのまま使って変形しています。</p>
 <p><a href="https://golang.org/pkg/runtime/#Stack">runtime.Stack</a>は呼び出し側がバッファを渡す必要があるのですが、サイズが小さいとスタックトレースが途中で切れてしまいます。デフォルトで 8192 というサイズにしたのですが、足りない場合は <a href="https://godoc.org/github.com/hnakamur/ltsvlog#NewLTSVLoggerCustomFormat">NewLTSVLoggerCustomFormat</a> の引数でバッファサイズを指定できるようにしてます。</p>
-<h3 id="heading-2">時刻とログレベルの出力</h3>
+<h3 id="時刻とログレベルの出力">時刻とログレベルの出力</h3>
 <p>時刻はUTCでフォーマットは <a href="https://golang.org/pkg/time/#pkg-constants">time</a>パッケージの <code>RFC3339Nano = &quot;2006-01-02T15:04:05.999999999Z07:00&quot;</code> に近いですが、ナノセカンドの部分は個人的な好みで9桁固定で出力するようにしました。</p>
-<h3 id="heading-3">値の文字列化</h3>
+<h3 id="値の文字列化">値の文字列化</h3>
 <p>上のコード例のようにラベルと値の組は<a href="https://godoc.org/github.com/hnakamur/ltsvlog#LV">ltsvlog.LV</a>で指定します。</p>
 <p>将来 LV にフィールドが追加されるかもしれないと防御的に実装するなら、以下のように書いたほうが良いわけですが、LabelとValueでLVということでフィールド追加するつもりは無いので <code>L:</code> や <code>V:</code> は省略して、上記の例のように書いています。</p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go">    <span class="k">if</span> <span class="nx">ltsvlog</span><span class="p">.</span><span class="nx">Logger</span><span class="p">.</span><span class="nf">DebugEnabled</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
@@ -103,14 +103,14 @@
     <span class="p">}</span>
 </code></pre></div><p>値の文字列化は <a href="https://github.com/hnakamur/ltsvlog/blob/v0.9.3/log.go#L175-L219">https://github.com/hnakamur/ltsvlog/blob/v0.9.3/log.go#L175-L219</a> で行っています。<a href="https://golang.org/ref/spec#Type_switches">Type switches</a>を使って、値の型に応じて文字列化しています。コメントにも書いていますが、byteとuint8、runeとuintは別のcaseとして書くとコンパイルエラーになったので諦めてuint8とuintのほうだけを残しています。</p>
 <p>時刻とログレベルの出力形式と値の文字列化の方式を変えたい場合は関数を実装して<a href="https://godoc.org/github.com/hnakamur/ltsvlog#NewLTSVLoggerCustomFormat">NewLTSVLoggerCustomFormat</a> の引数に指定すれば良いようにしてあります。</p>
-<h3 id="heading-4">グローバルロガー</h3>
+<h3 id="グローバルロガー">グローバルロガー</h3>
 <p>標準の<a href="https://golang.org/pkg/log/">log</a>パッケージではグローバルロガーの変数は非公開で<a href="https://golang.org/pkg/log/#Print">log.Print</a>や<a href="https://golang.org/pkg/log/#SetOutput">log.SetOutput</a>の関数で操作するようになっています。</p>
 <p>私は関数を増やすのが嫌だったのとグローバルロガーの変数は公開しても良いのではと思ったのでそうしました。<a href="https://godoc.org/github.com/hnakamur/ltsvlog#pkg-variables">ltsvlog.Logger</a>で参照できます。デフォルトでは標準出力にデバッグログありで出力するようになっています。デバッグログをオフにしたい場合はmain関数の最初のほうで(ログ出力する前に)以下のようにします。</p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"> <span class="nx">ltsvlog</span><span class="p">.</span><span class="nx">Logger</span> <span class="p">=</span> <span class="nx">ltsvlog</span><span class="p">.</span><span class="nf">NewLTSVLogger</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Stdout</span><span class="p">,</span> <span class="kc">false</span><span class="p">)</span>
 </code></pre></div><p>ログ出力中に設定を変えることはないという想定です。</p>
-<h3 id="logwriterdiscard">LogWriterインタフェースと常に何も出力しないDiscard</h3>
+<h3 id="logwriterインタフェースと常に何も出力しないdiscard">LogWriterインタフェースと常に何も出力しないDiscard</h3>
 <p>後付ですが<a href="https://godoc.org/github.com/hnakamur/ltsvlog#LogWriter">ltsvlog.LogWriter</a>というインタフェースも定義してみました。インタフェースは Logger という名前にしたいところでしたが、グローバルロガーに Logger という名前を使っていたので仕方なく LogWriter にしました。そして常に何も出力しない Discard というのも作りました。ただし、Infoなどの引数は評価されてしまうので実行コストが0なわけではないです。</p>
-<h2 id="heading-5">おわりに</h2>
+<h2 id="おわりに">おわりに</h2>
 <p><a href="https://github.com/hnakamur/ltsvlog#benchmark-result">Benchmark result</a>に標準のlogパッケージと比較したベンチマーク結果を載せています。logパッケージよりは遅い手ですがほぼ同等だと言えると思います。</p>
 <p><a href="https://github.com/hnakamur/ltsvlog">hnakamur/ltsvlog</a>はコード量も大したことないので、保守で困ることはないと楽観視しています。</p>
 <p>ということで自分で書くライブラリやアプリケーションではどんどん使っていきたいと思います。</p>

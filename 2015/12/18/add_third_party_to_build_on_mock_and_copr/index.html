@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,11 +65,11 @@
     <div class="post">
   <h1>Mockやcoprでrpmをビルドする際にサードパーティのレポジトリを追加する方法</h1>
   <time datetime=2015-12-18T01:43:28&#43;0900 class="post-date">2015-12-18</time>
-  <h2 id="heading">はじめに</h2>
+  <h2 id="はじめに">はじめに</h2>
 <p><a href="https://fedoraproject.org/wiki/Mock">Mock</a>や<a href="https://copr.fedoraproject.org/">copr</a>でrpmをビルドする際にCentOS標準のレポジトリ以外のサードパーティのレポジトリのrpmに依存したい場合があります。この記事ではサードパーティのレポジトリの追加方法を説明します。</p>
 <p>この記事では<a href="https://www.varnish-cache.org/vmod/header-manipulation">libvmod-header</a>をビルドするために<a href="https://www.varnish-cache.org/installation/redhat">varnish-cache.orgのRedHat用インストール手順</a>で提供されているEL7用のレポジトリを追加する例で説明します。</p>
 <p>ビルドするために私が作成したDockerfileとシェルスクリプトは<a href="https://github.com/hnakamur/libvmod-header-rpm">hnakamur/libvmod-header-rpm</a>にあります。</p>
-<h2 id="mockrpm">Mockでのrpmビルド時にサードパーティのレポジトリを追加する方法</h2>
+<h2 id="mockでのrpmビルド時にサードパーティのレポジトリを追加する方法">Mockでのrpmビルド時にサードパーティのレポジトリを追加する方法</h2>
 <p><a href="https://lists.fedorahosted.org/pipermail/softwarecollections/2012-November/000018.html">Building SCL packages with mock</a>で紹介されていた方法です。</p>
 <p>CentOS 7用のrpmをビルドする場合 <code>/etc/mock/epel-7-x86_64.cfg</code> をコピーして <code>/etc/mock/epel-7-varnish-x86_64.cfg</code> のように別名で保存します。</p>
 <p><code>/etc/mock/epel-7-varnish-x86_64.cfg</code> の最後に <code>config_opts['yum.conf']</code> の設定があります。変更前は以下のようになっています。</p>
@@ -142,13 +142,13 @@ mirrorlist=http://mirrors.fedoraproject.org/mirrorlist?repo=epel-debug-7&amp;arc
 failovermethod=priority
 enabled=0
 &quot;&quot;&quot;
-</code></pre><h3 id="1">失敗例1</h3>
+</code></pre><h3 id="失敗例1">失敗例1</h3>
 <p>varnish-cache.orgではEL7用のレポジトリ定義が <a href="https://repo.varnish-cache.org/redhat/varnish-4.1.el7.rpm">https://repo.varnish-cache.org/redhat/varnish-4.1.el7.rpm</a> で配布されています。</p>
 <p><code>config_opts['chroot_setup_cmd'] = 'install @buildsys-build'</code> にこのrpmのURLを追加して
 <code>config_opts['chroot_setup_cmd'] = 'install @buildsys-build https://repo.varnish-cache.org/redhat/varnish-4.1.el7.rpm'</code> にするというのを試してみましたが、これは失敗でした。</p>
 <p><code>sudo mock -r epel-7-varnish-x86_64 --init</code> で <code>varnish-4.1</code> というレポジトリのrpmがインストールされるところまではOKでした。
 が、 <code>sudo mock -r epel-7-varnish-x86_64 --install varnish</code> としてvarnishをインストールすると、このレポジトリからvarnish 4.1.0がインストールされずにepelから4.0.3がインストールされてしまいました。</p>
-<h3 id="heading-1">うまくいく方法</h3>
+<h3 id="うまくいく方法">うまくいく方法</h3>
 <p>ということでmockで作成するchroot環境では <code>config_opts['yum.conf']</code> に予めレポジトリ定義を書いておく必要があるようです。</p>
 <p><a href="https://repo.varnish-cache.org/redhat/varnish-4.1.el7.rpm">https://repo.varnish-cache.org/redhat/varnish-4.1.el7.rpm</a> に含まれる <code>etc/yum.repos.d/varnish-4.1.repo</code> には以下の様なレポジトリ定義が含まれています。</p>
 <pre><code>[varnish-4.1]
@@ -199,7 +199,7 @@ create_mock_chroot_cfg() {
 ここでは <a href="http://unix.stackexchange.com/a/193513/135274">http://unix.stackexchange.com/a/193513/135274</a> で紹介されていた <code>echo | sed -e '$d;N;P;/\nPointer/r file1' -e D file2 -</code> という手法を使っています。
 ただし、ファイルを挿入する前後に改行を入れたかったので <code>i</code> や <code>a</code> も使っています。</p>
 <p>これで <code>sudo mock -r epel-7-varnish-x86_64 --rebuild ${SRPMのパス}</code> でrpmをビルドできます。</p>
-<h2 id="coprrpm">coprでのrpmビルド時にサードパーティのレポジトリを追加する方法</h2>
+<h2 id="coprでのrpmビルド時にサードパーティのレポジトリを追加する方法">coprでのrpmビルド時にサードパーティのレポジトリを追加する方法</h2>
 <p><a href="https://copr.fedoraproject.org/api/">API for Copr</a>の&quot;Create new project&quot;のAPIにreposパラメータがありますので、ここに <code>*.repo</code> ファイルの <code>baseurl</code> の値、 <code>https://repo.varnish-cache.org/redhat/varnish-4.1/el7/$basearch</code> を指定すればOKです。</p>
 <p>実際のスクリプトでは以下の箇所です。
 <a href="https://github.com/hnakamur/libvmod-header-rpm/blob/5d5b2e580b11944ee630c6fbc2bea81b9fa7bb9a/scripts/build.sh#L108-L119">https://github.com/hnakamur/libvmod-header-rpm/blob/5d5b2e580b11944ee630c6fbc2bea81b9fa7bb9a/scripts/build.sh#L108-L119</a></p>

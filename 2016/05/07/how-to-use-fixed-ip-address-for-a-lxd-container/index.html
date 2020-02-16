@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,9 +65,9 @@
     <div class="post">
   <h1>LXDコンテナで固定IPアドレスを使うための設定</h1>
   <time datetime=2016-05-07T18:01:51&#43;0900 class="post-date">2016-05-07</time>
-  <h2 id="2016-08-12-">2016-08-12 追記</h2>
-<p><code>lxd-bridge</code> サービスを再起動せずに固定IPアドレス設定を更新できるようにするための設定方法を <a href="/blog/2016/08/12/update-lxd-dnsmasq-dhcp-hosts-config-with-sighup/">LXDのdnsmasqの固定IP設定をSIGHUPで更新する · hnakamur's blog at github</a> に書きました。こちらのほうがお勧めです。</p>
-<h2 id="heading">設定まとめ</h2>
+  <h2 id="2016-08-12-追記">2016-08-12 追記</h2>
+<p><code>lxd-bridge</code> サービスを再起動せずに固定IPアドレス設定を更新できるようにするための設定方法を <a href="/blog/2016/08/12/update-lxd-dnsmasq-dhcp-hosts-config-with-sighup/">LXDのdnsmasqの固定IP設定をSIGHUPで更新する · hnakamur&rsquo;s blog at github</a> に書きました。こちらのほうがお勧めです。</p>
+<h2 id="設定まとめ">設定まとめ</h2>
 <p>自分が後から参照することを想定して先に設定方法をまとめます。</p>
 <p>LXDコンテナで固定IPアドレスを使うためには以下の設定が必要です。なお、設定にはroot権限が必要です。</p>
 <p>まず <code>/etc/dnsmasq.conf</code> に以下のようにコンテナ名に対するIPアドレスを指定します。</p>
@@ -78,12 +78,12 @@ dhcp-host=cent02,10.64.177.102
 </code></pre><p>IPアドレスを変更したコンテナを再起動します。</p>
 <pre><code>lxc restart cent01
 lxc restart cent02
-</code></pre><h2 id="heading-1">調査メモ</h2>
+</code></pre><h2 id="調査メモ">調査メモ</h2>
 <p>以下は調査メモです。</p>
 <p>まず <a href="https://github.com/lxc/lxd/issues/1168">Persistent IP for Containers · Issue #1168 · lxc/lxd</a> に固定IPアドレスを使うための情報がありました。LXDで特にサポートはないが、各コンテナでDHCPを使わずに静的IPアドレスを使用するか、あるいはホストのDHCPサーバ側で設定すれば実現できるとのことです。</p>
 <p>各コンテナで静的IPアドレスを使う方法も試してみたのですが、ホストのコンテナ内から別のコンテナをコンテナ名で参照しようとすると変更前のIPアドレスで通信しようとしてしまいうまく行きませんでした。</p>
 <p>これを実現するにはホストのDHCPサーバに各コンテナのIPアドレスを把握してもらう必要があるので、後者のDHCPサーバ側で設定するほうが良いです。</p>
-<h3 id="lxddnsmasq">LXDのブリッジインターフェースとdnsmasqの設定ファイル</h3>
+<h3 id="lxdのブリッジインターフェースとdnsmasqの設定ファイル">LXDのブリッジインターフェースとdnsmasqの設定ファイル</h3>
 <p><a href="https://insights.ubuntu.com/2016/04/07/lxd-networking-lxdbr0-explained/">LXD networking: lxdbr0 explained | Ubuntu Insights</a>と<a href="https://gist.github.com/cronnelly/98345100afe21840267270da3283b371">lxcbr0 is being replaced by lxdbr0</a>によると、 LXCでは <code>lxcbr0</code> というブリッジインターフェースを使っていましたが、LXDでは <code>lxdbr0</code> と別のインターフェースを使うように変更されたそうです。</p>
 <p>これらの記事を見るとLXCの <code>lxcbr0</code> はインストール時に固定のアドレスネットワークが設定されて環境によっては既存のネットワークと衝突するという問題があったので、LXD の <code>lxdbr0</code> ではインストール時にはIPv4やIPv6のサブネットは設定せずに <code>sudo lxd init</code> を実行したときに設定するように変更されたということのようです。</p>
 <p><code>sudo lxd init</code> で生成した <code>lxdbr0</code> 用の設定は <code>/etc/default/lxd-bridge</code> に保存されています。
@@ -184,7 +184,7 @@ exit 0
 lxd       2134  0.0  0.0  49984   388 ?        S    09:48   0:00 dnsmasq -s lxd -S /lxd/ -u lxd &ndash;strict-order &ndash;bind-interfaces &ndash;pid-file=/run/lxd-bridge//dnsmasq.pid &ndash;dhcp-no-override &ndash;except-interface=lo &ndash;interface=lxdbr0 &ndash;dhcp-leasefile=/var/lib/lxd-bridge//dnsmasq.lxdbr0.leases &ndash;dhcp-authoritative &ndash;listen-address 10.16.29.1 &ndash;dhcp-range 10.16.29.2,10.16.29.254 &ndash;dhcp-lease-max=252 &ndash;dhcp-range=fd94:d372:e27f:2987::1,ra-only &ndash;listen-address fd94:d372:e27f:2987::1</p>
 <p><code>/usr/lib/lxd/lxd-bridge</code> を見ると <code>/etc/default/lxd-bridge</code> の <code>LXD_CONFILE</code> にファイル名を指定しておけば <code>dnsmasq</code> の <code>--conf-file</code> オプションを使ってそのファイルを読み込むように書かれています。この方法を使おうかと思ったのですが、一方で <code>/etc/default/lxd-bridge</code> の設定にかかわらず <code>--dhcp-authoritative</code> オプションが常に指定されるように書かれています。</p>
 <p><code>man dnsmasq</code> によると <code>--dhcp-authoritative</code> オプションはネットワーク内に他にDHCPサーバが無く唯一のDHCPになっているときに指定するオプションとのことです。ホストで稼働する <code>dnsmasq</code> が1つという前提であれば、デフォルトの設定ファイル <code>/etc/dnsmasq.conf</code> を作ってそこに設定を書くほうが手っ取り早いので、そうすることにしました。</p>
-<h3 id="lxd-bridgeservicereloadrestart">lxd-bridge.serviceの設定変更はreloadではなくrestartが必要</h3>
+<h3 id="lxd-bridgeserviceの設定変更はreloadではなくrestartが必要">lxd-bridge.serviceの設定変更はreloadではなくrestartが必要</h3>
 <p><code>sudo systemctl reload lxd-bridge</code> を実行してみると以下のようなエラーが出て失敗しました。</p>
 <pre><code>$ sudo systemctl reload lxd-bridge
 Failed to reload lxd-bridge.service: Job type reload is not applicable for unit lxd-bridge.service.
@@ -213,7 +213,7 @@ $ sudo systemctl status lxd-bridge
  5月 07 19:33:08 express dnsmasq-dhcp[3755]: DHCPACK(lxdbr0) 10.155.92.102 00:16:3e:59:21:d7 cent02
  5月 07 19:33:08 express dnsmasq-dhcp[3755]: not giving name cent02 to the DHCP lease of 10.155.92.102 because the name exists in /etc/hosts with address 10.155.92.201
 </code></pre><p>ということで、設定ファイルを変更反映するにも <code>sudo systemctl restart lxd-bridge</code> のように再起動する必要があります。</p>
-<h3 id="dnsmasq">dnsmasqの再起動後、コンテナの再起動が必要</h3>
+<h3 id="dnsmasqの再起動後コンテナの再起動が必要">dnsmasqの再起動後、コンテナの再起動が必要</h3>
 <p>dnsmasqを再起動しただけではコンテナのIPアドレスは変わらないのでネットワークを再起動する必要がありました。</p>
 <pre><code>lxc exec cent01 systemctl restart network
 lxc exec cent02 systemctl restart network

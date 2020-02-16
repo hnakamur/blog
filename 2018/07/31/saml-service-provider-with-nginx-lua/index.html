@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,13 +65,13 @@
     <div class="post">
   <h1>nginx luaでSAMLのService Providerを作ってみた</h1>
   <time datetime=2018-07-31T10:00:00&#43;0900 class="post-date">2018-07-31</time>
-  <h1 id="heading">はじめに</h1>
+  <h1 id="はじめに">はじめに</h1>
 <p><a href="/blog/2018/07/04/saml2-single-sign-on-with-nginx-and-shibboleth/">nginxとshibbolethでSAML2のシングルサインオンを試してみた</a> では <a href="https://www.shibboleth.net/products/service-provider/">Service Provider – Shibboleth Consortium</a> を使いましたが、汎用的な分、設定方法のドキュメント
 <a href="https://wiki.shibboleth.net/confluence/display/SHIB2/NativeSPConfiguration">NativeSPConfiguration - Shibboleth 2 - Shibboleth Wiki</a> を見ても圧倒される感がありました （なお、ページ上部の囲みを見ると Shibboleth SP は先日 3.x がリリースされて 2.x はEOLになったそうです）。</p>
 <p>そこで、 nginx lua で SAML の Service Provider (以下 SP と略）を書いてみたところ、動くものが出来たので公開して説明を書いておきます。</p>
 <p><a href="https://github.com/hnakamur/nginx-lua-saml-service-provider">hnakamur/nginx-lua-saml-service-provider</a></p>
 <p>ただし、この Service Provider は職場で動いている内製（非公開）の ID Provider （以下 IdP と略）で認証できることが目的であって、SAML 認証の仕様を全てカバーするつもりは全く無いです。そもそも SAML の仕様を読んですら無いです。</p>
-<h1 id="saml">SAML認証のシーケンス図</h1>
+<h1 id="saml認証のシーケンス図">SAML認証のシーケンス図</h1>
 <p>今回実装したSAML認証のシーケンス図です。</p>
 <p>.. image:: {attach}/images/2018/07/31/saml-sequence.svg
 :width: 100%
@@ -80,9 +80,9 @@
 <p>今回の実装ですと、ログインしたユーザのメールアドレスが Upstream のリクエストへのリクエストヘッダに付与されるので、 Upstream 側は必要に応じてそれを利用するように改修します。特にユーザを区別必要する必要がなければ何もしなくて良いです。</p>
 <p>実は当初は Service Provider は Go で実装したのですが、その後 nginx lua で実装できれば nginx 以外のデーモンが増えないので運用が楽だなと思って実装してみたというのが今回の経緯です。</p>
 <p>図では役割として nginx と Service Provider を分けて書いていますが、今回の実装では nginx 上で Service Provider を動かしているので、プロセスとしては nginx と Service Provider は同一です。</p>
-<h1 id="heading-1">インストール手順</h1>
+<h1 id="インストール手順">インストール手順</h1>
 <p>今回の動作環境は CentOS 7 です。</p>
-<h2 id="nginx">nginx関連のセットアップ</h2>
+<h2 id="nginx関連のセットアップ">nginx関連のセットアップ</h2>
 <p>nginx関連で必要なパッケージは自作のrpmに全て同梱しました。</p>
 <ul>
 <li><a href="https://copr.fedorainfracloud.org/coprs/hnakamur/nginx/">hnakamur/nginx Copr</a></li>
@@ -92,19 +92,19 @@
 sudo curl -sSL -o /etc/yum.repos.d/hnakamur-luajit.repo https://copr.fedoraproject.org/coprs/hnakamur/luajit/repo/epel-7/hnakamur-luajit-epel-7.repo
 sudo curl -sSL -o /etc/yum.repos.d/hnakamur-nginx.repo https://copr.fedoraproject.org/coprs/hnakamur/nginx/repo/epel-7/hnakamur-nginx-epel-7.repo
 sudo yum install nginx
-</code></pre><h2 id="xmlsec1">xmlsec1のインストール</h2>
+</code></pre><h2 id="xmlsec1のインストール">xmlsec1のインストール</h2>
 <p>勤務先の IdP が <code>xmlsec1 --sign</code> で SAML Response XML の署名を行っていることもあり、今回作成した SAML Service Provider では <code>xmlsec1 --verify</code> で IdP から受け取った SAML Response XML の検証を行うように実装しました。</p>
 <p>このため以下のようにして必要なパッケージをインストールします。</p>
 <pre><code class="language-console" data-lang="console">sudo yum install xmlsec1 xmlsec1-openssl
 </code></pre><p>CentOS 7 の <code>xmlsec1</code> マニュアルページがウェブ上で見つけられなかったので Ubuntu のを貼っておきます。
 <a href="http://manpages.ubuntu.com/manpages/bionic/en/man1/xmlsec1.1.html">man 1 xmlsec1</a></p>
-<h2 id="libzso-">libz.so のシンボリックリンク作成</h2>
+<h2 id="libzso-のシンボリックリンク作成">libz.so のシンボリックリンク作成</h2>
 <p><a href="https://github.com/hamishforbes/lua-ffi-zlib">hamishforbes/lua-ffi-zlib</a> が
 LuaJIT の <a href="http://luajit.org/ext_ffi_api.html#ffi_load">ffi.load</a> を使って
 <code>ffi.load(&quot;z&quot;)</code> というコード ( <code>lua-ffi-zlib/ffi-zlib.lua:98](https://github.com/hamishforbes/lua-ffi-zlib/blob/3d6dbee710b4712b8d0e0235425abee04a22b1bd/lib/ffi-zlib.lua#L98) 参照) を実行し、その結果 </code>libz.so<code>というファイル名を探すことになります。 しかし、 CentOS 7 では</code>libz.so.1<code>というファイルはあるのですが</code>libz.so` は無いため、以下のようにシンボリックリンクを作成する必要があります。</p>
 <pre><code class="language-console" data-lang="console">ln -s libz.so.1 /lib64/libz.so
 </code></pre><p>2018-08-01 追記。どうやらこれは LXD の CentOS 7 コンテナ特有の問題だったようで、他の環境では上記のシンボリックリンクは存在していました。</p>
-<h1 id="heading-2">設定例</h1>
+<h1 id="設定例">設定例</h1>
 <p><a href="https://github.com/hnakamur/nginx-lua-saml-service-provider">hnakamur/nginx-lua-saml-service-provider</a>
 の
 <a href="https://github.com/hnakamur/nginx-lua-saml-service-provider/tree/master/example_config/etc/nginx">/example_config/etc/nginx</a> 以下に設定例を入れておきました。</p>
@@ -211,7 +211,7 @@ MIIDbDCCAlQCCQC2lvI/q52P9zANBgkqhkiG9w0BAQUFADB4MQswCQYDVQQGEwJK
 …(略)…
 MOnar9vP8eOYXOtO9laTow==
 -----END CERTIFICATE-----
-</code></pre></div><h1 id="sp-">SP が保持する状態についての説明</h1>
+</code></pre></div><h1 id="sp-が保持する状態についての説明">SP が保持する状態についての説明</h1>
 <p>今回の SP の実装では <a href="https://github.com/openresty/lua-nginx-module">openresty/lua-nginx-module</a> の
 <a href="https://github.com/openresty/lua-nginx-module#ngxshareddict">ngx.shared.DICT</a> を 2 つ使っています。</p>
 <p>上記の設定例では <code>sso_redirect_urls</code> と <code>sso_sessions</code> です。</p>

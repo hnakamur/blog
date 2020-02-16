@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,21 +65,21 @@
     <div class="post">
   <h1>pgpool-IIを使ってPostgreSQLのアクティブ・スタンバイ(1&#43;1構成)を試してみた</h1>
   <time datetime=2016-09-15T06:28:34&#43;0900 class="post-date">2016-09-15</time>
-  <h2 id="heading">はじめに</h2>
+  <h2 id="はじめに">はじめに</h2>
 <p>pgool-IIを使ってPostgreSQLのアクティブ・スタンバイ(1+1構成)を試したのでメモです。</p>
 <p>以下のページを参考にしました。</p>
 <ul>
 <li><a href="http://www.pgpool.net/docs/latest/pgpool-ja.html">pgpool-II ユーザマニュアル</a></li>
 <li><a href="http://www.pgpool.net/pgpool-web/contrib_docs/watchdog_master_slave_3.3/ja.html">pgpool-II watchdog チュートリアル（master-slave mode）</a></li>
-<li><a href="http://lets.postgresql.jp/documents/technical/pgpool-II-3.3-watchdog/1">pgpool-II 3.3 の watchdog 機能 — Let's Postgres</a></li>
+<li><a href="http://lets.postgresql.jp/documents/technical/pgpool-II-3.3-watchdog/1">pgpool-II 3.3 の watchdog 機能 — Let&rsquo;s Postgres</a></li>
 </ul>
-<h2 id="ansible-playbook">テスト用のAnsible playbook</h2>
+<h2 id="テスト用のansible-playbook">テスト用のAnsible playbook</h2>
 <p><a href="https://github.com/hnakamur/postgresql-pgpool2-failover-example-playbook">https://github.com/hnakamur/postgresql-pgpool2-failover-example-playbook</a> に置きました。</p>
 <p>LXD をセットアップ済みの Ubuntu 16.04 上で試しました。</p>
 <p>LXD で CentOS 7 のコンテナを2つ作って環境構築しています。
 PostgreSQL と pgpool-II は <a href="http://yum.postgresql.org/repopackages.php">PostgreSQL RPM Repository (with Yum)</a> からインストールしました。
 PostgreSQL のバージョンは 9.5.4、 pgpool-II のバージョンは 3.5.4 です。</p>
-<h2 id="heading-1">今回の構成</h2>
+<h2 id="今回の構成">今回の構成</h2>
 <p><a href="http://www.pgpool.net/pgpool-web/contrib_docs/watchdog_master_slave_3.3/ja.html">pgpool-II watchdog チュートリアル（master-slave mode）</a> の図と同様の構成となっています。</p>
 <p>ただし、今回の構成では pgpool-II と PostgreSQL を別のコンテナにせず1つのコンテナに同居させていて、以下の2つのコンテナで構成しています。</p>
 <ul>
@@ -96,25 +96,25 @@ pgpool-II のマスタが仮想 IP <code>10.155.92.100</code> を持ちます。
 <p>pgpool-II のドキュメントやコマンドの出力を見ると、 pgpool-II のマスタはマスタ、 PostgreSQL のマスタはプライマリと用語を使い分けているようです。この記事もそれに従います。</p>
 <p>pgpool-II と PostgreSQL のポートはそれぞれデフォルトの 9999 と 5432 としています。
 pgpool-II は他に管理用のポートとして 9898、 watchdog 用のポートで 9000 を使います。</p>
-<h2 id="heading-2">セットアップの事前準備</h2>
-<p><a href="/blog/2016/08/21/experiment-postgresql-active-standby-cluster-using-pacemaker/">Pacemakerを使ってPostgreSQLのアクティブ・スタンバイ(1+1構成)を試してみた · hnakamur's blog at github</a> と同様です。</p>
-<h2 id="pgpool-ii-">pgpool-II の管理者ユーザとパスワード</h2>
+<h2 id="セットアップの事前準備">セットアップの事前準備</h2>
+<p><a href="/blog/2016/08/21/experiment-postgresql-active-standby-cluster-using-pacemaker/">Pacemakerを使ってPostgreSQLのアクティブ・スタンバイ(1+1構成)を試してみた · hnakamur&rsquo;s blog at github</a> と同様です。</p>
+<h2 id="pgpool-ii-の管理者ユーザとパスワード">pgpool-II の管理者ユーザとパスワード</h2>
 <p><a href="http://www.pgpool.net/docs/latest/pgpool-ja.html#pcp_config">pcp.conf の設定</a> に従って pgpool-II の管理者のユーザ名と md5 暗号化したパスワードを <code>/etc/pgpool-II-95/pcp.conf</code> に設定しています。</p>
 <p>管理者ユーザ名は <code>pgpool2</code> としました。</p>
 <p>パスワードは以下のコマンドを実行して <code>group_vars/development/secrets.yml</code> を復号化し、 <code>development.secrets.pgpool2_admin_password</code> の値を参照してください。</p>
 <pre><code>$ ansible-vault decrypt group_vars/development/secrets.yml 
 Vault password: 
 Decryption successful
-</code></pre><h2 id="heading-3">コンテナの作成</h2>
+</code></pre><h2 id="コンテナの作成">コンテナの作成</h2>
 <p>以下のコマンドを実行して <code>pgsql1</code> と <code>pgsql2</code> という2つのコンテナを作成します。</p>
 <pre><code>$ ansible-playbook launch_containers.yml -D -v
 </code></pre><p>vaultのパスワードを聞かれますので入力してください。</p>
-<h2 id="-postgresql--pgpool-ii-">コンテナ内に PostgreSQL と pgpool-II をセットアップ</h2>
+<h2 id="コンテナ内に-postgresql-と-pgpool-ii-をセットアップ">コンテナ内に PostgreSQL と pgpool-II をセットアップ</h2>
 <p>以下のコマンドを実行して、コンテナ内に PostgreSQL と pgpool-II をセットアップします。</p>
 <pre><code>$ ansible-playbook setup_containers.yml -D -v
 </code></pre><p>セットアップが完了したときの初期状態では <code>pgsql1</code> の pgpool-II がマスタで仮想IPを持ち、 PostgreSQL も <code>pgsql1</code> がプライマリとなっています。</p>
-<h2 id="heading-4">状態確認のコマンド説明</h2>
-<h3 id="postgresql-">PostgreSQL のプロセス確認</h3>
+<h2 id="状態確認のコマンド説明">状態確認のコマンド説明</h2>
+<h3 id="postgresql-のプロセス確認">PostgreSQL のプロセス確認</h3>
 <p>起動してしばらく経ってから <code>pgsql1</code> コンテナの PostgreSQL プロセスを ps で見ると以下のようになります。</p>
 <pre><code>[root@pgsql1 ~]# ps axf | grep [p]ostgres
  1464 ?        S      0:00 /usr/pgsql-9.5/bin/postgres -D /var/lib/pgsql/9.5/data
@@ -137,7 +137,7 @@ Decryption successful
  1399 ?        Ss     0:00  \_ postgres: wal receiver process   streaming 0/3000060
 </code></pre><p><code>postgres: wal sender</code> のプロセスがあれば PostgreSQL のプライマリ、 <code>postgres: wal receiver</code> のプロセスがあれば PostgreSQL のスタンバイと判断することが出来ます。</p>
 <p>ただし、PostgreSQL のプライマリが切り替わってしばらくの間はこのプロセスは存在しないので、 次項の方法を使います。</p>
-<h3 id="pgpool-ii--postgresql-">pgpool-II から見た PostgreSQL ノードの状態確認</h3>
+<h3 id="pgpool-ii-から見た-postgresql-ノードの状態確認">pgpool-II から見た PostgreSQL ノードの状態確認</h3>
 <p><a href="http://tyawan080.hatenablog.com/entry/2014/05/12/234226">PostgreSQLのマスタ判断 - Marlock Homes Diary</a> で知りました。</p>
 <p><code>select pg_is_in_recovery()</code> を実行して <code>t</code> であればスタンバイ、 <code>f</code> であればプライマリかスタンドアロンです。</p>
 <pre><code>[root@pgsql1 ~]# sudo -i -u postgres psql -c &quot;select pg_is_in_recovery()&quot;
@@ -150,7 +150,7 @@ Decryption successful
 -------------------
  t
 (1 row)
-</code></pre><h3 id="pgpool-ii--postgresql--1">pgpool-II から見た PostgreSQL ノードの状態確認</h3>
+</code></pre><h3 id="pgpool-ii-から見た-postgresql-ノードの状態確認-1">pgpool-II から見た PostgreSQL ノードの状態確認</h3>
 <p><a href="http://www.pgpool.net/docs/latest/pgpool-ja.html">pgpool-II ユーザマニュアル</a> の <a href="http://www.pgpool.net/docs/latest/pgpool-ja.html#show-commands">SHOWコマンド</a> の <a href="http://www.pgpool.net/docs/latest/pgpool-ja.html#pool_nodes">pool_nodes</a> に対応します。</p>
 <p>どちらかのコンテナで以下のコマンドを実行します。</p>
 <pre><code>[root@pgsql1 ~]# sudo -i -u postgres psql -h localhost -p 9999 -c &quot;show pool_nodes&quot;
@@ -169,7 +169,7 @@ Decryption successful
 <li>2 - ノード稼働中。接続有り</li>
 <li>3 - ノードダウン</li>
 </ul>
-<h3 id="watchdog--pgpool-ii-">watchdog から見た pgpool-II の状態確認</h3>
+<h3 id="watchdog-から見た-pgpool-ii-の状態確認">watchdog から見た pgpool-II の状態確認</h3>
 <p><a href="http://www.pgpool.net/docs/latest/pgpool-ja.html">pgpool-II ユーザマニュアル</a> の <a href="http://www.pgpool.net/docs/latest/pgpool-ja.html#pcp_watchdog_info">pcp_watchdog_info</a> に対応します。</p>
 <p>以下のコマンドを実行します。 pgpool-II の管理者 <code>pgpool2</code> のパスワードを聞かれますので入力してください。</p>
 <pre><code>[root@pgsql1 ~]# sudo -i -u postgres /usr/pgpool-9.5/bin/pcp_watchdog_info -h localhost -U pgpool2 -v
@@ -216,8 +216,8 @@ Status Name    : STANDBY
         &quot;IN NETWORK TROUBLE&quot;,
         &quot;SHUTDOWN&quot;,
         &quot;ADD MESSAGE SENT&quot;};
-</code></pre><h2 id="pgsql1--postgresql-">pgsql1 (プライマリ)の PostgreSQL を強制停止してフェイルオーバーのテスト</h2>
-<h3 id="heading-5">フェイルオーバー時に呼び出されるスクリプト</h3>
+</code></pre><h2 id="pgsql1-プライマリの-postgresql-を強制停止してフェイルオーバーのテスト">pgsql1 (プライマリ)の PostgreSQL を強制停止してフェイルオーバーのテスト</h2>
+<h3 id="フェイルオーバー時に呼び出されるスクリプト">フェイルオーバー時に呼び出されるスクリプト</h3>
 <p><a href="http://www.pgpool.net/docs/latest/pgpool-ja.html">pgpool-II ユーザマニュアル</a> の <a href="http://www.pgpool.net/docs/latest/pgpool-ja.html#failover_in_stream_mode">Streaming Replicationでのフェイルオーバ</a> に対応します。</p>
 <p>フェイルオーバー時には <code>/etc/pgpool-II-95/pgpool.conf</code> の <code>failover_command</code> に設定したスクリプトが実行されます。今回の構成では以下のような設定にしました。</p>
 <pre><code>failover_command = '/var/lib/pgsql/9.5/data/pgpool_failover %d %P %H %R'
@@ -236,7 +236,7 @@ Status Name    : STANDBY
                    #   %R = new master database cluster path
                    #   %% = '%' character
 </code></pre><p><code>/var/lib/pgsql/9.5/data/pgpool_failover</code> は <a href="https://github.com/hnakamur/postgresql-pgpool2-failover-example-playbook/blob/7f3ef8af54a4f9ec948d65bfc47e33db4792737d/roles/postgresql_db/templates/pgpool_failover.j2">roles/postgresql_db/templates/pgpool_failover.j2</a> から Ansible の template モジュールで生成しています。</p>
-<h3 id="heading-6">フェイルオーバーの実行</h3>
+<h3 id="フェイルオーバーの実行">フェイルオーバーの実行</h3>
 <p>実行後にどう動いたか確認できるように <code>logger</code> コマンドでログを出力するようにしています。 <code>journalctl -f</code> でログを <code>tail -f</code> 的な感じで見られるので、これで見ながら実行します。</p>
 <p>初期状態では pgsql1 が PostgreSQL のプライマリになっています。</p>
 <p>pgsql2 で以下のコマンドを実行します。</p>
@@ -287,8 +287,8 @@ role が standby で status が <code>3</code> (ノードダウン) になって
            |          |          |         |       | postgres=CTc/postgres
 (4 rows)
 </code></pre><p>なお、 pgpool-II 自体のマスタ・スタンバイの役割は変わらず同じで、 pgsql1 がマスタ、 pgsql2 がスタンバイで、 仮想IP は pgsql1 についた状態です。</p>
-<h2 id="pgsql1--postgresql--1">pgsql1 の PostgreSQL をオンラインリカバリしスタンバイとして復帰させる</h2>
-<h3 id="2">オンラインリカバリで呼び出される2つのスクリプト</h3>
+<h2 id="pgsql1-の-postgresql-をオンラインリカバリしスタンバイとして復帰させる">pgsql1 の PostgreSQL をオンラインリカバリしスタンバイとして復帰させる</h2>
+<h3 id="オンラインリカバリで呼び出される2つのスクリプト">オンラインリカバリで呼び出される2つのスクリプト</h3>
 <p><a href="http://www.pgpool.net/docs/latest/pgpool-ja.html">pgpool-II ユーザマニュアル</a> の <a href="http://www.pgpool.net/docs/latest/pgpool-ja.html#online_recovery_in_stream_mode">Streaming Replicationでのオンラインリカバリ</a> に対応します。</p>
 <p>オンラインリカバリで呼び出されるスクリプトは2つあります。この2つのスクリプトは <code>failover_command</code> とは違って、必ずプライマリ側で <code>postgres</code> ユーザで実行されます。</p>
 <p>1つ目は <code>/etc/pgpool-II-95/pgpool.conf</code> の <code>recovery_1st_stage_command</code> に指定したスクリプトです。
@@ -308,7 +308,7 @@ role が standby で status が <code>3</code> (ノードダウン) になって
 <code>pgpool</code> を起動するなら <code>start_remote_pgoool</code> のほうがわかりやすいでしょうしね。</p>
 <p>なお、 <a href="http://www.pgpool.net/docs/latest/pgpool-ja.html">pgpool-II ユーザマニュアル</a> の <a href="http://www.pgpool.net/docs/latest/pgpool-ja.html#pool_remote_start">pgpool_remote_start</a> で書かれているサンプルスクリプトでは <code>pg_ctl</code> コマンドで PostgreSQL を起動していますが、 <code>systemctl status postgresql-9.5</code> でサービス状態が確認できなくなってしまうため、 <a href="https://github.com/hnakamur/postgresql-pgpool2-failover-example-playbook/blob/7f3ef8af54a4f9ec948d65bfc47e33db4792737d/roles/postgresql_db/templates/pgpool_remote_start.j2">roles/postgresql_db/templates/pgpool_remote_start.j2</a> では <code>sudo systemctl start postgresql-9.5</code> で起動しています。
 またそのために postgres ユーザ用の sudoers 設定も <a href="https://github.com/hnakamur/postgresql-pgpool2-failover-example-playbook/blob/7f3ef8af54a4f9ec948d65bfc47e33db4792737d/roles/postgresql/templates/sudoers_postgres.j2">roles/postgresql/templates/sudoers_postgres.j2</a> を元に <code>/etc/sudoers.d/01_postgres</code> を生成し行っています。</p>
-<h3 id="heading-7">リカバリの実行</h3>
+<h3 id="リカバリの実行">リカバリの実行</h3>
 <p>今回は <a href="http://www.pgpool.net/docs/latest/pgpool-ja.html#perform_online_recovery">リカバリの実行</a> で説明されている <a href="http://www.pgpool.net/docs/latest/pgpool-ja.html#pcp_recovery_node">pcp_recovery_node</a> コマンドを使います。</p>
 <p><code>pcp_recovery_node</code> コマンドは pgpool-II のユーザ <code>pgpool2</code> のパスワードを入力する必要があるためフォアグラウンドで実行し ( <code>&amp;</code> は <code>&amp;&amp;</code> と2つ)、ログを表示します。</p>
 <p><code>pcp_recovery_node</code> コマンドは pgsql1 と pgsql2 のどちらで実行しても良いようです。ここでは対象のサーバが pgsql1 なので対応する <code>node_id</code> の <code>0</code> を引数の最後に指定しています。 <code>node_id</code> は上記の <code>show pool_nodes</code> の出力で確認できます。</p>
@@ -332,8 +332,8 @@ Sep 15 14:03:42 pgsql2 pgpool_remote_start[1738]: finished to start postgresql s
  1       | 10.155.92.102 | 5432 | 2      | 0.500000  | primary | 0
 (2 rows)
 </code></pre><p>ps を実行してみると pgsql2 で <code>postgres: wal sender process</code> が稼働しており、 pgsql1 で <code>postgres: wal receiver process</code> が稼働しており、ストリーミング・レプリケーションが動いていることが確認できました。</p>
-<h2 id="pgsql1---postgresql-">pgsql1 (スタンバイ) の PostgreSQL を強制停止してみる</h2>
-<h3 id="-postgresql-">スタンバイの PostgreSQL を強制停止</h3>
+<h2 id="pgsql1-スタンバイ-の-postgresql-を強制停止してみる">pgsql1 (スタンバイ) の PostgreSQL を強制停止してみる</h2>
+<h3 id="スタンバイの-postgresql-を強制停止">スタンバイの PostgreSQL を強制停止</h3>
 <p>pgsql2 で以下のコマンドを実行します。</p>
 <pre><code>[root@pgsql2 ~]# journalctl -f | grep pgpool_failover
 </code></pre><p>pgsql1 で以下のコマンドを実行します。</p>
@@ -365,8 +365,8 @@ Sep 15 14:21:05 pgsql2 pgpool_failover[2468]: do nothing since failed node was n
 </code></pre><p>スタンドアロン状態であることは <code>select * from pg_stat_replication</code> の結果が 0であることからもわかります。</p>
 <pre><code>[root@pgsql2 pgsql]# sudo -i -u postgres psql -x -c &quot;select * from pg_stat_replication&quot;
 (0 rows)
-</code></pre><h3 id="-postgresql--1">スタンバイの PostgreSQL を復活させる</h3>
-<h4 id="-postgresql--2">単に PostgreSQL を起動すれば動く場合</h4>
+</code></pre><h3 id="スタンバイの-postgresql-を復活させる">スタンバイの PostgreSQL を復活させる</h3>
+<h4 id="単に-postgresql-を起動すれば動く場合">単に PostgreSQL を起動すれば動く場合</h4>
 <p>実運用の際はデータディレクトリの状況を調査したりするところですが、ここでは問題ないという前提で、 pgsql1 で PostgreSQL を起動して pgpool-II の管理下に追加します。</p>
 <pre><code>[root@pgsql1 pgsql]# systemctl start postgresql-9.5
 </code></pre><p>で起動し</p>
@@ -411,13 +411,13 @@ flush_location   | 0/5000680
 replay_location  | 0/5000680
 sync_priority    | 0
 sync_state       | async
-</code></pre><h4 id="heading-8">スタンバイデータベースを作り直す場合</h4>
+</code></pre><h4 id="スタンバイデータベースを作り直す場合">スタンバイデータベースを作り直す場合</h4>
 <p>スタンバイデータベースの損傷がひどくて起動できない場合は、プライマリデータベースを <code>pg_basebackup</code> コマンドで複製して作り直し、スタンバイ用の設定を加えて起動することになります。</p>
 <p>これは上記の「リカバリの実行」でやっていることと同じなので、今のプライマリである pgsql2 で以下のコマンドを実行すれば OK です。</p>
 <pre><code>[root@pgsql2 pgsql]# sudo -i -u postgres /usr/pgpool-9.5/bin/pcp_recovery_node -h localhost -p 9898 -U pgpool2 0
 Password: 
 pcp_recovery_node -- Command Successful
-</code></pre><h2 id="heading-9">おわりに</h2>
+</code></pre><h2 id="おわりに">おわりに</h2>
 <p>さらに pgpool-II が落ちたときやサーバ全体が落ちたときなども検証が必要ですがこのブログ記事を書くのに、今日の早朝と今でなんだかんだで4時間ぐらいはかかっているので (環境構築と動作検証には3日かかってます)、一旦ここまでとします。</p>
 <p>pgpool-II でのフェイルオーバ、リカバリは呼び出されるスクリプトをどうすれば良いのかが最初は全くわからなくて苦労しましたが、ドキュメントとソースを読んで理解できたので良かったです。</p>
 <p>Pacemaker は高機能なんですが複雑すぎるように私には思えたので、 pgpool-II のほうが好感触です。</p>

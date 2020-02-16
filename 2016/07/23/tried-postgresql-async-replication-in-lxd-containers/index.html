@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,11 +65,11 @@
     <div class="post">
   <h1>LXDコンテナでPostgreSQLの非同期リプリケーションを試してみた</h1>
   <time datetime=2016-07-23T21:13:52&#43;0900 class="post-date">2016-07-23</time>
-  <p><a href="http://lets.postgresql.jp/documents/technical/replication/1/">ストリーミング・レプリケーションの構築 — Let's Postgres</a> と <a href="http://d.hatena.ne.jp/hiroe_orz17/20111113/1321180635">PostgreSQL9.1ためしてみた【非同期レプリケーション編】 - ごろねこ日記</a> を読んで、2台のLXDコンテナを使ってPostgreSQLの非同期リプリケーションを試してみたのでメモです。</p>
+  <p><a href="http://lets.postgresql.jp/documents/technical/replication/1/">ストリーミング・レプリケーションの構築 — Let&rsquo;s Postgres</a> と <a href="http://d.hatena.ne.jp/hiroe_orz17/20111113/1321180635">PostgreSQL9.1ためしてみた【非同期レプリケーション編】 - ごろねこ日記</a> を読んで、2台のLXDコンテナを使ってPostgreSQLの非同期リプリケーションを試してみたのでメモです。</p>
 <p>また<a href="https://www.packtpub.com/big-data-and-business-intelligence/postgresql-replication-second-edition">PostgreSQL Replication - Second Edition | PACKT Books</a>が $10 と安かったので、買って非同期レプリケーションの章まで読みました。</p>
 <p>手順はAnsible playbookとしてまとめました。 <a href="https://github.com/hnakamur/postgresql-async-replication-example-playbook">hnakamur/postgresql-async-replication-example-playbook</a></p>
 <p><code>ansible.cfg</code> で <code>ask_vault_pass = True</code> と指定しているので、プレイブック実行時に <code>Vault password: </code> と聞かれます。パスワードは <code>password</code> です。サンプルなので単純なパスワードにしていますが、実案件でのプレイブックはきちんとしたパスワードをつけています。</p>
-<h2 id="heading">テスト環境構築</h2>
+<h2 id="テスト環境構築">テスト環境構築</h2>
 <p>ホストマシンのディストリビューションはUbuntu 16.04でLXD 2.0.3, curl, jqをインストール済みの状態で試しました。</p>
 <p>作業ディレクトリを作って、そこに移動し上記のプレイブックを取得します。</p>
 <pre><code>git clone https://github.com/hnakamur/postgresql-async-replication-example-playbook
@@ -78,7 +78,7 @@ cd postgresql-async-replication-example-playbook
 <pre><code>virtualenv venv
 source venv/bin/activate
 pip install git+https://github.com/ansible/ansible
-</code></pre><h2 id="masterstandby">masterとstandbyのコンテナを作成</h2>
+</code></pre><h2 id="masterとstandbyのコンテナを作成">masterとstandbyのコンテナを作成</h2>
 <pre><code>ansible-playbook launch_containers.yml
 </code></pre><p>実行すると <code>development</code> というインベントリファイルを生成します。初期状態ではコンテナ <code>pgsql1</code> が master, コンテナ <code>pgsql2</code> が standby になります。</p>
 <pre><code>[development]
@@ -87,7 +87,7 @@ pgsql2 postgresql_peer_ipaddr=10.155.92.202 postgressql_master_standby_type=stan
 
 [development:vars]
 ansible_connection=lxd
-</code></pre><h2 id="postgresql">コンテナ内にPostgreSQLの非同期レプリケーションの環境設定</h2>
+</code></pre><h2 id="コンテナ内にpostgresqlの非同期レプリケーションの環境設定">コンテナ内にPostgreSQLの非同期レプリケーションの環境設定</h2>
 <p>以下のコマンドを実行してセットアップを実行します。</p>
 <pre><code>ansible-playbook initial_setup.yml
 </code></pre><p>完了したら、2つ端末を開いて片方で</p>
@@ -102,8 +102,8 @@ sudo -u postgres -i
 /usr/pgsql-9.5/bin/pgbench -i test
 /usr/pgsql-9.5/bin/pgbench -T 180 test
 </code></pre><p>上記の手順を1歩ずつ試し、 test データベースを作る前は pgsql2 では <code>psql test</code> が失敗しますが作った後は成功するなどで同期が確認できます。</p>
-<h2 id="heading-1">レプリケーションの状態確認</h2>
-<h3 id="master">master側での確認</h3>
+<h2 id="レプリケーションの状態確認">レプリケーションの状態確認</h2>
+<h3 id="master側での確認">master側での確認</h3>
 <p>以下のコマンドを実行します。</p>
 <pre><code>watch -n 0.5 'psql -x -c &quot;SELECT * FROM pg_stat_replication&quot;'
 </code></pre><p>こんな感じで確認できます。</p>
@@ -126,7 +126,7 @@ flush_location   | 0/30031E0
 replay_location  | 0/30031E0
 sync_priority    | 0
 sync_state       | async
-</code></pre><h3 id="standby">standby側での確認</h3>
+</code></pre><h3 id="standby側での確認">standby側での確認</h3>
 <p>以下のコマンドを実行します。</p>
 <pre><code>watch -n 0.5 'ps auxww | grep &quot;[p]ostgres:&quot;'
 </code></pre><p>こんな感じで確認できます。</p>
@@ -141,22 +141,22 @@ postgres  2073  0.0  0.0  88856  3444 ?        Ss   08:34   0:00 postgres: stats
 
 postgres  2078  0.0  0.0 240632  7016 ?        Ss   08:34   0:05 postgres: wal receiver process   st
 reaming 0/30031E0
-</code></pre><h2 id="heading-2">フェイルオーバー</h2>
+</code></pre><h2 id="フェイルオーバー">フェイルオーバー</h2>
 <p>masterのPostgreSQLを停止し、 standbyをmasterにpromote (昇格)させます。</p>
 <pre><code>ansible-playbook failover.yml
-</code></pre><h2 id="masterstandby-1">旧masterを新standbyとして稼働再開</h2>
+</code></pre><h2 id="旧masterを新standbyとして稼働再開">旧masterを新standbyとして稼働再開</h2>
 <p>ここでインベントリファイル <code>development</code> 内の <code>postgressql_master_standby_type</code> 変数の <code>master</code> と <code>standby</code> を入れ替えます。</p>
 <p>その後、新standbyのPostgreSQLを起動します。</p>
 <pre><code>ansible-playbook start_new_standby.yml
 </code></pre><p>もし復旧できない自体になった場合は、今のstandbyであるpgsql1 のデータディレクトリを退避して一からリプリケーション環境を構築します。</p>
 <pre><code>lxc exec pgsql1 -- mv /var/lib/pgsql/9.5/data /var/lib/pgsql/9.5/data.bak
 ansible-playbook initial_setup.yml
-</code></pre><h2 id="heading-3">フェイルバック</h2>
+</code></pre><h2 id="フェイルバック">フェイルバック</h2>
 <p>masterとstandbyを入れ替えているので、フェイルバックの手順はフェイルオーバーと同じです。</p>
 <pre><code>ansible-playbook failover.yml
-</code></pre><h2 id="heading-4">コンテナの削除</h2>
+</code></pre><h2 id="コンテナの削除">コンテナの削除</h2>
 <pre><code>ansible-playbook delete_containers.yml
-</code></pre><h2 id="ansible-vaulttips">Ansible vaultを使う際の変数命名規則のtips</h2>
+</code></pre><h2 id="ansible-vaultを使う際の変数命名規則のtips">Ansible vaultを使う際の変数命名規則のtips</h2>
 <p><code>ansible-vault encrypt</code> で暗号化したファイルの内容を確認するには <code>ansible-vault decrypt</code> で復号化する必要があります。どんな変数があったかを確認する度に行うのは面倒なので、以下のように暗号化するファイル内で定義する変数を一旦別の変数で受け取ってplaybookではそれを参照するようにしました。</p>
 <p>playbookの構成として環境ごとに development, production のようにグループを分けるようにしています（このサンプルでは development だけです）。暗号化するファイルとしないファイルを以下のような配置で作っています。</p>
 <pre><code>group_vars/development/secrets.yml
@@ -169,7 +169,7 @@ group_vars/development/vars.yml
 <p><code>group_vars/development/vars.yml</code> では</p>
 <pre><code>postgresql_replication_password: &quot;{{ development.secrets.postgresql_replication_password }}&quot;
 </code></pre><p>のようにその変数を参照するようにするという具合です。</p>
-<h2 id="heading-5">おわりに</h2>
+<h2 id="おわりに">おわりに</h2>
 <p>LXDを使えば複数サーバ構成のテスト環境も簡単に作れてとても便利です！</p>
 
 </div>

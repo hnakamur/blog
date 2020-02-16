@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -69,7 +69,7 @@
 <p>Goで書かれた<a href="https://github.com/moriyoshi/ik">moriyoshi/ik</a>も気になったのですが、最近話聞かないし最終コミットも3ヶ月前だったので、今回は見送りました。</p>
 <p>そこで、rsyslogでのログ転送について調査してみようと思いました。</p>
 <p>rsyslog自体についてはこちらのスライド<a href="http://www.slideshare.net/ttkzw/logstudy01-rsyslog-primer">#logstudy 01 rsyslog入門</a>が分かりやすかったです。</p>
-<h2 id="syslog">syslog形式での出力サポート</h2>
+<h2 id="syslog形式での出力サポート">syslog形式での出力サポート</h2>
 <h3 id="nginx">nginx</h3>
 <ul>
 <li><a href="http://nginx.org/en/docs/syslog.html">Logging to syslog</a></li>
@@ -105,26 +105,26 @@
 <li><a href="http://trafficserver.readthedocs.org/en/latest/admin-guide/files/records.config.en.html#proxy-config-syslog-facility">proxy.config.syslog_facility</a></li>
 <li><a href="http://trafficserver.readthedocs.org/en/latest/admin-guide/files/records.config.en.html#proxy-config-diags-output-emergency">proxy.config.diags.output.emergency</a></li>
 </ul>
-<h3 id="csyslog">Cのsyslog出力関数</h3>
+<h3 id="cのsyslog出力関数">Cのsyslog出力関数</h3>
 <ul>
 <li><a href="http://linux.die.net/man/3/syslog">syslog(3): send messages to system logger - Linux man page</a></li>
 </ul>
-<h3 id="gosyslog">Goのsyslogクライアントライブラリ</h3>
+<h3 id="goのsyslogクライアントライブラリ">Goのsyslogクライアントライブラリ</h3>
 <ul>
 <li><a href="https://golang.org/pkg/log/syslog/">syslog - The Go Programming Language</a></li>
 </ul>
-<h3 id="logger-">loggerコマンド (シェルスクリプトから出力したい時に使用)</h3>
+<h3 id="loggerコマンド-シェルスクリプトから出力したい時に使用">loggerコマンド (シェルスクリプトから出力したい時に使用)</h3>
 <ul>
 <li><a href="http://linux.die.net/man/1/logger">logger(1) - Linux man page</a></li>
 </ul>
-<h2 id="relp">信頼性のあるログ転送のためのRELPプロトコル</h2>
+<h2 id="信頼性のあるログ転送のためのrelpプロトコル">信頼性のあるログ転送のためのRELPプロトコル</h2>
 <p>UDPで転送するとパケットロスしてログが消失する恐れがあります。</p>
 <p><a href="http://www.slideshare.net/ttkzw/logstudy01-rsyslog-primer">#logstudy 01 rsyslog入門</a>の<a href="http://www.slideshare.net/ttkzw/logstudy01-rsyslog-primer/81">81枚目のスライド</a>によると、TCPで転送しておけば、転送先のsyslogサーバがダウンしたら、キューイングして、復活したら再送するそうです。</p>
-<p>これで十分そうな気もしたのですが、syslog forwardでググっていると<a href="http://ubuntuforums.org/showthread.php?t=2151986">[SOLVED] Rsyslog forward log to other syslog server</a>というページからリンクされている<a href="http://blog.gerhards.net/2008/04/on-unreliability-of-plain-tcp-syslog.html">Rainer's Blog: On the (un)reliability of plain tcp syslog&hellip;</a>という記事を見つけました。</p>
-<p>さらにそこからリンクされている<a href="http://blog.gerhards.net/2008/05/why-you-cant-build-reliable-tcp.html">Rainer's Blog: why you can't build a reliable TCP protocol without app-level acks&hellip;</a>という記事も読んでみました。</p>
+<p>これで十分そうな気もしたのですが、syslog forwardでググっていると<a href="http://ubuntuforums.org/showthread.php?t=2151986">[SOLVED] Rsyslog forward log to other syslog server</a>というページからリンクされている<a href="http://blog.gerhards.net/2008/04/on-unreliability-of-plain-tcp-syslog.html">Rainer&rsquo;s Blog: On the (un)reliability of plain tcp syslog&hellip;</a>という記事を見つけました。</p>
+<p>さらにそこからリンクされている<a href="http://blog.gerhards.net/2008/05/why-you-cant-build-reliable-tcp.html">Rainer&rsquo;s Blog: why you can&rsquo;t build a reliable TCP protocol without app-level acks&hellip;</a>という記事も読んでみました。</p>
 <p>一言で言うと、信頼性の有るログ転送を実現するためには、TCPレベルでACKがあってもだめで、アプリケーションレベルのACKが必要ということです。</p>
 <p>アプリケーションレベルのACKが無いと、サーバのバッファスペースが溢れてもクライアントが気づけないというのが問題の本質のようです。</p>
-<p>これを解決するために作られたのが、<a href="http://blog.gerhards.net/2008/03/relp-reliable-event-logging-protocol.html">Rainer's Blog: RELP - the reliable event logging protocol</a>です。</p>
+<p>これを解決するために作られたのが、<a href="http://blog.gerhards.net/2008/03/relp-reliable-event-logging-protocol.html">Rainer&rsquo;s Blog: RELP - the reliable event logging protocol</a>です。</p>
 <p><a href="http://www.librelp.com/">librelp - a reliable logging library</a>というのがCの実装で、ソースを見るとライセンスはGPLv3でした。</p>
 <p>RELPはrsyslogdにすでに取り込まれていました。</p>
 <ul>
@@ -134,7 +134,7 @@
 </ul>
 <p>ただし、imrelpの <code>Ruleset</code> パラメータはrsyslogdのバージョン7.5.0以降が必要らしいです。CentOS 7のrsyslogdは <code>yum info rsyslogd</code> によると 7.4.7 なのでこれは使えないようです。</p>
 <p>CentOS 7では <code>rsyslog-relp.x86_64 : RELP protocol support for rsyslog</code> というパッケージをインストールすればRELPが使えるようです (まだ試してないです)。</p>
-<h2 id="-gorsyslog">参考: goで書かれたrsyslogサーバ</h2>
+<h2 id="参考-goで書かれたrsyslogサーバ">参考: goで書かれたrsyslogサーバ</h2>
 <p><a href="https://github.com/mcuadros/go-syslog">mcuadros/go-syslog</a>というgoで書かれたrsyslogサーバも見つけました。</p>
 <p>UDP、TCP、Unixソケットでの受信が出来るそうです。READMEに&quot;using RFC3164, RFC6587 or RFC5424&quot;とありますが、どこまで対応しているかは未調査です。</p>
 <p>RELPは非対応のようです。ソースコードで大文字小文字無視でrelpで検索してヒットしなかったので。</p>

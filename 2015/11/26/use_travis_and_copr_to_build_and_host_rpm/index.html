@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,39 +65,39 @@
     <div class="post">
   <h1>Travis CIとcopr.fedoraproject.orgを使ってrpmをビルド・配布するのを試してみた</h1>
   <time datetime=2015-11-26T22:33:57&#43;0900 class="post-date">2015-11-26</time>
-  <h2 id="2015-12-15-">2015-12-15 追記</h2>
-<p><a href="/blog/2015/12/15/using_mock_and_copr_to_build_nginx_rpm_on_docker/">nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました · hnakamur's blog at github</a>という記事を書きましたのでそちらもご参照ください。</p>
-<h2 id="heading">はじめに</h2>
+  <h2 id="2015-12-15-追記">2015-12-15 追記</h2>
+<p><a href="/blog/2015/12/15/using_mock_and_copr_to_build_nginx_rpm_on_docker/">nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました · hnakamur&rsquo;s blog at github</a>という記事を書きましたのでそちらもご参照ください。</p>
+<h2 id="はじめに">はじめに</h2>
 <p>CentOSを使っていると、パッケージのバージョンが古いのでspecファイルを改変してrpmをビルドすることがちょくちょくあります。
 一度ビルドした後は、自作rpmのレポジトリサーバを立ててそこに置いておくのが本来は良いんだろうなと思います。
 ですが、サーバの運用の手間を考えると面倒だなと思って、AnsibleやDockerでのプロビジョニング中にビルドするようにしていました。</p>
 <p><a href="https://copr.fedoraproject.org/coprs/">fedora projectのcoprというサービス</a>を使うと、自分でサーバを用意しなくても
 自作rpmのビルドとホスティングが出来ることを知り、試してみました。</p>
-<h3 id="heading-1">今回試したサンプル</h3>
+<h3 id="今回試したサンプル">今回試したサンプル</h3>
 <p>githubのレポジトリは<a href="https://github.com/hnakamur/nodejs-rpm">hnakamur/nodejs-rpm</a>にあります。Node.jsをビルドするrpmです。</p>
 <p>specファイルは<a href="https://github.com/kazuhisya/nodejs-rpm">kazuhisya/nodejs-rpm</a>のをほぼ流用しています。ありがとうございます！
 一点変更したのはダウンロードするNode.jsのソースのtarballを <code>node-v*.tar.gz</code> ではなく <code>node-v*.tar.xz</code> にしています。</p>
-<h2 id="copr">coprについて</h2>
+<h2 id="coprについて">coprについて</h2>
 <p><a href="https://fedorahosted.org/copr/">copr</a>に説明があります。FAQの<a href="https://fedorahosted.org/copr/wiki/UserDocs#HowisCoprpronounced">How is Copr pronounced?</a>によると、銅(copper)と同じでカッパーと発音するそうです。</p>
 <p><a href="https://fedorahosted.org/copr/wiki/UserDocs#Howlongdoyoukeepthebuilds">How long do you keep the builds?</a>によるとプロジェクトごとに最後に成功したビルドだけが保持されて、古いバージョンのビルドや失敗したビルドは14日後に削除されるそうです。</p>
 <p>ですので、古いバージョンも残しておきたい場合は、coprは使えません。その場合は自前でレポジトリサーバを立てて運用するしかなさそうです。</p>
-<h3 id="-coprsrpmrpm">参考: coprのウェブ管理画面にsrpmをアップロードしてrpmをビルドする手順</h3>
+<h3 id="参考-coprのウェブ管理画面にsrpmをアップロードしてrpmをビルドする手順">参考: coprのウェブ管理画面にsrpmをアップロードしてrpmをビルドする手順</h3>
 <p><a href="https://fedorahosted.org/copr/wiki/ScreenshotsTutorial">ScreenshotsTutorial – copr</a>にcoprのウェブ管理画面からsrpmをアップロードしてrpmをビルドする手順がスクリーンショット満載で説明されています。</p>
-<h2 id="heading-2">今回試したビルド手順の流れ</h2>
+<h2 id="今回試したビルド手順の流れ">今回試したビルド手順の流れ</h2>
 <p>今回試したビルド手順の流れは以下の通りです。</p>
 <ol>
 <li>githubのプロジェクトにspecファイルを置きます。</li>
 <li>git pushしたときにTravis CIでdockerコンテナを動かしてsrpmを作ってcoprに投入します。</li>
 <li>coprでrpmをビルドしてホスティングしてもらいます。</li>
 </ol>
-<h2 id="heading-3">事前準備</h2>
-<h3 id="fedora-account-">Fedora account 登録</h3>
+<h2 id="事前準備">事前準備</h2>
+<h3 id="fedora-account-登録">Fedora account 登録</h3>
 <p>まずは <a href="https://admin.fedoraproject.org/accounts/user/new">Sign up for a Fedora account</a> からアカウント登録します。手順はメモしてなかったので省略します。</p>
 <p>私のアカウントのログイン後の「アカウントの詳細」のページを見ると「あなたの役割」のところにSigned CLA GroupとSigners of the Fedora Project Contributor Agreementという項目があり、共にステータスが「承認されました」となっているので、これらの申請の手順が必要だったと思います。</p>
 <p>承認されるまでしばらく時間がかかって、その間にrpmをビルドしてみたら署名されないことがありました。今ではプロジェクトごとに鍵が自動生成されてrpmが署名されるようになっています。</p>
-<h3 id="travis-ci">Travis CIのプロジェクト作成</h3>
+<h3 id="travis-ciのプロジェクト作成">Travis CIのプロジェクト作成</h3>
 <p><a href="https://travis-ci.org/hnakamur/nodejs-rpm">Travis CI上にhnakamur/nodejs-rpmプロジェクト</a>を作成して、githubのレポジトリ<a href="https://github.com/hnakamur/nodejs-rpm">hnakamur/nodejs-rpm</a>に対応付けておきます。手順はメモしてなかったので省略します。</p>
-<h3 id="travis-cidockersrpm">Travis CIでdockerでコンテナを動かしてsrpmを作る</h3>
+<h3 id="travis-ciでdockerでコンテナを動かしてsrpmを作る">Travis CIでdockerでコンテナを動かしてsrpmを作る</h3>
 <p>Travis CIでdockerを使う方法は <a href="https://docs.travis-ci.com/user/docker/">Using Docker in Builds - Travis CI</a> で説明されています。</p>
 <p>試行錯誤の結果、以下のような <a href="https://github.com/hnakamur/nodejs-rpm/blob/0ed19cd5504fcb11875f12184bdb3ccd27caa6aa/.travis.yml">.travis.yml</a>を作成しました。</p>
 <pre><code>sudo: required
@@ -158,7 +158,7 @@ rm /root/.config/copr
 その後、 <code>copr-cli build</code> でsrpmをcoprにアップロードしてビルドを開始します。</p>
 <p>curlでhttpステータスだけを出力する方法は <a href="http://superuser.com/questions/272265/getting-curl-to-output-http-status-code/442395#442395">Getting curl to output HTTP status code? - Super User</a> で知りました。ありがとうございます！</p>
 <p>ビルド完了までTravis側で待つようにするのはムダだと思ったので <code>copr-cli build</code> には <code>--nowait</code> オプションを指定しました。代わりに <a href="https://apps.fedoraproject.org/notifications/">Fedora Notifications</a>でメール通知を有効にして、ビルド終了時には <code>notifications@fedoraproject.org</code> からメールが届くようにして使っています。</p>
-<h3 id="srpmcopr-cli">srpmのビルドとcopr-cliのインストール</h3>
+<h3 id="srpmのビルドとcopr-cliのインストール">srpmのビルドとcopr-cliのインストール</h3>
 <p>話が前後しますが、srpmのビルドとcopr-cliのインストールは <code>docker build</code> で行っています。
 <a href="https://github.com/hnakamur/nodejs-rpm/blob/0ed19cd5504fcb11875f12184bdb3ccd27caa6aa/Dockerfile">Dockerfile</a>の内容は以下の通りです。</p>
 <pre><code>FROM centos:7
@@ -182,7 +182,7 @@ ADD copr-build.sh /root/
 ENTRYPOINT [&quot;/bin/bash&quot;, &quot;/root/copr-build.sh&quot;]
 </code></pre><p>copr-cliはCentOS 7だとepelから <code>yum install</code> でインストール可能なのですが、バージョンが古いため <code>copr-cli build</code> でsrpmファイルのパスを指定してアップロードする機能が無いようです。サイトにアップロードしておいてURLを指定することは可能なのですが、それだと面倒なので <code>pip</code> を使って最新版の <code>copr-cli</code> をインストールしています。</p>
 <p>長く運用するサーバならrpmでインストールされるパスと同じパスにpipでインストールしてしまうのは良くないかもしれませんが、ビルド終了したら破棄するコンテナなので気にせず上書きインストールとしています。</p>
-<h2 id="rpm">rpmを使う手順</h2>
+<h2 id="rpmを使う手順">rpmを使う手順</h2>
 <p>例えば<a href="https://copr.fedoraproject.org/coprs/hnakamur/nodejs/">hnakamur/nodejs Copr</a>だと右の方の[Quick Enable]という欄に <code>dnf copr enable hnakamur/nodejs</code> というコマンドで有効にできるという説明があります。</p>
 <p>その下のリンクをたどると<a href="https://fedorahosted.org/copr/wiki/HowToEnableRepo">HowToEnableRepo – copr</a>に
 yumの場合は <code>yum copr enable user/project</code> となるとあります。ただし、 <code>yum-plugin-copr</code> という <code>yum</code> のプラグインが必要です。</p>
@@ -198,14 +198,14 @@ gpgkey=https://copr-be.cloud.fedoraproject.org/results/hnakamur/nodejs/pubkey.gp
 enabled=1
 enabled_metadata=1
 </code></pre><p>なので、これを <code>/etc/yum.repos.d/hnakamur-nodejs-epel-7.repo</code> に保存して <code>yum install nodejs</code> でインストールすればOKです。</p>
-<h2 id="heading-4">まとめ</h2>
+<h2 id="まとめ">まとめ</h2>
 <p>これでスペックファイルを書いてgithubにプッシュすれば、coprでrpmをビルドして公開されるようになり便利になりました。</p>
 <p>ただし問題もあって、coprのビルドはときどき失敗してしまうようです。スペックファイルの中身を変えずにREADMEに無意味な空行を入れるなどして再度pushしてビルドを再実行すると成功したりしました。</p>
-<h2 id="heading-5">さらに気になっていること</h2>
+<h2 id="さらに気になっていること">さらに気になっていること</h2>
 <p><a href="https://fedorahosted.org/copr/wiki/ScreenshotsTutorial">ScreenshotsTutorial – copr</a>の[New Build]タブのスクリーンショットには[From URLs]と[Upload SRPM]という2つのタブしかないですが、実際の画面ではそれに加えて [Git and Tito]、[Mock SCM]というタブがあります。</p>
 <p>これらを使うとTravis CIを使わずにビルドできるかもしれないと期待しているのですが、使い方の説明を見つけられておらず使い方がわからない状態です。ということで一旦この記事を書きました。</p>
-<h2 id="2015-12-06-">2015-12-06 追記</h2>
-<p>rpmのビルドが通るまでの試行錯誤中は毎回coprでビルドするより手元の環境でビルドするほうが快適です。そのための手順を<a href="/blog/2015/12/05/build_rpm_with_mock/">mockコマンドでrpmをビルドする · hnakamur's blog at github</a>に書きましたので、ご参照ください。</p>
+<h2 id="2015-12-06-追記">2015-12-06 追記</h2>
+<p>rpmのビルドが通るまでの試行錯誤中は毎回coprでビルドするより手元の環境でビルドするほうが快適です。そのための手順を<a href="/blog/2015/12/05/build_rpm_with_mock/">mockコマンドでrpmをビルドする · hnakamur&rsquo;s blog at github</a>に書きましたので、ご参照ください。</p>
 
 </div>
 

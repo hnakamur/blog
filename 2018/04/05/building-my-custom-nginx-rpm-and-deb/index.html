@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,23 +65,23 @@
     <div class="post">
   <h1>私のnginxのカスタムrpmとdebをビルドする手順</h1>
   <time datetime=2018-04-05T08:30:00&#43;0900 class="post-date">2018-04-05</time>
-  <h1 id="heading">はじめに</h1>
+  <h1 id="はじめに">はじめに</h1>
 <p>nginxのカスタムrpmとdebをビルドし始めてから結構経っていますが、自分のブログ記事に散らばっている
 手順をピックアップしながら毎度ビルドしているのは良くないので、自分用にまとめておきます。
 なおこの手順は私の手元の環境と自作コマンドに依存しているので、他の環境でコピペしても動きません。</p>
 <p>以下ではバージョン1.13.11の例をメモします。</p>
-<h1 id="luajitrpm">必要に応じてluajitのrpmをビルド</h1>
+<h1 id="必要に応じてluajitのrpmをビルド">必要に応じてluajitのrpmをビルド</h1>
 <p><a href="https://github.com/openresty/luajit2/releases">Releases · openresty/luajit2</a> を見て新しいリリースが出ていたら
 <a href="https://github.com/hnakamur/luajit-rpm">hnakamur/luajit-rpm</a> を更新してluajitのrpmを
 <a href="https://copr.fedorainfracloud.org/coprs/hnakamur/luajit/">hnakamur/luajit Copr</a> でビルドします。手順はこのnginxのrpmとほぼ同様なので省略します。</p>
-<h1 id="tarball">tarballのダウンロード</h1>
+<h1 id="tarballのダウンロード">tarballのダウンロード</h1>
 <pre><code class="language-console" data-lang="console">cd ~/nginx-deb-work
 </code></pre><pre><code>    curl -LO http://nginx.org/download/nginx-1.13.11.tar.gz
 </code></pre>
 <p><a href="https://www.openssl.org/">https://www.openssl.org/</a> を見てOpenSSLの新しいバージョンが出ていたらそれもダウンロード。</p>
 <pre><code class="language-console" data-lang="console">curl -LO https://www.openssl.org/source/openssl-1.0.2o.tar.gz
-</code></pre><h1 id="nginxrpm">nginxのrpmをビルド</h1>
-<h2 id="srpm">srpmを作成</h2>
+</code></pre><h1 id="nginxのrpmをビルド">nginxのrpmをビルド</h1>
+<h2 id="srpmを作成">srpmを作成</h2>
 <p>rpmビルドの作業用gitレポジトリで新しいバージョン用にトピックブランチ作成。</p>
 <pre><code class="language-console" data-lang="console">cd ~/.ghq/github.com/hnakamur/nginx-rpm
 g co -b 1_13_11
@@ -153,7 +153,7 @@ rpmbuild -bs SPECS/nginx.spec
 <pre><code class="language-console" data-lang="console">hnakamur@express:~/.ghq/github.com/hnakamur/nginx-rpm$ rpmbuild -bs SPECS/nginx.spec
 warning: bogus date in %changelog: Mon Apr  5 2018 Hiroaki Nakamura &lt;hnakamur@gmail.com&gt; - 1.13.11-1
 Wrote: /home/hnakamur/rpmbuild/SRPMS/nginx-1.13.11-1.ngx.src.rpm
-</code></pre><h2 id="mock">mockコマンドを使ってローカルでビルド</h2>
+</code></pre><h2 id="mockコマンドを使ってローカルでビルド">mockコマンドを使ってローカルでビルド</h2>
 <p>mockコマンドを使ってローカルでビルド。</p>
 <pre><code class="language-console" data-lang="console">/usr/bin/mock -r epel-7-x86_64-with-luajit --resultdir=~hnakamur/mockresult-nginx-1.13.11-1 --rebuild ~/rpmbuild/SRPMS/nginx-1.13.11-1.ngx.src.rpm
 </code></pre><p>うまくビルドできたときは <code>~/mockresult-nginx-1.13.11-1/</code> 以下に生成された <code>*.rpm</code> をCentOS7の環境にコピーして <code>yum install -y nginx*.x86_64.rpm</code> でインストールして動作確認します。
@@ -168,11 +168,11 @@ total 20748
 -rw-rw-r-- 1 hnakamur mock       14935 Apr  5 08:59 installed_pkgs
 -rw-rw-r-- 1 hnakamur mock     8356143 Apr  5 08:58 nginx-1.13.11-1.el7.centos.ngx.src.rpm
 -rw-rw-r-- 1 root     root     2793745 Apr  5 08:58 available_pkgs
-</code></pre><h2 id="copr">coprでビルド</h2>
+</code></pre><h2 id="coprでビルド">coprでビルド</h2>
 <pre><code class="language-console" data-lang="console">copr-cli build hnakamur/nginx ~/mockresult-nginx-1.13.11-1/nginx-1.13.11-1.el7.centos.ngx.src.rpm
 </code></pre><p>ビルドが完了したら
 <a href="https://copr.fedorainfracloud.org/coprs/hnakamur/nginx/">hnakamur/nginx Copr</a> のレポジトリを追加しているテスト環境にてnginxを更新して動作確認します。</p>
-<h2 id="rpmgit">rpmのgitレポジトリの更新とリリース作成</h2>
+<h2 id="rpmのgitレポジトリの更新とリリース作成">rpmのgitレポジトリの更新とリリース作成</h2>
 <p>今回のトピックブランチをgithubにプッシュ。</p>
 <pre><code class="language-console" data-lang="console">g push origin 1_13_11
 </code></pre><p><a href="https://github.com/hnakamur/nginx-rpm">hnakamur/nginx-rpm</a> でプルリクエストを作成してマージ。</p>
@@ -191,8 +191,8 @@ github-release release --user hnakamur --repo nginx-rpm --tag 1.13.11-1
 for i in $(ls); do github-release upload --user hnakamur --repo nginx-rpm --tag 1.13.11-1 --name $i --file $i; done
 cd ..
 rm -r ./tmp
-</code></pre><h1 id="nginxdeb">nginxのdebをビルド</h1>
-<h2 id="deb">debのソースパッケージ作成</h2>
+</code></pre><h1 id="nginxのdebをビルド">nginxのdebをビルド</h1>
+<h2 id="debのソースパッケージ作成">debのソースパッケージ作成</h2>
 <p>debビルドの作業用gitレポジトリで新しいtarballを取り込む。 <code>gbp import-orig</code> の <code>--pristine-tar</code> オプションを忘れないこと。これを忘れると後でソースパッケージをビルドする時にoriginのtarballがgitレポジトリから再構築され、後ほどPPAでビルドする時になってoriginのtarballが既に他のレポジトリでアップロードされていると同じファイル名で中身が一致しなくてエラーになってしまう。ただしこのnginxのパッケージの場合はサードパーティのモジュールを追加したものがoriginのtarballなので他でアップロードされていることはないので実はたぶん問題ない。が、他のパッケージで実際にハマったので、結論としては <code>--pristine-tar</code> 重要。</p>
 <pre><code class="language-console" data-lang="console">cd ~/.ghq/github.com/hnakamur/nginx-deb
 gbp import-orig --pristine-tar -u 1.13.11 ~/nginx-deb-work/nginx-1.13.11.tar.gz
@@ -310,7 +310,7 @@ gbp:error: Version 1.13.10+mod.1-1ubuntu1ppa1~ubuntu16.04.1 not found
 </code></pre></div><p><code>debian/changelog</code> の変更をコミットしてタグを打ちます。</p>
 <pre><code class="language-console" data-lang="console">g ci . -m 'Release 1.13.11.mod.1-1ubuntu1ppa1~ubuntu16.04.1'
 g tag debian/1.13.11+mod.1-1ubuntu1ppa1-ubuntu16.04.1
-</code></pre><h2 id="pbuilderdeb">pbuilderを使ってローカルでdebパッケージをビルド</h2>
+</code></pre><h2 id="pbuilderを使ってローカルでdebパッケージをビルド">pbuilderを使ってローカルでdebパッケージをビルド</h2>
 <p>debのソースパッケージをビルドします。</p>
 <pre><code class="language-console" data-lang="console">gbp buildpackage --git-export-dir=../build-area -p/home/hnakamur/bin/gpg-passphrase -S -sa
 </code></pre><p><code>pbuilder</code> を使ってdebパッケージをビルドします。</p>
@@ -331,14 +331,14 @@ popd
 </code></pre><p>テスト用のUbuntu環境にてfreightのdebレポジトリからnginxを更新します。</p>
 <pre><code class="language-console" data-lang="console">sudo apt update
 sudo apt upgrade -y nginx
-</code></pre><h2 id="ppadeb">PPAでdebパッケージをビルド</h2>
+</code></pre><h2 id="ppaでdebパッケージをビルド">PPAでdebパッケージをビルド</h2>
 <p>動作確認して問題なければPPAでdebパッケージをビルドします。</p>
 <pre><code class="language-console" data-lang="console">dput ppa:hnakamur/nginx ../build-area/nginx_1.13.11+mod.1-1ubuntu1ppa1~ubuntu16.04.1_source.changes
 </code></pre><p><a href="https://launchpad.net/~hnakamur/+archive/ubuntu/nginx/+packages">Packages in “nginx with thirdparty modules” : nginx with thirdparty modules : Hiroaki Nakamura</a> でこのバージョンのBuild Statusの列が緑のチェックマークになるまで待ちます（時計や緑の歯車のときはまだです）。</p>
 <p>無事ビルドが完了したら <a href="https://launchpad.net/~hnakamur/+archive/ubuntu/nginx">nginx with thirdparty modules : Hiroaki Nakamura</a> のレポジトリを追加してあるテスト環境にてnginxを更新して動作確認します。</p>
 <pre><code class="language-console" data-lang="console">sudo apt update
 sudo apt upgrade -y nginx
-</code></pre><h2 id="debgit">debのgitレポジトリの更新とリリース作成</h2>
+</code></pre><h2 id="debのgitレポジトリの更新とリリース作成">debのgitレポジトリの更新とリリース作成</h2>
 <p>ローカルのgitレポジトリでの変更をgithubに反映します。</p>
 <p>一旦以下のコマンドでプッシュを試みます。</p>
 <pre><code class="language-console" data-lang="console">g push origin --all

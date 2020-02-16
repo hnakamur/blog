@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,17 +65,17 @@
     <div class="post">
   <h1>badgerのコードリーディング</h1>
   <time datetime=2017-07-22T21:57:00&#43;0900 class="post-date">2017-07-22</time>
-  <h2 id="heading">はじめに</h2>
+  <h2 id="はじめに">はじめに</h2>
 <p>約一年前に <a href="/blog/2016/06/20/lsm-tree-and-rocksdb/">LSM-TreeとRocksDB、TiDB、CockroachDBが気になる</a> を書いた後、結局RocksDB触ってなかったのですが、もっと良さそうなしかも pure Go のライブラリ
 <a href="https://github.com/dgraph-io/badger">dgraph-io/badger: Fastest key-value store in Go.</a>
 がしばらく前に出てきてとても期待しています。上のページのREADMEやそこからリンクされているブログ記事を読んだ感じ素晴らしいです。</p>
 <p>ちょっとだけですが試してコードを読んだのでメモしておきます。</p>
-<h2 id="1">1つのデータディレクトリは複数のプロセスから同時アクセスは出来ない</h2>
+<h2 id="1つのデータディレクトリは複数のプロセスから同時アクセスは出来ない">1つのデータディレクトリは複数のプロセスから同時アクセスは出来ない</h2>
 <p><code>NewKV</code> を読んだ時点でロックファイルを作るようになっているので、複数のプロセスから同じデータディレクトリに対して同時にアクセスは出来ません。やってみたらエラーになりました。</p>
 <p>なので、1つのプロセスで開いておいて、そのプロセスにアクセスを依頼する構成にする必要があります。</p>
 <p><code>NewKV</code> で返ってくる <code>KV</code> がスレッドセーフ (正確にはgoroutineセーフ)、つまり複数のgoroutineから扱えるかは私はまだわかっていなくて、イシューで質問してみました。</p>
 <p>回答を頂いて複数のgoroutineから扱えるとのことでした。その後気づいたのですが、パフォーマンスを上げるには複数のgoroutineから <code>BatchSet</code> でまとめて設定するのが良いと `FAQ](<a href="https://github.com/dgraph-io/badger#frequently-asked-questions">https://github.com/dgraph-io/badger#frequently-asked-questions</a>) にも書いてありました。</p>
-<h2 id="setcompareandsetbatchset">SetやCompareAndSetなども内部ではBatchSetを呼んでいる</h2>
+<h2 id="setやcompareandsetなども内部ではbatchsetを呼んでいる">SetやCompareAndSetなども内部ではBatchSetを呼んでいる</h2>
 <p><code>Set</code> も <code>CompareAndSet</code> も以下のように <code>Entry</code> を1個作って <code>BatchSet</code>  を呼び出しています。</p>
 <p><a href="https://github.com/dgraph-io/badger/blob/5ae0851516a27bd02958c266f380a7fdb9096093/kv.go#L770-L778">kv.go#L770-L778</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Set sets the provided value for a given key. If key is not present, it is created.
@@ -102,7 +102,7 @@
     <span class="p">}</span>
     <span class="k">return</span> <span class="nx">e</span><span class="p">.</span><span class="nx">Error</span>
 <span class="p">}</span>
-</code></pre></div><h2 id="compareandsetcascounter0set">CompareAndSetでcasCounterを0にするとSetとほぼ同じ</h2>
+</code></pre></div><h2 id="compareandsetでcascounterを0にするとsetとほぼ同じ">CompareAndSetでcasCounterを0にするとSetとほぼ同じ</h2>
 <p>上記のコードを見ると <code>casCounter</code> を <code>0</code> にして <code>CompareAndSet</code> を呼び出すと
 <code>Set</code> と同じ内容の <code>Entry</code> を作ることになるので同じ動きになることがわかります。</p>
 <p><code>Set</code> はキーが無い場合は作成し、有る場合は上書き更新しますので、 <code>CompareAndSet</code> でも <code>casCounter</code> を <code>0</code> にした場合は上書きされ得るということです。</p>
@@ -110,7 +110,7 @@
 <p>その後回答を頂き、自分でもコードを改変してテストを実行するとエラーが出るのを確認して違いがわかりました。
 <a href="https://github.com/dgraph-io/badger/issues/113#issuecomment-317217631">https://github.com/dgraph-io/badger/issues/113#issuecomment-317217631</a></p>
 <p><code>CasMismatch</code> のエラーは <code>Entry</code> にセットされますが、 <code>BatchSet</code> からは返されないので追加でチェックする必要があるというわけでした。</p>
-<h2 id="cascounter0">casCounterが0になることはない</h2>
+<h2 id="cascounterが0になることはない">casCounterが0になることはない</h2>
 <p><code>casCounter</code> の値を発行しているコードを探すと以下のように、 <code>math/rand.Uint32()</code> を使って65535で割った余りに1を加えた値にしていました。</p>
 <p><a href="https://github.com/dgraph-io/badger/blob/5ae0851516a27bd02958c266f380a7fdb9096093/util.go#L19-L29">util.go#L139-L157</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kn">import</span> <span class="p">(</span>
@@ -144,12 +144,12 @@
 <span class="kd">func</span> <span class="nf">init</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
     <span class="nx">rand</span><span class="p">.</span><span class="nf">Seed</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">UnixNano</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
 <span class="p">}</span>
-</code></pre></div><h2 id="cascounter00015">casCounterが偶然衝突する確率は0.0015%</h2>
+</code></pre></div><h2 id="cascounterが偶然衝突する確率は00015">casCounterが偶然衝突する確率は0.0015%</h2>
 <p><code>casCounter</code> の型は <code>uint16</code> で上記の通り0は使わないので65535通り。</p>
 <div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">&gt;&gt;&gt; 1.0 / 65535 * 100
 0.0015259021896696422
 </code></pre></div><p>0.0015% が十分低いのかは私はよくわかりません。</p>
-<h2 id="touchbyte">Touchが設定する値は空のbyteスライス</h2>
+<h2 id="touchが設定する値は空のbyteスライス">Touchが設定する値は空のbyteスライス</h2>
 <p><a href="https://godoc.org/github.com/dgraph-io/badger#KV.Touch">Touch - GoDoc</a> にはキーが存在する場合はそのまま帰って来て、キーが存在しない場合は設定すると書いてあります。が、どんな値が設定されるのか気になったので、テストを書いて確認してみたところ、空のbyteスライスでした。</p>
 <p>ドキュメントに明記してほしいと思ったので、テストの追加とドキュメント修正のプルリクエストを投げてみました。</p>
 <p><a href="https://github.com/dgraph-io/badger/pull/115/files">Document the value created by Touch is an empty byte slice by hnakamur · Pull Request #115 · dgraph-io/badger</a></p>

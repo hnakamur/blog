@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,13 +65,13 @@
     <div class="post">
   <h1>分散SQLデータベースCockroachDBのキーバリューストレージのデバッグコマンドを試してみた</h1>
   <time datetime=2016-06-30T06:40:12&#43;0900 class="post-date">2016-06-30</time>
-  <h2 id="heading">はじめに</h2>
+  <h2 id="はじめに">はじめに</h2>
 <p><a href="h/blog/2016/06/20/lsm-tree-and-rocksdb/">LSM-TreeとRocksDB、TiDB、CockroachDBが気になる</a> で紹介した <a href="https://github.com/cockroachdb/cockroach#client-drivers">CockroachDB</a> は <a href="https://github.com/cockroachdb/cockroach#what-is-cockroachdb">What is CockroachDB?</a> によるとスケールアウトできる分散SQLデータベースです。 <a href="https://github.com/cockroachdb/cockroach#client-drivers">PostgreSQLのワイヤープロトコルをサポート</a> していて、 <a href="https://github.com/cockroachdb/cockroach#quickstart">Quickstart</a> の例のようにPostgreSQLで扱えるSQLのサブセットが使えます。</p>
 <p><a href="https://github.com/cockroachdb/cockroach#overview">Overview</a> によるとストレージには <a href="http://rocksdb.org/">RocksDB</a> を使用し、複数台のサーバ間の合意アルゴリズムにはRaftを使用しています。</p>
 <p>分散SQLデータベースという本来の機能も魅力的なのですが、書き込みが多いケースに最適化したLSM Treeというデータ構造の実装であるRocksDBをRaftを使って分散トランザクションを実現しているという部分も個人的には興味があります。</p>
 <p>ということで、そのへんのソースを見ていこうと思います。といっても、まだ全体を把握しているわけではないので、だらだら書いていきます。
 CockroachDBにデバッグ用のコマンドが用意されていたので、それで実験しつつ読み進めたいと思います。</p>
-<h2 id="rocksdbengine">RocksDBラッパーレイヤとengineパッケージ</h2>
+<h2 id="rocksdbラッパーレイヤとengineパッケージ">RocksDBラッパーレイヤとengineパッケージ</h2>
 <p>RocksDBはC++で書かれているので、Goから呼び出すためcgoでラッピングしているレイヤがあります。 <a href="https://github.com/cockroachdb/cockroach/tree/master/storage/engine/rocksdb">cockroach/storage/engine/rocksdb</a> にC++で書かれたファイルがいくつかあります。 <a href="https://github.com/cockroachdb/cockroach/tree/master/storage/engine">cockroach/storage/engine</a> パッケージのドキュメント <a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine">engine - GoDoc</a> にこのパッケージで低レベルのストレージを提供しているという説明があります。</p>
 <p><a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#Engine">Engine</a> はRocksDBなどのストレージバックエンドとやり取りするためのインターフェースです。 Engineは <a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#ReadWriter">ReadWriter</a> インタフェースをエンベッドしていて、それがさらに <a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#Reader">Reader</a> と <a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#Writer">Writer</a> インタフェースをエンベッドしています。</p>
 <p>Reader や Writer インタフェースのメソッドを見るとキーバリューストアのキーは <a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#MVCCKey">MVCCKey</a> という型になっています。</p>
@@ -93,7 +93,7 @@ CockroachDBにデバッグ用のコマンドが用意されていたので、そ
 </code></pre><p><a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine">engine - GoDoc</a> にEngineインタフェースの上にMVCC (Multi-Version Concurrency Control) システムが提供されていて、それがCockroachDBが分散トランザクションをサポートするための基礎になっていると書かれています。</p>
 <p>その下の <a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#hdr-Notes_on_MVCC_architecture">Notes on MVCC architecture</a> にMVCCアーキテクチャについて詳細な説明があります。じっくり読んだほうが良いと思いますが、一旦飛ばして先に進みます。</p>
 <p><a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#RocksDB">RocksDB</a> という構造体定義があり、これが Engine インタフェースを実装しています。  <a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#NewRocksDB">NewRocksDB</a> 関数で RocksDB を作成できます。</p>
-<h2 id="newrocksdb">NewRocksDB関数の呼び出し箇所</h2>
+<h2 id="newrocksdb関数の呼び出し箇所">NewRocksDB関数の呼び出し箇所</h2>
 <p>NewRocksDB関数は、テストコード以外では、以下の2箇所で呼ばれていました。</p>
 <ul>
 <li><a href="https://godoc.org/github.com/cockroachdb/cockroach/server">server</a> パッケージの <a href="https://godoc.org/github.com/cockroachdb/cockroach/server#Context.InitStores">func (*Context) InitStores</a>。
@@ -108,7 +108,7 @@ CockroachDBにデバッグ用のコマンドが用意されていたので、そ
 </li>
 </ul>
 <p>後者を呼び出している箇所を見ていくとデバッグ用のサブコマンドがあることがわかりました。</p>
-<h2 id="heading-1">デバッグ用サブコマンドを試してみた</h2>
+<h2 id="デバッグ用サブコマンドを試してみた">デバッグ用サブコマンドを試してみた</h2>
 <p>前提条件としてLXDの3つのコンテナroach1, roach2, roach3で以下のようにCockroachDBを起動している状態とします。</p>
 <p>roach1</p>
 <pre><code>/usr/local/sbin/cockroach start --host 192.168.0.13 --insecure
@@ -117,7 +117,7 @@ CockroachDBにデバッグ用のコマンドが用意されていたので、そ
 </code></pre><p>roach3</p>
 <pre><code>/usr/local/sbin/cockroach start --join 192.168.0.13:26257 --insecure --host 192.168.0.15
 </code></pre><p>特にコンテナでなくても1台のサーバで <a href="https://github.com/cockroachdb/cockroach#quickstart">Quickstart</a>のlocal clusterでも構いません。その場合は下記のコマンドの <code>--host</code> の部分を適宜読み替えてください。</p>
-<h3 id="debug-kv-">debug kv コマンドを試してみた</h3>
+<h3 id="debug-kv-コマンドを試してみた">debug kv コマンドを試してみた</h3>
 <p>debug kvコマンドで、キー・バリュー・ストアに値を設定したり取得したり出来ます。</p>
 <p>コンテナroach1で値をセットして取得してみました。</p>
 <pre><code>root@roach1:~# cockroach debug kv scan --host 192.168.0.13
@@ -138,7 +138,7 @@ root@roach1:~# cockroach debug kv scan --host 192.168.0.13
 <pre><code>root@roach1:~# cockroach debug kv scan --host 192.168.0.13
 &quot;foo&quot;   &quot;Hello, key value store in CockroachDB&quot;
 1 result(s)
-</code></pre><h3 id="debug-keys-">debug keys コマンドを試してみた</h3>
+</code></pre><h3 id="debug-keys-コマンドを試してみた">debug keys コマンドを試してみた</h3>
 <p>debug keysコマンドで、キー・バリュー・ストアの内部構造をダンプして見ることが出来ます。このコマンドはサーバを停止した状態でデータのディレクトリを指定して実行するようになっています。</p>
 <p>サーバが起動したまま実行すると以下のようにロックが取得できないというエラーになります。</p>
 <pre><code>root@roach2:~# cockroach debug keys ./cockroach-data
@@ -192,7 +192,7 @@ fooという文字列の後にタイムスタンプがついているのがわ�
 <p>/Local/RangeID/21/u/RaftLog/logIndex:104861: Type:EntryNormal Term:51415 Index:104861  by {2 2 2}
 Put [&ldquo;foo&rdquo;,/Min)
 range_id:21 origin_replica:&lt;node_id:2 store_id:2 replica_id:2 &gt; cmd:&lt;header:&lt;timestamp:&lt;wall_time:1467234744564568969 logical:0 &gt; replica:&lt;node_id:2 store_id:2 replica_id:2 &gt; range_id:21 user_priority:NORMAL read_consistency:CONSISTENT trace:&lt;trace_id:4947902158296355776 span_id:7041358067641207168 &gt; max_scan_results:0 distinct_spans:false &gt; requests:&lt;put:&lt;header:&lt;key:&ldquo;foo&rdquo; &gt; value:&lt;raw_bytes:&ldquo;s|S\306\003Hello, key value store in CockroachDB&rdquo; timestamp:&lt;wall_time:0 logical:0 &gt; &gt; inline:false blind:false &gt; &gt; &gt; max_lease_index:990</p>
-<h2 id="heading-2">おわりに</h2>
+<h2 id="おわりに">おわりに</h2>
 <p>CockroachDBのキーバリューストレージのデバッグコマンドを試してみました。対応するソースコードも読んでみたいところですが、
 <a href="https://www.arangodb.com/2016/06/arangodb-3-0-a-solid-ground-to-scale/">ArangoDB 3.0 – A Solid Ground to Scale – ArangoDB</a>
 というニュースを知ったので、今後はArangoDBのほうを先に調べたいと思います。</p>

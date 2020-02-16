@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,15 +65,15 @@
     <div class="post">
   <h1>CoreDNSをWindowsのサービスとして登録するためのラッパをGoで書いてみた</h1>
   <time datetime=2019-10-30T15:25:00&#43;0900 class="post-date">2019-10-30</time>
-  <h1 id="heading">はじめに</h1>
+  <h1 id="はじめに">はじめに</h1>
 <p>Windows の Hyper-V の Linux 上でサーバサイドの開発をしていると Windows 上のウェブブラウザや Windows Subsystem for Linux の curl からアクセスする際に好みの FQDN でアクセスできるようにしたいというニーズがあります。</p>
 <p>Windows は <code>C:\Windows\System32\drivers\etc\hosts</code> 、 Windows Subsystm for Linux は <code>/etc/hosts</code> を編集してエントリを追加して対応していたのですが 2 箇所変更するのが面倒です。</p>
 <p>そんなときふと、手元でDNSサーバを動かせば良いのではと思いました。そうすれば、変更が1か所で済むしCNAMEやTXTレコードも扱えるという利点もあります。</p>
 <p>そこで <a href="https://coredns.io/">CoreDNS</a> を試してみたら、手軽に使えて良さそうでした。</p>
 <p>常用するとなると Windows の起動時に自動で CoreDNS も起動したいところです。スタートアップアプリとして実行するのでも良さそうですが、サービスとして実行できると便利かと思い、調べてみるとGoの良さそうなライブラリ <a href="https://github.com/kardianos/service">kardianos/service: Run go programs as a service on major platforms.</a> を見つけたので、サービス登録用のラッパ <a href="https://github.com/hnakamur/corednsservice">hnakamur/corednsservice</a> を書いてみました。</p>
 <p>以下に設定手順とラッパの実装についてメモしておきます。</p>
-<h1 id="heading-1">環境構築手順</h1>
-<h2 id="coredns-">CoreDNS のインストールと設定</h2>
+<h1 id="環境構築手順">環境構築手順</h1>
+<h2 id="coredns-のインストールと設定">CoreDNS のインストールと設定</h2>
 <p><a href="https://coredns.io/">CoreDNS</a> の Download から Windows 用の実行ファイルを含んだ tarball （例: coredns_1.6.4_windows_amd64.tgz） をダウンロードします。</p>
 <p>CoreDNS 用のディレクトリを作成してそこに展開します。以下は <code>C:\CoreDNS</code> として説明します。</p>
 <p>以下は Windows Subsystem for Linux での実行例を示します（なお真面目には tarball を保存して sha256 ファイルとチェックしたほうが良いです）。</p>
@@ -106,24 +106,24 @@ curl -LO https://github.com/coredns/coredns/releases/download/v1.6.4/coredns_1.6
 sv01    IN A 192.0.2.11
 sv02    IN A 192.0.2.12
 </code></pre></div><p>ローカルで使うだけなら上記のようにNSレコードは省略しても動きました。</p>
-<h2 id="corednsservice">corednsserviceのインストールと設定</h2>
+<h2 id="corednsserviceのインストールと設定">corednsserviceのインストールと設定</h2>
 <p><a href="https://github.com/hnakamur/corednsservice">hnakamur/corednsservice</a> の releases から <code>corednsservice.exe</code> をダウンロードして <code>C:\CoreDNS</code> に保存します。</p>
 <p>Windows Subsystem for Linux での実行例を示します。</p>
 <pre><code class="language-console" data-lang="console">curl -LO https://github.com/hnakamur/corednsservice/releases/download/v0.1.0/corednsservice.exe -C /mnt/c/CoreDNS
 </code></pre><p>設定ファイルは <code>corednsservice.exe</code> と同じディレクトリに <code>corednsservice.yml</code> というファイル名で配置する必要があります。</p>
 <p>以下に例を示します。</p>
-<div class="highlight"><pre class="chroma"><code class="language-yaml" data-lang="yaml">name<span class="p">:</span><span class="w"> </span>CoreDNS<span class="w">
-</span><span class="w"></span>display_name<span class="p">:</span><span class="w"> </span>CoreDNS<span class="w"> </span>service<span class="w">
-</span><span class="w"></span>description<span class="p">:</span><span class="w"> </span>CoreDNS<span class="w"> </span>service<span class="w"> </span>for<span class="w"> </span>local<span class="w"> </span>development.<span class="w">
-</span><span class="w"></span>exec<span class="p">:</span><span class="w"> </span><span class="s2">&#34;C:\\CoreDNS\\coredns.exe&#34;</span><span class="w">
-</span><span class="w"></span>args<span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&#34;-conf&#34;</span><span class="p">,</span><span class="w"> </span><span class="s2">&#34;Corefile&#34;</span><span class="p">]</span><span class="w">
-</span><span class="w"></span>dir<span class="p">:</span><span class="w"> </span><span class="s2">&#34;C:\\CoreDNS&#34;</span><span class="w">
-</span><span class="w"></span>stdout<span class="p">:</span><span class="w">
-</span><span class="w">  </span>filename<span class="p">:</span><span class="w"> </span><span class="s2">&#34;C:\\CoreDNS\\coredns.log&#34;</span><span class="w">
-</span><span class="w">  </span>maxsize<span class="p">:</span><span class="w"> </span><span class="m">100</span><span class="w">
-</span><span class="w">  </span>maxbackups<span class="p">:</span><span class="w"> </span><span class="m">50</span><span class="w">
-</span><span class="w">  </span>maxage<span class="p">:</span><span class="w"> </span><span class="m">30</span><span class="w">
-</span><span class="w">  </span>compress<span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w">
+<div class="highlight"><pre class="chroma"><code class="language-yaml" data-lang="yaml"><span class="k">name</span><span class="p">:</span><span class="w"> </span>CoreDNS<span class="w">
+</span><span class="w"></span><span class="k">display_name</span><span class="p">:</span><span class="w"> </span>CoreDNS<span class="w"> </span>service<span class="w">
+</span><span class="w"></span><span class="k">description</span><span class="p">:</span><span class="w"> </span>CoreDNS<span class="w"> </span>service<span class="w"> </span>for<span class="w"> </span>local<span class="w"> </span>development.<span class="w">
+</span><span class="w"></span><span class="k">exec</span><span class="p">:</span><span class="w"> </span><span class="s2">&#34;C:\\CoreDNS\\coredns.exe&#34;</span><span class="w">
+</span><span class="w"></span><span class="k">args</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&#34;-conf&#34;</span><span class="p">,</span><span class="w"> </span><span class="s2">&#34;Corefile&#34;</span><span class="p">]</span><span class="w">
+</span><span class="w"></span><span class="k">dir</span><span class="p">:</span><span class="w"> </span><span class="s2">&#34;C:\\CoreDNS&#34;</span><span class="w">
+</span><span class="w"></span><span class="k">stdout</span><span class="p">:</span><span class="w">
+</span><span class="w"></span><span class="w">  </span><span class="k">filename</span><span class="p">:</span><span class="w"> </span><span class="s2">&#34;C:\\CoreDNS\\coredns.log&#34;</span><span class="w">
+</span><span class="w">  </span><span class="k">maxsize</span><span class="p">:</span><span class="w"> </span><span class="m">100</span><span class="w">
+</span><span class="w">  </span><span class="k">maxbackups</span><span class="p">:</span><span class="w"> </span><span class="m">50</span><span class="w">
+</span><span class="w">  </span><span class="k">maxage</span><span class="p">:</span><span class="w"> </span><span class="m">30</span><span class="w">
+</span><span class="w">  </span><span class="k">compress</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w">
 </span></code></pre></div><p>サービスの登録は管理者権限のコマンドプロンプトを開いて以下のように実行します。
 タスクマネージャを開いて[サービス]タブに CoreDNS というサービスが登録されたことを確認します。</p>
 <div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">cd \CoreDNS
@@ -160,7 +160,7 @@ sv01.example.org.       3600    IN      A       192.0.2.11
 ;; WHEN: Wed Oct 30 12:25:14 JST 2019
 ;; MSG SIZE  rcvd: 89
 </code></pre><p>また <code>dig @localhost example.net</code> など <code>example.org</code> 以外のドメインの名前解決も試してフォワーディングが動いていることを確認します。</p>
-<h2 id="windowsdns">WindowsでローカルのDNSを使う設定</h2>
+<h2 id="windowsでローカルのdnsを使う設定">WindowsでローカルのDNSを使う設定</h2>
 <p>コントロールパネルの[ネットワークとインターネット]→[イーサネット]と進んで、[アダプターのオプションを変更する]リンクをクリックします。</p>
 <p>[Wi-Fi]と[イーサネット]についてそれぞれ以下の設定を行います。</p>
 <ul>
@@ -174,7 +174,7 @@ Address:  ::1
 
 名前:    sv01.example.org
 Address:  192.0.2.11
-</code></pre></div><h2 id="windows-subsystem-for-linuxdns">Windows Subsystem for LinuxでローカルのDNSを使う設定</h2>
+</code></pre></div><h2 id="windows-subsystem-for-linuxでローカルのdnsを使う設定">Windows Subsystem for LinuxでローカルのDNSを使う設定</h2>
 <p><a href="https://github.com/microsoft/WSL/issues/3268">DNS not working in fresh Ubuntu 18.04 that installed from Windows Store · Issue #3268 · microsoft/WSL</a> というイシューの <a href="https://github.com/microsoft/WSL/issues/3268#issuecomment-543190053">コメント</a> で知った <a href="https://gist.github.com/coltenkrauter/608cfe02319ce60facd76373249b8ca6">Fix DNS resolution in WSL2</a> の手順で設定します。 WSL2 と書かれていますが WSL1 でもこの手順で行けました。</p>
 <p>Windows Subsystem for Linux の端末で変更前の <code>/etc/resolve.conf</code> を確認してみると上記のリンク先に書かれているように <code>../run/resolvconf/resolv.conf</code> へのシンボリックリンクになっていました。</p>
 <pre><code class="language-console" data-lang="console">$ ls -l /etc/resolv.conf
@@ -206,7 +206,7 @@ sv01.example.org.       3600    IN      A       192.0.2.11
 ;; WHEN: Wed Oct 30 12:51:03 JST 2019
 ;; MSG SIZE  rcvd: 89
 </code></pre><p>ここまで確認出来たら後は実際の利用ケースに応じて、設定ファイルを書き換えて CoreDNS のサービスを再起動すればOKです。</p>
-<h1 id="heading-2">開発メモ</h1>
+<h1 id="開発メモ">開発メモ</h1>
 <p><a href="https://github.com/hnakamur/corednsservice">hnakamur/corednsservice</a> は
 <a href="https://github.com/kardianos/service">kardianos/service</a> の
 <a href="https://github.com/kardianos/service/blob/4df36c9fc1c6ac86231851ad6fa5627e184c94e5/example/runner/runner.go">example/runner/runner.go</a> をベースにしています。</p>
@@ -224,7 +224,7 @@ sv01.example.org.       3600    IN      A       192.0.2.11
 </ul>
 </li>
 </ul>
-<h1 id="-vethernet-default-switch-">脱線: vEthernet (Default Switch) のアドレス</h1>
+<h1 id="脱線-vethernet-default-switch-のアドレス">脱線: vEthernet (Default Switch) のアドレス</h1>
 <p>はじめにに入れるには長すぎるので別項目にしました。</p>
 <p>Multipass で作成した VM は vEthernet (Default Switch) のネットワークインターフェースを使うのですが、Windowsの再起動の都度IPアドレスが変わってしまいます。</p>
 <p><a href="https://github.com/CanonicalLtd/multipass/issues/1153">[feature request] Support for NAT network on Hyper-V virtual switch · Issue #1153 · CanonicalLtd/multipass</a> にNAT対応の要望を上げてみたところ、 <code>インスタンス名.mshome.net</code> で名前解決できると教わりました。例えば <code>primary</code> という VM なら <code>primary.mshome.net</code> です。</p>

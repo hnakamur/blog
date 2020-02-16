@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,22 +65,22 @@
     <div class="post">
   <h1>lxd_containerというAnsibleモジュールを書いたときに学んだtips</h1>
   <time datetime=2016-07-01T22:44:12&#43;0900 class="post-date">2016-07-01</time>
-  <h2 id="heading">はじめに</h2>
+  <h2 id="はじめに">はじめに</h2>
 <p>lxd_containerというAnsibleのモジュールを書いたときに学んだtipsのメモです。</p>
-<h2 id="json">モジュールでデバッグ出力は出来ないのでデバッグ情報は戻り値のJSONに入れる</h2>
+<h2 id="モジュールでデバッグ出力は出来ないのでデバッグ情報は戻り値のjsonに入れる">モジュールでデバッグ出力は出来ないのでデバッグ情報は戻り値のJSONに入れる</h2>
 <p><a href="https://groups.google.com/d/msg/ansible-devel/s0iSb7phnqY/UB9vaLFJAwAJ">ansible-dev MLでの投稿</a>によるとモジュールは何も出力できないとのことなので、デバッグ情報は戻り値のJSONに入れる必要があります。</p>
 <p>Ansible 2.1からはAnsibleModuleクラスでは <code>_verbosity</code>、それ以外では <code>_ansible_verbosity</code> で <code>-v</code>, <code>-vv</code>, <code>-vvv</code>, <code>-vvvv</code> を指定した場合の <code>v</code> の個数が取得できるので、それに応じて戻り値のJSONにデバッグ情報を含めるかどうか制御することが出来ます。値は <code>-v</code> を指定しない場合は 0 で、 <code>-vvvv</code> だと4という感じです。</p>
-<h2 id="heading-1">コードフォーマットのチェック</h2>
+<h2 id="コードフォーマットのチェック">コードフォーマットのチェック</h2>
 <p><a href="https://github.com/ansible/ansible-modules-extras/pull/2208#discussion_r62996064">Ansibleのコミッタの方からのコメント</a> で <code>pep8</code> というツールでコードフォーマットのチェックを行っているということを知りました。</p>
 <pre><code>pep8 -r --ignore=E501,E221,W291,W391,E302,E251,E203,W293,E231,E303,E201,E225,E261,E241,E402 *.py
 </code></pre><p>という感じで使います。 pep8はUbuntu 16.04 では <code>sudo apt install pep8</code> でインストールできました。</p>
-<h2 id="ansible">Ansibleモジュールのチェック</h2>
+<h2 id="ansibleモジュールのチェック">Ansibleモジュールのチェック</h2>
 <p><a href="https://github.com/ansible/ansible-modules-extras">ansible/ansible-modules-extras</a> にプルリクエストを送ると Travis CI でチェックが走るのですが、そのチェックの1つで <code>ansible-validate-modules</code> というコマンドが使われていました。</p>
 <p>いろいろチェックしているようなのですが、例えばモジュール内にYAMLで書いたドキュメントの書式が間違っていると <code>ansible-validate-modules</code> エラーになりました。コミットをプッシュしてからエラーになると面倒なのでローカルで先にチェックしておくのが良いです。</p>
 <p>私はPythonのvirtualenv環境内で <code>pip install ansible-testing</code> でインストールしました。</p>
 <pre><code>ansible-validate-modules 対象ディレクトリ
 </code></pre><p>でチェックできます。</p>
-<h2 id="requestsansiblemodule-utilsurls">サードパーティのrequestsを使うとansible.module_utils.urlsを使うべきというエラーが出る</h2>
+<h2 id="サードパーティのrequestsを使うとansiblemodule_utilsurlsを使うべきというエラーが出る">サードパーティのrequestsを使うとansible.module_utils.urlsを使うべきというエラーが出る</h2>
 <p><a href="http://docs.python-requests.org/en/master/">Requests: HTTP for Humans</a>を使っているとansible-validate-modulesが <code>ansible.module_utils.urls</code> を使うべきという<a href="https://github.com/ansible/ansible-modules-extras/pull/2208#issuecomment-228027653">エラーを出してきます</a>。</p>
 <p>今回書いたlxd_containerモジュールは<a href="https://github.com/lxc/lxd/blob/master/doc/rest-api.md">LXD REST API</a>を使うのですが (1) Unixドメインソケットでの通信、(2) クライアント証明書を使ったhttps通信の2つが必要です。が <code>ansible.module_utils.urls</code> での実現方法がわからなかったので、今回はPython2標準ライブラリのhttplibを使って実装しました。</p>
 <p>サードパーティのライブラリを使わず標準ライブラリを使うことで、lxd_containerモジュールを使うときに依存するライブラリを入れる手間が発生しないので結果的には良かったと思います。</p>

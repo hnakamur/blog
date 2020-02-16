@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,14 +65,14 @@
     <div class="post">
   <h1>Ubuntu 18.04でgit-buildpackageとfreightを使うときのメモ</h1>
   <time datetime=2018-05-01T12:35:00&#43;0900 class="post-date">2018-05-01</time>
-  <h2 id="heading">はじめに</h2>
+  <h2 id="はじめに">はじめに</h2>
 <ul>
 <li><a href="/blog/2017/07/05/how-to-build-deb-with-git-buildpackage/">git-buildpackageでdebパッケージをビルドしてPPAにアップロードする手順</a></li>
 <li><a href="/blog/2017/08/05/create-private-deb-repository-with-freight/">freightでプライベートdebレポジトリ作成</a></li>
 <li><a href="/blog/2017/08/28/use-passphrase-file-in-git-buildpackage-and-freight/">git-buildpacakgeとfreightでパスフレーズをファイルから入力させる</a></li>
 </ul>
 <p>に書いた git-buildpackage と freight の環境を Ubuntu 18.04 でも作ったのですが、少し変更が必要だったのでメモです。</p>
-<h2 id="gbp-buildpacakge-d">gbp buildpacakgeには-dオプションを指定</h2>
+<h2 id="gbp-buildpacakgeには-dオプションを指定">gbp buildpacakgeには-dオプションを指定</h2>
 <p>Ubuntu 16.04 のときには以下のコマンドでソースパッケージをビルドしていました。</p>
 <pre><code class="language-console" data-lang="console">gbp buildpackage --git-export-dir=../build-area -p/home/hnakamur/bin/gpg-passphrase -S -sa
 </code></pre><p>が、Ubuntu 18.04ではgit-buildpackageのバージョンが変わった影響で <code>gbp buildpackage</code> でのソースパッケージの作成時にdebパッケージの依存関係のエラーが出るようになりました。</p>
@@ -86,7 +86,7 @@
 </code></pre></div><p>Ubuntu 16.04 で gbp buildpackage を実行していたときは dpkg-buildpackage を呼ぶ時に -d が指定されていましたが、Ubuntu 18.04 では指定されなくなっていました。 gbp buildpackage のソースを見るとオプションを指定するとそのまま dpkg-buildpackage に渡すようになっていました。</p>
 <p>ということで以下のように -d を指定することで解決しました。</p>
 <pre><code class="language-console" data-lang="console">gbp buildpackage --git-export-dir=../build-area -p/home/hnakamur/bin/gpg-passphrase -S -sa -d
-</code></pre><h2 id="gnupg-2x">GnuPG 2.xでパスフレーズをファイルから読み込ませるための対応</h2>
+</code></pre><h2 id="gnupg-2xでパスフレーズをファイルから読み込ませるための対応">GnuPG 2.xでパスフレーズをファイルから読み込ませるための対応</h2>
 <p>Ubuntu 16.04では /usr/bin/gpg は gnupg という GnuPG 1.x のパッケージに含まれる実行ファイルでした。
 で gnupg2 という GnuPG 2.x のパッケージの実行ファイルは /usr/bin/gpg2 という名前でした。</p>
 <pre><code class="language-console" data-lang="console">$ ls -l /usr/bin/gpg{,2}
@@ -123,12 +123,12 @@ lrwxrwxrwx 1 root root       3 Jan 11 22:33 /usr/bin/gpg2 -&gt; gpg
 <a href="/blog/2017/08/28/use-passphrase-file-in-git-buildpackage-and-freight/">git-buildpacakgeとfreightでパスフレーズをファイルから入力させる</a>
 に書いた <code>--passphrase-fd</code> を使った手法はそのままでは使えませんでした。</p>
 <p>ArchWikiのGnuPGのページの <a href="https://wiki.archlinux.org/index.php/GnuPG#Unattended_passphrase">Unattended passphrase</a>  に回避策が書かれていました。元のオプションに <code>--pinentry-mode loopback</code> を追加すれば良いとのことです。</p>
-<h4 id="gbp-buildpackage-p">gbp buildpackageの-pオプションに指定するファイルの修正</h4>
+<h4 id="gbp-buildpackageの-pオプションに指定するファイルの修正">gbp buildpackageの-pオプションに指定するファイルの修正</h4>
 <pre><code class="language-console" data-lang="console">gbp buildpackage --git-export-dir=../build-area -p/home/hnakamur/bin/gpg-passphrase -S -sa -d
 </code></pre><p>の -p オプションで指定している /home/hnakamur/bin/gpg-passphrase の中身は以下のように書き換えました。</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="cp">#!/bin/sh
 </span><span class="cp"></span><span class="nb">exec</span> &lt;/home/hnakamur/.gpg-passphrase /usr/bin/gpg --batch --pinentry-mode loopback --passphrase-fd <span class="m">0</span> <span class="s2">&#34;</span><span class="nv">$@</span><span class="s2">&#34;</span>
-</code></pre></div><h4 id="fright-p">frightの-pオプションを使うには修正が必要</h4>
+</code></pre></div><h4 id="frightの-pオプションを使うには修正が必要">frightの-pオプションを使うには修正が必要</h4>
 <p>freightのほうはfreightのソースを変更する必要があったので、変更してプルリクエストを送りました。
 <a href="https://github.com/freight-team/freight/pull/84">Support gpg2 in freight cache passphrase file option by hnakamur · Pull Request #84 · freight-team/freight</a>
 （2018-05-29追記。マージされました！）</p>

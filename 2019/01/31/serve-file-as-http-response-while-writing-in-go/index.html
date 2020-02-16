@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,12 +65,12 @@
     <div class="post">
   <h1>Goで書き込み中のファイルをHTTPレスポンスとして返す</h1>
   <time datetime=2019-01-31T11:50:00&#43;0900 class="post-date">2019-01-31</time>
-  <h1 id="heading">はじめに</h1>
+  <h1 id="はじめに">はじめに</h1>
 <p>Goで別のgoroutineで書き込み中のファイルをHTTPレスポンスとして返せないかなと思って試行錯誤してみたところ、出来たのでメモです。</p>
 <p>成果物は
 <a href="https://github.com/hnakamur/readwhilewrite">https://github.com/hnakamur/readwhilewrite</a>
 で公開しています。</p>
-<h1 id="writerreader">WriterとReaderの同期</h1>
+<h1 id="writerとreaderの同期">WriterとReaderの同期</h1>
 <p>io.Writer と io.Reader インタフェースを実装したstructを作るのが汎用的でよいかと思い、まずは作ってみました。
 1つのWriterがファイルに書き込み中に、複数のReaderが同じファイルを開いて読み出せるという想定です。
 ReaderがEOFを受け取ったらビジーループでCPUを専有することなくWriterが更に書き込みを行うのを待って、書き込まれたら更に読み出すようにします。
@@ -119,7 +119,7 @@ Readerが最初にWriterにsubscribeするとバッファサイズ1のchannelを
         <span class="nx">n</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">(</span><span class="p">)</span>
 <span class="p">}</span>
 </code></pre></div><p>タイミングによっては既にWriterがCloseした後にSubscribeすることもあり得るので、上記のSubscribe内ではClose済みの場合はchannelをcloseするようにしています。</p>
-<h1 id="golinuxsendfile">GoでLinuxのsendfileシステムコールを使っている箇所の調査</h1>
+<h1 id="goでlinuxのsendfileシステムコールを使っている箇所の調査">GoでLinuxのsendfileシステムコールを使っている箇所の調査</h1>
 <p>前節で動くものが出来たのでGoで書いたHTTPサーバで使おうと思ったのですが、可能ならLinuxのsendfileシステムコールを使いたいと思い調べてみました。調査したバージョンはGo 1.11.5 です。</p>
 <p>まずGoのソースでsendfileで検索してみると以下の箇所で syscall.Sendfile を呼び出していました。</p>
 <p><a href="https://github.com/golang/go/blob/go1.11.5/src/internal/poll/sendfile_linux.go#L28">https://github.com/golang/go/blob/go1.11.5/src/internal/poll/sendfile_linux.go#L28</a></p>
@@ -230,7 +230,7 @@ Readerが最初にWriterにsubscribeするとバッファサイズ1のchannelを
         <span class="p">}</span>
         <span class="k">return</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span>
 <span class="p">}</span>
-</code></pre></div><h1 id="gohttplinuxsendfile">GoのhttpでLinuxのsendfileシステムコールが使われる条件の調査</h1>
+</code></pre></div><h1 id="goのhttpでlinuxのsendfileシステムコールが使われる条件の調査">GoのhttpでLinuxのsendfileシステムコールが使われる条件の調査</h1>
 <p>前節で動くものが出来たのでGoで書いたHTTPサーバで使おうと思ったのですが、可能ならLinuxのsendfileシステムコールを使いたいと思いました。</p>
 <p>ソースコードを検索して調べるのが大変になってきたので、以下のようなサンプル用のコードを書いて動かして調べることにしました。</p>
 <p>以下の2つの方法を試したので両方メモしておきます。通常は delve を使うほうが楽です。</p>
@@ -238,7 +238,7 @@ Readerが最初にWriterにsubscribeするとバッファサイズ1のchannelを
 <li>delveを使ってSendFile呼び出しまでのスタックトレースを調査</li>
 <li>Goの標準ライブラリにデバッグログを埋め込んで調査</li>
 </ul>
-<h2 id="delvesendfile">delveを使ってSendFile呼び出しまでのスタックトレースを調査</h2>
+<h2 id="delveを使ってsendfile呼び出しまでのスタックトレースを調査">delveを使ってSendFile呼び出しまでのスタックトレースを調査</h2>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kn">package</span> <span class="nx">main</span>
 
 <span class="kn">import</span> <span class="p">(</span>
@@ -334,7 +334,7 @@ Breakpoint 2 set at 0x4a67b8 for internal/poll.SendFile() /usr/local/go/src/inte
 16  0x000000000045f091 in runtime.goexit
     at /usr/local/go/src/runtime/asm_amd64.s:1333
 (dlv) c
-</code></pre></div><h2 id="go">Goの標準ライブラリにデバッグログを埋め込んで調査</h2>
+</code></pre></div><h2 id="goの標準ライブラリにデバッグログを埋め込んで調査">Goの標準ライブラリにデバッグログを埋め込んで調査</h2>
 <p>dlvを使わない別の方法としてGoの標準ライブラリのソースを書き換えてデバッグログ出力のコードを埋め込み、
 ビルドして実行するという手もあります。</p>
 <p><a href="https://golang.org/dl/">Goのダウンロードページ</a> からバイナリをダウンロードして /usr/local/go/ に展開している場合 /usr/local/go/src/ に標準ライブラリのソースがあります。</p>
@@ -407,7 +407,7 @@ net/http.(*conn).serve(0xc0000808c0, 0x708aa0, 0xc000058280)
 created by net/http.(*Server).Serve
         /usr/local/go/src/net/http/server.go:2851 +0x2f5
 </code></pre></div><p>この方法はデバッグログ出力以外にも好きにコードを改変して実行できるので、振る舞いを変えて調査したいときには便利です。調査が終わったら標準ライブラリのコードを元に戻すのを忘れないようにしましょう。あるいはLXDやDockerなどで使い捨ての環境を作ってそこで行うと良いと思います。</p>
-<h2 id="gohttplinuxsendfile-1">GoのhttpでLinuxのsendfileシステムコールが使われる条件</h2>
+<h2 id="goのhttpでlinuxのsendfileシステムコールが使われる条件">GoのhttpでLinuxのsendfileシステムコールが使われる条件</h2>
 <p><a href="https://golang.org/pkg/io/#Copy">io.Copy</a> のドキュメントを見ると、 src がWriteToインタフェースを実装していればそれが呼ばれ、dstがReadFromインタフェースを実装していればそれが呼ばれると書いてあります。</p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">Copy</span><span class="p">(</span><span class="nx">dst</span> <span class="nx">Writer</span><span class="p">,</span> <span class="nx">src</span> <span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="nx">written</span> <span class="kt">int64</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span>
 </code></pre></div><p>http.response (http.Responseではなく非公開の方)がReadFromインタフェースを実装しています。</p>
@@ -485,7 +485,7 @@ created by net/http.(*Server).Serve
 <li>os.Fileまたはそれをラップしたio.LimitReaderをhttp.ResponseWriterにio.Copyでコピーしている。</li>
 <li><code>Transfer-Encoding: chunked</code> ではない（＝Content-Lengthを指定している）</li>
 </ul>
-<h1 id="gohttplinuxsendfile-2">GoのhttpでLinuxのsendfileシステムコールを使って書き込み中のファイルを配信するサンプル</h1>
+<h1 id="goのhttpでlinuxのsendfileシステムコールを使って書き込み中のファイルを配信するサンプル">GoのhttpでLinuxのsendfileシステムコールを使って書き込み中のファイルを配信するサンプル</h1>
 <p>上記の調査にの結果、io.Readerインタフェースを実装した独自のstructを使うとLinuxのsendfileシステムコールは使われないことがわかりました。そこで github.com/hnakamur/readwhilewrite パッケージに <a href="https://godoc.org/github.com/hnakamur/readwhilewrite#SendFileHTTP">SendFileHTTP</a> という関数を実装しました。</p>
 <p><a href="https://github.com/hnakamur/readwhilewrite/blob/68a26aa56e8f0f07a5c5301494128ccfc37b365c/send_file_http.go#L10-L49">send_file_http.go#L10-L49</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// SendFileHTTP serves a file as a HTTP response while fw is writing to the same file.

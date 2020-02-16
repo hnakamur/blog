@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.62.0" />
+  <meta name="generator" content="Hugo 0.64.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,22 +65,22 @@
     <div class="post">
   <h1>LXC 2.0でCentOS 7のコンテナを動かしてみた</h1>
   <time datetime=2016-04-19T06:37:15&#43;0900 class="post-date">2016-04-19</time>
-  <h2 id="heading">はじめに</h2>
-<h3 id="dockerlxc">なぜDockerではなくLXCを使うのか</h3>
+  <h2 id="はじめに">はじめに</h2>
+<h3 id="なぜdockerではなくlxcを使うのか">なぜDockerではなくLXCを使うのか</h3>
 <p>コンテナと言えばDockerが有名です。Docker 1.9からネットワーク機能が大幅に良くなっていて、Docker Composeでコンテナを作成するとコンテナ名で名前解決できるようになっています。</p>
 <p>また公式のCentOS 7コンテナも良くなっていて、Dockerfileに <code>CMD [&quot;/bin/init&quot;]</code> と書いておけば普通に systemd が起動するようになっています。</p>
 <p>そして <code>docker run</code> に <code>--privileged</code> オプションを付けて実行すれば実行時に <code>/etc/</code> などの下のファイルを書き換えることも出来ます。</p>
 <p>しかしこのような使い方は<a href="https://docs.docker.com/engine/userguide/eng-image/dockerfile_best-practices/">Best practices for writing Dockerfiles</a>と全く合いません。Dockerのベストプラクティスでは1コンテナ1プロセス、コンテナは最小限で使い捨て、ログやデータはコンテナ外部に保存するというスタンスなのです。</p>
 <p>一方、本番環境でDockerを使わずAnsibleでプロビジョニングする前提であれば、開発環境もAnsibleでプロビジョニングしたいところです。サーバが1台ならVagrant + VirtualBoxで良いのですが、複数台となると仮想マシンではメモリがたくさん必要になりますのでコンテナを使いたいところです。LXCなら従来のLinuxサーバと同じ感覚で利用できます。</p>
-<h3 id="2016-05-07-">2016-05-07 追記</h3>
+<h3 id="2016-05-07-追記">2016-05-07 追記</h3>
 <p><a href="http://hnakamur.github.io/blog/2016/05/07/tried-lxd-2.0-on-ubuntu-16.04/">Ubuntu 16.04 LTSでLXD 2.0を試してみた</a>を書きました。試してみて思ったのは、今から使うならLXC 2.0よりもLXD 2.0のほうが良いということです。この記事よりもこちらをお勧めします。</p>
-<h3 id="ubuntu-14041604lxc-20">Ubuntu 14.04/16.04でLXC 2.0を使う</h3>
+<h3 id="ubuntu-14041604でlxc-20を使う">Ubuntu 14.04/16.04でLXC 2.0を使う</h3>
 <p>LXCもコンテナなのでLinuxカーネルはホストとコンテナで同じものが使われます。CentOS 7単独の環境に近づけるにはホストもCentOS 7にしたいところです。が、現時点ではCentOS 7ではLXCはepelにバージョン1.0.8があるだけです。</p>
 <p>LXCはCanonical LtdがUbuntu上で開発しているので、Ubuntu上で使うほうがトラブルは少なくて済むと予想します。ということで、LinuxカーネルのバージョンがCentOS 7と違ってしまうというデメリットはあるのですが、ホストはUbuntuを使うことにします。</p>
 <p>Ubuntu 14.04のカーネルのほうがCentOS 7のカーネルより新しいので、アプリケーション開発に使う分にはLinuxカーネルのバージョン違いで影響が出ることはほぼ無いと思います。</p>
 <p>2016-04-06にLXC 2.0がリリースされました。<a href="https://linuxcontainers.org/ja/lxc/news/">Linux Containers - LXC - ニュース</a></p>
 <p>これは長期サポート(Long-term support; LTS) リリースです。ということで、今から使うなら2.0が良いと思います。</p>
-<h2 id="lxc">LXCのセットアップ</h2>
+<h2 id="lxcのセットアップ">LXCのセットアップ</h2>
 <p>セットアップ用のスクリプトとVagrantfileを書きました。
 <a href="https://github.com/hnakamur/setup_lxc_on_vagrant">hnakamur/setup_lxc_on_vagrant: Vagrantfile to set up LXC 2.x on Ubuntu 14.04 or 16.04</a></p>
 <p>これを使うと以下の手順でセットアップ出来ます。</p>
@@ -91,15 +91,15 @@ vagrant up &amp;&amp; vagrant reload
 <p>Vagrantの仮想マシンの再起動が終わったら</p>
 <pre><code>vagrant ssh
 </code></pre><p>で仮想マシンに入ってLXCを使います。</p>
-<h2 id="heading-1">コンテナ作成</h2>
+<h2 id="コンテナ作成">コンテナ作成</h2>
 <p>例えばweb01という名前のCentOS 7コンテナを作成するには以下のようにします。</p>
 <pre><code>sudo lxc-create -n web01 -t download -- -d centos -r 7 -a amd64
 </code></pre><p><code>-t</code> はテンプレートを指定するオプションです。centosというテンプレートもあるのですが、それを使うとコンテナの挙動に問題があった (これについては今後別記事で書く予定です) ので、downloadテンプレートを使っています。</p>
 <p>初回はコンテナのイメージファイルをダウンロードするので時間がかかります。イメージファイルのサイズは約60MBとそれほど大きくもないのですが、私の環境では20分程度かかる場合もありました。</p>
-<h2 id="heading-2">コンテナ起動</h2>
+<h2 id="コンテナ起動">コンテナ起動</h2>
 <p>web01というコンテナを起動するには以下のコマンドを実行します。</p>
 <pre><code>sudo lxc-start -n web01
-</code></pre><h2 id="heading-3">コンテナ一覧表示</h2>
+</code></pre><h2 id="コンテナ一覧表示">コンテナ一覧表示</h2>
 <p>以下のコマンドを実行します。</p>
 <pre><code>sudo lxc-ls -f
 </code></pre><p>出力例はこんな感じになります。</p>
@@ -107,11 +107,11 @@ vagrant up &amp;&amp; vagrant reload
 NAME    STATE   AUTOSTART GROUPS IPV4       IPV6
 web01   RUNNING 0         -      10.0.3.244  -
 </code></pre><p>起動直後に実行するとIPv4の列が-になっています。数秒立ってから再度実行するとIPアドレスがDHCPで設定されて表示されます。</p>
-<h3 id="dns">コンテナ名でDNSを引けるか確認</h3>
+<h3 id="コンテナ名でdnsを引けるか確認">コンテナ名でDNSを引けるか確認</h3>
 <pre><code>vagrant@vagrant-ubuntu-trusty-64:~$ dig +short web01
 10.0.3.244
 </code></pre><p>なお、LXCのdnsmasqで引けるようにするために<a href="http://www.clear-code.com/blog/2014/7/30.html#.2Fetc.2Fresolve.conf.E3.81.ABnameserver.E3.82.92.E8.BF.BD.E5.8A.A0.E3.81.99.E3.82.8B">LXCコンテナに名前でアクセスする方法 - ククログ(2014-07-30)</a>を参考に <a href="https://github.com/hnakamur/setup_lxc_on_vagrant/blob/8dac97e2c0dafe3bad275f733a549f7b03477cb4/setup_lxc.sh#L40-L43">https://github.com/hnakamur/setup_lxc_on_vagrant/blob/8dac97e2c0dafe3bad275f733a549f7b03477cb4/setup_lxc.sh#L40-L43</a> で設定しています。情報共有ありがとうございます！</p>
-<h2 id="heading-4">コンテナ内に入る</h2>
+<h2 id="コンテナ内に入る">コンテナ内に入る</h2>
 <p>web01というコンテナ内に入るには以下のコマンドを実行します。</p>
 <pre><code>sudo lxc-attach -n web01
 </code></pre><p>コンテナ内でシェルのプロンプトが表示されますので、好きなコマンドを実行してください。 <code>exit</code> で抜けます。実行例を以下に示します。</p>
@@ -131,27 +131,27 @@ bash-4.2# ip a
        valid_lft forever preferred_lft forever
 bash-4.2# exitvagrant@vagrant-ubuntu-trusty-64:~$
 </code></pre><p>↑exitの後returnキーを押しても改行されませんでした。</p>
-<h2 id="heading-5">コンテナを停止する</h2>
+<h2 id="コンテナを停止する">コンテナを停止する</h2>
 <p>以下のようにして停止します。</p>
 <pre><code>$ sudo lxc-stop -n web01
 vagrant@vagrant-ubuntu-trusty-64:~$ sudo lxc-ls -f
 NAME    STATE   AUTOSTART GROUPS IPV4       IPV6
 web01   STOPPED 0         -      -          -
-</code></pre><h3 id="lxc-stop">lxc-stopですぐに停止するには以下の設定が必要</h3>
+</code></pre><h3 id="lxc-stopですぐに停止するには以下の設定が必要">lxc-stopですぐに停止するには以下の設定が必要</h3>
 <p>downloadテンプレートで作成したCentOS 7コンテナはそのままだと、lxc-stopで停止するのに1分間待たされます。</p>
-<p><a href="https://lists.linuxcontainers.org/pipermail/lxc-users/2014-February/006304.html">[lxc-users] lxc-stop doesn't stop centos, waits for the timeout</a>を参考に、コンテナ内で</p>
+<p><a href="https://lists.linuxcontainers.org/pipermail/lxc-users/2014-February/006304.html">[lxc-users] lxc-stop doesn&rsquo;t stop centos, waits for the timeout</a>を参考に、コンテナ内で</p>
 <pre><code>ln -s /usr/lib/systemd/system/halt.target /etc/systemd/system/sigpwr.target
 </code></pre><p>を実行すれば、lxc-stopですぐに停止できました。</p>
-<h2 id="heading-6">コンテナを削除する</h2>
+<h2 id="コンテナを削除する">コンテナを削除する</h2>
 <pre><code>vagrant@vagrant-ubuntu-trusty-64:~$ sudo lxc-destroy -n web01
 Destroyed container web01
 vagrant@vagrant-ubuntu-trusty-64:~$ sudo lxc-ls -f
 vagrant@vagrant-ubuntu-trusty-64:~$
-</code></pre><h3 id="lxc-1">ホストでLXCサービス起動時にコンテナを自動起動する</h3>
+</code></pre><h3 id="ホストでlxcサービス起動時にコンテナを自動起動する">ホストでLXCサービス起動時にコンテナを自動起動する</h3>
 <p><code>/var/lib/lxc/${コンテナ名}/config</code> ファイルに以下の行を追加します。</p>
 <pre><code>lxc.start.auto = 1
 </code></pre><p>複数コンテナ間の依存関係を指定して起動の順序を制御するなど高度な指定については加藤泰文さんの<a href="http://gihyo.jp/admin/serial/01/linux_containers/0025?page=1">第25回　LXCの構築・活用 [11] ─lxc-autostartコマンドによるコンテナの自動起動：LXCで学ぶコンテナ入門 －軽量仮想化環境を実現する技術｜gihyo.jp … 技術評論社</a>の記事をご参照ください。私は複雑な指定は試してないです。</p>
-<h2 id="heading-7">おわりに</h2>
+<h2 id="おわりに">おわりに</h2>
 <p>Ubuntu 14.04上でLXC 2.0をセットアップして使う手順についてまとめました。</p>
 <p>コンテナの作成とプロビジョニングについてはAnsible playbookのサンプルも作ったので今後別記事で書く予定です。また、この記事では触れなかったハマりネタもいくつかあったのでそれも今度書こうと思います。</p>
 
