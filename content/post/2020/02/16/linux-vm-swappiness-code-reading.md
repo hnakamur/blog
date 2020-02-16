@@ -1,7 +1,6 @@
 ---
 title: "Linuxのvm_swapinessについてコードリーディングしてみた"
 date: 2020-02-16T20:10:48+09:00
-draft: true
 ---
 
 ## はじめに
