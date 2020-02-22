@@ -231,4 +231,4 @@ no-port-forwarding,no-agent-forwarding,no-X11-forwarding,command="echo 'Please l
 
 # おわりに
 
-とりあえず試してみた感じでは良さそうです。VM起動時に `--clout-init` オプションで `cloud-init](https://github.com/cloud-init/cloud-init/) を使った初期設定も行えるのでこちらも試していきたいところです。
+とりあえず試してみた感じでは良さそうです。VM起動時に `--clout-init` オプションで [cloud-init](https://github.com/cloud-init/cloud-init/) を使った初期設定も行えるのでこちらも試していきたいところです。
