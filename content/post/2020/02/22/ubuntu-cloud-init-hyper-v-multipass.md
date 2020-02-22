@@ -105,6 +105,11 @@ PowerShell で展開する場合は [PowerShellでZIPファイルを解凍する
 [example-scripts/hyper-v/launch.ps1#L24](https://github.com/hnakamur/cloudinittool/blob/v0.1.0/example-scripts/hyper-v/launch.ps1#L24)
 の `C:\qemu-img\qemu-img` を合わせて変更してください。
 
+
+### PowerShell のキーバインドを Emacs ライクにする
+
+本題とは関係ないですがお好みで [PowershellでEmacsライクなキーバインドを使う  hnakamur's blog](/blog/2020/02/22/powershell-emacs-like-keybindings/) の設定をしておきます。
+
 ### vEthernet (WinNAT) の作成
 
 PowerShell を管理者権限で開き、 cloudinittool の zip ファイルを展開した中の `example-scripts/hyper-v` フォルダに移動します。
