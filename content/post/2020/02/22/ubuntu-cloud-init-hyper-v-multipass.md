@@ -87,6 +87,13 @@ Ubuntu だと cloud-image-utils パッケージに含まれています。
 
 ## Windows での Hyper-V での作業手順
 
+### Ubuntu サーバの ISO イメージのダウンロード
+
+[Ubuntu 18.04 LTS の Cloud Image](http://cloud-images.ubuntu.com/releases/bionic/release/) のページから `ubuntu-18.04-server-cloudimg-amd64.img` をダウンロードして `${Env:USERPROFILE}\Downloads\ubuntu-18.04-server-cloudimg-amd64.img` に保存します。
+
+もしバージョンや置き場所を変更する場合は次項で cloudinittool をダウンロード、解凍した後
+[example-scripts/hyper-v/launch.ps1#L6](https://github.com/hnakamur/cloudinittool/blob/v0.1.0/example-scripts/hyper-v/launch.ps1#L6) に対応する箇所も合わせて変更してください。
+
 ### cloudinittool のダウンロードとインストール
 
 [Releases  hnakamur/cloudinittool](https://github.com/hnakamur/cloudinittool/releases) から Windows 用の zip ファイルをダウンロード、展開し `cloudinittool.exe` を PATH が通った場所に置きます。
