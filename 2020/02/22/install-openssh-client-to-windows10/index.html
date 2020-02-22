@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.64.1" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Windows 10 に OpenSSH クライアントをインストール &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2020. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Windows 10 に OpenSSH クライアントをインストール</h1>
+  <time datetime=2020-02-22T23:08:54&#43;0900 class="post-date">2020-02-22</time>
+  <h2 id="はじめに">はじめに</h2>
+<p>Windows Subsystem for Linux で ssh クライアントをしばらく使っていたのですが、
+<a href="https://www.atmarkit.co.jp/ait/articles/1903/28/news005.html">Windows 10にオンデマンド機能のOpenSSHサーバをインストールする方法：企業ユーザーに贈るWindows 10への乗り換え案内（45） - ＠IT</a>
+で Windows 10 1803 以降では標準で OpenSSH が使えるようになっていることを知りました。
+試してみたら快適だったのでインストール手順をメモしておきます。</p>
+<h2 id="openssh-クライアントのインストール">OpenSSH クライアントのインストール</h2>
+<p><a href="https://docs.microsoft.com/ja-jp/windows-server/administration/openssh/openssh_install_firstuse">Windows 用 OpenSSH のインストール | Microsoft Docs</a> の手順に従って OpenSSH のクライアントをインストールします。</p>
+<p>ここではPowerShell での手順をメモしておきます。</p>
+<p>PowerShell を管理者権限で開き以下のコマンドで OpenSSH 機能の一覧をバージョンを確認します（ちなみに PowerShell Core だと帰ってきませんでした）。</p>
+<pre><code>Get-WindowsCapability -Online | ? Name -like 'OpenSSH*'
+</code></pre><p>出力例</p>
+<pre><code>Name  : OpenSSH.Client~~~~0.0.1.0
+State : NotPresent
+Name  : OpenSSH.Server~~~~0.0.1.0
+State : NotPresent
+</code></pre><p>以下のように実行し OpenSSH クライアントの機能をインストールします。</p>
+<pre><code>Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0
+</code></pre><h2 id="ssh-agent-サービスの状態確認">ssh-agent サービスの状態確認</h2>
+<pre><code>Get-Service ssh-agent | Select Name,DisplayName,Status,StartType
+</code></pre><p>出力例</p>
+<pre><code>Name      DisplayName                   Status StartType
+----      -----------                   ------ ---------
+ssh-agent OpenSSH Authentication Agent Running Automatic
+</code></pre><h2 id="ssh-agent-サービスの状態変更">ssh-agent サービスの状態変更</h2>
+<p>もし StartType や Status が違う場合は下記を参考に自動起動と起動中にします。</p>
+<ul>
+<li><a href="https://www.risual.com/2011/06/enabledisable-a-service-via-powershell/">Enable/Disable a Service via PowerShell - Risual</a></li>
+<li><a href="https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.management/set-service?view=powershell-7">Set-Service</a></li>
+<li><a href="https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.management/start-service?view=powershell-7">Start-Service</a></li>
+</ul>
+<p>自動起動にする</p>
+<pre><code>Set-Service ssh-agent -StartupType Automatic
+</code></pre><p>起動する</p>
+<pre><code>Set-Serice ssh-agent -Status Running -PassThru
+</code></pre><p>あるいは</p>
+<pre><code>Start-Service ssh-agent
+</code></pre><h2 id="脱線-サービス一覧表示">脱線: サービス一覧表示</h2>
+<pre><code>Get-Service
+</code></pre><p>と実行するとサービス一覧が表示されますが <code>Name</code> と <code>DisplayName</code> の値が長い場合は途中から <code>...</code> で省略されます。</p>
+<p><a href="https://social.technet.microsoft.com/Forums/windowsserver/en-US/eee5be42-f412-4661-9b30-3b43005aeca1/how-do-i-increase-the-column-width-in-powershell-to-avoid-truncation?forum=winserverpowershell">How do I increase the column width in Powershell to avoid truncation?</a> で紹介されていた <code>| Format-Table -Wrap -AutoSize</code> を使って</p>
+<pre><code>Get-Service | Format-Table -Wrap -AutoSize
+</code></pre><p>とすると省略されずに表示されました。</p>
+<p>また</p>
+<pre><code>Get-Service | Select Status,StartType,Name,DisplayName
+</code></pre><p>のように <code>Select</code> を使った場合も省略されずに表示されました。
+自動起動タイプも見たいのでこの最後の方式が普段使いには良さそうです。</p>
+<h2 id="ssh-agent-に登録された鍵一覧表示">ssh-agent に登録された鍵一覧表示</h2>
+<p>以下はユーザ権限の PowerShell で実行します。</p>
+<pre><code>ssh-add -l
+</code></pre><h2 id="ssh-agent-鍵追加">ssh-agent 鍵追加</h2>
+<pre><code>ssh-add 秘密鍵ファイル名
+</code></pre>
+</div>
+
+
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
