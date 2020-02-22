@@ -1,6 +1,6 @@
 ---
 title: "Hyper-VとmultipassでUbuntu VMを起動してcloud-initで初期化する手順"
-date: 2020-02-22T22:10:32+09:00
+date: 2020-02-22T23:45:32+09:00
 ---
 
 ## Windows では multipass から Hyper-V に移行してました
@@ -85,38 +85,25 @@ Ubuntu だと cloud-image-utils パッケージに含まれています。
 ただ、今後 Hyper-V での VM の利用が主体になると Windows Subsystem for Linux は入れずに使いたい場合もあると考えました。
 そこで `user-data` ファイルに `password` と `ssh_authorized_keys` の値を追加するのと、 cloud-init の ISO イメージを作るコマンドラインツール [hnakamur/cloudinittool](https://github.com/hnakamur/cloudinittool) を Go で書きました。
 
-## Hyper-V での作業手順
+## Windows での Hyper-V での作業手順
 
 ### cloudinittool のダウンロードとインストール
 
 [Releases  hnakamur/cloudinittool](https://github.com/hnakamur/cloudinittool/releases) から Windows 用の zip ファイルをダウンロード、展開し `cloudinittool.exe` を PATH が通った場所に置きます。
 
+PowerShell で展開する場合は [PowerShellでZIPファイルを解凍する](/blog/2020/02/22/extract-zip-on-powershell/) の記事を参照してください。
+
 ### OpenSSH クライアントのインストール
 
-[Windows 用 OpenSSH のインストール | Microsoft Docs](https://docs.microsoft.com/ja-jp/windows-server/administration/openssh/openssh_install_firstuse) の手順に従って OpenSSH のクライアントをインストールします。
+`ssh-keygen` を使うため [Windows 10 に OpenSSH クライアントをインストール](/blog/2020/02/22/install-openssh-client-to-windows10/) の手順で OpenSSH クライアントをインストールします。
 
-ここではPowerShell での手順をメモしておきます。
+### qemu-img for Windows のインストール
 
-PowerShell を管理者権限で開き以下のコマンドで OpenSSH 機能の一覧をバージョンを確認します（ちなみに PowerShell Core だと帰ってきませんでした）。
+[qemu-img for Windows - Cloudbase Solutions](https://cloudbase.it/qemu-img-windows/) に Windows 用の qemu-img がありますので、ダウンロードして `C:\qemu-img\` に展開します。
 
-```
-Get-WindowsCapability -Online | ? Name -like 'OpenSSH*'
-```
-
-出力例
-
-```
-Name  : OpenSSH.Client~~~~0.0.1.0
-State : NotPresent
-Name  : OpenSSH.Server~~~~0.0.1.0
-State : NotPresent
-```
-
-以下のように実行し OpenSSH クライアントの機能をインストールします。
-
-```
-Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0
-```
+もし違う場所に置く場合は
+[example-scripts/hyper-v/launch.ps1#L24](https://github.com/hnakamur/cloudinittool/blob/v0.1.0/example-scripts/hyper-v/launch.ps1#L24)
+の `C:\qemu-img\qemu-img` を合わせて変更してください。
 
 ### vEthernet (WinNAT) の作成
 
@@ -136,3 +123,70 @@ PowerShell を管理者権限で開き、 cloudinittool の zip ファイルを�
 * [Get-NetIPAddress](https://docs.microsoft.com/ja-jp/powershell/module/nettcpip/Get-NetIPAddress?view=win10-ps)
 * [Get-NetNat](https://docs.microsoft.com/ja-jp/powershell/module/netnat/Get-NetNat?view=win10-ps)
 
+### VM の作成と起動
+
+[example-scripts/hyper-v/launch.ps1](https://github.com/hnakamur/cloudinittool/blob/v0.1.0/example-scripts/hyper-v/launch.ps1) の内容を確認し、適宜変更します。
+
+管理者権限の PowerShell で cloudinittool の zip ファイルを展開した中の `example-scripts/hyper-v` フォルダにて以下のコマンドを実行します。
+
+```
+.\launch.ps1
+```
+
+ssh 鍵ペアを生成する際のパスフレーズの入力を求められるので入力します。
+私は後で VM 内に LXD コンテナを作ってそこでもこの鍵ペアを流用するつもりでコンテナでいちいち ssh-agent 動かすのは面倒なのでパスフレーズは空にしました。
+
+鍵ペアは `${Env:USERPROFILE}\.ssh\vm.id_ed25519` と `${Env:USERPROFILE}\.ssh\vm.id_ed25519.pub` に作るようになっています。
+
+その後 VM の Ubuntu のデフォルトユーザ ubuntu のパスワードを決定するため `Password: ` と `Confirm password: ` というプロンプトが出ますので入力します。
+
+すると `user-data.in.yml` にパスワードと公開鍵を追加した `user-data` を生成し、
+その `user-data` と `network-config` を含む cloud-init の ISO イメージを作って Hyper-V で VM を作成、起動します。
+
+### VM へ ssh で接続
+
+Hyper-V の VM のウィンドウが開いて起動が進んでログインプロンプトが出たら、 ユーザ権限の PowerShell のプロンプトで以下のように実行すれば ssh で接続できます。
+
+```
+ssh -i ~/.ssh/vm.id_ed25519 ubuntu@192.168.254.2
+```
+
+## macOS での multipass での作業手順
+
+### multipass のダウンロードとインストール
+
+[canonical/multipass](https://github.com/canonical/multipass) の [Releases](https://github.com/canonical/multipass/releases) から macOS 用のインストーラをダウンロードしてインストールします。
+
+2020-02-22 時点では 1.0.0 の Assets を開いたところにある `multipass-1.0.0+mac-Darwin.pkg` が最新でした。
+
+### cloudinittool のダウンロードとインストール
+
+[Releases  hnakamur/cloudinittool](https://github.com/hnakamur/cloudinittool/releases) から macOS 用の tar.gz ファイルをダウンロード、展開し `cloudinittool` を PATH が通った場所に置きます。
+
+### VM の作成と起動
+
+cloudinittool の tar.gz ファイルを展開した中の `example-scripts/multipass` フォルダにて以下のコマンドを実行します。
+
+```
+./launch.sh
+```
+
+ssh 鍵ペアを生成する際のパスフレーズの入力を求められるので入力します。
+私は後で VM 内に LXD コンテナを作ってそこでもこの鍵ペアを流用するつもりでコンテナでいちいち ssh-agent 動かすのは面倒なのでパスフレーズは空にしました。
+
+鍵ペアは `~/.ssh/vm.id_ed25519` と `~/.ssh/vm.id_ed25519.pub` に作るようになっています。
+
+その後 VM の Ubuntu のデフォルトユーザ ubuntu のパスワードを決定するため `Password: ` と `Confirm password: ` というプロンプトが出ますので入力します。
+
+すると `user-data.in.yml` にパスワードと公開鍵を追加した `user-data` を生成し、 `multipass launch` に `--cloud-init` オプションでこの `user-data` を指定して VM を作成、起動します。
+
+### VM へ ssh で接続
+
+`multipass launch` が完了したら `multipass list` で VM を一覧表示し、 `primary` インスタンスの IP アドレスを確認します。
+その IP アドレスを指定して以下のように実行すれば ssh で接続できます。
+
+```
+ssh -i ~/.ssh/vm.id_ed25519 ubuntu@primaryインスタンスのIPアドレス
+```
+
+もちろん `multipass shell` コマンドも使えます。

@@ -1,16 +1,16 @@
 ---
 title: "Windows 10 に OpenSSH クライアントをインストール"
-date: 2020-02-22T22:08:54+09:00
+date: 2020-02-22T23:08:54+09:00
 ---
 
-# はじめに
+## はじめに
 
 Windows Subsystem for Linux で ssh クライアントをしばらく使っていたのですが、
 [Windows 10にオンデマンド機能のOpenSSHサーバをインストールする方法：企業ユーザーに贈るWindows 10への乗り換え案内（45） - ＠IT](https://www.atmarkit.co.jp/ait/articles/1903/28/news005.html)
 で Windows 10 1803 以降では標準で OpenSSH が使えるようになっていることを知りました。
 試してみたら快適だったのでインストール手順をメモしておきます。
 
-# OpenSSH クライアントのインストール
+## OpenSSH クライアントのインストール
 
 [Windows 用 OpenSSH のインストール | Microsoft Docs](https://docs.microsoft.com/ja-jp/windows-server/administration/openssh/openssh_install_firstuse) の手順に従って OpenSSH のクライアントをインストールします。
 
@@ -37,7 +37,7 @@ State : NotPresent
 Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0
 ```
 
-# ssh-agent サービスの状態確認
+## ssh-agent サービスの状態確認
 
 ```
 Get-Service ssh-agent | Select Name,DisplayName,Status,StartType
@@ -51,7 +51,7 @@ Name      DisplayName                   Status StartType
 ssh-agent OpenSSH Authentication Agent Running Automatic
 ```
 
-# ssh-agent サービスの状態変更
+## ssh-agent サービスの状態変更
 
 もし StartType や Status が違う場合は下記を参考に自動起動と起動中にします。
 
@@ -100,7 +100,7 @@ Get-Service | Select Status,StartType,Name,DisplayName
 のように `Select` を使った場合も省略されずに表示されました。
 自動起動タイプも見たいのでこの最後の方式が普段使いには良さそうです。
 
-# ssh-agent に登録された鍵一覧表示
+## ssh-agent に登録された鍵一覧表示
 
 以下はユーザ権限の PowerShell で実行します。
 
@@ -108,7 +108,7 @@ Get-Service | Select Status,StartType,Name,DisplayName
 ssh-add -l
 ```
 
-# ssh-agent 鍵追加
+## ssh-agent 鍵追加
 
 ```
 ssh-add 秘密鍵ファイル名
