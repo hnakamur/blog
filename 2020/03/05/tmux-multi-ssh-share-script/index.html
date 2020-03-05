@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.64.1" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>tmuxで複数サーバー同時オペレーションのセッション共有 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2020. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>tmuxで複数サーバー同時オペレーションのセッション共有</h1>
+  <time datetime=2020-03-05T18:00:51&#43;0900 class="post-date">2020-03-05</time>
+  <h2 id="はじめに">はじめに</h2>
+<p>職場で <a href="http://tech.naviplus.co.jp/2014/01/09/tmux%E3%81%A7%E8%A4%87%E6%95%B0%E3%82%B5%E3%83%BC%E3%83%90%E3%81%AE%E5%90%8C%E6%99%82%E3%82%AA%E3%83%9A%E3%83%AC%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/">tmuxで複数サーバの同時オペレーション – NaviPlus Engineers&rsquo; Blog</a> のスクリプトを使わせて頂いているのですが、リモートワークに伴って他のユーザーの tmux セッションを閲覧したいという話になりました。</p>
+<p>当初 tmux をソケットファイルを使うという単純な改変をしてみたのですが、スクリプト内で tmux セッションを作っているので、作業者がこのスクリプトを実行するたびに閲覧者が接続する必要がありました。</p>
+<p>そこで閲覧者が一度接続したら、作業者はずっとそのセッション内で作業を継続し、複数サーバー同時オペレーションに切り替えてまた戻ってと行ったり来たりできるようにスクリプトを改変してみました。まだ練習で一度試してみただけですが、うまく動いているようなのでメモしておきます。</p>
+<h2 id="sudo-権限設定で他のユーザーの-tmux-ソケットの読み取りだけ許可する">sudo 権限設定で他のユーザーの tmux ソケットの読み取りだけ許可する</h2>
+<p>踏み台サーバー上で異なる Linux ユーザーで作業する想定ですが、この記事で紹介されている wemux を導入せずにすませたいと思いました。代わりに sudoers の権限設定で実現する方法を <a href="https://twitter.com/yamamasa23">@yamamasa23</a> さんが考えたのでそれを使うところから始まりました。</p>
+<p>具体的には <code>/usr/bin/tmux -2 -S /tmp/* attach -r -t guest</code> というコマンドに sudo 権限を付けています。 <code>tmux</code> の <code>attach</code> コマンドに <code>-r</code> オプションも付けているので読み取り専用のみの許可になっています。</p>
+<p><a href="https://manpages.ubuntu.com/manpages/bionic/en/man8/visudo.8.html">visudo (8)</a> と <a href="https://manpages.ubuntu.com/manpages/bionic/en/man5/sudoers.5.html">suders (5)</a> を参考にしてシステム管理者が適宜設定します。 operator グループのユーザーに許可する例は以下のような感じです。</p>
+<pre><code>Cmnd_Alias TMUX = /usr/bin/tmux -2 -S /tmp/* attach -r -t guest
+
+%operator ALL = NOPASSWD: TMUX
+</code></pre><p><a href="https://manpages.ubuntu.com/manpages/bionic/en/man1/tmux.1.html">tmux (1)</a> の <code>-2</code> は 256色表示を強制するオプションなのでお好みで。</p>
+<h2 id="通常の-tmux-のセッション共有と接続">通常の tmux のセッション共有と接続</h2>
+<p>複数サーバーでの使い方の前に通常の tmux のセッション共有を説明します。</p>
+<p>セッションを公開するには以下のようにして tmux を起動します。</p>
+<pre><code class="language-console" data-lang="console">tmux -2 -S /tmp/tmux_share_$USER new -s guest
+</code></pre><p>同じマシン上で別のユーザーが以下のコマンドを実行して tmux のセッションに読み取り専用で接続します。
+<code>$CONNECT_USER</code> の部分は上記の手順でセッションを公開しているユーザー名に置き換えて実行してください。</p>
+<pre><code class="language-console" data-lang="console">sudo tmux -2 -S /tmp/tmux_share_$CONNECT_USER attach -r -t guest
+</code></pre><p>公開したユーザーが tmux を終了すると接続していたユーザー側の tmux も終了します。
+逆に接続したユーザーが切断したい場合は通常のデタッチ操作（tmux のプリフィクスキー、 d）で OK でした。</p>
+<h2 id="multi_ssh-スクリプトを-tmux-のソケットファイルを使うように改変"><code>multi_ssh</code> スクリプトを <code>tmux</code> のソケットファイルを使うように改変</h2>
+<p>次は複数サーバーでの同時オペレーションでもセッションを共有できるようにします。</p>
+<p>最初は <a href="http://tech.naviplus.co.jp/2014/01/09/tmux%E3%81%A7%E8%A4%87%E6%95%B0%E3%82%B5%E3%83%BC%E3%83%90%E3%81%AE%E5%90%8C%E6%99%82%E3%82%AA%E3%83%9A%E3%83%AC%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/">tmuxで複数サーバの同時オペレーション – NaviPlus Engineers&rsquo; Blog</a> のスクリプトの <code>tmux</code> に <code>-S /tmp/tmux_share_$USER</code> のオプションを付けて回るという改変をしてみて、とりあえず動くようになりました。</p>
+<p>しかしこのスクリプトは新規に tmux のセッションを作成するようになっているので、作成後に閲覧ユーザーに接続してもらって終了したら接続が切れて、その後の作業でまた tmux を起動したら再度接続してもらう必要があり、ちょっと面倒だなと思いました。</p>
+<p>そこで既に tmux を起動している状態から、 tmux の pane を追加して複数サーバーに ssh するようにスクリプトを改変してみました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-sh" data-lang="sh"><span class="cp">#!/bin/sh
+</span><span class="cp"></span><span class="k">if</span> <span class="o">[</span> <span class="nv">$#</span> -eq <span class="m">0</span> <span class="o">]</span><span class="p">;</span> <span class="k">then</span>
+  <span class="nb">echo</span> <span class="s2">&#34;Usage: multi_ssh_share hosts...&#34;</span> 1&gt;<span class="p">&amp;</span><span class="m">2</span>
+  <span class="nb">exit</span> <span class="m">2</span>
+<span class="k">fi</span>
+ 
+<span class="nv">socket</span><span class="o">=</span>/tmp/tmux_share_<span class="nv">$USER</span>
+  
+<span class="c1">### paneの同期モードを一旦解除</span>
+tmux -2 -S <span class="nv">$socket</span> set-window-option synchronize-panes off
+   
+<span class="c1">### 各ホストにsshログイン</span>
+<span class="c1"># 最初の1台のホスト名をとっておく</span>
+<span class="nv">sv1</span><span class="o">=</span><span class="nv">$1</span>
+<span class="nb">shift</span>
+  
+<span class="c1"># 残りのホスト用にpaneを作成してからssh</span>
+<span class="k">for</span> i in <span class="nv">$*</span><span class="p">;</span> <span class="k">do</span>
+  tmux -2 -S <span class="nv">$socket</span> split-window
+  tmux -2 -S <span class="nv">$socket</span> <span class="k">select</span>-layout tiled
+  tmux -2 -S <span class="nv">$socket</span> send-keys <span class="s2">&#34;</span><span class="s2">ssh </span><span class="nv">$i</span><span class="s2">&#34;</span> C-m
+<span class="k">done</span>
+  
+<span class="c1">### 最初のpaneを選択状態にして最初の1台にssh</span>
+tmux -2 -S <span class="nv">$socket</span> <span class="k">select</span>-pane -t <span class="m">0</span>
+tmux -2 -S <span class="nv">$socket</span> send-keys <span class="s2">&#34;</span><span class="s2">ssh </span><span class="nv">$sv1</span><span class="s2">&#34;</span> C-m
+  
+<span class="c1">### paneの同期モードを設定</span>
+tmux -2 -S <span class="nv">$socket</span> set-window-option synchronize-panes on
+</code></pre></div><h2 id="事前準備">事前準備</h2>
+<ol>
+<li>上記のスクリプトを PATH の通った場所において実行パーミションを付けます。ここでは <code>multi_ssh_share</code> というファイル名で保存したとします。</li>
+<li><code>~/.bash_aliaes</code> に以下のようなエイリアスを追加します。</li>
+</ol>
+<pre><code>alias tmuxshare='tmux -2 -S /tmp/tmux_share_$USER new -s guest'
+</code></pre><ol start="3">
+<li><code>~/.tmux.conf</code> に以下のようなキーバインド設定を追加します。</li>
+</ol>
+<pre><code>bind-key -T prefix X confirm-before -p &quot;kill all other panes? (y/n)&quot; &quot;kill-pane -a&quot;
+bind e setw synchronize-panes on
+bind E setw synchronize-panes off
+</code></pre><h2 id="使い方">使い方</h2>
+<ol>
+<li>公開するユーザーは上で定義した <code>tmuxshare</code> エイリアスで tmux を共有しつつ起動します。</li>
+</ol>
+<pre><code>$ tmuxshare
+</code></pre><ol start="2">
+<li>閲覧するユーザーは以下のコマンドの <code>$CONNECT_USER</code> の部分を公開したユーザー名に置き換えて実行します。</li>
+</ol>
+<pre><code>$ sudo tmux -2 -S /tmp/tmux_share_$CONNECT_USER attach -r -t guest
+</code></pre><ol start="3">
+<li>公開するユーザー側で tmux の pane を開いて複数のサーバーに ssh するには以下のように実行します。</li>
+</ol>
+<pre><code>$ multi_ssh_share sv{01..03}.example.com
+</code></pre><ol start="4">
+<li>
+<p>これで tmux の全ての pane にキー入力が同期された状態になりますので、お好みのコマンドを実行します。</p>
+</li>
+<li>
+<p>実行したいコマンドが完了したら exit で各サーバーの ssh を終了します。</p>
+</li>
+<li>
+<p>tmux のプリフィクスキー、 E を押して tmux の複数 pane にキー入力を同期するのをオフにします。</p>
+</li>
+<li>
+<p>tmux のプリフィクスキー、 X を押すと <code>kill all other panes? (y/n)</code> のプロンプトが表示されるので y を押して tmux のカレント以外の全ての pane を閉じます。</p>
+</li>
+</ol>
+<p>このあと引き続き踏み台サーバー上でコマンドを実行しても良いですし、再度 <code>multi_ssh_share</code> で複数サーバー同時オペレーションしても良いです。閲覧しているユーザーはその間も接続したままになります。</p>
+<h2 id="この方法の欠点tmuxの操作画面が作業者と閲覧者の端末サイズの小さいほうになる">この方法の欠点：tmuxの操作画面が作業者と閲覧者の端末サイズの小さいほうになる</h2>
+<p>実際に試してみると <a href="http://engineerspirit.com/2017/02/06/post-798/">tmuxで操作画面がterminalウィンドウサイズより小さくなる場合の対応方法 | 技術者魂</a> のスクリーンショットのような画面になり、右下に <code>(size WWxHH from a smaller client)</code> (WWとHHは実際の幅と高さのサイズになる）と表示される現象になりました。</p>
+<p>ネットで検索すると <code>tmux attach</code> のときに <code>-d</code> を付けて他のクライアントをでタッチしてから、アタッチするという解決策が出てきますが、これは他のクライアントの接続を切って繋ぎなおすことでセッションを共有しないという話なので、今回のケースでは使えません。</p>
+<p>公開側と閲覧側の端末のウィンドウサイズと表示スケール（Windowsだとコントロールパネルのディスプレイの「テキスト、アプリ、その他の項目のサイズを変更する」の%の数値）で変わってくるようです。</p>
+<p>端末のウィンドウサイズのほうはディスプレイの解像度により限界がありますし、表示スケールもあまり下げると文字が小さくて見にくいでしょうから、できる範囲で調整して、あとは諦めるしかないかなあと思ってます。</p>
+
+</div>
+
+
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
