@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.64.1" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>wsl-ssh-agentでWindows Subsystem for LinuxからWindowsのssh-agentを使う設定手順 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2020. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>wsl-ssh-agentでWindows Subsystem for LinuxからWindowsのssh-agentを使う設定手順</h1>
+  <time datetime=2020-03-06T18:48:43&#43;0900 class="post-date">2020-03-06</time>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="/blog/2020/02/22/install-openssh-client-to-windows10/">Windows 10 に OpenSSH クライアントをインストール · hnakamur&rsquo;s blog</a> で Windows の ssh-agent を使いだしてから Windows Subsystem for Linux （以下WSLと略）からも使いたいと思うようになりました。</p>
+<p>調べてみると <a href="https://github.com/rupor-github/wsl-ssh-agent">wsl-ssh-agent</a> で出来るそうなので設定手順をメモ。</p>
+<h2 id="設定手順">設定手順</h2>
+<h3 id="wsl-ssh-agent-のダウンロードと解凍">wsl-ssh-agent のダウンロードと解凍</h3>
+<p><a href="https://github.com/rupor-github/wsl-ssh-agent/releases">Releases · rupor-github/wsl-ssh-agent</a> から最新版の wsl-ssh-agent.7z をダウンロードします。</p>
+<p>解凍するには <a href="https://sevenzip.osdn.jp/download.html">ダウンロード | 7-Zip</a> から 7-Zip をダウンロードするか、あるいは WSL で p7zip パッケージを入れて 7zr コマンドを使います。</p>
+<p>解凍すると <code>wsl-ssh-agent-gui.exe</code> と <code>changelog.txt</code> というファイルが作られますので、 <code>wsl-ssh-agent-gui.exe</code> をお好みの場所に配置します。</p>
+<p>私は <code>C:\wsl-ssh-agent</code> というフォルダーを作って <code>C:\wsl-ssh-agent\wsl-ssh-agent-gui.exe</code> に置きました。</p>
+<h3 id="ショートカットを作成してスタートアップに配置">ショートカットを作成してスタートアップに配置</h3>
+<p>以下のようにリンク先を指定してショートカットを作成します。
+<code>-socket</code> オプションに指定したパスにソケットファイルが作られます。パスは適宜変更してください。</p>
+<pre><code>C:\wsl-ssh-agent\wsl-ssh-agent-gui.exe -socket C:\Users\hnakamur\.ssh\ssh-agent.sock
+</code></pre><p>Windows キー + R で 「ファイル名を指定して実行」ダイアログを開き <code>shell:startup</code> と入力してスタートアップのフォルダーを開き、上記で作成したショートカットをそこに移動します。</p>
+<h3 id="wsl-の-ubuntu-で-ssh_auth_sock-環境変数を設定">WSL の Ubuntu で <code>SSH_AUTH_SOCK</code> 環境変数を設定</h3>
+<p>次は WSL の Ubuntu の設定です。</p>
+<p><code>~/.profile</code> で以下のように <code>SSH_AUTH_SOCK</code> 環境変数を設定します。
+上記で <code>wsl-ssh-agent-gui.exe</code> の <code>-socket</code> に指定したパスを WSL からアクセスできるよう <code>/mnt/c/...</code> の形式で指定します。</p>
+<pre><code>SSH_AUTH_SOCK=/mnt/c/Users/hnakamur/.ssh/ssh-agent.sock
+export SSH_AUTH_SOCK
+</code></pre><h3 id="wsl-で元々使っていた-ssh-agent-用の設定を削除">WSL で元々使っていた ssh-agent 用の設定を削除</h3>
+<p>私の場合は <a href="https://www.clear-code.com/blog/2017/11/8.html">Windows 10のWindows Subsystem for Linux（WSL）を日常的に活用する - ククログ(2017-11-08)</a> で紹介されていた weasel-pageant と WSL の Ubuntu の keychain パッケージを使っていました。</p>
+<p><code>~/.bashrc</code> に以下のような設定を書いていたのでこれを消します。</p>
+<pre><code>eval $(/mnt/c/Program\ Files\ \(x86\)/weasel-pageant/weasel-pageant -r -a &quot;/tmp/.weasel-pageant-$USER&quot;)
+eval $(keychain --eval $HOME/.ssh/id_ed25519)
+</code></pre><h3 id="wsl-の端末を再起動して動作確認">WSL の端末を再起動して動作確認</h3>
+<p>私は <a href="https://github.com/microsoft/terminal">Windows Terminal</a> を使ってるので、これのウィンドウを一旦閉じて終了し、再度実行します。</p>
+<p><code>ssh-add -l</code> を実行して登録済みの鍵一覧を確認し、未登録なら <code>ssh-add 鍵ファイル名</code> で追加します。</p>
+<p>手順は以上です。</p>
+<h2 id="脱線-wsl-ssh-agent-の実装についてのメモ">脱線: wsl-ssh-agent の実装についてのメモ</h2>
+<p><a href="https://github.com/rupor-github/wsl-ssh-agent">wsl-ssh-agent</a> は Go で書かれているので一部をちょっとだけ見てみました。</p>
+<p>まず README を見ると wsl-ssh-agent-gui.exe は <a href="https://golang.org/doc/go1.12#syscall">Go 1.12 から使えるようになった</a> AF_UNIX ソケットを使っているそうです。</p>
+<p>あと <a href="https://github.com/rupor-github/wsl-ssh-agent/tree/a305054739d6ce1fa6261a8b4cb673df083b160e/systray">systray サブパッケージの README</a> を見ると github.com/getlantern/systray をフォーク、改変しているそうです。</p>
+<p>変更内容が気になったので <a href="https://gist.github.com/hnakamur/cb07c460b81873a2290565f4f180672f">Diff from github.com/getlantern/systray@6f0e5a3 to github.com/rupor-github/wsl-ssh-agent@a305054</a> に貼っておきました。</p>
+<p>ロガーを Go 標準の log パッケージに変更しているのと、 <code>WM_WTSSESSION_CHANGE</code> という Windows のメッセージに対応して処理を行うようになっていました。</p>
+<p><code>WM_WTSSESSION_CHANGE</code> を初めて知ったので参考情報を貼っておきます。</p>
+<ul>
+<li><a href="https://docs.microsoft.com/en-us/windows/win32/termserv/wm-wtssession-change">WM_WTSSESSION_CHANGE message (Winuser.h) - Win32 apps | Microsoft Docs</a></li>
+<li><a href="https://togarasi.wordpress.com/2009/07/11/%E3%83%A6%E3%83%BC%E3%82%B6%E3%83%BC%E5%88%87%E3%82%8A%E6%9B%BF%E3%81%88%E3%81%AB%E5%AF%BE%E5%BF%9C%E3%81%99%E3%82%8B/">ユーザー切り替えに対応する | re-Think things</a></li>
+</ul>
+
+</div>
+
+
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
