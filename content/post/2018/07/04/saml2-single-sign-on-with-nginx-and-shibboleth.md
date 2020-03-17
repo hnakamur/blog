@@ -293,103 +293,103 @@ AttributeStatement must have at least one child element.
 diff -u shibboleth-sp-2.6.1/configs/shibboleth2.xml shibboleth2.xml
 ```
 
-.. code-block:: diff
-
-    --- shibboleth-sp-2.6.1/configs/shibboleth2.xml        2017-11-14 08:29:46.000000000 +0900
-    +++ shibboleth2.xml        2018-07-04 10:12:32.283184405 +0900
-    @@ -19,8 +19,19 @@
-         file, and the https://wiki.shibboleth.net/confluence/display/SHIB2/NativeSPRequestMapHowTo topic.
+```diff
+--- shibboleth-sp-2.6.1/configs/shibboleth2.xml        2017-11-14 08:29:46.000000000 +0900
++++ shibboleth2.xml        2018-07-04 10:12:32.283184405 +0900
+@@ -19,8 +19,19 @@
+     file, and the https://wiki.shibboleth.net/confluence/display/SHIB2/NativeSPRequestMapHowTo topic.
+     -->
+ 
++    <RequestMapper type="XML">
++        <RequestMap>
++            <Host name="localhost"
++                  authType="shibboleth"
++                  requireSession="true"
++                  redirectToSSL="443">
++                <Path name="/secure" />
++            </Host>
++        </RequestMap>
++    </RequestMapper>
++
+     <!-- The ApplicationDefaults element is where most of Shibboleth's SAML bits are defined. -->
+-    <ApplicationDefaults entityID="https://sp.example.org/shibboleth"
++    <ApplicationDefaults entityID="https://sp.example.org/sso"
+                          REMOTE_USER="eppn persistent-id targeted-id">
+ 
+         <!--
+@@ -35,14 +46,7 @@
+         <Sessions lifetime="28800" timeout="3600" relayState="ss:mem"
+                   checkAddress="false" handlerSSL="false" cookieProps="http">
+ 
+-            <!--
+-            Configures SSO for a default IdP. To allow for >1 IdP, remove
+-            entityID property and adjust discoveryURL to point to discovery service.
+-            (Set discoveryProtocol to "WAYF" for legacy Shibboleth WAYF support.)
+-            You can also override entityID on /Login query string, or in RequestMap/htaccess.
+-            -->
+-            <SSO entityID="https://idp.example.org/idp/shibboleth"
+-                 discoveryProtocol="SAMLDS" discoveryURL="https://ds.example.org/DS/WAYF">
++                  <SSO entityID="https://idp.example.com/sso-test/idp">
+               SAML2 SAML1
+             </SSO>
+ 
+@@ -66,53 +70,16 @@
+         Allows overriding of error template information/filenames. You can
+         also add attributes with values that can be plugged into the templates.
          -->
+-        <Errors supportContact="root@localhost"
++        <Errors supportContact="admin@sp.example.org"
+             helpLocation="/about.html"
+             styleSheet="/shibboleth-sp/main.css"/>
+-        
+-        <!-- Example of remotely supplied batch of signed metadata. -->
+-        <!--
+-        <MetadataProvider type="XML" validate="true"
+-              uri="http://example.org/federation-metadata.xml"
+-              backingFilePath="federation-metadata.xml" reloadInterval="7200">
+-            <MetadataFilter type="RequireValidUntil" maxValidityInterval="2419200"/>
+-            <MetadataFilter type="Signature" certificate="fedsigner.pem"/>
+-            <DiscoveryFilter type="Blacklist" matcher="EntityAttributes" trimTags="true" 
+-              attributeName="http://macedir.org/entity-category"
+-              attributeNameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+-              attributeValue="http://refeds.org/category/hide-from-discovery" />
+-        </MetadataProvider>
+-        -->
+ 
+         <!-- Example of locally maintained metadata. -->
+-        <!--
+-        <MetadataProvider type="XML" validate="true" file="partner-metadata.xml"/>
+-        -->
++        <MetadataProvider type="XML" validate="true" file="idp-metadata.xml"/>
+ 
+         <!-- Map to extract attributes from SAML assertions. -->
+         <AttributeExtractor type="XML" validate="true" reloadChanges="false" path="attribute-map.xml"/>
+-        
+-        <!-- Use a SAML query if no attributes are supplied during SSO. -->
+-        <AttributeResolver type="Query" subjectMatch="true"/>
+-
+-        <!-- Default filtering policy for recognized attributes, lets other data pass. -->
+-        <AttributeFilter type="XML" validate="true" path="attribute-policy.xml"/>
+ 
+-        <!-- Simple file-based resolver for using a single keypair. -->
+-        <CredentialResolver type="File" key="sp-key.pem" certificate="sp-cert.pem"/>
+-
+-        <!--
+-        The default settings can be overridden by creating ApplicationOverride elements (see
+-        the https://wiki.shibboleth.net/confluence/display/SHIB2/NativeSPApplicationOverride topic).
+-        Resource requests are mapped by web server commands, or the RequestMapper, to an
+-        applicationId setting.
+-        
+-        Example of a second application (for a second vhost) that has a different entityID.
+-        Resources on the vhost would map to an applicationId of "admin":
+-        -->
+-        <!--
+-        <ApplicationOverride id="admin" entityID="https://admin.example.org/shibboleth"/>
+-        -->
+     </ApplicationDefaults>
      
-    +    <RequestMapper type="XML">
-    +        <RequestMap>
-    +            <Host name="localhost"
-    +                  authType="shibboleth"
-    +                  requireSession="true"
-    +                  redirectToSSL="443">
-    +                <Path name="/secure" />
-    +            </Host>
-    +        </RequestMap>
-    +    </RequestMapper>
-    +
-         <!-- The ApplicationDefaults element is where most of Shibboleth's SAML bits are defined. -->
-    -    <ApplicationDefaults entityID="https://sp.example.org/shibboleth"
-    +    <ApplicationDefaults entityID="https://sp.example.org/sso"
-                              REMOTE_USER="eppn persistent-id targeted-id">
-     
-             <!--
-    @@ -35,14 +46,7 @@
-             <Sessions lifetime="28800" timeout="3600" relayState="ss:mem"
-                       checkAddress="false" handlerSSL="false" cookieProps="http">
-     
-    -            <!--
-    -            Configures SSO for a default IdP. To allow for >1 IdP, remove
-    -            entityID property and adjust discoveryURL to point to discovery service.
-    -            (Set discoveryProtocol to "WAYF" for legacy Shibboleth WAYF support.)
-    -            You can also override entityID on /Login query string, or in RequestMap/htaccess.
-    -            -->
-    -            <SSO entityID="https://idp.example.org/idp/shibboleth"
-    -                 discoveryProtocol="SAMLDS" discoveryURL="https://ds.example.org/DS/WAYF">
-    +                  <SSO entityID="https://idp.example.com/sso-test/idp">
-                   SAML2 SAML1
-                 </SSO>
-     
-    @@ -66,53 +70,16 @@
-             Allows overriding of error template information/filenames. You can
-             also add attributes with values that can be plugged into the templates.
-             -->
-    -        <Errors supportContact="root@localhost"
-    +        <Errors supportContact="admin@sp.example.org"
-                 helpLocation="/about.html"
-                 styleSheet="/shibboleth-sp/main.css"/>
-    -        
-    -        <!-- Example of remotely supplied batch of signed metadata. -->
-    -        <!--
-    -        <MetadataProvider type="XML" validate="true"
-    -              uri="http://example.org/federation-metadata.xml"
-    -              backingFilePath="federation-metadata.xml" reloadInterval="7200">
-    -            <MetadataFilter type="RequireValidUntil" maxValidityInterval="2419200"/>
-    -            <MetadataFilter type="Signature" certificate="fedsigner.pem"/>
-    -            <DiscoveryFilter type="Blacklist" matcher="EntityAttributes" trimTags="true" 
-    -              attributeName="http://macedir.org/entity-category"
-    -              attributeNameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
-    -              attributeValue="http://refeds.org/category/hide-from-discovery" />
-    -        </MetadataProvider>
-    -        -->
-     
-             <!-- Example of locally maintained metadata. -->
-    -        <!--
-    -        <MetadataProvider type="XML" validate="true" file="partner-metadata.xml"/>
-    -        -->
-    +        <MetadataProvider type="XML" validate="true" file="idp-metadata.xml"/>
-     
-             <!-- Map to extract attributes from SAML assertions. -->
-             <AttributeExtractor type="XML" validate="true" reloadChanges="false" path="attribute-map.xml"/>
-    -        
-    -        <!-- Use a SAML query if no attributes are supplied during SSO. -->
-    -        <AttributeResolver type="Query" subjectMatch="true"/>
-    -
-    -        <!-- Default filtering policy for recognized attributes, lets other data pass. -->
-    -        <AttributeFilter type="XML" validate="true" path="attribute-policy.xml"/>
-     
-    -        <!-- Simple file-based resolver for using a single keypair. -->
-    -        <CredentialResolver type="File" key="sp-key.pem" certificate="sp-cert.pem"/>
-    -
-    -        <!--
-    -        The default settings can be overridden by creating ApplicationOverride elements (see
-    -        the https://wiki.shibboleth.net/confluence/display/SHIB2/NativeSPApplicationOverride topic).
-    -        Resource requests are mapped by web server commands, or the RequestMapper, to an
-    -        applicationId setting.
-    -        
-    -        Example of a second application (for a second vhost) that has a different entityID.
-    -        Resources on the vhost would map to an applicationId of "admin":
-    -        -->
-    -        <!--
-    -        <ApplicationOverride id="admin" entityID="https://admin.example.org/shibboleth"/>
-    -        -->
-         </ApplicationDefaults>
-         
-         <!-- Policies that determine how to process and authenticate runtime messages. -->
+     <!-- Policies that determine how to process and authenticate runtime messages. -->
+```
 
 変更後の `/etc/shibboleth/shibboleth2.xml` 全体は以下のとおりです。
 
@@ -750,18 +750,18 @@ Set-Cookie: _shibsession_64656661756c7468747470733a2f2f61706930312e6465762e77656
 tcpdump -X -i lo port 8080
 ```
 
-.. code-block:: text
-
-    …(略)…
-    06:41:20.135840 IP localhost.48704 > localhost.webcache: Flags [P.], seq 1:1338, ack 1, win 342, options [nop,nop,TS val 763708778 ecr 763708778], length 1337: HTTP: GET /secure/ HTTP/1.0
-            0x0000:  4500 056d 2757 4000 4006 1032 7f00 0001  E..m'W@.@..2....
-            0x0010:  7f00 0001 be40 1f90 71ea bb02 c998 0fbf  .....@..q.......
-            0x0020:  8018 0156 0362 0000 0101 080a 2d85 456a  ...V.b......-.Ej
-            0x0030:  2d85 456a 4745 5420 2f73 6563 7572 652f  -.EjGET./secure/
-            0x0040:  2048 5454 502f 312e 300d 0a48 6f73 743a  .HTTP/1.0..Host:
-            0x0050:  2031 3237 2e30 2e30 2e31 3a38 3038 300d  .127.0.0.1:8080.
-            0x0060:  0a43 6f6e 6e65 6374 696f 6e3a 2063 6c6f  .Connection:.clo
-    …(略)…
+```text
+…(略)…
+06:41:20.135840 IP localhost.48704 > localhost.webcache: Flags [P.], seq 1:1338, ack 1, win 342, options [nop,nop,TS val 763708778 ecr 763708778], length 1337: HTTP: GET /secure/ HTTP/1.0
+        0x0000:  4500 056d 2757 4000 4006 1032 7f00 0001  E..m'W@.@..2....
+        0x0010:  7f00 0001 be40 1f90 71ea bb02 c998 0fbf  .....@..q.......
+        0x0020:  8018 0156 0362 0000 0101 080a 2d85 456a  ...V.b......-.Ej
+        0x0030:  2d85 456a 4745 5420 2f73 6563 7572 652f  -.EjGET./secure/
+        0x0040:  2048 5454 502f 312e 300d 0a48 6f73 743a  .HTTP/1.0..Host:
+        0x0050:  2031 3237 2e30 2e30 2e31 3a38 3038 300d  .127.0.0.1:8080.
+        0x0060:  0a43 6f6e 6e65 6374 696f 6e3a 2063 6c6f  .Connection:.clo
+…(略)…
+```
 
 Shibboleth関連のリクエストヘッダを抜き出して整形したものを以下に示します（日時が前後しているのは上で書いたのより前に動作確認したときのログをコピペしているためです）。
 
