@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.64.1" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>XMLSecでの証明書検証のコードリーディング &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2020. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>XMLSecでの証明書検証のコードリーディング</h1>
+  <time datetime=2020-03-17T20:01:08&#43;0900 class="post-date">2020-03-17</time>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="/blog/2018/07/31/saml-service-provider-with-nginx-lua/">nginx luaでSAMLのService Providerを作ってみた · hnakamur&rsquo;s blog</a> の <a href="https://github.com/hnakamur/nginx-lua-saml-service-provider">hnakamur/nginx-lua-saml-service-provider</a> ですがレスポンスのXMLを検証する処理は非同期ではなく同期的に実行される実装としていました。 詳しくは <a href="https://github.com/hnakamur/nginx-lua-saml-service-provider/blob/90b79233bfc28dd48ad8f2d38a8d547d182f1a62/README.md#caveats">Caveats</a> に書いています。</p>
+<p>当時は利用者数が数人の想定だったので、これでも十分と考えていました。その後 SAML ではなく Keycloak を使うことになったので、このライブラリは使っていなかったのですが、再度使うかもしれない状況になりました。</p>
+<p>その際、レスポンスのXMLの検証を xmlsec コマンドで外部実行するのではなく、 libxmlsec の関数を呼んでオンメモリで実行したいということで、まずは xml コマンドで行っている処理をコードリーディングしてみることにしました。</p>
+<h2 id="今回コードリーディングの対象">今回コードリーディングの対象</h2>
+<p>対象のバージョンは Ubuntu 18.04 LTS の libxmlsec1 パッケージのバージョンに合わせて 1.2.25 です。</p>
+<p>今回対象とするコマンドは <code>xmlsec --verify</code> コマンドで、以下の特定のオプションのパターンのみです。</p>
+<p><a href="https://github.com/hnakamur/nginx-lua-saml-service-provider">hnakamur/nginx-lua-saml-service-provider</a> から xmlsec コマンドを呼び出している個所は以下の部分です。</p>
+<p><a href="https://github.com/hnakamur/nginx-lua-saml-service-provider/blob/90b79233bfc28dd48ad8f2d38a8d547d182f1a62/lib/saml/service_provider/response.lua#L36-L37">lib/saml/service_provider/response.lua#L36-L37</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-lua" data-lang="lua">    <span class="kd">local</span> <span class="n">cmd</span> <span class="o">=</span> <span class="n">string.format</span><span class="p">(</span><span class="s2">&#34;</span><span class="s2">%s --verify --pubkey-cert-pem %s --id-attr:ID urn:oasis:names:tc:SAML:2.0:protocol:Response %s</span><span class="s2">&#34;</span><span class="p">,</span>
+        <span class="n">self.xmlsec_command</span><span class="p">,</span> <span class="n">self.idp_cert_filename</span><span class="p">,</span> <span class="n">tmpfilename</span><span class="p">)</span>
+</code></pre></div><p>コマンドとしては以下のようになります。</p>
+<pre><code class="language-console" data-lang="console">xmlsec1 --verify --pubkey-cert-pem idp.crt \
+  --id-attr:ID urn:oasis:names:tc:SAML:2.0:protocol:Response
+  response.xml
+</code></pre><h2 id="--verify-オプションの処理を読む"><code>--verify</code> オプションの処理を読む</h2>
+<h3 id="xmlsecappverifyfile-関数"><code>xmlSecAppVerifyFile</code> 関数</h3>
+<p><a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/apps/xmlsec.c#L1077">apps/xmlsec.c#L1077</a> から呼び出されています。</p>
+<p><a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/apps/xmlsec.c#L1213-L1315">apps/xmlsec.c#L1213-L1315</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">static</span> <span class="kt">int</span> 
+<span class="nf">xmlSecAppVerifyFile</span><span class="p">(</span><span class="k">const</span> <span class="kt">char</span><span class="o">*</span> <span class="n">filename</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">xmlSecAppXmlDataPtr</span> <span class="n">data</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="n">xmlSecDSigCtx</span> <span class="n">dsigCtx</span><span class="p">;</span>
+    <span class="n">clock_t</span> <span class="n">start_time</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">res</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    
+    <span class="k">if</span><span class="p">(</span><span class="n">filename</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">return</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="k">if</span><span class="p">(</span><span class="n">xmlSecDSigCtxInitialize</span><span class="p">(</span><span class="o">&amp;</span><span class="n">dsigCtx</span><span class="p">,</span> <span class="n">gKeysMngr</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">Error: dsig context initialization failed</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">return</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">xmlSecAppPrepareDSigCtx</span><span class="p">(</span><span class="o">&amp;</span><span class="n">dsigCtx</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">Error: dsig context preparation failed</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">goto</span> <span class="n">done</span><span class="p">;</span>
+    <span class="p">}</span>
+    
+    <span class="cm">/* parse template and select start node */</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">xmlSecAppXmlDataCreate</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">xmlSecNodeSignature</span><span class="p">,</span> <span class="n">xmlSecDSigNs</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">data</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">Error: failed to load document </span><span class="se">\&#34;</span><span class="s">%s</span><span class="se">\&#34;</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">goto</span> <span class="n">done</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="cm">/* sign */</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">clock</span><span class="p">(</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">xmlSecDSigCtxVerify</span><span class="p">(</span><span class="o">&amp;</span><span class="n">dsigCtx</span><span class="p">,</span> <span class="n">data</span><span class="o">-</span><span class="o">&gt;</span><span class="n">startNode</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span><span class="sa"></span><span class="s">&#34;</span><span class="s">Error: signature failed </span><span class="se">\n</span><span class="s">&#34;</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">goto</span> <span class="n">done</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="n">total_time</span> <span class="o">+</span><span class="o">=</span> <span class="n">clock</span><span class="p">(</span><span class="p">)</span> <span class="o">-</span> <span class="n">start_time</span><span class="p">;</span>    
+
+    <span class="k">if</span><span class="p">(</span><span class="p">(</span><span class="n">repeats</span> <span class="o">&lt;</span><span class="o">=</span> <span class="mi">1</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="n">dsigCtx</span><span class="p">.</span><span class="n">status</span> <span class="o">!</span><span class="o">=</span> <span class="n">xmlSecDSigStatusSucceeded</span><span class="p">)</span><span class="p">)</span><span class="p">{</span> 
+        <span class="cm">/* return an error if signature does not match */</span>
+        <span class="k">goto</span> <span class="n">done</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="n">res</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+<span class="nl">done</span><span class="p">:</span>
+    <span class="cm">/* print debug info if requested */</span>
+<span class="cm">/* …(略)… */</span>
+    <span class="n">xmlSecDSigCtxFinalize</span><span class="p">(</span><span class="o">&amp;</span><span class="n">dsigCtx</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">data</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">xmlSecAppXmlDataDestroy</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">return</span><span class="p">(</span><span class="n">res</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><p><code>gKeysMngr</code> グローバル変数
+<a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/apps/xmlsec.c#L924">apps/xmlsec.c#L924</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="n">xmlSecKeysMngrPtr</span> <span class="n">gKeysMngr</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+</code></pre></div><p><code>xmlSecNodeSignature</code> 定数
+<a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/src/strings.c#L36">src/strings.c#L36</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">const</span> <span class="n">xmlChar</span> <span class="n">xmlSecNodeSignature</span><span class="p">[</span><span class="p">]</span>             <span class="o">=</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">Signature</span><span class="s">&#34;</span><span class="p">;</span>
+</code></pre></div><p><code>xmlSecDSigNs</code> 定数
+<a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/src/strings.c#L23">src/strings.c#L23</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">const</span> <span class="n">xmlChar</span> <span class="n">xmlSecDSigNs</span><span class="p">[</span><span class="p">]</span>                    <span class="o">=</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">http://www.w3.org/2000/09/xmldsig#</span><span class="s">&#34;</span><span class="p">;</span>
+</code></pre></div><h3 id="xmlsecappxmldatacreate-関数"><code>xmlSecAppXmlDataCreate</code> 関数</h3>
+<p><a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/apps/xmlsec.c#L2283-L2490">apps/xmlsec.c#L2283-L2490</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">static</span> <span class="n">xmlSecAppXmlDataPtr</span> 
+<span class="nf">xmlSecAppXmlDataCreate</span><span class="p">(</span><span class="k">const</span> <span class="kt">char</span><span class="o">*</span> <span class="n">filename</span><span class="p">,</span> <span class="k">const</span> <span class="n">xmlChar</span><span class="o">*</span> <span class="n">defStartNodeName</span><span class="p">,</span> <span class="k">const</span> <span class="n">xmlChar</span><span class="o">*</span> <span class="n">defStartNodeNs</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">xmlSecAppCmdLineValuePtr</span> <span class="n">value</span><span class="p">;</span>
+    <span class="n">xmlSecAppXmlDataPtr</span> <span class="n">data</span><span class="p">;</span>
+    <span class="n">xmlNodePtr</span> <span class="n">cur</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+        
+<span class="cm">/* …(略)… */</span>
+    
+    <span class="cm">/* create object */</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">(</span><span class="n">xmlSecAppXmlDataPtr</span><span class="p">)</span> <span class="n">xmlMalloc</span><span class="p">(</span><span class="k">sizeof</span><span class="p">(</span><span class="n">xmlSecAppXmlData</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">data</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+<span class="cm">/* …(略)… */</span>
+        <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="n">memset</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">xmlSecAppXmlData</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+    
+    <span class="cm">/* parse doc */</span>
+    <span class="n">data</span><span class="o">-</span><span class="o">&gt;</span><span class="n">doc</span> <span class="o">=</span> <span class="n">xmlSecParseFile</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">data</span><span class="o">-</span><span class="o">&gt;</span><span class="n">doc</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+<span class="cm">/* …(略)… */</span>
+        <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>    
+    <span class="p">}</span>
+    
+    <span class="cm">/* load dtd and set default attrs and ids */</span>
+<span class="cm">/* …(略)… */</span>
+    
+    <span class="cm">/* set ID attributes from command line */</span>
+    <span class="k">for</span><span class="p">(</span><span class="n">value</span> <span class="o">=</span> <span class="n">idAttrParam</span><span class="p">.</span><span class="n">value</span><span class="p">;</span> <span class="n">value</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span> <span class="n">value</span> <span class="o">=</span> <span class="n">value</span><span class="o">-</span><span class="o">&gt;</span><span class="n">next</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">value</span><span class="o">-</span><span class="o">&gt;</span><span class="n">strValue</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+<span class="cm">/* …(略)… */</span>
+            <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="n">xmlChar</span><span class="o">*</span> <span class="n">attrName</span> <span class="o">=</span> <span class="p">(</span><span class="n">value</span><span class="o">-</span><span class="o">&gt;</span><span class="n">paramNameValue</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="o">?</span> <span class="n">BAD_CAST</span> <span class="n">value</span><span class="o">-</span><span class="o">&gt;</span><span class="nl">paramNameValue</span> <span class="p">:</span> <span class="n">BAD_CAST</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">id</span><span class="s">&#34;</span><span class="p">;</span>
+        <span class="n">xmlChar</span><span class="o">*</span> <span class="n">nodeName</span><span class="p">;</span>
+        <span class="n">xmlChar</span><span class="o">*</span> <span class="n">nsHref</span><span class="p">;</span>
+        <span class="n">xmlChar</span><span class="o">*</span> <span class="n">buf</span><span class="p">;</span>
+
+        <span class="n">buf</span> <span class="o">=</span> <span class="n">xmlStrdup</span><span class="p">(</span><span class="n">BAD_CAST</span> <span class="n">value</span><span class="o">-</span><span class="o">&gt;</span><span class="n">strValue</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">buf</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+<span class="cm">/* …(略)… */</span>
+            <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="n">nodeName</span> <span class="o">=</span> <span class="p">(</span><span class="n">xmlChar</span><span class="o">*</span><span class="p">)</span><span class="n">strrchr</span><span class="p">(</span><span class="p">(</span><span class="kt">char</span><span class="o">*</span><span class="p">)</span><span class="n">buf</span><span class="p">,</span> <span class="sa"></span><span class="sc">&#39;</span><span class="sc">:</span><span class="sc">&#39;</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">nodeName</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+            <span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">nodeName</span><span class="o">+</span><span class="o">+</span><span class="p">)</span><span class="p">)</span> <span class="o">=</span> <span class="sa"></span><span class="sc">&#39;</span><span class="sc">\0</span><span class="sc">&#39;</span><span class="p">;</span>
+            <span class="n">nsHref</span> <span class="o">=</span> <span class="n">buf</span><span class="p">;</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+<span class="cm">/* …(略)… */</span>
+        <span class="p">}</span>
+
+        <span class="cm">/* process children first because it does not matter much but does simplify code */</span>
+        <span class="n">cur</span> <span class="o">=</span> <span class="n">xmlSecGetNextElementNode</span><span class="p">(</span><span class="n">data</span><span class="o">-</span><span class="o">&gt;</span><span class="n">doc</span><span class="o">-</span><span class="o">&gt;</span><span class="n">children</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">while</span><span class="p">(</span><span class="n">cur</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">if</span><span class="p">(</span><span class="n">xmlSecAppAddIDAttr</span><span class="p">(</span><span class="n">cur</span><span class="p">,</span> <span class="n">attrName</span><span class="p">,</span> <span class="n">nodeName</span><span class="p">,</span> <span class="n">nsHref</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+                <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">Error: failed to add ID attribute </span><span class="se">\&#34;</span><span class="s">%s</span><span class="se">\&#34;</span><span class="s"> for node </span><span class="se">\&#34;</span><span class="s">%s</span><span class="se">\&#34;</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">attrName</span><span class="p">,</span> <span class="n">value</span><span class="o">-</span><span class="o">&gt;</span><span class="n">strValue</span><span class="p">)</span><span class="p">;</span>
+                <span class="n">xmlFree</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span><span class="p">;</span>
+                <span class="n">xmlSecAppXmlDataDestroy</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="p">;</span>
+                <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>    
+            <span class="p">}</span>
+            <span class="n">cur</span> <span class="o">=</span> <span class="n">xmlSecGetNextElementNode</span><span class="p">(</span><span class="n">cur</span><span class="o">-</span><span class="o">&gt;</span><span class="n">next</span><span class="p">)</span><span class="p">;</span>
+        <span class="p">}</span>
+
+        <span class="n">xmlFree</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+
+
+    <span class="cm">/* now find the start node */</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">xmlSecAppCmdLineParamGetString</span><span class="p">(</span><span class="o">&amp;</span><span class="n">nodeIdParam</span><span class="p">)</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+<span class="cm">/* …(略)… */</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="n">xmlSecAppCmdLineParamGetString</span><span class="p">(</span><span class="o">&amp;</span><span class="n">nodeNameParam</span><span class="p">)</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+<span class="cm">/* …(略)… */</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="n">xmlSecAppCmdLineParamGetString</span><span class="p">(</span><span class="o">&amp;</span><span class="n">nodeXPathParam</span><span class="p">)</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+<span class="cm">/* …(略)… */</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="n">cur</span> <span class="o">=</span> <span class="n">xmlDocGetRootElement</span><span class="p">(</span><span class="n">data</span><span class="o">-</span><span class="o">&gt;</span><span class="n">doc</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">cur</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">Error: failed to get root element</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">)</span><span class="p">;</span> 
+            <span class="n">xmlSecAppXmlDataDestroy</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="p">;</span>
+            <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>    
+        <span class="p">}</span>
+    <span class="p">}</span>
+    
+    <span class="k">if</span><span class="p">(</span><span class="n">defStartNodeName</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">data</span><span class="o">-</span><span class="o">&gt;</span><span class="n">startNode</span> <span class="o">=</span> <span class="n">xmlSecFindNode</span><span class="p">(</span><span class="n">cur</span><span class="p">,</span> <span class="n">defStartNodeName</span><span class="p">,</span> <span class="n">defStartNodeNs</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">data</span><span class="o">-</span><span class="o">&gt;</span><span class="n">startNode</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">Error: failed to find default node with name=</span><span class="se">\&#34;</span><span class="s">%s</span><span class="se">\&#34;</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> 
+                    <span class="n">defStartNodeName</span><span class="p">)</span><span class="p">;</span>
+            <span class="n">xmlSecAppXmlDataDestroy</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="p">;</span>
+            <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>    
+        <span class="p">}</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+<span class="cm">/* …(略)… */</span>
+    <span class="p">}</span>
+    
+    <span class="k">return</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><h3 id="--id-attr-オプション"><code>--id-attr</code> オプション</h3>
+<p><code>idAttrParam</code> 変数。上記の <code>xmlSecAppXmlDataCreate</code> 関数内で参照されています。
+<a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/apps/xmlsec.c#L498-L513">apps/xmlsec.c#L498-L513</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">static</span> <span class="n">xmlSecAppCmdLineParam</span> <span class="n">idAttrParam</span> <span class="o">=</span> <span class="p">{</span> 
+    <span class="n">xmlSecAppCmdLineTopicDSigCommon</span> <span class="o">|</span> 
+    <span class="n">xmlSecAppCmdLineTopicEncCommon</span><span class="p">,</span>
+    <span class="sa"></span><span class="s">&#34;</span><span class="s">--id-attr</span><span class="s">&#34;</span><span class="p">,</span>
+    <span class="nb">NULL</span><span class="p">,</span>   
+    <span class="sa"></span><span class="s">&#34;</span><span class="s">--id-attr[:&lt;attr-name&gt;] [&lt;node-namespace-uri&gt;:]&lt;node-name&gt;</span><span class="s">&#34;</span>
+    <span class="sa"></span><span class="s">&#34;</span><span class="se">\n</span><span class="se">\t</span><span class="s">adds attributes &lt;attr-name&gt; (default value </span><span class="se">\&#34;</span><span class="s">id</span><span class="se">\&#34;</span><span class="s">) from all nodes</span><span class="s">&#34;</span>
+    <span class="sa"></span><span class="s">&#34;</span><span class="se">\n</span><span class="se">\t</span><span class="s">with&lt;node-name&gt; and namespace &lt;node-namespace-uri&gt; to the list of</span><span class="s">&#34;</span>
+    <span class="sa"></span><span class="s">&#34;</span><span class="se">\n</span><span class="se">\t</span><span class="s">known ID attributes; this is a hack and if you can use DTD or schema</span><span class="s">&#34;</span>
+    <span class="sa"></span><span class="s">&#34;</span><span class="se">\n</span><span class="se">\t</span><span class="s">to declare ID attributes instead (see </span><span class="se">\&#34;</span><span class="s">--dtd-file</span><span class="se">\&#34;</span><span class="s"> option),</span><span class="s">&#34;</span>
+    <span class="sa"></span><span class="s">&#34;</span><span class="se">\n</span><span class="se">\t</span><span class="s">I don&#39;t know what else might be broken in your application when</span><span class="s">&#34;</span>
+    <span class="sa"></span><span class="s">&#34;</span><span class="se">\n</span><span class="se">\t</span><span class="s">you use this hack</span><span class="s">&#34;</span><span class="p">,</span>
+    <span class="n">xmlSecAppCmdLineParamTypeString</span><span class="p">,</span>
+    <span class="n">xmlSecAppCmdLineParamFlagParamNameValue</span> <span class="o">|</span> <span class="n">xmlSecAppCmdLineParamFlagMultipleValues</span><span class="p">,</span>
+    <span class="nb">NULL</span>
+<span class="p">}</span><span class="p">;</span> 
+</code></pre></div><p><code>xmlSecAppCmdLineParam</code> 型の定義
+<a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/apps/cmdline.h#L19-L20">apps/cmdline.h#L19-L20</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">typedef</span> <span class="k">struct</span> <span class="n">_xmlSecAppCmdLineParam</span>           <span class="n">xmlSecAppCmdLineParam</span><span class="p">,</span>
+                                                <span class="o">*</span><span class="n">xmlSecAppCmdLineParamPtr</span><span class="p">;</span>
+</code></pre></div><p><code>struct _xmlSecAppCmdLineParam</code> の定義
+<a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/apps/cmdline.h#L39-L47">apps/cmdline.h#L39-L47</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">struct</span> <span class="n">_xmlSecAppCmdLineParam</span> <span class="p">{</span>
+    <span class="n">xmlSecAppCmdLineParamTopic</span>  <span class="n">topics</span><span class="p">;</span>
+    <span class="k">const</span> <span class="kt">char</span><span class="o">*</span>                 <span class="n">fullName</span><span class="p">;</span>
+    <span class="k">const</span> <span class="kt">char</span><span class="o">*</span>                 <span class="n">shortName</span><span class="p">;</span>
+    <span class="k">const</span> <span class="kt">char</span><span class="o">*</span>                 <span class="n">help</span><span class="p">;</span>
+    <span class="n">xmlSecAppCmdLineParamType</span>   <span class="n">type</span><span class="p">;</span>
+    <span class="kt">int</span>                         <span class="n">flags</span><span class="p">;</span>
+    <span class="n">xmlSecAppCmdLineValuePtr</span>    <span class="n">value</span><span class="p">;</span>
+<span class="p">}</span><span class="p">;</span>
+</code></pre></div><p><code>--id-attr:ID urn:oasis:names:tc:SAML:2.0:protocol:Response</code> と指定した場合は、 <code>xmlSecAppXmlDataCreate</code> 関数内の <code>attrName</code> が <code>&quot;ID&quot;</code>, <code>nodeName</code> が <code>&quot;urn:oasis:names:tc:SAML:2.0:protocol:Response&quot;</code> となります。</p>
+<h3 id="--pubkey-cert-pem-オプション"><code>--pubkey-cert-pem</code> オプション</h3>
+<p><code>pubkeyCertParam</code> 変数
+<a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/apps/xmlsec.c#L659-L668">apps/xmlsec.c#L659-L668</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">static</span> <span class="n">xmlSecAppCmdLineParam</span> <span class="n">pubkeyCertParam</span> <span class="o">=</span> <span class="p">{</span> 
+    <span class="n">xmlSecAppCmdLineTopicKeysMngr</span><span class="p">,</span>
+    <span class="sa"></span><span class="s">&#34;</span><span class="s">--pubkey-cert-pem</span><span class="s">&#34;</span><span class="p">,</span>
+    <span class="sa"></span><span class="s">&#34;</span><span class="s">--pubkey-cert</span><span class="s">&#34;</span><span class="p">,</span>
+    <span class="sa"></span><span class="s">&#34;</span><span class="s">--pubkey-cert-pem[:&lt;name&gt;] &lt;file&gt;</span><span class="s">&#34;</span>
+    <span class="sa"></span><span class="s">&#34;</span><span class="se">\n</span><span class="se">\t</span><span class="s">load public key from PEM cert file</span><span class="s">&#34;</span><span class="p">,</span>
+    <span class="n">xmlSecAppCmdLineParamTypeStringList</span><span class="p">,</span>
+    <span class="n">xmlSecAppCmdLineParamFlagParamNameValue</span> <span class="o">|</span> <span class="n">xmlSecAppCmdLineParamFlagMultipleValues</span><span class="p">,</span>
+    <span class="nb">NULL</span>
+<span class="p">}</span><span class="p">;</span>
+</code></pre></div><p><code>--pubkey-cert-pem</code> オプションをパースしている個所
+<a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/apps/xmlsec.c#L2130-L2145">apps/xmlsec.c#L2130-L2145</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c">    <span class="cm">/* read all public keys in certs */</span>
+    <span class="k">for</span><span class="p">(</span><span class="n">value</span> <span class="o">=</span> <span class="n">pubkeyCertParam</span><span class="p">.</span><span class="n">value</span><span class="p">;</span> <span class="n">value</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span> <span class="n">value</span> <span class="o">=</span> <span class="n">value</span><span class="o">-</span><span class="o">&gt;</span><span class="n">next</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">value</span><span class="o">-</span><span class="o">&gt;</span><span class="n">strValue</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">Error: invalid value for option </span><span class="se">\&#34;</span><span class="s">%s</span><span class="se">\&#34;</span><span class="s">.</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> 
+                    <span class="n">pubkeyCertParam</span><span class="p">.</span><span class="n">fullName</span><span class="p">)</span><span class="p">;</span>
+            <span class="k">return</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="p">;</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="n">xmlSecAppCryptoSimpleKeysMngrKeyAndCertsLoad</span><span class="p">(</span><span class="n">gKeysMngr</span><span class="p">,</span> 
+                    <span class="n">value</span><span class="o">-</span><span class="o">&gt;</span><span class="n">strListValue</span><span class="p">,</span> 
+                    <span class="n">xmlSecAppCmdLineParamGetString</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pwdParam</span><span class="p">)</span><span class="p">,</span>
+                    <span class="n">value</span><span class="o">-</span><span class="o">&gt;</span><span class="n">paramNameValue</span><span class="p">,</span>
+                    <span class="n">xmlSecKeyDataFormatCertPem</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">Error: failed to load public key from </span><span class="se">\&#34;</span><span class="s">%s</span><span class="se">\&#34;</span><span class="s">.</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> 
+                    <span class="n">value</span><span class="o">-</span><span class="o">&gt;</span><span class="n">strListValue</span><span class="p">)</span><span class="p">;</span>
+            <span class="k">return</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="p">;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+</code></pre></div><p><code>xmlSecAppCryptoSimpleKeysMngrKeyAndCertsLoad</code> 関数
+<a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/apps/crypto.c#L87-L143">apps/crypto.c#L87-L143</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="kt">int</span> 
+<span class="nf">xmlSecAppCryptoSimpleKeysMngrKeyAndCertsLoad</span><span class="p">(</span><span class="n">xmlSecKeysMngrPtr</span> <span class="n">mngr</span><span class="p">,</span> 
+                                             <span class="k">const</span> <span class="kt">char</span><span class="o">*</span> <span class="n">files</span><span class="p">,</span> <span class="k">const</span> <span class="kt">char</span><span class="o">*</span> <span class="n">pwd</span><span class="p">,</span> 
+                                             <span class="k">const</span> <span class="kt">char</span><span class="o">*</span> <span class="n">name</span><span class="p">,</span> 
+                                             <span class="n">xmlSecKeyDataFormat</span> <span class="n">format</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">xmlSecKeyPtr</span> <span class="n">key</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">ret</span><span class="p">;</span>
+
+    <span class="n">xmlSecAssert2</span><span class="p">(</span><span class="n">mngr</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="p">;</span>
+    <span class="n">xmlSecAssert2</span><span class="p">(</span><span class="n">files</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="p">;</span>
+
+    <span class="cm">/* first is the key file */</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="n">xmlSecCryptoAppKeyLoad</span><span class="p">(</span><span class="n">files</span><span class="p">,</span> <span class="n">format</span><span class="p">,</span> <span class="n">pwd</span><span class="p">,</span> 
+                <span class="n">xmlSecCryptoAppGetDefaultPwdCallback</span><span class="p">(</span><span class="p">)</span><span class="p">,</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)</span><span class="n">files</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">key</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">Error: xmlSecCryptoAppKeyLoad failed: file=%s</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span>
+                <span class="n">xmlSecErrorsSafeString</span><span class="p">(</span><span class="n">files</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">return</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+    
+    <span class="k">if</span><span class="p">(</span><span class="n">name</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="n">xmlSecKeySetName</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">BAD_CAST</span> <span class="n">name</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">ret</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">Error: xmlSecKeySetName failed: name=%s</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span>
+                    <span class="n">xmlSecErrorsSafeString</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+            <span class="n">xmlSecKeyDestroy</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="p">;</span>
+            <span class="k">return</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="p">;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+
+<span class="cp">#</span><span class="cp">ifndef XMLSEC_NO_X509     </span><span class="cp">
+</span><span class="cp"></span>    <span class="k">for</span><span class="p">(</span><span class="n">files</span> <span class="o">+</span><span class="o">=</span> <span class="n">strlen</span><span class="p">(</span><span class="n">files</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span> <span class="p">(</span><span class="n">files</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!</span><span class="o">=</span> <span class="sa"></span><span class="sc">&#39;</span><span class="sc">\0</span><span class="sc">&#39;</span><span class="p">)</span><span class="p">;</span> <span class="n">files</span> <span class="o">+</span><span class="o">=</span> <span class="n">strlen</span><span class="p">(</span><span class="n">files</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="n">xmlSecCryptoAppKeyCertLoad</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">files</span><span class="p">,</span> <span class="n">format</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">ret</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">Error: xmlSecCryptoAppKeyCertLoad failed: file=%s</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span>
+                    <span class="n">xmlSecErrorsSafeString</span><span class="p">(</span><span class="n">files</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+            <span class="n">xmlSecKeyDestroy</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="p">;</span>
+            <span class="k">return</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="p">;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="cp">#</span><span class="cp">else </span><span class="cm">/* XMLSEC_NO_X509 */</span><span class="cp">
+</span><span class="cp"></span><span class="cm">/* …(略)… */</span>
+<span class="cp">#</span><span class="cp">endif </span><span class="cm">/* XMLSEC_NO_X509 */</span><span class="cp">        </span><span class="cp">
+</span><span class="cp"></span>
+    <span class="n">ret</span> <span class="o">=</span> <span class="n">xmlSecCryptoAppDefaultKeysMngrAdoptKey</span><span class="p">(</span><span class="n">mngr</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">ret</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">Error: xmlSecCryptoAppDefaultKeysMngrAdoptKey failed</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">)</span><span class="p">;</span>
+        <span class="n">xmlSecKeyDestroy</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">return</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+    
+    <span class="k">return</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><p><code>xmlSecCryptoAppKeyLoad</code> 関数
+<a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/src/app.c#L1343-L1364">src/app.c#L1343-L1364</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
+</span><span class="cm"> * xmlSecCryptoAppKeyLoad:
+</span><span class="cm"> * @filename:           the key filename.
+</span><span class="cm"> * @format:             the key file format.
+</span><span class="cm"> * @pwd:                the key file password.
+</span><span class="cm"> * @pwdCallback:        the key password callback.
+</span><span class="cm"> * @pwdCallbackCtx:     the user context for password callback.
+</span><span class="cm"> *
+</span><span class="cm"> * Reads key from the a file.
+</span><span class="cm"> *
+</span><span class="cm"> * Returns: pointer to the key or NULL if an error occurs.
+</span><span class="cm"> /
+</span><span class="cm">xmlSecKeyPtr
+</span><span class="cm">xmlSecCryptoAppKeyLoad(const char *filename, xmlSecKeyDataFormat format,
+</span><span class="cm">                       const char *pwd, void* pwdCallback, void* pwdCallbackCtx) {
+</span><span class="cm">    if((xmlSecCryptoDLGetFunctions() == NULL) || (xmlSecCryptoDLGetFunctions()-&gt;cryptoAppKeyLoad == NULL)) {
+</span><span class="cm">        xmlSecNotImplementedError(&#34;cryptoAppKeyLoad&#34;);
+</span><span class="cm">        return(NULL);
+</span><span class="cm">    }
+</span><span class="cm">
+</span><span class="cm">    return(xmlSecCryptoDLGetFunctions()-&gt;cryptoAppKeyLoad(filename, format, pwd, pwdCallback, pwdCallbackCtx));
+</span><span class="cm">}
+</span></code></pre></div><p><code>xmlSecCryptoDLGetFunctions</code> 関数
+<a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/src/dl.c#L507-L517">src/dl.c#L507-L517</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
+</span><span class="cm"> * xmlSecCryptoDLGetFunctions:
+</span><span class="cm"> *
+</span><span class="cm"> * Gets global crypto functions/transforms/keys data/keys store table.
+</span><span class="cm"> *
+</span><span class="cm"> * Returns: the table.
+</span><span class="cm"> */</span>
+<span class="n">xmlSecCryptoDLFunctionsPtr</span>
+<span class="nf">xmlSecCryptoDLGetFunctions</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">return</span><span class="p">(</span><span class="n">gXmlSecCryptoDLFunctions</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><p>この上にグローバル変数 <code>gXmlSecCryptoDLFunctions</code> を設定する <code>xmlSecCryptoDLSetFunctions</code> 関数があります。
+<a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/src/dl.c#L490-L505">src/dl.c#L490-L505</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c">
+<span class="cm">/**
+</span><span class="cm"> * xmlSecCryptoDLSetFunctions:
+</span><span class="cm"> * @functions:          the new table
+</span><span class="cm"> *
+</span><span class="cm"> * Sets global crypto functions/transforms/keys data/keys store table.
+</span><span class="cm"> *
+</span><span class="cm"> * Returns: 0 on success or a negative value if an error occurs.
+</span><span class="cm"> */</span>
+<span class="kt">int</span>
+<span class="nf">xmlSecCryptoDLSetFunctions</span><span class="p">(</span><span class="n">xmlSecCryptoDLFunctionsPtr</span> <span class="n">functions</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">xmlSecAssert2</span><span class="p">(</span><span class="n">functions</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="p">;</span>
+
+    <span class="n">gXmlSecCryptoDLFunctions</span> <span class="o">=</span> <span class="n">functions</span><span class="p">;</span>
+
+    <span class="k">return</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><p><code>xmlSecCryptoDLFunctionsPtr</code> 型
+<a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/include/xmlsec/dl.h#L17-L18">include/xmlsec/dl.h#L17-L18</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">typedef</span> <span class="k">struct</span> <span class="n">_xmlSecCryptoDLFunctions</span>         <span class="n">xmlSecCryptoDLFunctions</span><span class="p">,</span>
+                                                <span class="o">*</span><span class="n">xmlSecCryptoDLFunctionsPtr</span><span class="p">;</span>
+</code></pre></div><p><code>struct _xmlSecCryptoDLFunctions</code> の定義
+<a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/include/xmlsec/private.h#L329-L492">include/xmlsec/private.h#L329-L492</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
+</span><span class="cm"> * xmlSecCryptoDLFunctions:
+</span><span class="cm"> * @cryptoInit:                 the xmlsec-crypto library initialization method.
+</span><span class="cm"> * @cryptoShutdown:             the xmlsec-crypto library shutdown method.
+</span><span class="cm"> * @cryptoKeysMngrInit:         the xmlsec-crypto library keys manager init method.
+</span><span class="cm">…(略)…
+</span><span class="cm"> * @cryptoAppInit:              the default crypto engine initialization method.
+</span><span class="cm"> * @cryptoAppShutdown:          the default crypto engine shutdown method.
+</span><span class="cm"> * @cryptoAppDefaultKeysMngrInit:       the default keys manager init method.
+</span><span class="cm"> * @cryptoAppDefaultKeysMngrAdoptKey:   the default keys manager adopt key method.
+</span><span class="cm"> * @cryptoAppDefaultKeysMngrLoad:       the default keys manager load method.
+</span><span class="cm"> * @cryptoAppDefaultKeysMngrSave:       the default keys manager save method.
+</span><span class="cm"> * @cryptoAppKeysMngrCertLoad:          the default keys manager file cert load method.
+</span><span class="cm"> * @cryptoAppKeysMngrCertLoadMemory:    the default keys manager memory cert load method.
+</span><span class="cm"> * @cryptoAppKeyLoad:           the key file load method.
+</span><span class="cm"> * @cryptoAppKeyLoadMemory:     the meory key load method.
+</span><span class="cm"> * @cryptoAppPkcs12Load:        the pkcs12 file load method.
+</span><span class="cm"> * @cryptoAppPkcs12LoadMemory:  the memory pkcs12 load method.
+</span><span class="cm"> * @cryptoAppKeyCertLoad:       the cert file load method.
+</span><span class="cm"> * @cryptoAppKeyCertLoadMemory: the memory cert load method.
+</span><span class="cm"> * @cryptoAppDefaultPwdCallback:the default password callback.
+</span><span class="cm"> *
+</span><span class="cm"> * The list of crypto engine functions, key data and transform classes.
+</span><span class="cm"> */</span>
+<span class="k">struct</span> <span class="n">_xmlSecCryptoDLFunctions</span> <span class="p">{</span>
+    <span class="cm">/* Crypto Init/shutdown */</span>
+    <span class="n">xmlSecCryptoInitMethod</span>                       <span class="n">cryptoInit</span><span class="p">;</span>
+    <span class="n">xmlSecCryptoShutdownMethod</span>                   <span class="n">cryptoShutdown</span><span class="p">;</span>
+    <span class="n">xmlSecCryptoKeysMngrInitMethod</span>               <span class="n">cryptoKeysMngrInit</span><span class="p">;</span>
+
+    <span class="cm">/* Key data ids */</span>
+<span class="cm">/* …(略)… */</span>
+
+    <span class="cm">/* Key data store ids */</span>
+<span class="cm">/* …(略)… */</span>
+
+    <span class="cm">/* Crypto transforms ids */</span>
+<span class="cm">/* …(略)… */</span>
+
+    <span class="cm">/* High level routines form xmlsec command line utility */</span>
+    <span class="n">xmlSecCryptoAppInitMethod</span>                    <span class="n">cryptoAppInit</span><span class="p">;</span>
+    <span class="n">xmlSecCryptoAppShutdownMethod</span>                <span class="n">cryptoAppShutdown</span><span class="p">;</span>
+    <span class="n">xmlSecCryptoAppDefaultKeysMngrInitMethod</span>     <span class="n">cryptoAppDefaultKeysMngrInit</span><span class="p">;</span>
+    <span class="n">xmlSecCryptoAppDefaultKeysMngrAdoptKeyMethod</span> <span class="n">cryptoAppDefaultKeysMngrAdoptKey</span><span class="p">;</span>
+    <span class="n">xmlSecCryptoAppDefaultKeysMngrLoadMethod</span>     <span class="n">cryptoAppDefaultKeysMngrLoad</span><span class="p">;</span>
+    <span class="n">xmlSecCryptoAppDefaultKeysMngrSaveMethod</span>     <span class="n">cryptoAppDefaultKeysMngrSave</span><span class="p">;</span>
+    <span class="n">xmlSecCryptoAppKeysMngrCertLoadMethod</span>        <span class="n">cryptoAppKeysMngrCertLoad</span><span class="p">;</span>
+    <span class="n">xmlSecCryptoAppKeysMngrCertLoadMemoryMethod</span>  <span class="n">cryptoAppKeysMngrCertLoadMemory</span><span class="p">;</span>
+    <span class="n">xmlSecCryptoAppKeyLoadMethod</span>                 <span class="n">cryptoAppKeyLoad</span><span class="p">;</span>
+    <span class="n">xmlSecCryptoAppKeyLoadMemoryMethod</span>           <span class="n">cryptoAppKeyLoadMemory</span><span class="p">;</span>
+    <span class="n">xmlSecCryptoAppPkcs12LoadMethod</span>              <span class="n">cryptoAppPkcs12Load</span><span class="p">;</span>
+    <span class="n">xmlSecCryptoAppPkcs12LoadMemoryMethod</span>        <span class="n">cryptoAppPkcs12LoadMemory</span><span class="p">;</span>
+    <span class="n">xmlSecCryptoAppKeyCertLoadMethod</span>             <span class="n">cryptoAppKeyCertLoad</span><span class="p">;</span>
+    <span class="n">xmlSecCryptoAppKeyCertLoadMemoryMethod</span>       <span class="n">cryptoAppKeyCertLoadMemory</span><span class="p">;</span>
+    <span class="kt">void</span><span class="o">*</span>                                        <span class="n">cryptoAppDefaultPwdCallback</span><span class="p">;</span>
+<span class="p">}</span><span class="p">;</span>
+</code></pre></div><p><code>xmlSecCryptoDLFunctionsPtr</code> の参照箇所を調べると <code>src/*/crypto.c</code> で <code>*</code> が <code>gcrypt</code>, <code>gnutls</code>, <code>mscrypto</code>, <code>nss</code>, <code>openssl</code>, <code>skelton</code> という 6 つがあります。</p>
+<p><code>src/openssl/crypto.c</code> を見てみると <code>xmlSecCryptoGetFunctions_openssl</code> 関数があります。
+<a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/src/openssl/crypto.c#L33-L308">src/openssl/crypto.c#L33-L308</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
+</span><span class="cm"> * xmlSecCryptoGetFunctions_openssl:
+</span><span class="cm"> *
+</span><span class="cm"> * Gets the pointer to xmlsec-openssl functions table.
+</span><span class="cm"> *
+</span><span class="cm"> * Returns: the xmlsec-openssl functions table or NULL if an error occurs.
+</span><span class="cm"> */</span>
+<span class="n">xmlSecCryptoDLFunctionsPtr</span>
+<span class="nf">xmlSecCryptoGetFunctions_openssl</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">static</span> <span class="n">xmlSecCryptoDLFunctions</span> <span class="n">functions</span><span class="p">;</span>
+
+    <span class="k">if</span><span class="p">(</span><span class="n">gXmlSecOpenSSLFunctions</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">return</span><span class="p">(</span><span class="n">gXmlSecOpenSSLFunctions</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="n">memset</span><span class="p">(</span><span class="o">&amp;</span><span class="n">functions</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">functions</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+    <span class="n">gXmlSecOpenSSLFunctions</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">functions</span><span class="p">;</span>
+
+    <span class="cm">/********************************************************************
+</span><span class="cm">     *
+</span><span class="cm">     * Crypto Init/shutdown
+</span><span class="cm">     *
+</span><span class="cm">     ********************************************************************/</span>
+    <span class="n">gXmlSecOpenSSLFunctions</span><span class="o">-</span><span class="o">&gt;</span><span class="n">cryptoInit</span>                 <span class="o">=</span> <span class="n">xmlSecOpenSSLInit</span><span class="p">;</span>
+    <span class="n">gXmlSecOpenSSLFunctions</span><span class="o">-</span><span class="o">&gt;</span><span class="n">cryptoShutdown</span>             <span class="o">=</span> <span class="n">xmlSecOpenSSLShutdown</span><span class="p">;</span>
+    <span class="n">gXmlSecOpenSSLFunctions</span><span class="o">-</span><span class="o">&gt;</span><span class="n">cryptoKeysMngrInit</span>         <span class="o">=</span> <span class="n">xmlSecOpenSSLKeysMngrInit</span><span class="p">;</span>
+
+    <span class="cm">/********************************************************************
+</span><span class="cm">     *
+</span><span class="cm">     * Key data ids
+</span><span class="cm">     *
+</span><span class="cm">     ********************************************************************/</span>
+<span class="cm">/* …(略)… */</span>
+
+    <span class="cm">/********************************************************************
+</span><span class="cm">     *
+</span><span class="cm">     * Key data store ids
+</span><span class="cm">     *
+</span><span class="cm">     ********************************************************************/</span>
+<span class="cm">/* …(略)… */</span>
+
+    <span class="cm">/********************************************************************
+</span><span class="cm">     *
+</span><span class="cm">     * Crypto transforms ids
+</span><span class="cm">     *
+</span><span class="cm">     ********************************************************************/</span>
+<span class="cm">/* …(略)… */</span>
+
+    <span class="cm">/********************************************************************
+</span><span class="cm">     *
+</span><span class="cm">     * High level routines form xmlsec command line utility
+</span><span class="cm">     *
+</span><span class="cm">     ********************************************************************/</span>
+    <span class="n">gXmlSecOpenSSLFunctions</span><span class="o">-</span><span class="o">&gt;</span><span class="n">cryptoAppInit</span>                      <span class="o">=</span> <span class="n">xmlSecOpenSSLAppInit</span><span class="p">;</span>
+    <span class="n">gXmlSecOpenSSLFunctions</span><span class="o">-</span><span class="o">&gt;</span><span class="n">cryptoAppShutdown</span>                  <span class="o">=</span> <span class="n">xmlSecOpenSSLAppShutdown</span><span class="p">;</span>
+    <span class="n">gXmlSecOpenSSLFunctions</span><span class="o">-</span><span class="o">&gt;</span><span class="n">cryptoAppDefaultKeysMngrInit</span>       <span class="o">=</span> <span class="n">xmlSecOpenSSLAppDefaultKeysMngrInit</span><span class="p">;</span>
+    <span class="n">gXmlSecOpenSSLFunctions</span><span class="o">-</span><span class="o">&gt;</span><span class="n">cryptoAppDefaultKeysMngrAdoptKey</span>   <span class="o">=</span> <span class="n">xmlSecOpenSSLAppDefaultKeysMngrAdoptKey</span><span class="p">;</span>
+    <span class="n">gXmlSecOpenSSLFunctions</span><span class="o">-</span><span class="o">&gt;</span><span class="n">cryptoAppDefaultKeysMngrLoad</span>       <span class="o">=</span> <span class="n">xmlSecOpenSSLAppDefaultKeysMngrLoad</span><span class="p">;</span>
+    <span class="n">gXmlSecOpenSSLFunctions</span><span class="o">-</span><span class="o">&gt;</span><span class="n">cryptoAppDefaultKeysMngrSave</span>       <span class="o">=</span> <span class="n">xmlSecOpenSSLAppDefaultKeysMngrSave</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">ifndef XMLSEC_NO_X509</span><span class="cp">
+</span><span class="cp"></span>    <span class="n">gXmlSecOpenSSLFunctions</span><span class="o">-</span><span class="o">&gt;</span><span class="n">cryptoAppKeysMngrCertLoad</span>          <span class="o">=</span> <span class="n">xmlSecOpenSSLAppKeysMngrCertLoad</span><span class="p">;</span>
+    <span class="n">gXmlSecOpenSSLFunctions</span><span class="o">-</span><span class="o">&gt;</span><span class="n">cryptoAppKeysMngrCertLoadMemory</span>    <span class="o">=</span> <span class="n">xmlSecOpenSSLAppKeysMngrCertLoadMemory</span><span class="p">;</span>
+    <span class="n">gXmlSecOpenSSLFunctions</span><span class="o">-</span><span class="o">&gt;</span><span class="n">cryptoAppPkcs12Load</span>                <span class="o">=</span> <span class="n">xmlSecOpenSSLAppPkcs12Load</span><span class="p">;</span>
+    <span class="n">gXmlSecOpenSSLFunctions</span><span class="o">-</span><span class="o">&gt;</span><span class="n">cryptoAppPkcs12LoadMemory</span>          <span class="o">=</span> <span class="n">xmlSecOpenSSLAppPkcs12LoadMemory</span><span class="p">;</span>
+    <span class="n">gXmlSecOpenSSLFunctions</span><span class="o">-</span><span class="o">&gt;</span><span class="n">cryptoAppKeyCertLoad</span>               <span class="o">=</span> <span class="n">xmlSecOpenSSLAppKeyCertLoad</span><span class="p">;</span>
+    <span class="n">gXmlSecOpenSSLFunctions</span><span class="o">-</span><span class="o">&gt;</span><span class="n">cryptoAppKeyCertLoadMemory</span>         <span class="o">=</span> <span class="n">xmlSecOpenSSLAppKeyCertLoadMemory</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">endif </span><span class="cm">/* XMLSEC_NO_X509 */</span><span class="cp">
+</span><span class="cp"></span>    <span class="n">gXmlSecOpenSSLFunctions</span><span class="o">-</span><span class="o">&gt;</span><span class="n">cryptoAppKeyLoad</span>                   <span class="o">=</span> <span class="n">xmlSecOpenSSLAppKeyLoad</span><span class="p">;</span>
+    <span class="n">gXmlSecOpenSSLFunctions</span><span class="o">-</span><span class="o">&gt;</span><span class="n">cryptoAppKeyLoadMemory</span>             <span class="o">=</span> <span class="n">xmlSecOpenSSLAppKeyLoadMemory</span><span class="p">;</span>
+    <span class="n">gXmlSecOpenSSLFunctions</span><span class="o">-</span><span class="o">&gt;</span><span class="n">cryptoAppDefaultPwdCallback</span>        <span class="o">=</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)</span><span class="n">xmlSecOpenSSLAppGetDefaultPwdCallback</span><span class="p">(</span><span class="p">)</span><span class="p">;</span>
+
+    <span class="k">return</span><span class="p">(</span><span class="n">gXmlSecOpenSSLFunctions</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><p><code>xmlSecOpenSSLAppKeyLoad</code> 関数
+<a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/src/openssl/app.c#L133-L172">src/openssl/app.c#L133-L172</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
+</span><span class="cm"> * xmlSecOpenSSLAppKeyLoad:
+</span><span class="cm"> * @filename:           the key filename.
+</span><span class="cm"> * @format:             the key file format.
+</span><span class="cm"> * @pwd:                the key file password.
+</span><span class="cm"> * @pwdCallback:        the key password callback.
+</span><span class="cm"> * @pwdCallbackCtx:     the user context for password callback.
+</span><span class="cm"> *
+</span><span class="cm"> * Reads key from the a file.
+</span><span class="cm"> *
+</span><span class="cm"> * Returns: pointer to the key or NULL if an error occurs.
+</span><span class="cm"> */</span>
+<span class="n">xmlSecKeyPtr</span>
+<span class="nf">xmlSecOpenSSLAppKeyLoad</span><span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">filename</span><span class="p">,</span> <span class="n">xmlSecKeyDataFormat</span> <span class="n">format</span><span class="p">,</span>
+                        <span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">pwd</span><span class="p">,</span> <span class="kt">void</span><span class="o">*</span> <span class="n">pwdCallback</span><span class="p">,</span>
+                        <span class="kt">void</span><span class="o">*</span> <span class="n">pwdCallbackCtx</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">BIO</span><span class="o">*</span> <span class="n">bio</span><span class="p">;</span>
+    <span class="n">xmlSecKeyPtr</span> <span class="n">key</span><span class="p">;</span>
+
+    <span class="n">xmlSecAssert2</span><span class="p">(</span><span class="n">filename</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+    <span class="n">xmlSecAssert2</span><span class="p">(</span><span class="n">format</span> <span class="o">!</span><span class="o">=</span> <span class="n">xmlSecKeyDataFormatUnknown</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+
+    <span class="n">bio</span> <span class="o">=</span> <span class="n">BIO_new_file</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">rb</span><span class="s">&#34;</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">bio</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">xmlSecOpenSSLError2</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s">BIO_new_file</span><span class="s">&#34;</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span>
+                            <span class="sa"></span><span class="s">&#34;</span><span class="s">filename=%s</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">xmlSecErrorsSafeString</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="n">key</span> <span class="o">=</span> <span class="n">xmlSecOpenSSLAppKeyLoadBIO</span> <span class="p">(</span><span class="n">bio</span><span class="p">,</span> <span class="n">format</span><span class="p">,</span> <span class="n">pwd</span><span class="p">,</span> <span class="n">pwdCallback</span><span class="p">,</span> <span class="n">pwdCallbackCtx</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">key</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">xmlSecInternalError2</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s">xmlSecOpenSSLAppKeyLoadBIO</span><span class="s">&#34;</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span>
+                            <span class="sa"></span><span class="s">&#34;</span><span class="s">filename=%s</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">xmlSecErrorsSafeString</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+        <span class="n">BIO_free</span><span class="p">(</span><span class="n">bio</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="n">BIO_free</span><span class="p">(</span><span class="n">bio</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">return</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><p><code>xmlSecOpenSSLAppKeyLoadBIO</code> 関数
+<a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/src/openssl/app.c#L217-L349">src/openssl/app.c#L217-L349</a>
+<code>format</code> 引数が上記の <code>xmlSecAppCryptoSimpleKeysMngrKeyAndCertsLoad</code> 関数に渡していた <code>xmlSecKeyDataFormatCertPem</code> の場合を見てみます。</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
+</span><span class="cm"> * xmlSecOpenSSLAppKeyLoadBIO:
+</span><span class="cm"> * @bio:                the key BIO.
+</span><span class="cm"> * @format:             the key file format.
+</span><span class="cm"> * @pwd:                the key file password.
+</span><span class="cm"> * @pwdCallback:        the key password callback.
+</span><span class="cm"> * @pwdCallbackCtx:     the user context for password callback.
+</span><span class="cm"> *
+</span><span class="cm"> * Reads key from the an OpenSSL BIO object.
+</span><span class="cm"> *
+</span><span class="cm"> * Returns: pointer to the key or NULL if an error occurs.
+</span><span class="cm"> */</span>
+<span class="n">xmlSecKeyPtr</span>
+<span class="nf">xmlSecOpenSSLAppKeyLoadBIO</span><span class="p">(</span><span class="n">BIO</span><span class="o">*</span> <span class="n">bio</span><span class="p">,</span> <span class="n">xmlSecKeyDataFormat</span> <span class="n">format</span><span class="p">,</span>
+                        <span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">pwd</span><span class="p">,</span> <span class="kt">void</span><span class="o">*</span> <span class="n">pwdCallback</span><span class="p">,</span>
+                        <span class="kt">void</span><span class="o">*</span> <span class="n">pwdCallbackCtx</span><span class="p">)</span> <span class="p">{</span>
+
+    <span class="n">xmlSecKeyPtr</span> <span class="n">key</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="n">xmlSecKeyDataPtr</span> <span class="n">data</span><span class="p">;</span>
+    <span class="n">EVP_PKEY</span><span class="o">*</span> <span class="n">pKey</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">ret</span><span class="p">;</span>
+
+    <span class="n">xmlSecAssert2</span><span class="p">(</span><span class="n">bio</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+    <span class="n">xmlSecAssert2</span><span class="p">(</span><span class="n">format</span> <span class="o">!</span><span class="o">=</span> <span class="n">xmlSecKeyDataFormatUnknown</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+
+    <span class="k">switch</span><span class="p">(</span><span class="n">format</span><span class="p">)</span> <span class="p">{</span>
+<span class="cm">/* …(略)… */</span>
+    <span class="k">case</span> <span class="nl">xmlSecKeyDataFormatCertPem</span><span class="p">:</span>
+    <span class="k">case</span> <span class="nl">xmlSecKeyDataFormatCertDer</span><span class="p">:</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">xmlSecOpenSSLAppKeyFromCertLoadBIO</span><span class="p">(</span><span class="n">bio</span><span class="p">,</span> <span class="n">format</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">key</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">xmlSecInternalError</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s">xmlSecOpenSSLAppKeyFromCertLoadBIO</span><span class="s">&#34;</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+            <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="k">return</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="p">;</span>
+<span class="cm">/* …(略)… */</span>
+    <span class="p">}</span>
+
+<span class="cm">/* …(略)… */</span>
+<span class="p">}</span>
+</code></pre></div><h2 id="xml-署名を検証するサンプル-examplesverify4c">XML 署名を検証するサンプル <code>examples/verify4.c</code></h2>
+<p><code>xmlSecCryptoAppKeyLoad</code> の参照箇所の 1 つにこのサンプルがありました。
+XML 署名の検証に特化しているので、こちらのほうが内容を把握しやすいです。</p>
+<p><a href="https://github.com/lsh123/xmlsec/blob/xmlsec-1_2_25/examples/verify4.c">examples/verify4.c</a></p>
+<p>ただし、コードを見たり動かして試してみた感じでは</p>
+<pre><code class="language-console" data-lang="console">xmlsec1 --verify --pubkey-cert-pem idp.crt \
+  --id-attr:ID urn:oasis:names:tc:SAML:2.0:protocol:Response
+  response.xml
+</code></pre><p>のコマンドの <code>--id-attr:ID urn:oasis:names:tc:SAML:2.0:protocol:Response</code> 相当の処理は
+verify4 のサンプルには含まれてないようです。</p>
+<p>と、中途半端ですが、今回はこの辺で。</p>
+
+</div>
+
+
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>

@@ -73,9 +73,7 @@
 <p>ただし、この Service Provider は職場で動いている内製（非公開）の ID Provider （以下 IdP と略）で認証できることが目的であって、SAML 認証の仕様を全てカバーするつもりは全く無いです。そもそも SAML の仕様を読んですら無いです。</p>
 <h1 id="saml認証のシーケンス図">SAML認証のシーケンス図</h1>
 <p>今回実装したSAML認証のシーケンス図です。</p>
-<p>.. image:: {attach}/images/2018/07/31/saml-sequence.svg
-:width: 100%
-:alt: SAML sequence diagram</p>
+<p><img src="/blog/images/2018/07/31/saml-sequence.svg" alt="SAML sequence diagram"></p>
 <p>上記の構成ですが、背景として、今回 SAML 認証を実装するシステムがフロントに nginx を置く構成を採用しているというのがあります。また、今後いろんな社内サービスで SAML 認証対応することを考えると、 Upstream のアプリケーションの改修が最小限ですむほうが楽なので、極力 nginx 側で対応できる方が良いだろうと考えました。</p>
 <p>今回の実装ですと、ログインしたユーザのメールアドレスが Upstream のリクエストへのリクエストヘッダに付与されるので、 Upstream 側は必要に応じてそれを利用するように改修します。特にユーザを区別必要する必要がなければ何もしなくて良いです。</p>
 <p>実は当初は Service Provider は Go で実装したのですが、その後 nginx lua で実装できれば nginx 以外のデーモンが増えないので運用が楽だなと思って実装してみたというのが今回の経緯です。</p>
@@ -101,7 +99,9 @@ sudo yum install nginx
 <h2 id="libzso-のシンボリックリンク作成">libz.so のシンボリックリンク作成</h2>
 <p><a href="https://github.com/hamishforbes/lua-ffi-zlib">hamishforbes/lua-ffi-zlib</a> が
 LuaJIT の <a href="http://luajit.org/ext_ffi_api.html#ffi_load">ffi.load</a> を使って
-<code>ffi.load(&quot;z&quot;)</code> というコード ( <code>lua-ffi-zlib/ffi-zlib.lua:98](https://github.com/hamishforbes/lua-ffi-zlib/blob/3d6dbee710b4712b8d0e0235425abee04a22b1bd/lib/ffi-zlib.lua#L98) 参照) を実行し、その結果 </code>libz.so<code>というファイル名を探すことになります。 しかし、 CentOS 7 では</code>libz.so.1<code>というファイルはあるのですが</code>libz.so` は無いため、以下のようにシンボリックリンクを作成する必要があります。</p>
+<code>ffi.load(&quot;z&quot;)</code> というコード ( <a href="https://github.com/hamishforbes/lua-ffi-zlib/blob/3d6dbee710b4712b8d0e0235425abee04a22b1bd/lib/ffi-zlib.lua#L98">lua-ffi-zlib/ffi-zlib.lua:98</a> 参照)
+を実行し、その結果 <code>libz.so</code> というファイル名を探すことになります。
+しかし、 CentOS 7 では <code>libz.so.1</code> というファイルはあるのですが <code>libz.so</code> は無いため、以下のようにシンボリックリンクを作成する必要があります。</p>
 <pre><code class="language-console" data-lang="console">ln -s libz.so.1 /lib64/libz.so
 </code></pre><p>2018-08-01 追記。どうやらこれは LXD の CentOS 7 コンテナ特有の問題だったようで、他の環境では上記のシンボリックリンクは存在していました。</p>
 <h1 id="設定例">設定例</h1>
