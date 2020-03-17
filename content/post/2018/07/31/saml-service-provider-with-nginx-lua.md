@@ -67,7 +67,7 @@ CentOS 7 の `xmlsec1` マニュアルページがウェブ上で見つけられ
 ## libz.so のシンボリックリンク作成
 [hamishforbes/lua-ffi-zlib](https://github.com/hamishforbes/lua-ffi-zlib) が 
 LuaJIT の [ffi.load](http://luajit.org/ext_ffi_api.html#ffi_load) を使って
-`ffi.load("z")` というコード ( `lua-ffi-zlib/ffi-zlib.lua:98](https://github.com/hamishforbes/lua-ffi-zlib/blob/3d6dbee710b4712b8d0e0235425abee04a22b1bd/lib/ffi-zlib.lua#L98) 参照)
+`ffi.load("z")` というコード ( [lua-ffi-zlib/ffi-zlib.lua:98](https://github.com/hamishforbes/lua-ffi-zlib/blob/3d6dbee710b4712b8d0e0235425abee04a22b1bd/lib/ffi-zlib.lua#L98) 参照)
 を実行し、その結果 `libz.so` というファイル名を探すことになります。
 しかし、 CentOS 7 では `libz.so.1` というファイルはあるのですが `libz.so` は無いため、以下のようにシンボリックリンクを作成する必要があります。
 
