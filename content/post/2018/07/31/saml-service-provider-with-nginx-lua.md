@@ -22,9 +22,7 @@ categories = ["blog"]
 
 今回実装したSAML認証のシーケンス図です。
 
-.. image:: {attach}/images/2018/07/31/saml-sequence.svg
-        :width: 100%
-	:alt: SAML sequence diagram
+![SAML sequence diagram](/blog/images/2018/07/31/saml-sequence.svg)
 
 上記の構成ですが、背景として、今回 SAML 認証を実装するシステムがフロントに nginx を置く構成を採用しているというのがあります。また、今後いろんな社内サービスで SAML 認証対応することを考えると、 Upstream のアプリケーションの改修が最小限ですむほうが楽なので、極力 nginx 側で対応できる方が良いだろうと考えました。
 
