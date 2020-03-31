@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.64.1" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>fsyncを使うようにビルドしたLMDBのdebパッケージを作った &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2020. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>fsyncを使うようにビルドしたLMDBのdebパッケージを作った</h1>
+  <time datetime=2020-03-31T20:46:39&#43;0900 class="post-date">2020-03-31</time>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="https://blog.cloudflare.com/introducing-quicksilver-configuration-distribution-at-internet-scale/">Introducing Quicksilver: Configuration Distribution at Internet Scale</a>
+で LMDB というキーバリューストアを知ったので、いろいろ調査したメモ。</p>
+<h2 id="cloudflare-での-lmdb-の使い方">Cloudflare での LMDB の使い方</h2>
+<p>上の記事によると Cloudflare で DNS 用のデータストアに昔は Kyoto Tycoon を使っていたのですが、2015年にシステムを一新する際に LMDB に変えたそうです。</p>
+<p>LMDB は値のサイズが大きくなるとそのサイズの連続領域を探すため遅くなり何分もかかるようになってしまったので、値をページサイズのチャンクに分けて回避したそうです。</p>
+<p>キー・バリューの単位で CRC のチェックサムを付与して、チャンクを結合したときにチェックするようにしたとのこと。</p>
+<p>値は <a href="https://en.wikipedia.org/wiki/Snappy_(compression%29">Snappy</a> で圧縮しているそうです。</p>
+<p>3 年本番稼働して遭遇した <a href="https://www.openldap.org/lists/openldap-technical/201407/msg00078.html">バグ</a> は 1 度だけで、データ破損は 1 度もないとのこと。</p>
+<p>秒間 25 億の読み取りリクエスト、 1 日に 3 千万の書き込みリクエスト (秒に換算すると 34 回) を数千のサーバー上の 9 万以上のデータベースでさばいているそうです。</p>
+<h2 id="lmdb-について調べたメモ">LMDB について調べたメモ</h2>
+<p><a href="https://en.wikipedia.org/wiki/Lightning_Memory-Mapped_Database">Lightning Memory-Mapped Database - Wikipedia</a> に詳しい説明がありました。</p>
+<p>ソースは <a href="https://git.openldap.org/openldap/openldap">openldap / OpenLDAP · GitLab</a> 内の  <a href="https://git.openldap.org/openldap/openldap/-/tree/master/libraries%2Fliblmdb">libraries/liblmdb</a> ディレクトリに同梱されています。</p>
+<p><a href="https://github.com/LMDB/lmdb">LMDB/lmdb: Read-only mirror of official repo on openldap.org. Issues and pull requests here are ignored. Use OpenLDAP ITS for issues.</a> に読み取り専用のミラーがあります。 こちらのデフォルトブランチは mdb.master になっているのですが、コミットログを見てみると mdb.master ブランチは古くて gitlab のほうの master ブランチのほうが新しいのでそちらを見るほうが良さそうです。</p>
+<p><a href="https://git.openldap.org/openldap/openldap/-/blob/master/libraries/liblmdb/intro.doc">libraries/liblmdb/intro.doc</a> と <a href="https://git.openldap.org/openldap/openldap/-/blob/master/libraries/liblmdb/lmdb.h">libraries/liblmdb/lmdb.h · master · openldap / OpenLDAP · GitLab</a> に詳細な説明がありました。</p>
+<p>Wikipedia の記事と合わせて概要をメモ。</p>
+<ul>
+<li>B+ ツリーを使用。B+ ツリーのブロックサイズを OS のページサイズと同じにして共有メモリ上に LMDB のインスタンスを置くとメモリ効率が良い。</li>
+<li>マルチスレッドやマルチプロセスから同時アクセス可能。</li>
+<li>書き込みトランザクションは同時には 1 つだけ。ただし、読み取りトランザクションはブロックせずに行える。</li>
+<li>MVCC (multiversion concurrency control) 方式で使用中のデータは上書きせず、変更時は Copy on Write で別の領域に書く。</li>
+<li>メモリマップトファイルを使っていて API で取得したキーとバリューはゼロコピーで参照可能。</li>
+<li>使用しなくなったページは管理して再利用する。</li>
+<li>スパースファイルに対応。</li>
+<li>読み取りだけのときも読み取り専用のトランザクションが必須。開始時点の一貫した状態が参照できる。横から変更が入ると変更前の状態を維持するためにリソースが必要となるので、必要な読み取りが終わったら速やかにコミットあるいはロールバックでトランザクションを終了すること。</li>
+<li>トランザクションログ (WAL ログ) は無し。</li>
+</ul>
+<h2 id="カスタム-deb-パッケージを作成">カスタム deb パッケージを作成</h2>
+<p><a href="https://en.wikipedia.org/wiki/Lightning_Memory-Mapped_Database">Lightning Memory-Mapped Database - Wikipedia</a> の Reliability の項を見ると GNU/Linux のビルドでは fdatasync を使っていてデータ破損のリスクがあるらしいです。</p>
+<p><a href="https://packages.ubuntu.com/focal/liblmdb0">Ubuntu – focal の liblmdb0 パッケージに関する詳細</a> のソースをダウンロードしてビルドしてみると確かに fdatasync を使っていました。</p>
+<p>そこで fsync を使うように調整して Ubuntu 18.04 LTS 用にバックポートしてみました。</p>
+<ul>
+<li>PPA <a href="https://launchpad.net/~hnakamur/+archive/ubuntu/lmdb">lmdb : Hiroaki Nakamura</a></li>
+<li>ソースパッケージ <a href="https://github.com/hnakamur/lmdb-deb">hnakamur/lmdb-deb</a></li>
+</ul>
+<p>fsync を使うようにした変更のコミットは <a href="https://github.com/hnakamur/lmdb-deb/commit/c318850ad9620fa8cb0fb9a2557d17ed85fc2214">Use fsync instead of fdatasync · hnakamur/lmdb-deb@c318850</a> です。変更前はビルドして <code>nm liblmdb.a | grep fdatasync</code> がヒットしたのが、変更後はヒットしなくなったことを確認済みです。</p>
+
+</div>
+
+
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
