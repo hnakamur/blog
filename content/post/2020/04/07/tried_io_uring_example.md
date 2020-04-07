@@ -65,6 +65,10 @@ Ubuntu 20.04 LTS のインストールが終わったら再起動して、 Linux
 
 [How to Install Kernel 5.6 in Ubuntu / Linux Mint | UbuntuHandbook](http://ubuntuhandbook.org/index.php/2020/03/install-kernel-5-6-ubuntu-linux-mint/) を参考にインストールしました。
 
+上の記事に赤背景で警告が書かれていますが、 mainline カーネルは Ubuntu 提供のドライバーやパッチが含まれておらず、サポート対象外で、本番利用には不適切とのことですのでご注意ください。
+
+今回のマシンは検証用環境なので気兼ねなく mainline カーネルを入れてみました。
+
 [Index of /~kernel-ppa/mainline/v5.6](https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.6/0005-configs-based-on-Ubuntu-5.6.0-6.6.patch) から amd64 の `-all` と `-generic` の deb をダウンロードしました。
 
 ```console
