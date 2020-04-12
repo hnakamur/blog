@@ -103,6 +103,90 @@ static xmlSchemaPtr wxschemas = NULL;
 	xmlSchemaFreeValidCtxt(vctxt);
 ```
 
+`buf` はこの少し上で `xmlParserInputBufferCreateFilename` 関数を使って作成していました。これはファイル名を引数に渡してファイルから読んで作る版ですが、
+`xmlParserInputBufferCreateStatic` というメモリ上の XML データから作る版もありました。
+
+[xmlIO.c#L2976-L3019](https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L2976-L3019)
+
+```c
+/**
+ * xmlParserInputBufferCreateStatic:
+ * @mem:  the memory input
+ * @size:  the length of the memory block
+ * @enc:  the charset encoding if known
+ *
+ * Create a buffered parser input for the progressive parsing for the input
+ * from an immutable memory area. This will not copy the memory area to
+ * the buffer, but the memory is expected to be available until the end of
+ * the parsing, this is useful for example when using mmap'ed file.
+ *
+ * Returns the new parser input or NULL
+ */
+xmlParserInputBufferPtr
+xmlParserInputBufferCreateStatic(const char *mem, int size,
+                                 xmlCharEncoding enc) {
+    xmlParserInputBufferPtr ret;
+
+    if (size < 0) return(NULL);
+    if (mem == NULL) return(NULL);
+
+    ret = (xmlParserInputBufferPtr) xmlMalloc(sizeof(xmlParserInputBuffer));
+    if (ret == NULL) {
+	xmlIOErrMemory("creating input buffer");
+	return(NULL);
+    }
+    memset(ret, 0, (size_t) sizeof(xmlParserInputBuffer));
+    ret->buffer = xmlBufCreateStatic((void *)mem, (size_t) size);
+    if (ret->buffer == NULL) {
+        xmlFree(ret);
+	return(NULL);
+    }
+    ret->encoder = xmlGetCharEncodingHandler(enc);
+    if (ret->encoder != NULL)
+        ret->raw = xmlBufCreateSize(2 * xmlDefaultBufferSize);
+    else
+        ret->raw = NULL;
+    ret->compressed = -1;
+    ret->context = (void *) mem;
+    ret->readcallback = NULL;
+    ret->closecallback = NULL;
+
+    return(ret);
+}
+```
+
+`buf` の解放は `xmlFreeParserInputBuffer` 関数で行います。
+[xmlIO.c#L2487-L2513](https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L2487-L2513)
+
+```c
+/**
+ * xmlFreeParserInputBuffer:
+ * @in:  a buffered parser input
+ *
+ * Free up the memory used by a buffered parser input
+ */
+void
+xmlFreeParserInputBuffer(xmlParserInputBufferPtr in) {
+    if (in == NULL) return;
+
+    if (in->raw) {
+        xmlBufFree(in->raw);
+	in->raw = NULL;
+    }
+    if (in->encoder != NULL) {
+        xmlCharEncCloseFunc(in->encoder);
+    }
+    if (in->closecallback != NULL) {
+	in->closecallback(in->context);
+    }
+    if (in->buffer != NULL) {
+        xmlBufFree(in->buffer);
+	in->buffer = NULL;
+    }
+
+    xmlFree(in);
+}
+```
 
 ## XML スキーマの読み込み `xmlSchemaNewParserCtxt` の実装
 
