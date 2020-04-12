@@ -1177,3 +1177,435 @@ exit:
     return(ret);
 }
 ```
+
+## `xmlParserInputBufferCreateFilename` 関数
+
+[xmlIO.c#L2629-L2648](https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L2629-L2648)
+
+```c
+/**
+ * xmlParserInputBufferCreateFilename:
+ * @URI:  a C string containing the URI or filename
+ * @enc:  the charset encoding if known
+ *
+ * Create a buffered parser input for the progressive parsing of a file
+ * If filename is "-' then we use stdin as the input.
+ * Automatic support for ZLIB/Compress compressed document is provided
+ * by default if found at compile-time.
+ * Do an encoding check if enc == XML_CHAR_ENCODING_NONE
+ *
+ * Returns the new parser input or NULL
+ */
+xmlParserInputBufferPtr
+xmlParserInputBufferCreateFilename(const char *URI, xmlCharEncoding enc) {
+    if ((xmlParserInputBufferCreateFilenameValue)) {
+		return xmlParserInputBufferCreateFilenameValue(URI, enc);
+	}
+	return __xmlParserInputBufferCreateFilename(URI, enc);
+}
+```
+
+`__xmlParserInputBufferCreateFilename` 関数
+[xmlIO.c#L2558-L2627](https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L2558-L2627)
+
+```c
+xmlParserInputBufferPtr
+__xmlParserInputBufferCreateFilename(const char *URI, xmlCharEncoding enc) {
+    xmlParserInputBufferPtr ret;
+    int i = 0;
+    void *context = NULL;
+
+    if (xmlInputCallbackInitialized == 0)
+	xmlRegisterDefaultInputCallbacks();
+
+    if (URI == NULL) return(NULL);
+
+    /*
+     * Try to find one of the input accept method accepting that scheme
+     * Go in reverse to give precedence to user defined handlers.
+     */
+    if (context == NULL) {
+	for (i = xmlInputCallbackNr - 1;i >= 0;i--) {
+	    if ((xmlInputCallbackTable[i].matchcallback != NULL) &&
+		(xmlInputCallbackTable[i].matchcallback(URI) != 0)) {
+		context = xmlInputCallbackTable[i].opencallback(URI);
+		if (context != NULL) {
+		    break;
+		}
+	    }
+	}
+    }
+    if (context == NULL) {
+	return(NULL);
+    }
+
+    /*
+     * Allocate the Input buffer front-end.
+     */
+    ret = xmlAllocParserInputBuffer(enc);
+    if (ret != NULL) {
+	ret->context = context;
+	ret->readcallback = xmlInputCallbackTable[i].readcallback;
+	ret->closecallback = xmlInputCallbackTable[i].closecallback;
+#ifdef LIBXML_ZLIB_ENABLED
+	if ((xmlInputCallbackTable[i].opencallback == xmlGzfileOpen) &&
+		(strcmp(URI, "-") != 0)) {
+#if defined(ZLIB_VERNUM) && ZLIB_VERNUM >= 0x1230
+            ret->compressed = !gzdirect(context);
+#else
+	    if (((z_stream *)context)->avail_in > 4) {
+	        char *cptr, buff4[4];
+		cptr = (char *) ((z_stream *)context)->next_in;
+		if (gzread(context, buff4, 4) == 4) {
+		    if (strncmp(buff4, cptr, 4) == 0)
+		        ret->compressed = 0;
+		    else
+		        ret->compressed = 1;
+		    gzrewind(context);
+		}
+	    }
+#endif
+	}
+#endif
+#ifdef LIBXML_LZMA_ENABLED
+	if ((xmlInputCallbackTable[i].opencallback == xmlXzfileOpen) &&
+		(strcmp(URI, "-") != 0)) {
+            ret->compressed = __libxml2_xzcompressed(context);
+	}
+#endif
+    }
+    else
+      xmlInputCallbackTable[i].closecallback (context);
+
+    return(ret);
+}
+```
+
+`xmlInputCallbackTable` 変数
+[xmlIO.c#L90-L104](https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L90-L104)
+
+```c
+/*
+ * Input I/O callback sets
+ */
+typedef struct _xmlInputCallback {
+    xmlInputMatchCallback matchcallback;
+    xmlInputOpenCallback opencallback;
+    xmlInputReadCallback readcallback;
+    xmlInputCloseCallback closecallback;
+} xmlInputCallback;
+
+#define MAX_INPUT_CALLBACK 15
+
+static xmlInputCallback xmlInputCallbackTable[MAX_INPUT_CALLBACK];
+static int xmlInputCallbackNr = 0;
+static int xmlInputCallbackInitialized = 0;
+```
+
+`xmlInputMatchCallback` 型など
+[xmlIO.h#L20-L63](https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/include/libxml/xmlIO.h#L20-L63)
+
+```c
+/*
+ * Those are the functions and datatypes for the parser input
+ * I/O structures.
+ */
+
+/**
+ * xmlInputMatchCallback:
+ * @filename: the filename or URI
+ *
+ * Callback used in the I/O Input API to detect if the current handler
+ * can provide input functionality for this resource.
+ *
+ * Returns 1 if yes and 0 if another Input module should be used
+ */
+typedef int (XMLCALL *xmlInputMatchCallback) (char const *filename);
+/**
+ * xmlInputOpenCallback:
+ * @filename: the filename or URI
+ *
+ * Callback used in the I/O Input API to open the resource
+ *
+ * Returns an Input context or NULL in case or error
+ */
+typedef void * (XMLCALL *xmlInputOpenCallback) (char const *filename);
+/**
+ * xmlInputReadCallback:
+ * @context:  an Input context
+ * @buffer:  the buffer to store data read
+ * @len:  the length of the buffer in bytes
+ *
+ * Callback used in the I/O Input API to read the resource
+ *
+ * Returns the number of bytes read or -1 in case of error
+ */
+typedef int (XMLCALL *xmlInputReadCallback) (void * context, char * buffer, int len);
+/**
+ * xmlInputCloseCallback:
+ * @context:  an Input context
+ *
+ * Callback used in the I/O Input API to close the resource
+ *
+ * Returns 0 or -1 in case of error
+ */
+typedef int (XMLCALL *xmlInputCloseCallback) (void * context);
+```
+
+`xmlRegisterDefaultInputCallbacks` 関数
+[xmlIO.c#L2247-L2278](https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L2247-L2278)
+
+```c
+/**
+ * xmlRegisterDefaultInputCallbacks:
+ *
+ * Registers the default compiled-in I/O handlers.
+ */
+void
+xmlRegisterDefaultInputCallbacks(void) {
+    if (xmlInputCallbackInitialized)
+	return;
+
+    xmlRegisterInputCallbacks(xmlFileMatch, xmlFileOpen,
+	                      xmlFileRead, xmlFileClose);
+#ifdef LIBXML_ZLIB_ENABLED
+    xmlRegisterInputCallbacks(xmlGzfileMatch, xmlGzfileOpen,
+	                      xmlGzfileRead, xmlGzfileClose);
+#endif /* LIBXML_ZLIB_ENABLED */
+#ifdef LIBXML_LZMA_ENABLED
+    xmlRegisterInputCallbacks(xmlXzfileMatch, xmlXzfileOpen,
+	                      xmlXzfileRead, xmlXzfileClose);
+#endif /* LIBXML_LZMA_ENABLED */
+
+#ifdef LIBXML_HTTP_ENABLED
+    xmlRegisterInputCallbacks(xmlIOHTTPMatch, xmlIOHTTPOpen,
+	                      xmlIOHTTPRead, xmlIOHTTPClose);
+#endif /* LIBXML_HTTP_ENABLED */
+
+#ifdef LIBXML_FTP_ENABLED
+    xmlRegisterInputCallbacks(xmlIOFTPMatch, xmlIOFTPOpen,
+	                      xmlIOFTPRead, xmlIOFTPClose);
+#endif /* LIBXML_FTP_ENABLED */
+    xmlInputCallbackInitialized = 1;
+}
+```
+
+`xmlFileMatch` 関数
+[xmlIO.c#L804-L815](https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L804-L815)
+
+`xmlInputCallbackTable` を最後から最初にマッチしていき、 0 番目の要素は常にマッチとさせるため、常に 1 を返す。
+
+```c
+/**
+ * xmlFileMatch:
+ * @filename:  the URI for matching
+ *
+ * input from FILE *
+ *
+ * Returns 1 if matches, 0 otherwise
+ */
+int
+xmlFileMatch (const char *filename ATTRIBUTE_UNUSED) {
+    return(1);
+}
+```
+
+`xmlFileOpen` 関数
+[xmlIO.c#L875-L899](https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L875-L899)
+
+```c
+/**
+ * xmlFileOpen:
+ * @filename:  the URI for matching
+ *
+ * Wrapper around xmlFileOpen_real that try it with an unescaped
+ * version of @filename, if this fails fallback to @filename
+ *
+ * Returns a handler or NULL in case or failure
+ */
+void *
+xmlFileOpen (const char *filename) {
+    char *unescaped;
+    void *retval;
+
+    retval = xmlFileOpen_real(filename);
+    if (retval == NULL) {
+	unescaped = xmlURIUnescapeString(filename, 0, NULL);
+	if (unescaped != NULL) {
+	    retval = xmlFileOpen_real(unescaped);
+	    xmlFree(unescaped);
+	}
+    }
+
+    return retval;
+}
+```
+
+`xmlFileOpen_real` 関数
+[xmlIO.c#L817-L873](https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L817-L873)
+
+```c
+/**
+ * xmlFileOpen_real:
+ * @filename:  the URI for matching
+ *
+ * input from FILE *, supports compressed input
+ * if @filename is " " then the standard input is used
+ *
+ * Returns an I/O context or NULL in case of error
+ */
+static void *
+xmlFileOpen_real (const char *filename) {
+    const char *path = filename;
+    FILE *fd;
+
+    if (filename == NULL)
+        return(NULL);
+
+    if (!strcmp(filename, "-")) {
+	fd = stdin;
+	return((void *) fd);
+    }
+
+    if (!xmlStrncasecmp(BAD_CAST filename, BAD_CAST "file://localhost/", 17)) {
+#if defined (_WIN32) || defined (__DJGPP__) && !defined(__CYGWIN__)
+	path = &filename[17];
+#else
+	path = &filename[16];
+#endif
+    } else if (!xmlStrncasecmp(BAD_CAST filename, BAD_CAST "file:///", 8)) {
+#if defined (_WIN32) || defined (__DJGPP__) && !defined(__CYGWIN__)
+	path = &filename[8];
+#else
+	path = &filename[7];
+#endif
+    } else if (!xmlStrncasecmp(BAD_CAST filename, BAD_CAST "file:/", 6)) {
+        /* lots of generators seems to lazy to read RFC 1738 */
+#if defined (_WIN32) || defined (__DJGPP__) && !defined(__CYGWIN__)
+	path = &filename[6];
+#else
+	path = &filename[5];
+#endif
+    }
+
+    /* Do not check DDNAME on zOS ! */
+#if !defined(__MVS__)
+    if (!xmlCheckFilename(path))
+        return(NULL);
+#endif
+
+#if defined(_WIN32) || defined (__DJGPP__) && !defined (__CYGWIN__)
+    fd = xmlWrapOpenUtf8(path, 0);
+#else
+    fd = fopen(path, "r");
+#endif /* WIN32 */
+    if (fd == NULL) xmlIOErr(0, path);
+    return((void *) fd);
+}
+```
+
+`xmlFileRead` 関数
+[xmlIO.c#L952-L970](https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L952-L970)
+
+```c
+/**
+ * xmlFileRead:
+ * @context:  the I/O context
+ * @buffer:  where to drop data
+ * @len:  number of bytes to write
+ *
+ * Read @len bytes to @buffer from the I/O channel.
+ *
+ * Returns the number of bytes written or < 0 in case of failure
+ */
+int
+xmlFileRead (void * context, char * buffer, int len) {
+    int ret;
+    if ((context == NULL) || (buffer == NULL))
+        return(-1);
+    ret = fread(&buffer[0], 1,  len, (FILE *) context);
+    if (ret < 0) xmlIOErr(0, "fread()");
+    return(ret);
+}
+```
+
+`xmlAllocParserInputBuffer` 関数
+[xmlIO.c#L2342-L2378](https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L2342-L2378)
+
+```c
+/**
+ * xmlAllocParserInputBuffer:
+ * @enc:  the charset encoding if known
+ *
+ * Create a buffered parser input for progressive parsing
+ *
+ * Returns the new parser input or NULL
+ */
+xmlParserInputBufferPtr
+xmlAllocParserInputBuffer(xmlCharEncoding enc) {
+    xmlParserInputBufferPtr ret;
+
+    ret = (xmlParserInputBufferPtr) xmlMalloc(sizeof(xmlParserInputBuffer));
+    if (ret == NULL) {
+	xmlIOErrMemory("creating input buffer");
+	return(NULL);
+    }
+    memset(ret, 0, (size_t) sizeof(xmlParserInputBuffer));
+    ret->buffer = xmlBufCreateSize(2 * xmlDefaultBufferSize);
+    if (ret->buffer == NULL) {
+        xmlFree(ret);
+	return(NULL);
+    }
+    xmlBufSetAllocationScheme(ret->buffer, XML_BUFFER_ALLOC_DOUBLEIT);
+    ret->encoder = xmlGetCharEncodingHandler(enc);
+    if (ret->encoder != NULL)
+        ret->raw = xmlBufCreateSize(2 * xmlDefaultBufferSize);
+    else
+        ret->raw = NULL;
+    ret->readcallback = NULL;
+    ret->closecallback = NULL;
+    ret->context = NULL;
+    ret->compressed = -1;
+    ret->rawconsumed = 0;
+
+    return(ret);
+}
+```
+
+## `xmlSchemaValidateDoc` 関数
+
+[xmlschemas.c#L28220-L28247](https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlschemas.c#L28220-L28247)
+
+`xmlSchemaValidateStream` とは別に `xmlSchemaValidateDoc` 関数というのもありました。
+メモリ上の XML をバリデートするならこちらのほうが使いやすいかもしれません。
+
+```c
+/**
+ * xmlSchemaValidateDoc:
+ * @ctxt:  a schema validation context
+ * @doc:  a parsed document tree
+ *
+ * Validate a document tree in memory.
+ *
+ * Returns 0 if the document is schemas valid, a positive error code
+ *     number otherwise and -1 in case of internal or API error.
+ */
+int
+xmlSchemaValidateDoc(xmlSchemaValidCtxtPtr ctxt, xmlDocPtr doc)
+{
+    if ((ctxt == NULL) || (doc == NULL))
+        return (-1);
+
+    ctxt->doc = doc;
+    ctxt->node = xmlDocGetRootElement(doc);
+    if (ctxt->node == NULL) {
+        xmlSchemaCustomErr(ACTXT_CAST ctxt,
+	    XML_SCHEMAV_DOCUMENT_ELEMENT_MISSING,
+	    (xmlNodePtr) doc, NULL,
+	    "The document has no document element", NULL, NULL);
+        return (ctxt->err);
+    }
+    ctxt->validationRoot = ctxt->node;
+    return (xmlSchemaVStart(ctxt));
+}
+```
