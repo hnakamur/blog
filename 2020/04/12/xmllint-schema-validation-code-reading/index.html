@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.64.1" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>xmllintコマンドでのXMLスキーマを使ったバリデーションのコードリーディング &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2020. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>xmllintコマンドでのXMLスキーマを使ったバリデーションのコードリーディング</h1>
+  <time datetime=2020-04-12T11:40:04&#43;0900 class="post-date">2020-04-12</time>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="https://cheatsheetseries.owasp.org/cheatsheets/SAML_Security_Cheat_Sheet.html">SAML Security · OWASP Cheat Sheet Series</a> の <a href="https://cheatsheetseries.owasp.org/cheatsheets/SAML_Security_Cheat_Sheet.html#validate-signatures">Validate Signatures</a> を見ると、SAMLのXMLはローカルに置いた信頼できるスキーマファイルでバリデートせよと書かれています。</p>
+<p>そこで実際に試してみてサンプルを <a href="https://github.com/hnakamur/saml-response-sign-validate-verify-example">hnakamur/saml-response-sign-validate-verify-example</a> に置きました。</p>
+<p>このサンプルでは <code>xmllint</code> コマンドの <code>--schema</code> オプションを使ってバリデートしています。
+次は libxml2 の関数を使ってバリデートするのを実装したいので <code>xmllint</code> コマンドの <code>--schema</code> オプションの処理をコードリーディングします。</p>
+<p>今回の対象は以下のコミットにしました。
+<a href="https://github.com/GNOME/libxml2/tree/e4fb36841800038c289997432ca547c9bfef9db1">https://github.com/GNOME/libxml2/tree/e4fb36841800038c289997432ca547c9bfef9db1</a></p>
+<h2 id="--schema-オプションの処理"><code>&quot;--schema&quot;</code> オプションの処理</h2>
+<p>まずは <code>&quot;--schema&quot;</code> で検索してみました。</p>
+<p>main 関数内の
+<a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmllint.c#L3425-L3429">xmllint.c#L3425-L3429</a>
+で <code>schema</code> という変数にファイル名をセットしています。</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c">  <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="o">!</span><span class="n">strcmp</span><span class="p">(</span><span class="n">argv</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">-schema</span><span class="s">&#34;</span><span class="p">)</span><span class="p">)</span> <span class="o">|</span><span class="o">|</span>
+	   <span class="p">(</span><span class="o">!</span><span class="n">strcmp</span><span class="p">(</span><span class="n">argv</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">--schema</span><span class="s">&#34;</span><span class="p">)</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+      <span class="n">i</span><span class="o">+</span><span class="o">+</span><span class="p">;</span>
+      <span class="n">schema</span> <span class="o">=</span> <span class="n">argv</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="p">;</span>
+      <span class="n">noent</span><span class="o">+</span><span class="o">+</span><span class="p">;</span>
+</code></pre></div><p><code>schema</code> は
+<a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmllint.c#L136">xmllint.c#L136</a>
+で定義されている static 変数です。</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">static</span> <span class="kt">char</span> <span class="o">*</span> <span class="n">schema</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+</code></pre></div><h2 id="xml-スキーマの読み込み">XML スキーマの読み込み</h2>
+<p><a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmllint.c#L3593-L3610">xmllint.c#L3593-L3610</a>
+で XML スキーマをパーズしています。</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c">	<span class="n">xmlSchemaParserCtxtPtr</span> <span class="n">ctxt</span><span class="p">;</span>
+
+	<span class="k">if</span> <span class="p">(</span><span class="n">timing</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="n">startTimer</span><span class="p">(</span><span class="p">)</span><span class="p">;</span>
+	<span class="p">}</span>
+	<span class="n">ctxt</span> <span class="o">=</span> <span class="n">xmlSchemaNewParserCtxt</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span><span class="p">;</span>
+	<span class="n">xmlSchemaSetParserErrors</span><span class="p">(</span><span class="n">ctxt</span><span class="p">,</span> <span class="n">xmlGenericError</span><span class="p">,</span> <span class="n">xmlGenericError</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+	<span class="n">wxschemas</span> <span class="o">=</span> <span class="n">xmlSchemaParse</span><span class="p">(</span><span class="n">ctxt</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">wxschemas</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="n">xmlGenericError</span><span class="p">(</span><span class="n">xmlGenericErrorContext</span><span class="p">,</span>
+		    <span class="sa"></span><span class="s">&#34;</span><span class="s">WXS schema %s failed to compile</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">schema</span><span class="p">)</span><span class="p">;</span>
+	    <span class="n">progresult</span> <span class="o">=</span> <span class="n">XMLLINT_ERR_SCHEMACOMP</span><span class="p">;</span>
+	    <span class="n">schema</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+	<span class="p">}</span>
+	<span class="n">xmlSchemaFreeParserCtxt</span><span class="p">(</span><span class="n">ctxt</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">timing</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="n">endTimer</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s">Compiling the schemas</span><span class="s">&#34;</span><span class="p">)</span><span class="p">;</span>
+	<span class="p">}</span>
+</code></pre></div><p><code>wxschemas</code> 変数は
+<a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmllint.c#L137">xmllint.c#L137</a>
+で定義されている static 変数です。</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">static</span> <span class="n">xmlSchemaPtr</span> <span class="n">wxschemas</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+</code></pre></div><h2 id="xml-のバリデーション処理">XML のバリデーション処理</h2>
+<p><a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmllint.c#L1651-L1672">libxml2#L1651-L1672</a>
+でスキーマを使って XML をバリデートしていました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c">	<span class="kt">int</span> <span class="n">ret</span><span class="p">;</span>
+	<span class="n">xmlSchemaValidCtxtPtr</span> <span class="n">vctxt</span><span class="p">;</span>
+
+	<span class="n">vctxt</span> <span class="o">=</span> <span class="n">xmlSchemaNewValidCtxt</span><span class="p">(</span><span class="n">wxschemas</span><span class="p">)</span><span class="p">;</span>
+	<span class="n">xmlSchemaSetValidErrors</span><span class="p">(</span><span class="n">vctxt</span><span class="p">,</span> <span class="n">xmlGenericError</span><span class="p">,</span> <span class="n">xmlGenericError</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+	<span class="n">xmlSchemaValidateSetFilename</span><span class="p">(</span><span class="n">vctxt</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span><span class="p">;</span>
+
+	<span class="n">ret</span> <span class="o">=</span> <span class="n">xmlSchemaValidateStream</span><span class="p">(</span><span class="n">vctxt</span><span class="p">,</span> <span class="n">buf</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">handler</span><span class="p">,</span>
+				      <span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="p">)</span><span class="n">user_data</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">repeat</span> <span class="o">=</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="k">if</span> <span class="p">(</span><span class="n">ret</span> <span class="o">=</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+		<span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">%s validates</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span><span class="p">;</span>
+	    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">ret</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+		<span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">%s fails to validate</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span><span class="p">;</span>
+		<span class="n">progresult</span> <span class="o">=</span> <span class="n">XMLLINT_ERR_VALID</span><span class="p">;</span>
+	    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+		<span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">%s validation generated an internal error</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span>
+		       <span class="n">filename</span><span class="p">)</span><span class="p">;</span>
+		<span class="n">progresult</span> <span class="o">=</span> <span class="n">XMLLINT_ERR_VALID</span><span class="p">;</span>
+	    <span class="p">}</span>
+	<span class="p">}</span>
+	<span class="n">xmlSchemaFreeValidCtxt</span><span class="p">(</span><span class="n">vctxt</span><span class="p">)</span><span class="p">;</span>
+</code></pre></div><h2 id="xml-スキーマの読み込み-xmlschemanewparserctxt-の実装">XML スキーマの読み込み <code>xmlSchemaNewParserCtxt</code> の実装</h2>
+<p><a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlschemas.c#L12459-L12482">xmlschemas.c#L12459-L12482</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
+</span><span class="cm"> * xmlSchemaNewParserCtxt:
+</span><span class="cm"> * @URL:  the location of the schema
+</span><span class="cm"> *
+</span><span class="cm"> * Create an XML Schemas parse context for that file/resource expected
+</span><span class="cm"> * to contain an XML Schemas file.
+</span><span class="cm"> *
+</span><span class="cm"> * Returns the parser context or NULL in case of error
+</span><span class="cm"> */</span>
+<span class="n">xmlSchemaParserCtxtPtr</span>
+<span class="nf">xmlSchemaNewParserCtxt</span><span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">URL</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">xmlSchemaParserCtxtPtr</span> <span class="n">ret</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">URL</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+	<span class="k">return</span> <span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+
+    <span class="n">ret</span> <span class="o">=</span> <span class="n">xmlSchemaParserCtxtCreate</span><span class="p">(</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ret</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+	<span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+    <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">dict</span> <span class="o">=</span> <span class="n">xmlDictCreate</span><span class="p">(</span><span class="p">)</span><span class="p">;</span>
+    <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">URL</span> <span class="o">=</span> <span class="n">xmlDictLookup</span><span class="p">(</span><span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">dict</span><span class="p">,</span> <span class="p">(</span><span class="k">const</span> <span class="n">xmlChar</span> <span class="o">*</span><span class="p">)</span> <span class="n">URL</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">ret</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><p><code>xmlDictLookup</code> 関数
+<a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/dict.c#L854-L992">dict.c#L854-L992</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
+</span><span class="cm"> * xmlDictLookup:
+</span><span class="cm"> * @dict: the dictionary
+</span><span class="cm"> * @name: the name of the userdata
+</span><span class="cm"> * @len: the length of the name, if -1 it is recomputed
+</span><span class="cm"> *
+</span><span class="cm"> * Add the @name to the dictionary @dict if not present.
+</span><span class="cm"> *
+</span><span class="cm"> * Returns the internal copy of the name or NULL in case of internal error
+</span><span class="cm"> */</span>
+<span class="k">const</span> <span class="n">xmlChar</span> <span class="o">*</span>
+<span class="nf">xmlDictLookup</span><span class="p">(</span><span class="n">xmlDictPtr</span> <span class="n">dict</span><span class="p">,</span> <span class="k">const</span> <span class="n">xmlChar</span> <span class="o">*</span><span class="n">name</span><span class="p">,</span> <span class="kt">int</span> <span class="n">len</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">key</span><span class="p">,</span> <span class="n">okey</span><span class="p">,</span> <span class="n">nbi</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="n">xmlDictEntryPtr</span> <span class="n">entry</span><span class="p">;</span>
+    <span class="n">xmlDictEntryPtr</span> <span class="n">insert</span><span class="p">;</span>
+    <span class="k">const</span> <span class="n">xmlChar</span> <span class="o">*</span><span class="n">ret</span><span class="p">;</span>
+    <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">l</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">dict</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="o">|</span><span class="o">|</span> <span class="p">(</span><span class="n">name</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">)</span>
+	<span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">len</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+	<span class="n">l</span> <span class="o">=</span> <span class="n">strlen</span><span class="p">(</span><span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="p">)</span> <span class="n">name</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">else</span>
+	<span class="n">l</span> <span class="o">=</span> <span class="n">len</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="p">(</span><span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">limit</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="n">l</span> <span class="o">&gt;</span><span class="o">=</span> <span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">limit</span><span class="p">)</span><span class="p">)</span> <span class="o">|</span><span class="o">|</span>
+	<span class="p">(</span><span class="n">l</span> <span class="o">&gt;</span> <span class="n">INT_MAX</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span><span class="p">)</span>
+	<span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+
+    <span class="cm">/*
+</span><span class="cm">     * Check for duplicate and insertion location.
+</span><span class="cm">     */</span>
+    <span class="n">okey</span> <span class="o">=</span> <span class="n">xmlDictComputeKey</span><span class="p">(</span><span class="n">dict</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">l</span><span class="p">)</span><span class="p">;</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="n">okey</span> <span class="o">%</span> <span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">size</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="p">.</span><span class="n">valid</span> <span class="o">=</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">insert</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+	<span class="k">for</span> <span class="p">(</span><span class="n">insert</span> <span class="o">=</span> <span class="o">&amp;</span><span class="p">(</span><span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="p">)</span><span class="p">;</span> <span class="n">insert</span><span class="o">-</span><span class="o">&gt;</span><span class="n">next</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+	     <span class="n">insert</span> <span class="o">=</span> <span class="n">insert</span><span class="o">-</span><span class="o">&gt;</span><span class="n">next</span><span class="p">)</span> <span class="p">{</span>
+<span class="cp">#</span><span class="cp">ifdef __GNUC__</span><span class="cp">
+</span><span class="cp"></span>	    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">insert</span><span class="o">-</span><span class="o">&gt;</span><span class="n">okey</span> <span class="o">=</span><span class="o">=</span> <span class="n">okey</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="n">insert</span><span class="o">-</span><span class="o">&gt;</span><span class="n">len</span> <span class="o">=</span><span class="o">=</span> <span class="n">l</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+		<span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">memcmp</span><span class="p">(</span><span class="n">insert</span><span class="o">-</span><span class="o">&gt;</span><span class="n">name</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">l</span><span class="p">)</span><span class="p">)</span>
+		    <span class="k">return</span><span class="p">(</span><span class="n">insert</span><span class="o">-</span><span class="o">&gt;</span><span class="n">name</span><span class="p">)</span><span class="p">;</span>
+	    <span class="p">}</span>
+<span class="cp">#</span><span class="cp">else</span><span class="cp">
+</span><span class="cp"></span>	    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">insert</span><span class="o">-</span><span class="o">&gt;</span><span class="n">okey</span> <span class="o">=</span><span class="o">=</span> <span class="n">okey</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="n">insert</span><span class="o">-</span><span class="o">&gt;</span><span class="n">len</span> <span class="o">=</span><span class="o">=</span> <span class="n">l</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span>
+		<span class="p">(</span><span class="o">!</span><span class="n">xmlStrncmp</span><span class="p">(</span><span class="n">insert</span><span class="o">-</span><span class="o">&gt;</span><span class="n">name</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">l</span><span class="p">)</span><span class="p">)</span><span class="p">)</span>
+		<span class="k">return</span><span class="p">(</span><span class="n">insert</span><span class="o">-</span><span class="o">&gt;</span><span class="n">name</span><span class="p">)</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">endif</span><span class="cp">
+</span><span class="cp"></span>	    <span class="n">nbi</span><span class="o">+</span><span class="o">+</span><span class="p">;</span>
+	<span class="p">}</span>
+<span class="cp">#</span><span class="cp">ifdef __GNUC__</span><span class="cp">
+</span><span class="cp"></span>	<span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">insert</span><span class="o">-</span><span class="o">&gt;</span><span class="n">okey</span> <span class="o">=</span><span class="o">=</span> <span class="n">okey</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="n">insert</span><span class="o">-</span><span class="o">&gt;</span><span class="n">len</span> <span class="o">=</span><span class="o">=</span> <span class="n">l</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">memcmp</span><span class="p">(</span><span class="n">insert</span><span class="o">-</span><span class="o">&gt;</span><span class="n">name</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">l</span><span class="p">)</span><span class="p">)</span>
+		<span class="k">return</span><span class="p">(</span><span class="n">insert</span><span class="o">-</span><span class="o">&gt;</span><span class="n">name</span><span class="p">)</span><span class="p">;</span>
+	<span class="p">}</span>
+<span class="cp">#</span><span class="cp">else</span><span class="cp">
+</span><span class="cp"></span>	<span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">insert</span><span class="o">-</span><span class="o">&gt;</span><span class="n">okey</span> <span class="o">=</span><span class="o">=</span> <span class="n">okey</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="n">insert</span><span class="o">-</span><span class="o">&gt;</span><span class="n">len</span> <span class="o">=</span><span class="o">=</span> <span class="n">l</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span>
+	    <span class="p">(</span><span class="o">!</span><span class="n">xmlStrncmp</span><span class="p">(</span><span class="n">insert</span><span class="o">-</span><span class="o">&gt;</span><span class="n">name</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">l</span><span class="p">)</span><span class="p">)</span><span class="p">)</span>
+	    <span class="k">return</span><span class="p">(</span><span class="n">insert</span><span class="o">-</span><span class="o">&gt;</span><span class="n">name</span><span class="p">)</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">endif</span><span class="cp">
+</span><span class="cp"></span>    <span class="p">}</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">subdict</span><span class="p">)</span> <span class="p">{</span>
+	<span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">skey</span><span class="p">;</span>
+
+	<span class="cm">/* we cannot always reuse the same okey for the subdict */</span>
+	<span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="p">(</span><span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">size</span> <span class="o">=</span><span class="o">=</span> <span class="n">MIN_DICT_SIZE</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span>
+	     <span class="p">(</span><span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">subdict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">size</span> <span class="o">!</span><span class="o">=</span> <span class="n">MIN_DICT_SIZE</span><span class="p">)</span><span class="p">)</span> <span class="o">|</span><span class="o">|</span>
+	    <span class="p">(</span><span class="p">(</span><span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">size</span> <span class="o">!</span><span class="o">=</span> <span class="n">MIN_DICT_SIZE</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span>
+	     <span class="p">(</span><span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">subdict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">size</span> <span class="o">=</span><span class="o">=</span> <span class="n">MIN_DICT_SIZE</span><span class="p">)</span><span class="p">)</span><span class="p">)</span>
+	    <span class="n">skey</span> <span class="o">=</span> <span class="n">xmlDictComputeKey</span><span class="p">(</span><span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">subdict</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">l</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">else</span>
+	    <span class="n">skey</span> <span class="o">=</span> <span class="n">okey</span><span class="p">;</span>
+
+	<span class="n">key</span> <span class="o">=</span> <span class="n">skey</span> <span class="o">%</span> <span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">subdict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">size</span><span class="p">;</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">subdict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="p">.</span><span class="n">valid</span> <span class="o">!</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="n">xmlDictEntryPtr</span> <span class="n">tmp</span><span class="p">;</span>
+
+	    <span class="k">for</span> <span class="p">(</span><span class="n">tmp</span> <span class="o">=</span> <span class="o">&amp;</span><span class="p">(</span><span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">subdict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="p">)</span><span class="p">;</span> <span class="n">tmp</span><span class="o">-</span><span class="o">&gt;</span><span class="n">next</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+		 <span class="n">tmp</span> <span class="o">=</span> <span class="n">tmp</span><span class="o">-</span><span class="o">&gt;</span><span class="n">next</span><span class="p">)</span> <span class="p">{</span>
+<span class="cp">#</span><span class="cp">ifdef __GNUC__</span><span class="cp">
+</span><span class="cp"></span>		<span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">tmp</span><span class="o">-</span><span class="o">&gt;</span><span class="n">okey</span> <span class="o">=</span><span class="o">=</span> <span class="n">skey</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="n">tmp</span><span class="o">-</span><span class="o">&gt;</span><span class="n">len</span> <span class="o">=</span><span class="o">=</span> <span class="n">l</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+		    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">memcmp</span><span class="p">(</span><span class="n">tmp</span><span class="o">-</span><span class="o">&gt;</span><span class="n">name</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">l</span><span class="p">)</span><span class="p">)</span>
+			<span class="k">return</span><span class="p">(</span><span class="n">tmp</span><span class="o">-</span><span class="o">&gt;</span><span class="n">name</span><span class="p">)</span><span class="p">;</span>
+		<span class="p">}</span>
+<span class="cp">#</span><span class="cp">else</span><span class="cp">
+</span><span class="cp"></span>		<span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">tmp</span><span class="o">-</span><span class="o">&gt;</span><span class="n">okey</span> <span class="o">=</span><span class="o">=</span> <span class="n">skey</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="n">tmp</span><span class="o">-</span><span class="o">&gt;</span><span class="n">len</span> <span class="o">=</span><span class="o">=</span> <span class="n">l</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span>
+		    <span class="p">(</span><span class="o">!</span><span class="n">xmlStrncmp</span><span class="p">(</span><span class="n">tmp</span><span class="o">-</span><span class="o">&gt;</span><span class="n">name</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">l</span><span class="p">)</span><span class="p">)</span><span class="p">)</span>
+		    <span class="k">return</span><span class="p">(</span><span class="n">tmp</span><span class="o">-</span><span class="o">&gt;</span><span class="n">name</span><span class="p">)</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">endif</span><span class="cp">
+</span><span class="cp"></span>		<span class="n">nbi</span><span class="o">+</span><span class="o">+</span><span class="p">;</span>
+	    <span class="p">}</span>
+<span class="cp">#</span><span class="cp">ifdef __GNUC__</span><span class="cp">
+</span><span class="cp"></span>	    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">tmp</span><span class="o">-</span><span class="o">&gt;</span><span class="n">okey</span> <span class="o">=</span><span class="o">=</span> <span class="n">skey</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="n">tmp</span><span class="o">-</span><span class="o">&gt;</span><span class="n">len</span> <span class="o">=</span><span class="o">=</span> <span class="n">l</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+		<span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">memcmp</span><span class="p">(</span><span class="n">tmp</span><span class="o">-</span><span class="o">&gt;</span><span class="n">name</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">l</span><span class="p">)</span><span class="p">)</span>
+		    <span class="k">return</span><span class="p">(</span><span class="n">tmp</span><span class="o">-</span><span class="o">&gt;</span><span class="n">name</span><span class="p">)</span><span class="p">;</span>
+	    <span class="p">}</span>
+<span class="cp">#</span><span class="cp">else</span><span class="cp">
+</span><span class="cp"></span>	    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">tmp</span><span class="o">-</span><span class="o">&gt;</span><span class="n">okey</span> <span class="o">=</span><span class="o">=</span> <span class="n">skey</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="n">tmp</span><span class="o">-</span><span class="o">&gt;</span><span class="n">len</span> <span class="o">=</span><span class="o">=</span> <span class="n">l</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span>
+		<span class="p">(</span><span class="o">!</span><span class="n">xmlStrncmp</span><span class="p">(</span><span class="n">tmp</span><span class="o">-</span><span class="o">&gt;</span><span class="n">name</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">l</span><span class="p">)</span><span class="p">)</span><span class="p">)</span>
+		<span class="k">return</span><span class="p">(</span><span class="n">tmp</span><span class="o">-</span><span class="o">&gt;</span><span class="n">name</span><span class="p">)</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">endif</span><span class="cp">
+</span><span class="cp"></span>	<span class="p">}</span>
+	<span class="n">key</span> <span class="o">=</span> <span class="n">okey</span> <span class="o">%</span> <span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">size</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="n">ret</span> <span class="o">=</span> <span class="n">xmlDictAddString</span><span class="p">(</span><span class="n">dict</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">l</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ret</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+	<span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">insert</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">entry</span> <span class="o">=</span> <span class="o">&amp;</span><span class="p">(</span><span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+	<span class="n">entry</span> <span class="o">=</span> <span class="n">xmlMalloc</span><span class="p">(</span><span class="k">sizeof</span><span class="p">(</span><span class="n">xmlDictEntry</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">entry</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+	     <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="n">entry</span><span class="o">-</span><span class="o">&gt;</span><span class="n">name</span> <span class="o">=</span> <span class="n">ret</span><span class="p">;</span>
+    <span class="n">entry</span><span class="o">-</span><span class="o">&gt;</span><span class="n">len</span> <span class="o">=</span> <span class="n">l</span><span class="p">;</span>
+    <span class="n">entry</span><span class="o">-</span><span class="o">&gt;</span><span class="n">next</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="n">entry</span><span class="o">-</span><span class="o">&gt;</span><span class="n">valid</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="n">entry</span><span class="o">-</span><span class="o">&gt;</span><span class="n">okey</span> <span class="o">=</span> <span class="n">okey</span><span class="p">;</span>
+
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">insert</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+	<span class="n">insert</span><span class="o">-</span><span class="o">&gt;</span><span class="n">next</span> <span class="o">=</span> <span class="n">entry</span><span class="p">;</span>
+
+    <span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">nbElems</span><span class="o">+</span><span class="o">+</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">nbi</span> <span class="o">&gt;</span> <span class="n">MAX_HASH_LEN</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span>
+	<span class="p">(</span><span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">size</span> <span class="o">&lt;</span><span class="o">=</span> <span class="p">(</span><span class="p">(</span><span class="n">MAX_DICT_HASH</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="n">MAX_HASH_LEN</span><span class="p">)</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">xmlDictGrow</span><span class="p">(</span><span class="n">dict</span><span class="p">,</span> <span class="n">MAX_HASH_LEN</span> <span class="o">*</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">size</span><span class="p">)</span> <span class="o">!</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+	    <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="cm">/* Note that entry may have been freed at this point by xmlDictGrow */</span>
+
+    <span class="k">return</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><p><code>xmlDictComputeKey</code> 関数
+<a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/dict.c#L65-L88">dict.c#L65-L88</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cp">#</span><span class="cp">define MAX_HASH_LEN 3</span><span class="cp">
+</span><span class="cp"></span><span class="cp">#</span><span class="cp">define MIN_DICT_SIZE 128</span><span class="cp">
+</span><span class="cp"></span><span class="cp">#</span><span class="cp">define MAX_DICT_HASH 8 * 2048</span><span class="cp">
+</span><span class="cp"></span><span class="cp">#</span><span class="cp">define WITH_BIG_KEY</span><span class="cp">
+</span><span class="cp"></span>
+<span class="cp">#</span><span class="cp">ifdef WITH_BIG_KEY</span><span class="cp">
+</span><span class="cp"></span><span class="cp">#</span><span class="cp">define xmlDictComputeKey(dict, name, len)                              \</span><span class="cp">
+</span><span class="cp"></span><span class="cp">    (((dict)-&gt;size == MIN_DICT_SIZE) ?                                  \</span><span class="cp">
+</span><span class="cp"></span><span class="cp">     xmlDictComputeFastKey(name, len, (dict)-&gt;seed) :                   \</span><span class="cp">
+</span><span class="cp"></span><span class="cp">     xmlDictComputeBigKey(name, len, (dict)-&gt;seed))</span><span class="cp">
+</span><span class="cp"></span>
+<span class="cp">#</span><span class="cp">define xmlDictComputeQKey(dict, prefix, plen, name, len)               \</span><span class="cp">
+</span><span class="cp"></span><span class="cp">    (((prefix) == NULL) ?                                               \</span><span class="cp">
+</span><span class="cp"></span><span class="cp">      (xmlDictComputeKey(dict, name, len)) :                             \</span><span class="cp">
+</span><span class="cp"></span><span class="cp">      (((dict)-&gt;size == MIN_DICT_SIZE) ?                                \</span><span class="cp">
+</span><span class="cp"></span><span class="cp">       xmlDictComputeFastQKey(prefix, plen, name, len, (dict)-&gt;seed) :	\</span><span class="cp">
+</span><span class="cp"></span><span class="cp">       xmlDictComputeBigQKey(prefix, plen, name, len, (dict)-&gt;seed)))</span><span class="cp">
+</span><span class="cp"></span>
+<span class="cp">#</span><span class="cp">else </span><span class="cm">/* !WITH_BIG_KEY */</span><span class="cp">
+</span><span class="cp"></span><span class="cp">#</span><span class="cp">define xmlDictComputeKey(dict, name, len)                              \</span><span class="cp">
+</span><span class="cp"></span><span class="cp">        xmlDictComputeFastKey(name, len, (dict)-&gt;seed)</span><span class="cp">
+</span><span class="cp"></span><span class="cp">#</span><span class="cp">define xmlDictComputeQKey(dict, prefix, plen, name, len)               \</span><span class="cp">
+</span><span class="cp"></span><span class="cp">        xmlDictComputeFastQKey(prefix, plen, name, len, (dict)-&gt;seed)</span><span class="cp">
+</span><span class="cp"></span><span class="cp">#</span><span class="cp">endif </span><span class="cm">/* WITH_BIG_KEY */</span><span class="cp">
+</span></code></pre></div><p><code>xmlDictAddString</code> 関数
+<a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/dict.c#L231-L291">dict.c#L231-L291</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/*
+</span><span class="cm"> * xmlDictAddString:
+</span><span class="cm"> * @dict: the dictionary
+</span><span class="cm"> * @name: the name of the userdata
+</span><span class="cm"> * @len: the length of the name
+</span><span class="cm"> *
+</span><span class="cm"> * Add the string to the array[s]
+</span><span class="cm"> *
+</span><span class="cm"> * Returns the pointer of the local string, or NULL in case of error.
+</span><span class="cm"> */</span>
+<span class="k">static</span> <span class="k">const</span> <span class="n">xmlChar</span> <span class="o">*</span>
+<span class="nf">xmlDictAddString</span><span class="p">(</span><span class="n">xmlDictPtr</span> <span class="n">dict</span><span class="p">,</span> <span class="k">const</span> <span class="n">xmlChar</span> <span class="o">*</span><span class="n">name</span><span class="p">,</span> <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">namelen</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">xmlDictStringsPtr</span> <span class="n">pool</span><span class="p">;</span>
+    <span class="k">const</span> <span class="n">xmlChar</span> <span class="o">*</span><span class="n">ret</span><span class="p">;</span>
+    <span class="n">size_t</span> <span class="n">size</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="cm">/* + sizeof(_xmlDictStrings) == 1024 */</span>
+    <span class="n">size_t</span> <span class="n">limit</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+<span class="cp">#</span><span class="cp">ifdef DICT_DEBUG_PATTERNS</span><span class="cp">
+</span><span class="cp"></span>    <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">-</span><span class="s">&#34;</span><span class="p">)</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">endif</span><span class="cp">
+</span><span class="cp"></span>    <span class="n">pool</span> <span class="o">=</span> <span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">strings</span><span class="p">;</span>
+    <span class="k">while</span> <span class="p">(</span><span class="n">pool</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">size_t</span><span class="p">)</span><span class="p">(</span><span class="n">pool</span><span class="o">-</span><span class="o">&gt;</span><span class="n">end</span> <span class="o">-</span> <span class="n">pool</span><span class="o">-</span><span class="o">&gt;</span><span class="n">free</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">namelen</span><span class="p">)</span>
+	    <span class="k">goto</span> <span class="n">found_pool</span><span class="p">;</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">pool</span><span class="o">-</span><span class="o">&gt;</span><span class="n">size</span> <span class="o">&gt;</span> <span class="n">size</span><span class="p">)</span> <span class="n">size</span> <span class="o">=</span> <span class="n">pool</span><span class="o">-</span><span class="o">&gt;</span><span class="n">size</span><span class="p">;</span>
+        <span class="n">limit</span> <span class="o">+</span><span class="o">=</span> <span class="n">pool</span><span class="o">-</span><span class="o">&gt;</span><span class="n">size</span><span class="p">;</span>
+	<span class="n">pool</span> <span class="o">=</span> <span class="n">pool</span><span class="o">-</span><span class="o">&gt;</span><span class="n">next</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="cm">/*
+</span><span class="cm">     * Not found, need to allocate
+</span><span class="cm">     */</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">pool</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">limit</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="n">limit</span> <span class="o">&gt;</span> <span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">limit</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+        <span class="p">}</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">size</span> <span class="o">=</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="n">size</span> <span class="o">=</span> <span class="mi">1000</span><span class="p">;</span>
+	<span class="k">else</span> <span class="n">size</span> <span class="o">*</span><span class="o">=</span> <span class="mi">4</span><span class="p">;</span> <span class="cm">/* exponential growth */</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">size</span> <span class="o">&lt;</span> <span class="mi">4</span> <span class="o">*</span> <span class="n">namelen</span><span class="p">)</span>
+	    <span class="n">size</span> <span class="o">=</span> <span class="mi">4</span> <span class="o">*</span> <span class="n">namelen</span><span class="p">;</span> <span class="cm">/* just in case ! */</span>
+	<span class="n">pool</span> <span class="o">=</span> <span class="p">(</span><span class="n">xmlDictStringsPtr</span><span class="p">)</span> <span class="n">xmlMalloc</span><span class="p">(</span><span class="k">sizeof</span><span class="p">(</span><span class="n">xmlDictStrings</span><span class="p">)</span> <span class="o">+</span> <span class="n">size</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">pool</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+	    <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+	<span class="n">pool</span><span class="o">-</span><span class="o">&gt;</span><span class="n">size</span> <span class="o">=</span> <span class="n">size</span><span class="p">;</span>
+	<span class="n">pool</span><span class="o">-</span><span class="o">&gt;</span><span class="n">nbStrings</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+	<span class="n">pool</span><span class="o">-</span><span class="o">&gt;</span><span class="n">free</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">pool</span><span class="o">-</span><span class="o">&gt;</span><span class="n">array</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="p">;</span>
+	<span class="n">pool</span><span class="o">-</span><span class="o">&gt;</span><span class="n">end</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">pool</span><span class="o">-</span><span class="o">&gt;</span><span class="n">array</span><span class="p">[</span><span class="n">size</span><span class="p">]</span><span class="p">;</span>
+	<span class="n">pool</span><span class="o">-</span><span class="o">&gt;</span><span class="n">next</span> <span class="o">=</span> <span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">strings</span><span class="p">;</span>
+	<span class="n">dict</span><span class="o">-</span><span class="o">&gt;</span><span class="n">strings</span> <span class="o">=</span> <span class="n">pool</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">ifdef DICT_DEBUG_PATTERNS</span><span class="cp">
+</span><span class="cp"></span>        <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">+</span><span class="s">&#34;</span><span class="p">)</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">endif</span><span class="cp">
+</span><span class="cp"></span>    <span class="p">}</span>
+<span class="nl">found_pool</span><span class="p">:</span>
+    <span class="n">ret</span> <span class="o">=</span> <span class="n">pool</span><span class="o">-</span><span class="o">&gt;</span><span class="n">free</span><span class="p">;</span>
+    <span class="n">memcpy</span><span class="p">(</span><span class="n">pool</span><span class="o">-</span><span class="o">&gt;</span><span class="n">free</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">namelen</span><span class="p">)</span><span class="p">;</span>
+    <span class="n">pool</span><span class="o">-</span><span class="o">&gt;</span><span class="n">free</span> <span class="o">+</span><span class="o">=</span> <span class="n">namelen</span><span class="p">;</span>
+    <span class="o">*</span><span class="p">(</span><span class="n">pool</span><span class="o">-</span><span class="o">&gt;</span><span class="n">free</span><span class="o">+</span><span class="o">+</span><span class="p">)</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="n">pool</span><span class="o">-</span><span class="o">&gt;</span><span class="n">nbStrings</span><span class="o">+</span><span class="o">+</span><span class="p">;</span>
+    <span class="k">return</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><h2 id="xmlschemaparse-関数"><code>xmlSchemaParse</code> 関数</h2>
+<p><code>xmlSchemaParse</code> 関数
+<a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlschemas.c#L21304-L21426">xmlschemas.c#L21304-L21426</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
+</span><span class="cm"> * xmlSchemaParse:
+</span><span class="cm"> * @ctxt:  a schema validation context
+</span><span class="cm"> *
+</span><span class="cm"> * parse a schema definition resource and build an internal
+</span><span class="cm"> * XML Schema structure which can be used to validate instances.
+</span><span class="cm"> *
+</span><span class="cm"> * Returns the internal XML Schema structure built from the resource or
+</span><span class="cm"> *         NULL in case of error
+</span><span class="cm"> */</span>
+<span class="n">xmlSchemaPtr</span>
+<span class="nf">xmlSchemaParse</span><span class="p">(</span><span class="n">xmlSchemaParserCtxtPtr</span> <span class="n">ctxt</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">xmlSchemaPtr</span> <span class="n">mainSchema</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="n">xmlSchemaBucketPtr</span> <span class="n">bucket</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">res</span><span class="p">;</span>
+
+    <span class="cm">/*
+</span><span class="cm">    * This one is used if the schema to be parsed was specified via
+</span><span class="cm">    * the API; i.e. not automatically by the validated instance document.
+</span><span class="cm">    */</span>
+
+    <span class="n">xmlSchemaInitTypes</span><span class="p">(</span><span class="p">)</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">ctxt</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+
+    <span class="cm">/* TODO: Init the context. Is this all we need?*/</span>
+    <span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">nberrors</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">err</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">counter</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+    <span class="cm">/* Create the *main* schema. */</span>
+    <span class="n">mainSchema</span> <span class="o">=</span> <span class="n">xmlSchemaNewSchema</span><span class="p">(</span><span class="n">ctxt</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">mainSchema</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+	<span class="k">goto</span> <span class="n">exit_failure</span><span class="p">;</span>
+    <span class="cm">/*
+</span><span class="cm">    * Create the schema constructor.
+</span><span class="cm">    */</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">constructor</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">constructor</span> <span class="o">=</span> <span class="n">xmlSchemaConstructionCtxtCreate</span><span class="p">(</span><span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">dict</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">constructor</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+	    <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+	<span class="cm">/* Take ownership of the constructor to be able to free it. */</span>
+	<span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">ownsConstructor</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">constructor</span><span class="o">-</span><span class="o">&gt;</span><span class="n">mainSchema</span> <span class="o">=</span> <span class="n">mainSchema</span><span class="p">;</span>
+    <span class="cm">/*
+</span><span class="cm">    * Locate and add the schema document.
+</span><span class="cm">    */</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">xmlSchemaAddSchemaDoc</span><span class="p">(</span><span class="n">ctxt</span><span class="p">,</span> <span class="n">XML_SCHEMA_SCHEMA_MAIN</span><span class="p">,</span>
+	<span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">URL</span><span class="p">,</span> <span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">doc</span><span class="p">,</span> <span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">buffer</span><span class="p">,</span> <span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">size</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span>
+	<span class="nb">NULL</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">bucket</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">res</span> <span class="o">=</span><span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+	<span class="k">goto</span> <span class="n">exit_failure</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">res</span> <span class="o">!</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+	<span class="k">goto</span> <span class="n">exit</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">bucket</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	<span class="cm">/* TODO: Error code, actually we failed to *locate* the schema. */</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">URL</span><span class="p">)</span>
+	    <span class="n">xmlSchemaCustomErr</span><span class="p">(</span><span class="n">ACTXT_CAST</span> <span class="n">ctxt</span><span class="p">,</span> <span class="n">XML_SCHEMAP_FAILED_LOAD</span><span class="p">,</span>
+		<span class="nb">NULL</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span>
+		<span class="sa"></span><span class="s">&#34;</span><span class="s">Failed to locate the main schema resource at &#39;%s&#39;</span><span class="s">&#34;</span><span class="p">,</span>
+		<span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">URL</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">else</span>
+	    <span class="n">xmlSchemaCustomErr</span><span class="p">(</span><span class="n">ACTXT_CAST</span> <span class="n">ctxt</span><span class="p">,</span> <span class="n">XML_SCHEMAP_FAILED_LOAD</span><span class="p">,</span>
+		<span class="nb">NULL</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span>
+		<span class="sa"></span><span class="s">&#34;</span><span class="s">Failed to locate the main schema resource</span><span class="s">&#34;</span><span class="p">,</span>
+		    <span class="nb">NULL</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">goto</span> <span class="n">exit</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="cm">/* Then do the parsing for good. */</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">xmlSchemaParseNewDocWithContext</span><span class="p">(</span><span class="n">ctxt</span><span class="p">,</span> <span class="n">mainSchema</span><span class="p">,</span> <span class="n">bucket</span><span class="p">)</span> <span class="o">=</span><span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+	<span class="k">goto</span> <span class="n">exit_failure</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">nberrors</span> <span class="o">!</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+	<span class="k">goto</span> <span class="n">exit</span><span class="p">;</span>
+
+    <span class="n">mainSchema</span><span class="o">-</span><span class="o">&gt;</span><span class="n">doc</span> <span class="o">=</span> <span class="n">bucket</span><span class="o">-</span><span class="o">&gt;</span><span class="n">doc</span><span class="p">;</span>
+    <span class="n">mainSchema</span><span class="o">-</span><span class="o">&gt;</span><span class="n">preserve</span> <span class="o">=</span> <span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">preserve</span><span class="p">;</span>
+
+    <span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">schema</span> <span class="o">=</span> <span class="n">mainSchema</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">xmlSchemaFixupComponents</span><span class="p">(</span><span class="n">ctxt</span><span class="p">,</span> <span class="n">WXS_CONSTRUCTOR</span><span class="p">(</span><span class="n">ctxt</span><span class="p">)</span><span class="o">-</span><span class="o">&gt;</span><span class="n">mainBucket</span><span class="p">)</span> <span class="o">=</span><span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+	<span class="k">goto</span> <span class="n">exit_failure</span><span class="p">;</span>
+
+    <span class="cm">/*
+</span><span class="cm">    * TODO: This is not nice, since we cannot distinguish from the
+</span><span class="cm">    * result if there was an internal error or not.
+</span><span class="cm">    */</span>
+<span class="nl">exit</span><span class="p">:</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">nberrors</span> <span class="o">!</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">mainSchema</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="n">xmlSchemaFree</span><span class="p">(</span><span class="n">mainSchema</span><span class="p">)</span><span class="p">;</span>
+	    <span class="n">mainSchema</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+	<span class="p">}</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">constructor</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="n">xmlSchemaConstructionCtxtFree</span><span class="p">(</span><span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">constructor</span><span class="p">)</span><span class="p">;</span>
+	    <span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">constructor</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+	    <span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">ownsConstructor</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+	<span class="p">}</span>
+    <span class="p">}</span>
+    <span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">schema</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="k">return</span><span class="p">(</span><span class="n">mainSchema</span><span class="p">)</span><span class="p">;</span>
+<span class="nl">exit_failure</span><span class="p">:</span>
+    <span class="cm">/*
+</span><span class="cm">    * Quite verbose, but should catch internal errors, which were
+</span><span class="cm">    * not communicated.
+</span><span class="cm">    */</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">mainSchema</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">xmlSchemaFree</span><span class="p">(</span><span class="n">mainSchema</span><span class="p">)</span><span class="p">;</span>
+	<span class="n">mainSchema</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">constructor</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">xmlSchemaConstructionCtxtFree</span><span class="p">(</span><span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">constructor</span><span class="p">)</span><span class="p">;</span>
+	<span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">constructor</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+	<span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">ownsConstructor</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="n">PERROR_INT2</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s">xmlSchemaParse</span><span class="s">&#34;</span><span class="p">,</span>
+	<span class="sa"></span><span class="s">&#34;</span><span class="s">An internal error occurred</span><span class="s">&#34;</span><span class="p">)</span><span class="p">;</span>
+    <span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">schema</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><p><code>xmlSchemaAddSchemaDoc</code>
+<a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlschemas.c#L10292-L10714">xmlschemas.c#L10292-L10714</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
+</span><span class="cm"> * xmlSchemaAddSchemaDoc:
+</span><span class="cm"> * @pctxt:  a schema validation context
+</span><span class="cm"> * @schema:  the schema being built
+</span><span class="cm"> * @node:  a subtree containing XML Schema information
+</span><span class="cm"> *
+</span><span class="cm"> * Parse an included (and to-be-redefined) XML schema document.
+</span><span class="cm"> *
+</span><span class="cm"> * Returns 0 on success, a positive error code on errors and
+</span><span class="cm"> *         -1 in case of an internal or API error.
+</span><span class="cm"> */</span>
+
+<span class="k">static</span> <span class="kt">int</span>
+<span class="nf">xmlSchemaAddSchemaDoc</span><span class="p">(</span><span class="n">xmlSchemaParserCtxtPtr</span> <span class="n">pctxt</span><span class="p">,</span>
+		<span class="kt">int</span> <span class="n">type</span><span class="p">,</span> <span class="cm">/* import or include or redefine */</span>
+		<span class="k">const</span> <span class="n">xmlChar</span> <span class="o">*</span><span class="n">schemaLocation</span><span class="p">,</span>
+		<span class="n">xmlDocPtr</span> <span class="n">schemaDoc</span><span class="p">,</span>
+		<span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">schemaBuffer</span><span class="p">,</span>
+		<span class="kt">int</span> <span class="n">schemaBufferLen</span><span class="p">,</span>
+		<span class="n">xmlNodePtr</span> <span class="n">invokingNode</span><span class="p">,</span>
+		<span class="k">const</span> <span class="n">xmlChar</span> <span class="o">*</span><span class="n">sourceTargetNamespace</span><span class="p">,</span>
+		<span class="k">const</span> <span class="n">xmlChar</span> <span class="o">*</span><span class="n">importNamespace</span><span class="p">,</span>
+		<span class="n">xmlSchemaBucketPtr</span> <span class="o">*</span><span class="n">bucket</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">const</span> <span class="n">xmlChar</span> <span class="o">*</span><span class="n">targetNamespace</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="n">xmlSchemaSchemaRelationPtr</span> <span class="n">relation</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="n">xmlDocPtr</span> <span class="n">doc</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">res</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">located</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">preserveDoc</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="n">xmlSchemaBucketPtr</span> <span class="n">bkt</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">bucket</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+	<span class="o">*</span><span class="n">bucket</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+
+    <span class="k">switch</span> <span class="p">(</span><span class="n">type</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">case</span> <span class="nl">XML_SCHEMA_SCHEMA_IMPORT</span><span class="p">:</span>
+	<span class="k">case</span> <span class="nl">XML_SCHEMA_SCHEMA_MAIN</span><span class="p">:</span>
+	    <span class="n">err</span> <span class="o">=</span> <span class="n">XML_SCHEMAP_SRC_IMPORT</span><span class="p">;</span>
+	    <span class="k">break</span><span class="p">;</span>
+	<span class="k">case</span> <span class="nl">XML_SCHEMA_SCHEMA_INCLUDE</span><span class="p">:</span>
+	    <span class="n">err</span> <span class="o">=</span> <span class="n">XML_SCHEMAP_SRC_INCLUDE</span><span class="p">;</span>
+	    <span class="k">break</span><span class="p">;</span>
+	<span class="k">case</span> <span class="nl">XML_SCHEMA_SCHEMA_REDEFINE</span><span class="p">:</span>
+	    <span class="n">err</span> <span class="o">=</span> <span class="n">XML_SCHEMAP_SRC_REDEFINE</span><span class="p">;</span>
+	    <span class="k">break</span><span class="p">;</span>
+    <span class="p">}</span>
+
+
+    <span class="cm">/* Special handling for the main schema:
+</span><span class="cm">    * skip the location and relation logic and just parse the doc.
+</span><span class="cm">    * We need just a bucket to be returned in this case.
+</span><span class="cm">    */</span>
+    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">type</span> <span class="o">=</span><span class="o">=</span> <span class="n">XML_SCHEMA_SCHEMA_MAIN</span><span class="p">)</span> <span class="o">|</span><span class="o">|</span> <span class="p">(</span><span class="o">!</span> <span class="n">WXS_HAS_BUCKETS</span><span class="p">(</span><span class="n">pctxt</span><span class="p">)</span><span class="p">)</span><span class="p">)</span>
+	<span class="k">goto</span> <span class="n">doc_load</span><span class="p">;</span>
+
+    <span class="cm">/* Note that we expect the location to be an absolute URI. */</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">schemaLocation</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">bkt</span> <span class="o">=</span> <span class="n">xmlSchemaGetSchemaBucket</span><span class="p">(</span><span class="n">pctxt</span><span class="p">,</span> <span class="n">schemaLocation</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">bkt</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span>
+	    <span class="p">(</span><span class="n">pctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">constructor</span><span class="o">-</span><span class="o">&gt;</span><span class="n">bucket</span> <span class="o">=</span><span class="o">=</span> <span class="n">bkt</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="cm">/* Report self-imports/inclusions/redefinitions. */</span>
+
+	    <span class="n">xmlSchemaCustomErr</span><span class="p">(</span><span class="n">ACTXT_CAST</span> <span class="n">pctxt</span><span class="p">,</span> <span class="n">err</span><span class="p">,</span>
+		<span class="n">invokingNode</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span>
+		<span class="sa"></span><span class="s">&#34;</span><span class="s">The schema must not import/include/redefine itself</span><span class="s">&#34;</span><span class="p">,</span>
+		<span class="nb">NULL</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+	    <span class="k">goto</span> <span class="n">exit</span><span class="p">;</span>
+	<span class="p">}</span>
+    <span class="p">}</span>
+    <span class="cm">/*
+</span><span class="cm">    * Create a relation for the graph of schemas.
+</span><span class="cm">    */</span>
+    <span class="n">relation</span> <span class="o">=</span> <span class="n">xmlSchemaSchemaRelationCreate</span><span class="p">(</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">relation</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+	<span class="k">return</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="p">;</span>
+    <span class="n">xmlSchemaSchemaRelationAddChild</span><span class="p">(</span><span class="n">pctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">constructor</span><span class="o">-</span><span class="o">&gt;</span><span class="n">bucket</span><span class="p">,</span>
+	<span class="n">relation</span><span class="p">)</span><span class="p">;</span>
+    <span class="n">relation</span><span class="o">-</span><span class="o">&gt;</span><span class="n">type</span> <span class="o">=</span> <span class="n">type</span><span class="p">;</span>
+
+    <span class="cm">/*
+</span><span class="cm">    * Save the namespace import information.
+</span><span class="cm">    */</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">WXS_IS_BUCKET_IMPMAIN</span><span class="p">(</span><span class="n">type</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">relation</span><span class="o">-</span><span class="o">&gt;</span><span class="n">importNamespace</span> <span class="o">=</span> <span class="n">importNamespace</span><span class="p">;</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">schemaLocation</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="cm">/*
+</span><span class="cm">	    * No location; this is just an import of the namespace.
+</span><span class="cm">	    * Note that we don&#39;t assign a bucket to the relation
+</span><span class="cm">	    * in this case.
+</span><span class="cm">	    */</span>
+	    <span class="k">goto</span> <span class="n">exit</span><span class="p">;</span>
+	<span class="p">}</span>
+	<span class="n">targetNamespace</span> <span class="o">=</span> <span class="n">importNamespace</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="cm">/* Did we already fetch the doc? */</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">bkt</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">WXS_IS_BUCKET_IMPMAIN</span><span class="p">(</span><span class="n">type</span><span class="p">)</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="o">!</span> <span class="n">bkt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">imported</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="cm">/*
+</span><span class="cm">	    * We included/redefined and then try to import a schema,
+</span><span class="cm">	    * but the new location provided for import was different.
+</span><span class="cm">	    */</span>
+	    <span class="k">if</span> <span class="p">(</span><span class="n">schemaLocation</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+		<span class="n">schemaLocation</span> <span class="o">=</span> <span class="n">BAD_CAST</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">in_memory_buffer</span><span class="s">&#34;</span><span class="p">;</span>
+	    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">xmlStrEqual</span><span class="p">(</span><span class="n">schemaLocation</span><span class="p">,</span>
+		<span class="n">bkt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">schemaLocation</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+		<span class="n">xmlSchemaCustomErr</span><span class="p">(</span><span class="n">ACTXT_CAST</span> <span class="n">pctxt</span><span class="p">,</span> <span class="n">err</span><span class="p">,</span>
+		    <span class="n">invokingNode</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span>
+		    <span class="sa"></span><span class="s">&#34;</span><span class="s">The schema document &#39;%s&#39; cannot be imported, since </span><span class="s">&#34;</span>
+		    <span class="sa"></span><span class="s">&#34;</span><span class="s">it was already included or redefined</span><span class="s">&#34;</span><span class="p">,</span>
+		    <span class="n">schemaLocation</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+		<span class="k">goto</span> <span class="n">exit</span><span class="p">;</span>
+	    <span class="p">}</span>
+	<span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="o">!</span> <span class="n">WXS_IS_BUCKET_IMPMAIN</span><span class="p">(</span><span class="n">type</span><span class="p">)</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="n">bkt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">imported</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="cm">/*
+</span><span class="cm">	    * We imported and then try to include/redefine a schema,
+</span><span class="cm">	    * but the new location provided for the include/redefine
+</span><span class="cm">	    * was different.
+</span><span class="cm">	    */</span>
+	    <span class="k">if</span> <span class="p">(</span><span class="n">schemaLocation</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+		<span class="n">schemaLocation</span> <span class="o">=</span> <span class="n">BAD_CAST</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">in_memory_buffer</span><span class="s">&#34;</span><span class="p">;</span>
+	    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">xmlStrEqual</span><span class="p">(</span><span class="n">schemaLocation</span><span class="p">,</span>
+		<span class="n">bkt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">schemaLocation</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+		<span class="n">xmlSchemaCustomErr</span><span class="p">(</span><span class="n">ACTXT_CAST</span> <span class="n">pctxt</span><span class="p">,</span> <span class="n">err</span><span class="p">,</span>
+		    <span class="n">invokingNode</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span>
+		    <span class="sa"></span><span class="s">&#34;</span><span class="s">The schema document &#39;%s&#39; cannot be included or </span><span class="s">&#34;</span>
+		    <span class="sa"></span><span class="s">&#34;</span><span class="s">redefined, since it was already imported</span><span class="s">&#34;</span><span class="p">,</span>
+		    <span class="n">schemaLocation</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+		<span class="k">goto</span> <span class="n">exit</span><span class="p">;</span>
+	    <span class="p">}</span>
+	<span class="p">}</span>
+    <span class="p">}</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">WXS_IS_BUCKET_IMPMAIN</span><span class="p">(</span><span class="n">type</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+	<span class="cm">/*
+</span><span class="cm">	* Given that the schemaLocation [attribute] is only a hint, it is open
+</span><span class="cm">	* to applications to ignore all but the first &lt;import&gt; for a given
+</span><span class="cm">	* namespace, regardless of the `actual value` of schemaLocation, but
+</span><span class="cm">	* such a strategy risks missing useful information when new
+</span><span class="cm">	* schemaLocations are offered.
+</span><span class="cm">	*
+</span><span class="cm">	* We will use the first &lt;import&gt; that comes with a location.
+</span><span class="cm">	* Further &lt;import&gt;s *with* a location, will result in an error.
+</span><span class="cm">	* TODO: Better would be to just report a warning here, but
+</span><span class="cm">	* we&#39;ll try it this way until someone complains.
+</span><span class="cm">	*
+</span><span class="cm">	* Schema Document Location Strategy:
+</span><span class="cm">	* 3 Based on the namespace name, identify an existing schema document,
+</span><span class="cm">	* either as a resource which is an XML document or a &lt;schema&gt; element
+</span><span class="cm">	* information item, in some local schema repository;
+</span><span class="cm">	* 5 Attempt to resolve the namespace name to locate such a resource.
+</span><span class="cm">	*
+</span><span class="cm">	* NOTE: (3) and (5) are not supported.
+</span><span class="cm">	*/</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">bkt</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="n">relation</span><span class="o">-</span><span class="o">&gt;</span><span class="n">bucket</span> <span class="o">=</span> <span class="n">bkt</span><span class="p">;</span>
+	    <span class="k">goto</span> <span class="n">exit</span><span class="p">;</span>
+	<span class="p">}</span>
+	<span class="n">bkt</span> <span class="o">=</span> <span class="n">xmlSchemaGetSchemaBucketByTNS</span><span class="p">(</span><span class="n">pctxt</span><span class="p">,</span>
+	    <span class="n">importNamespace</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="p">;</span>
+
+	<span class="k">if</span> <span class="p">(</span><span class="n">bkt</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="n">relation</span><span class="o">-</span><span class="o">&gt;</span><span class="n">bucket</span> <span class="o">=</span> <span class="n">bkt</span><span class="p">;</span>
+	    <span class="k">if</span> <span class="p">(</span><span class="n">bkt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">schemaLocation</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+		<span class="cm">/* First given location of the schema; load the doc. */</span>
+		<span class="n">bkt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">schemaLocation</span> <span class="o">=</span> <span class="n">schemaLocation</span><span class="p">;</span>
+	    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+		<span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">xmlStrEqual</span><span class="p">(</span><span class="n">schemaLocation</span><span class="p">,</span>
+		    <span class="n">bkt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">schemaLocation</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+		    <span class="cm">/*
+</span><span class="cm">		    * Additional location given; just skip it.
+</span><span class="cm">		    * URGENT TODO: We should report a warning here.
+</span><span class="cm">		    * res = XML_SCHEMAP_SRC_IMPORT;
+</span><span class="cm">		    */</span>
+		    <span class="k">if</span> <span class="p">(</span><span class="n">schemaLocation</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+			<span class="n">schemaLocation</span> <span class="o">=</span> <span class="n">BAD_CAST</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">in_memory_buffer</span><span class="s">&#34;</span><span class="p">;</span>
+
+		    <span class="n">xmlSchemaCustomWarning</span><span class="p">(</span><span class="n">ACTXT_CAST</span> <span class="n">pctxt</span><span class="p">,</span>
+			<span class="n">XML_SCHEMAP_WARN_SKIP_SCHEMA</span><span class="p">,</span>
+			<span class="n">invokingNode</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span>
+			<span class="sa"></span><span class="s">&#34;</span><span class="s">Skipping import of schema located at &#39;%s&#39; for the </span><span class="s">&#34;</span>
+			<span class="sa"></span><span class="s">&#34;</span><span class="s">namespace &#39;%s&#39;, since this namespace was already </span><span class="s">&#34;</span>
+			<span class="sa"></span><span class="s">&#34;</span><span class="s">imported with the schema located at &#39;%s&#39;</span><span class="s">&#34;</span><span class="p">,</span>
+			<span class="n">schemaLocation</span><span class="p">,</span> <span class="n">importNamespace</span><span class="p">,</span> <span class="n">bkt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">schemaLocation</span><span class="p">)</span><span class="p">;</span>
+		<span class="p">}</span>
+		<span class="k">goto</span> <span class="n">exit</span><span class="p">;</span>
+	    <span class="p">}</span>
+	<span class="p">}</span>
+	<span class="cm">/*
+</span><span class="cm">	* No bucket + first location: load the doc and create a
+</span><span class="cm">	* bucket.
+</span><span class="cm">	*/</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+	<span class="cm">/* &lt;include&gt; and &lt;redefine&gt; */</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">bkt</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+
+	    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">bkt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">origTargetNamespace</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span>
+		<span class="p">(</span><span class="n">bkt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">targetNamespace</span> <span class="o">!</span><span class="o">=</span> <span class="n">sourceTargetNamespace</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+		<span class="n">xmlSchemaBucketPtr</span> <span class="n">chamel</span><span class="p">;</span>
+
+		<span class="cm">/*
+</span><span class="cm">		* Chameleon include/redefine: skip loading only if it was
+</span><span class="cm">		* already build for the targetNamespace of the including
+</span><span class="cm">		* schema.
+</span><span class="cm">		*/</span>
+		<span class="cm">/*
+</span><span class="cm">		* URGENT TODO: If the schema is a chameleon-include then copy
+</span><span class="cm">		* the components into the including schema and modify the
+</span><span class="cm">		* targetNamespace of those components, do nothing otherwise.
+</span><span class="cm">		* NOTE: This is currently worked-around by compiling the
+</span><span class="cm">		* chameleon for every distinct including targetNamespace; thus
+</span><span class="cm">		* not performant at the moment.
+</span><span class="cm">		* TODO: Check when the namespace in wildcards for chameleons
+</span><span class="cm">		* needs to be converted: before we built wildcard intersections
+</span><span class="cm">		* or after.
+</span><span class="cm">		*   Answer: after!
+</span><span class="cm">		*/</span>
+		<span class="n">chamel</span> <span class="o">=</span> <span class="n">xmlSchemaGetChameleonSchemaBucket</span><span class="p">(</span><span class="n">pctxt</span><span class="p">,</span>
+		    <span class="n">schemaLocation</span><span class="p">,</span> <span class="n">sourceTargetNamespace</span><span class="p">)</span><span class="p">;</span>
+		<span class="k">if</span> <span class="p">(</span><span class="n">chamel</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+		    <span class="cm">/* A fitting chameleon was already parsed; NOP. */</span>
+		    <span class="n">relation</span><span class="o">-</span><span class="o">&gt;</span><span class="n">bucket</span> <span class="o">=</span> <span class="n">chamel</span><span class="p">;</span>
+		    <span class="k">goto</span> <span class="n">exit</span><span class="p">;</span>
+		<span class="p">}</span>
+		<span class="cm">/*
+</span><span class="cm">		* We need to parse the chameleon again for a different
+</span><span class="cm">		* targetNamespace.
+</span><span class="cm">		* CHAMELEON TODO: Optimize this by only parsing the
+</span><span class="cm">		* chameleon once, and then copying the components to
+</span><span class="cm">		* the new targetNamespace.
+</span><span class="cm">		*/</span>
+		<span class="n">bkt</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+	    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+		<span class="n">relation</span><span class="o">-</span><span class="o">&gt;</span><span class="n">bucket</span> <span class="o">=</span> <span class="n">bkt</span><span class="p">;</span>
+		<span class="k">goto</span> <span class="n">exit</span><span class="p">;</span>
+	    <span class="p">}</span>
+	<span class="p">}</span>
+    <span class="p">}</span>
+    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">bkt</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="n">bkt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">doc</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">PERROR_INT</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s">xmlSchemaAddSchemaDoc</span><span class="s">&#34;</span><span class="p">,</span>
+	    <span class="sa"></span><span class="s">&#34;</span><span class="s">trying to load a schema doc, but a doc is already </span><span class="s">&#34;</span>
+	    <span class="sa"></span><span class="s">&#34;</span><span class="s">assigned to the schema bucket</span><span class="s">&#34;</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">goto</span> <span class="n">exit_failure</span><span class="p">;</span>
+    <span class="p">}</span>
+
+<span class="nl">doc_load</span><span class="p">:</span>
+    <span class="cm">/*
+</span><span class="cm">    * Load the document.
+</span><span class="cm">    */</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">schemaDoc</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">doc</span> <span class="o">=</span> <span class="n">schemaDoc</span><span class="p">;</span>
+	<span class="cm">/* Don&#39; free this one, since it was provided by the caller. */</span>
+	<span class="n">preserveDoc</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+	<span class="cm">/* TODO: Does the context or the doc hold the location? */</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">schemaDoc</span><span class="o">-</span><span class="o">&gt;</span><span class="n">URL</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+	    <span class="n">schemaLocation</span> <span class="o">=</span> <span class="n">xmlDictLookup</span><span class="p">(</span><span class="n">pctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">dict</span><span class="p">,</span>
+		<span class="n">schemaDoc</span><span class="o">-</span><span class="o">&gt;</span><span class="n">URL</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">else</span>
+	    <span class="n">schemaLocation</span> <span class="o">=</span> <span class="n">BAD_CAST</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">in_memory_buffer</span><span class="s">&#34;</span><span class="p">;</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">schemaLocation</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="o">|</span><span class="o">|</span> <span class="p">(</span><span class="n">schemaBuffer</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">xmlParserCtxtPtr</span> <span class="n">parserCtxt</span><span class="p">;</span>
+
+	<span class="n">parserCtxt</span> <span class="o">=</span> <span class="n">xmlNewParserCtxt</span><span class="p">(</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">parserCtxt</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="n">xmlSchemaPErrMemory</span><span class="p">(</span><span class="nb">NULL</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">xmlSchemaGetDoc, </span><span class="s">&#34;</span>
+		<span class="sa"></span><span class="s">&#34;</span><span class="s">allocating a parser context</span><span class="s">&#34;</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+	    <span class="k">goto</span> <span class="n">exit_failure</span><span class="p">;</span>
+	<span class="p">}</span>
+	<span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">pctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">dict</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="n">parserCtxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">dict</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="cm">/*
+</span><span class="cm">	    * TODO: Do we have to burden the schema parser dict with all
+</span><span class="cm">	    * the content of the schema doc?
+</span><span class="cm">	    */</span>
+	    <span class="n">xmlDictFree</span><span class="p">(</span><span class="n">parserCtxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">dict</span><span class="p">)</span><span class="p">;</span>
+	    <span class="n">parserCtxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">dict</span> <span class="o">=</span> <span class="n">pctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">dict</span><span class="p">;</span>
+	    <span class="n">xmlDictReference</span><span class="p">(</span><span class="n">parserCtxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">dict</span><span class="p">)</span><span class="p">;</span>
+	<span class="p">}</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">schemaLocation</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="cm">/* Parse from file. */</span>
+	    <span class="n">doc</span> <span class="o">=</span> <span class="n">xmlCtxtReadFile</span><span class="p">(</span><span class="n">parserCtxt</span><span class="p">,</span> <span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="p">)</span> <span class="n">schemaLocation</span><span class="p">,</span>
+		<span class="nb">NULL</span><span class="p">,</span> <span class="n">SCHEMAS_PARSE_OPTIONS</span><span class="p">)</span><span class="p">;</span>
+	<span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">schemaBuffer</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="cm">/* Parse from memory buffer. */</span>
+	    <span class="n">doc</span> <span class="o">=</span> <span class="n">xmlCtxtReadMemory</span><span class="p">(</span><span class="n">parserCtxt</span><span class="p">,</span> <span class="n">schemaBuffer</span><span class="p">,</span> <span class="n">schemaBufferLen</span><span class="p">,</span>
+		<span class="nb">NULL</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span> <span class="n">SCHEMAS_PARSE_OPTIONS</span><span class="p">)</span><span class="p">;</span>
+	    <span class="n">schemaLocation</span> <span class="o">=</span> <span class="n">BAD_CAST</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">in_memory_buffer</span><span class="s">&#34;</span><span class="p">;</span>
+	    <span class="k">if</span> <span class="p">(</span><span class="n">doc</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+		<span class="n">doc</span><span class="o">-</span><span class="o">&gt;</span><span class="n">URL</span> <span class="o">=</span> <span class="n">xmlStrdup</span><span class="p">(</span><span class="n">schemaLocation</span><span class="p">)</span><span class="p">;</span>
+	<span class="p">}</span>
+	<span class="cm">/*
+</span><span class="cm">	* For &lt;import&gt;:
+</span><span class="cm">	* 2.1 The referent is (a fragment of) a resource which is an
+</span><span class="cm">	* XML document (see clause 1.1), which in turn corresponds to
+</span><span class="cm">	* a &lt;schema&gt; element information item in a well-formed information
+</span><span class="cm">	* set, which in turn corresponds to a valid schema.
+</span><span class="cm">	* TODO: (2.1) fragments of XML documents are not supported.
+</span><span class="cm">	*
+</span><span class="cm">	* 2.2 The referent is a &lt;schema&gt; element information item in
+</span><span class="cm">	* a well-formed information set, which in turn corresponds
+</span><span class="cm">	* to a valid schema.
+</span><span class="cm">	* TODO: (2.2) is not supported.
+</span><span class="cm">	*/</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">doc</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="n">xmlErrorPtr</span> <span class="n">lerr</span><span class="p">;</span>
+	    <span class="n">lerr</span> <span class="o">=</span> <span class="n">xmlGetLastError</span><span class="p">(</span><span class="p">)</span><span class="p">;</span>
+	    <span class="cm">/*
+</span><span class="cm">	    * Check if this a parser error, or if the document could
+</span><span class="cm">	    * just not be located.
+</span><span class="cm">	    * TODO: Try to find specific error codes to react only on
+</span><span class="cm">	    * localisation failures.
+</span><span class="cm">	    */</span>
+	    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">lerr</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="o">|</span><span class="o">|</span> <span class="p">(</span><span class="n">lerr</span><span class="o">-</span><span class="o">&gt;</span><span class="n">domain</span> <span class="o">!</span><span class="o">=</span> <span class="n">XML_FROM_IO</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+		<span class="cm">/*
+</span><span class="cm">		* We assume a parser error here.
+</span><span class="cm">		*/</span>
+		<span class="n">located</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+		<span class="cm">/* TODO: Error code ?? */</span>
+		<span class="n">res</span> <span class="o">=</span> <span class="n">XML_SCHEMAP_SRC_IMPORT_2_1</span><span class="p">;</span>
+		<span class="n">xmlSchemaCustomErr</span><span class="p">(</span><span class="n">ACTXT_CAST</span> <span class="n">pctxt</span><span class="p">,</span> <span class="n">res</span><span class="p">,</span>
+		    <span class="n">invokingNode</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span>
+		    <span class="sa"></span><span class="s">&#34;</span><span class="s">Failed to parse the XML resource &#39;%s&#39;</span><span class="s">&#34;</span><span class="p">,</span>
+		    <span class="n">schemaLocation</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+	    <span class="p">}</span>
+	<span class="p">}</span>
+	<span class="n">xmlFreeParserCtxt</span><span class="p">(</span><span class="n">parserCtxt</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">doc</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="n">located</span><span class="p">)</span>
+	    <span class="k">goto</span> <span class="n">exit_error</span><span class="p">;</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+	<span class="n">xmlSchemaPErr</span><span class="p">(</span><span class="n">pctxt</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span>
+	    <span class="n">XML_SCHEMAP_NOTHING_TO_PARSE</span><span class="p">,</span>
+	    <span class="sa"></span><span class="s">&#34;</span><span class="s">No information for parsing was provided with the </span><span class="s">&#34;</span>
+	    <span class="sa"></span><span class="s">&#34;</span><span class="s">given schema parser context.</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span>
+	    <span class="nb">NULL</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">goto</span> <span class="n">exit_failure</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="cm">/*
+</span><span class="cm">    * Preprocess the document.
+</span><span class="cm">    */</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">doc</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">xmlNodePtr</span> <span class="n">docElem</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+
+	<span class="n">located</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+	<span class="n">docElem</span> <span class="o">=</span> <span class="n">xmlDocGetRootElement</span><span class="p">(</span><span class="n">doc</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">docElem</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="n">xmlSchemaCustomErr</span><span class="p">(</span><span class="n">ACTXT_CAST</span> <span class="n">pctxt</span><span class="p">,</span> <span class="n">XML_SCHEMAP_NOROOT</span><span class="p">,</span>
+		<span class="n">invokingNode</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span>
+		<span class="sa"></span><span class="s">&#34;</span><span class="s">The document &#39;%s&#39; has no document element</span><span class="s">&#34;</span><span class="p">,</span>
+		<span class="n">schemaLocation</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+	    <span class="k">goto</span> <span class="n">exit_error</span><span class="p">;</span>
+	<span class="p">}</span>
+	<span class="cm">/*
+</span><span class="cm">	* Remove all the blank text nodes.
+</span><span class="cm">	*/</span>
+	<span class="n">xmlSchemaCleanupDoc</span><span class="p">(</span><span class="n">pctxt</span><span class="p">,</span> <span class="n">docElem</span><span class="p">)</span><span class="p">;</span>
+	<span class="cm">/*
+</span><span class="cm">	* Check the schema&#39;s top level element.
+</span><span class="cm">	*/</span>
+	<span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">IS_SCHEMA</span><span class="p">(</span><span class="n">docElem</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">schema</span><span class="s">&#34;</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="n">xmlSchemaCustomErr</span><span class="p">(</span><span class="n">ACTXT_CAST</span> <span class="n">pctxt</span><span class="p">,</span> <span class="n">XML_SCHEMAP_NOT_SCHEMA</span><span class="p">,</span>
+		<span class="n">invokingNode</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span>
+		<span class="sa"></span><span class="s">&#34;</span><span class="s">The XML document &#39;%s&#39; is not a schema document</span><span class="s">&#34;</span><span class="p">,</span>
+		<span class="n">schemaLocation</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+	    <span class="k">goto</span> <span class="n">exit_error</span><span class="p">;</span>
+	<span class="p">}</span>
+	<span class="cm">/*
+</span><span class="cm">	* Note that we don&#39;t apply a type check for the
+</span><span class="cm">	* targetNamespace value here.
+</span><span class="cm">	*/</span>
+	<span class="n">targetNamespace</span> <span class="o">=</span> <span class="n">xmlSchemaGetProp</span><span class="p">(</span><span class="n">pctxt</span><span class="p">,</span> <span class="n">docElem</span><span class="p">,</span>
+	    <span class="sa"></span><span class="s">&#34;</span><span class="s">targetNamespace</span><span class="s">&#34;</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+
+<span class="cm">/* after_doc_loading: */</span>
+    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">bkt</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="n">located</span><span class="p">)</span> <span class="p">{</span>
+	<span class="cm">/* Only create a bucket if the schema was located. */</span>
+        <span class="n">bkt</span> <span class="o">=</span> <span class="n">xmlSchemaBucketCreate</span><span class="p">(</span><span class="n">pctxt</span><span class="p">,</span> <span class="n">type</span><span class="p">,</span>
+	    <span class="n">targetNamespace</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">bkt</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+	    <span class="k">goto</span> <span class="n">exit_failure</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">bkt</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">bkt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">schemaLocation</span> <span class="o">=</span> <span class="n">schemaLocation</span><span class="p">;</span>
+	<span class="n">bkt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">located</span> <span class="o">=</span> <span class="n">located</span><span class="p">;</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">doc</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="n">bkt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">doc</span> <span class="o">=</span> <span class="n">doc</span><span class="p">;</span>
+	    <span class="n">bkt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">targetNamespace</span> <span class="o">=</span> <span class="n">targetNamespace</span><span class="p">;</span>
+	    <span class="n">bkt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">origTargetNamespace</span> <span class="o">=</span> <span class="n">targetNamespace</span><span class="p">;</span>
+	    <span class="k">if</span> <span class="p">(</span><span class="n">preserveDoc</span><span class="p">)</span>
+		<span class="n">bkt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">preserveDoc</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+	<span class="p">}</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">WXS_IS_BUCKET_IMPMAIN</span><span class="p">(</span><span class="n">type</span><span class="p">)</span><span class="p">)</span>
+	    <span class="n">bkt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">imported</span><span class="o">+</span><span class="o">+</span><span class="p">;</span>
+	    <span class="cm">/*
+</span><span class="cm">	    * Add it to the graph of schemas.
+</span><span class="cm">	    */</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">relation</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+	    <span class="n">relation</span><span class="o">-</span><span class="o">&gt;</span><span class="n">bucket</span> <span class="o">=</span> <span class="n">bkt</span><span class="p">;</span>
+    <span class="p">}</span>
+
+<span class="nl">exit</span><span class="p">:</span>
+    <span class="cm">/*
+</span><span class="cm">    * Return the bucket explicitly; this is needed for the
+</span><span class="cm">    * main schema.
+</span><span class="cm">    */</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">bucket</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+	<span class="o">*</span><span class="n">bucket</span> <span class="o">=</span> <span class="n">bkt</span><span class="p">;</span>
+    <span class="k">return</span> <span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="p">;</span>
+
+<span class="nl">exit_error</span><span class="p">:</span>
+    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">doc</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="o">!</span> <span class="n">preserveDoc</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">xmlFreeDoc</span><span class="p">(</span><span class="n">doc</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">bkt</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+	    <span class="n">bkt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">doc</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">return</span><span class="p">(</span><span class="n">pctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">err</span><span class="p">)</span><span class="p">;</span>
+
+<span class="nl">exit_failure</span><span class="p">:</span>
+    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">doc</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="o">!</span> <span class="n">preserveDoc</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">xmlFreeDoc</span><span class="p">(</span><span class="n">doc</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">bkt</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+	    <span class="n">bkt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">doc</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><p>上記のうち以下の部分で <code>xmlCtxtReadFile</code> 関数で <code>schemaLocation</code> のファイルからスキーマを読み込んでいます。
+その下を見ると <code>schemaLocation</code> を <code>NULL</code> にして <code>schemaBuffer</code> を設定して呼び出せば <code>xmlCtxtReadMemory</code> 関数でメモリ上のスキーマを読み込めることが分かります。</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c">	<span class="k">if</span> <span class="p">(</span><span class="n">schemaLocation</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="cm">/* Parse from file. */</span>
+	    <span class="n">doc</span> <span class="o">=</span> <span class="n">xmlCtxtReadFile</span><span class="p">(</span><span class="n">parserCtxt</span><span class="p">,</span> <span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="p">)</span> <span class="n">schemaLocation</span><span class="p">,</span>
+		<span class="nb">NULL</span><span class="p">,</span> <span class="n">SCHEMAS_PARSE_OPTIONS</span><span class="p">)</span><span class="p">;</span>
+	<span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">schemaBuffer</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="cm">/* Parse from memory buffer. */</span>
+	    <span class="n">doc</span> <span class="o">=</span> <span class="n">xmlCtxtReadMemory</span><span class="p">(</span><span class="n">parserCtxt</span><span class="p">,</span> <span class="n">schemaBuffer</span><span class="p">,</span> <span class="n">schemaBufferLen</span><span class="p">,</span>
+		<span class="nb">NULL</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span> <span class="n">SCHEMAS_PARSE_OPTIONS</span><span class="p">)</span><span class="p">;</span>
+	    <span class="n">schemaLocation</span> <span class="o">=</span> <span class="n">BAD_CAST</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">in_memory_buffer</span><span class="s">&#34;</span><span class="p">;</span>
+	    <span class="k">if</span> <span class="p">(</span><span class="n">doc</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+		<span class="n">doc</span><span class="o">-</span><span class="o">&gt;</span><span class="n">URL</span> <span class="o">=</span> <span class="n">xmlStrdup</span><span class="p">(</span><span class="n">schemaLocation</span><span class="p">)</span><span class="p">;</span>
+	<span class="p">}</span>
+</code></pre></div><h2 id="xmlschemaparserctxtptr-型の定義"><code>xmlSchemaParserCtxtPtr</code> 型の定義</h2>
+<p><code>xmlSchemaParserCtxtPtr</code> 型の定義</p>
+<p><a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/include/libxml/xmlschemas.h#L112-L113">xmlschemas.h#L112-L113</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">typedef</span> <span class="k">struct</span> <span class="n">_xmlSchemaParserCtxt</span> <span class="n">xmlSchemaParserCtxt</span><span class="p">;</span>
+<span class="k">typedef</span> <span class="n">xmlSchemaParserCtxt</span> <span class="o">*</span><span class="n">xmlSchemaParserCtxtPtr</span><span class="p">;</span>
+</code></pre></div><p><code>struct _xmlSchemaParserCtxt</code>
+<a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlschemas.c#L595-L642">xmlschemas.c#L595-L642</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">struct</span> <span class="n">_xmlSchemaParserCtxt</span> <span class="p">{</span>
+    <span class="kt">int</span> <span class="n">type</span><span class="p">;</span>
+    <span class="kt">void</span> <span class="o">*</span><span class="n">errCtxt</span><span class="p">;</span>             <span class="cm">/* user specific error context */</span>
+    <span class="n">xmlSchemaValidityErrorFunc</span> <span class="n">error</span><span class="p">;</span>   <span class="cm">/* the callback in case of errors */</span>
+    <span class="n">xmlSchemaValidityWarningFunc</span> <span class="n">warning</span><span class="p">;</span>       <span class="cm">/* the callback in case of warning */</span>
+    <span class="kt">int</span> <span class="n">err</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">nberrors</span><span class="p">;</span>
+    <span class="n">xmlStructuredErrorFunc</span> <span class="n">serror</span><span class="p">;</span>
+
+    <span class="n">xmlSchemaConstructionCtxtPtr</span> <span class="n">constructor</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">ownsConstructor</span><span class="p">;</span> <span class="cm">/* TODO: Move this to parser *flags*. */</span>
+
+    <span class="cm">/* xmlSchemaPtr topschema;	*/</span>
+    <span class="cm">/* xmlHashTablePtr namespaces;  */</span>
+
+    <span class="n">xmlSchemaPtr</span> <span class="n">schema</span><span class="p">;</span>        <span class="cm">/* The main schema in use */</span>
+    <span class="kt">int</span> <span class="n">counter</span><span class="p">;</span>
+
+    <span class="k">const</span> <span class="n">xmlChar</span> <span class="o">*</span><span class="n">URL</span><span class="p">;</span>
+    <span class="n">xmlDocPtr</span> <span class="n">doc</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">preserve</span><span class="p">;</span>		<span class="cm">/* Whether the doc should be freed  */</span>
+
+    <span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">buffer</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">size</span><span class="p">;</span>
+
+    <span class="cm">/*
+</span><span class="cm">     * Used to build complex element content models
+</span><span class="cm">     */</span>
+    <span class="n">xmlAutomataPtr</span> <span class="n">am</span><span class="p">;</span>
+    <span class="n">xmlAutomataStatePtr</span> <span class="n">start</span><span class="p">;</span>
+    <span class="n">xmlAutomataStatePtr</span> <span class="n">end</span><span class="p">;</span>
+    <span class="n">xmlAutomataStatePtr</span> <span class="n">state</span><span class="p">;</span>
+
+    <span class="n">xmlDictPtr</span> <span class="n">dict</span><span class="p">;</span>		<span class="cm">/* dictionary for interned string names */</span>
+    <span class="n">xmlSchemaTypePtr</span> <span class="n">ctxtType</span><span class="p">;</span> <span class="cm">/* The current context simple/complex type */</span>
+    <span class="kt">int</span> <span class="n">options</span><span class="p">;</span>
+    <span class="n">xmlSchemaValidCtxtPtr</span> <span class="n">vctxt</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">isS4S</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">isRedefine</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">xsiAssemble</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">stop</span><span class="p">;</span> <span class="cm">/* If the parser should stop; i.e. a critical error. */</span>
+    <span class="k">const</span> <span class="n">xmlChar</span> <span class="o">*</span><span class="n">targetNamespace</span><span class="p">;</span>
+    <span class="n">xmlSchemaBucketPtr</span> <span class="n">redefined</span><span class="p">;</span> <span class="cm">/* The schema to be redefined. */</span>
+
+    <span class="n">xmlSchemaRedefPtr</span> <span class="n">redef</span><span class="p">;</span> <span class="cm">/* Used for redefinitions. */</span>
+    <span class="kt">int</span> <span class="n">redefCounter</span><span class="p">;</span> <span class="cm">/* Used for redefinitions. */</span>
+    <span class="n">xmlSchemaItemListPtr</span> <span class="n">attrProhibs</span><span class="p">;</span>
+<span class="p">}</span><span class="p">;</span>
+</code></pre></div><p><code>xmlSchemaParseNewDocWithContext</code> 関数
+<a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlschemas.c#L10117-L10184">xmlschemas.c#L10117-L10184</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">static</span> <span class="kt">int</span>
+<span class="nf">xmlSchemaParseNewDocWithContext</span><span class="p">(</span><span class="n">xmlSchemaParserCtxtPtr</span> <span class="n">pctxt</span><span class="p">,</span>
+		     <span class="n">xmlSchemaPtr</span> <span class="n">schema</span><span class="p">,</span>
+		     <span class="n">xmlSchemaBucketPtr</span> <span class="n">bucket</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="kt">int</span> <span class="n">oldFlags</span><span class="p">;</span>
+    <span class="n">xmlDocPtr</span> <span class="n">oldDoc</span><span class="p">;</span>
+    <span class="n">xmlNodePtr</span> <span class="n">node</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">ret</span><span class="p">,</span> <span class="n">oldErrs</span><span class="p">;</span>
+    <span class="n">xmlSchemaBucketPtr</span> <span class="n">oldbucket</span> <span class="o">=</span> <span class="n">pctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">constructor</span><span class="o">-</span><span class="o">&gt;</span><span class="n">bucket</span><span class="p">;</span>
+
+    <span class="cm">/*
+</span><span class="cm">    * Save old values; reset the *main* schema.
+</span><span class="cm">    * URGENT TODO: This is not good; move the per-document information
+</span><span class="cm">    * to the parser. Get rid of passing the main schema to the
+</span><span class="cm">    * parsing functions.
+</span><span class="cm">    */</span>
+    <span class="n">oldFlags</span> <span class="o">=</span> <span class="n">schema</span><span class="o">-</span><span class="o">&gt;</span><span class="n">flags</span><span class="p">;</span>
+    <span class="n">oldDoc</span> <span class="o">=</span> <span class="n">schema</span><span class="o">-</span><span class="o">&gt;</span><span class="n">doc</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">schema</span><span class="o">-</span><span class="o">&gt;</span><span class="n">flags</span> <span class="o">!</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+	<span class="n">xmlSchemaClearSchemaDefaults</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span><span class="p">;</span>
+    <span class="n">schema</span><span class="o">-</span><span class="o">&gt;</span><span class="n">doc</span> <span class="o">=</span> <span class="n">bucket</span><span class="o">-</span><span class="o">&gt;</span><span class="n">doc</span><span class="p">;</span>
+    <span class="n">pctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">schema</span> <span class="o">=</span> <span class="n">schema</span><span class="p">;</span>
+    <span class="cm">/*
+</span><span class="cm">    * Keep the current target namespace on the parser *not* on the
+</span><span class="cm">    * main schema.
+</span><span class="cm">    */</span>
+    <span class="n">pctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">targetNamespace</span> <span class="o">=</span> <span class="n">bucket</span><span class="o">-</span><span class="o">&gt;</span><span class="n">targetNamespace</span><span class="p">;</span>
+    <span class="n">WXS_CONSTRUCTOR</span><span class="p">(</span><span class="n">pctxt</span><span class="p">)</span><span class="o">-</span><span class="o">&gt;</span><span class="n">bucket</span> <span class="o">=</span> <span class="n">bucket</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">bucket</span><span class="o">-</span><span class="o">&gt;</span><span class="n">targetNamespace</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span>
+	<span class="n">xmlStrEqual</span><span class="p">(</span><span class="n">bucket</span><span class="o">-</span><span class="o">&gt;</span><span class="n">targetNamespace</span><span class="p">,</span> <span class="n">xmlSchemaNs</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+	<span class="cm">/*
+</span><span class="cm">	* We are parsing the schema for schemas!
+</span><span class="cm">	*/</span>
+	<span class="n">pctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">isS4S</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="cm">/* Mark it as parsed, even if parsing fails. */</span>
+    <span class="n">bucket</span><span class="o">-</span><span class="o">&gt;</span><span class="n">parsed</span><span class="o">+</span><span class="o">+</span><span class="p">;</span>
+    <span class="cm">/* Compile the schema doc. */</span>
+    <span class="n">node</span> <span class="o">=</span> <span class="n">xmlDocGetRootElement</span><span class="p">(</span><span class="n">bucket</span><span class="o">-</span><span class="o">&gt;</span><span class="n">doc</span><span class="p">)</span><span class="p">;</span>
+    <span class="n">ret</span> <span class="o">=</span> <span class="n">xmlSchemaParseSchemaElement</span><span class="p">(</span><span class="n">pctxt</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">node</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ret</span> <span class="o">!</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+	<span class="k">goto</span> <span class="n">exit</span><span class="p">;</span>
+    <span class="cm">/* An empty schema; just get out. */</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">node</span><span class="o">-</span><span class="o">&gt;</span><span class="n">children</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+	<span class="k">goto</span> <span class="n">exit</span><span class="p">;</span>
+    <span class="n">oldErrs</span> <span class="o">=</span> <span class="n">pctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">nberrors</span><span class="p">;</span>
+    <span class="n">ret</span> <span class="o">=</span> <span class="n">xmlSchemaParseSchemaTopLevel</span><span class="p">(</span><span class="n">pctxt</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">node</span><span class="o">-</span><span class="o">&gt;</span><span class="n">children</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ret</span> <span class="o">!</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+	<span class="k">goto</span> <span class="n">exit</span><span class="p">;</span>
+    <span class="cm">/*
+</span><span class="cm">    * TODO: Not nice, but I&#39;m not 100% sure we will get always an error
+</span><span class="cm">    * as a result of the above functions; so better rely on pctxt-&gt;err
+</span><span class="cm">    * as well.
+</span><span class="cm">    */</span>
+    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">ret</span> <span class="o">=</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span> <span class="p">(</span><span class="n">oldErrs</span> <span class="o">!</span><span class="o">=</span> <span class="n">pctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">nberrors</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">ret</span> <span class="o">=</span> <span class="n">pctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">err</span><span class="p">;</span>
+	<span class="k">goto</span> <span class="n">exit</span><span class="p">;</span>
+    <span class="p">}</span>
+
+<span class="nl">exit</span><span class="p">:</span>
+    <span class="n">WXS_CONSTRUCTOR</span><span class="p">(</span><span class="n">pctxt</span><span class="p">)</span><span class="o">-</span><span class="o">&gt;</span><span class="n">bucket</span> <span class="o">=</span> <span class="n">oldbucket</span><span class="p">;</span>
+    <span class="cm">/* Restore schema values. */</span>
+    <span class="n">schema</span><span class="o">-</span><span class="o">&gt;</span><span class="n">doc</span> <span class="o">=</span> <span class="n">oldDoc</span><span class="p">;</span>
+    <span class="n">schema</span><span class="o">-</span><span class="o">&gt;</span><span class="n">flags</span> <span class="o">=</span> <span class="n">oldFlags</span><span class="p">;</span>
+    <span class="k">return</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+</div>
+
+
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
