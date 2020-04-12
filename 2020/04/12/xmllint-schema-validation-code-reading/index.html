@@ -1158,6 +1158,390 @@
     <span class="n">schema</span><span class="o">-</span><span class="o">&gt;</span><span class="n">flags</span> <span class="o">=</span> <span class="n">oldFlags</span><span class="p">;</span>
     <span class="k">return</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span><span class="p">;</span>
 <span class="p">}</span>
+</code></pre></div><h2 id="xmlparserinputbuffercreatefilename-関数"><code>xmlParserInputBufferCreateFilename</code> 関数</h2>
+<p><a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L2629-L2648">xmlIO.c#L2629-L2648</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
+</span><span class="cm"> * xmlParserInputBufferCreateFilename:
+</span><span class="cm"> * @URI:  a C string containing the URI or filename
+</span><span class="cm"> * @enc:  the charset encoding if known
+</span><span class="cm"> *
+</span><span class="cm"> * Create a buffered parser input for the progressive parsing of a file
+</span><span class="cm"> * If filename is &#34;-&#39; then we use stdin as the input.
+</span><span class="cm"> * Automatic support for ZLIB/Compress compressed document is provided
+</span><span class="cm"> * by default if found at compile-time.
+</span><span class="cm"> * Do an encoding check if enc == XML_CHAR_ENCODING_NONE
+</span><span class="cm"> *
+</span><span class="cm"> * Returns the new parser input or NULL
+</span><span class="cm"> */</span>
+<span class="n">xmlParserInputBufferPtr</span>
+<span class="nf">xmlParserInputBufferCreateFilename</span><span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">URI</span><span class="p">,</span> <span class="n">xmlCharEncoding</span> <span class="n">enc</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">xmlParserInputBufferCreateFilenameValue</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="n">xmlParserInputBufferCreateFilenameValue</span><span class="p">(</span><span class="n">URI</span><span class="p">,</span> <span class="n">enc</span><span class="p">)</span><span class="p">;</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="n">__xmlParserInputBufferCreateFilename</span><span class="p">(</span><span class="n">URI</span><span class="p">,</span> <span class="n">enc</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><p><code>__xmlParserInputBufferCreateFilename</code> 関数
+<a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L2558-L2627">xmlIO.c#L2558-L2627</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="n">xmlParserInputBufferPtr</span>
+<span class="nf">__xmlParserInputBufferCreateFilename</span><span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">URI</span><span class="p">,</span> <span class="n">xmlCharEncoding</span> <span class="n">enc</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">xmlParserInputBufferPtr</span> <span class="n">ret</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="kt">void</span> <span class="o">*</span><span class="n">context</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">xmlInputCallbackInitialized</span> <span class="o">=</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+	<span class="n">xmlRegisterDefaultInputCallbacks</span><span class="p">(</span><span class="p">)</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">URI</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+
+    <span class="cm">/*
+</span><span class="cm">     * Try to find one of the input accept method accepting that scheme
+</span><span class="cm">     * Go in reverse to give precedence to user defined handlers.
+</span><span class="cm">     */</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">context</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">for</span> <span class="p">(</span><span class="n">i</span> <span class="o">=</span> <span class="n">xmlInputCallbackNr</span> <span class="o">-</span> <span class="mi">1</span><span class="p">;</span><span class="n">i</span> <span class="o">&gt;</span><span class="o">=</span> <span class="mi">0</span><span class="p">;</span><span class="n">i</span><span class="o">-</span><span class="o">-</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">xmlInputCallbackTable</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="p">.</span><span class="n">matchcallback</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span>
+		<span class="p">(</span><span class="n">xmlInputCallbackTable</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="p">.</span><span class="n">matchcallback</span><span class="p">(</span><span class="n">URI</span><span class="p">)</span> <span class="o">!</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+		<span class="n">context</span> <span class="o">=</span> <span class="n">xmlInputCallbackTable</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="p">.</span><span class="n">opencallback</span><span class="p">(</span><span class="n">URI</span><span class="p">)</span><span class="p">;</span>
+		<span class="k">if</span> <span class="p">(</span><span class="n">context</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+		    <span class="k">break</span><span class="p">;</span>
+		<span class="p">}</span>
+	    <span class="p">}</span>
+	<span class="p">}</span>
+    <span class="p">}</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">context</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="cm">/*
+</span><span class="cm">     * Allocate the Input buffer front-end.
+</span><span class="cm">     */</span>
+    <span class="n">ret</span> <span class="o">=</span> <span class="n">xmlAllocParserInputBuffer</span><span class="p">(</span><span class="n">enc</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ret</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">context</span> <span class="o">=</span> <span class="n">context</span><span class="p">;</span>
+	<span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">readcallback</span> <span class="o">=</span> <span class="n">xmlInputCallbackTable</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="p">.</span><span class="n">readcallback</span><span class="p">;</span>
+	<span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">closecallback</span> <span class="o">=</span> <span class="n">xmlInputCallbackTable</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="p">.</span><span class="n">closecallback</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">ifdef LIBXML_ZLIB_ENABLED</span><span class="cp">
+</span><span class="cp"></span>	<span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">xmlInputCallbackTable</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="p">.</span><span class="n">opencallback</span> <span class="o">=</span><span class="o">=</span> <span class="n">xmlGzfileOpen</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span>
+		<span class="p">(</span><span class="n">strcmp</span><span class="p">(</span><span class="n">URI</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">-</span><span class="s">&#34;</span><span class="p">)</span> <span class="o">!</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+<span class="cp">#</span><span class="cp">if defined(ZLIB_VERNUM) &amp;&amp; ZLIB_VERNUM &gt;= 0x1230</span><span class="cp">
+</span><span class="cp"></span>            <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">compressed</span> <span class="o">=</span> <span class="o">!</span><span class="n">gzdirect</span><span class="p">(</span><span class="n">context</span><span class="p">)</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">else</span><span class="cp">
+</span><span class="cp"></span>	    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="p">(</span><span class="n">z_stream</span> <span class="o">*</span><span class="p">)</span><span class="n">context</span><span class="p">)</span><span class="o">-</span><span class="o">&gt;</span><span class="n">avail_in</span> <span class="o">&gt;</span> <span class="mi">4</span><span class="p">)</span> <span class="p">{</span>
+	        <span class="kt">char</span> <span class="o">*</span><span class="n">cptr</span><span class="p">,</span> <span class="n">buff4</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span><span class="p">;</span>
+		<span class="n">cptr</span> <span class="o">=</span> <span class="p">(</span><span class="kt">char</span> <span class="o">*</span><span class="p">)</span> <span class="p">(</span><span class="p">(</span><span class="n">z_stream</span> <span class="o">*</span><span class="p">)</span><span class="n">context</span><span class="p">)</span><span class="o">-</span><span class="o">&gt;</span><span class="n">next_in</span><span class="p">;</span>
+		<span class="k">if</span> <span class="p">(</span><span class="n">gzread</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">buff4</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span> <span class="o">=</span><span class="o">=</span> <span class="mi">4</span><span class="p">)</span> <span class="p">{</span>
+		    <span class="k">if</span> <span class="p">(</span><span class="n">strncmp</span><span class="p">(</span><span class="n">buff4</span><span class="p">,</span> <span class="n">cptr</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span> <span class="o">=</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+		        <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">compressed</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+		    <span class="k">else</span>
+		        <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">compressed</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+		    <span class="n">gzrewind</span><span class="p">(</span><span class="n">context</span><span class="p">)</span><span class="p">;</span>
+		<span class="p">}</span>
+	    <span class="p">}</span>
+<span class="cp">#</span><span class="cp">endif</span><span class="cp">
+</span><span class="cp"></span>	<span class="p">}</span>
+<span class="cp">#</span><span class="cp">endif</span><span class="cp">
+</span><span class="cp"></span><span class="cp">#</span><span class="cp">ifdef LIBXML_LZMA_ENABLED</span><span class="cp">
+</span><span class="cp"></span>	<span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">xmlInputCallbackTable</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="p">.</span><span class="n">opencallback</span> <span class="o">=</span><span class="o">=</span> <span class="n">xmlXzfileOpen</span><span class="p">)</span> <span class="o">&amp;</span><span class="o">&amp;</span>
+		<span class="p">(</span><span class="n">strcmp</span><span class="p">(</span><span class="n">URI</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">-</span><span class="s">&#34;</span><span class="p">)</span> <span class="o">!</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">compressed</span> <span class="o">=</span> <span class="n">__libxml2_xzcompressed</span><span class="p">(</span><span class="n">context</span><span class="p">)</span><span class="p">;</span>
+	<span class="p">}</span>
+<span class="cp">#</span><span class="cp">endif</span><span class="cp">
+</span><span class="cp"></span>    <span class="p">}</span>
+    <span class="k">else</span>
+      <span class="n">xmlInputCallbackTable</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="p">.</span><span class="n">closecallback</span> <span class="p">(</span><span class="n">context</span><span class="p">)</span><span class="p">;</span>
+
+    <span class="k">return</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><p><code>xmlInputCallbackTable</code> 変数
+<a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L90-L104">xmlIO.c#L90-L104</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/*
+</span><span class="cm"> * Input I/O callback sets
+</span><span class="cm"> */</span>
+<span class="k">typedef</span> <span class="k">struct</span> <span class="n">_xmlInputCallback</span> <span class="p">{</span>
+    <span class="n">xmlInputMatchCallback</span> <span class="n">matchcallback</span><span class="p">;</span>
+    <span class="n">xmlInputOpenCallback</span> <span class="n">opencallback</span><span class="p">;</span>
+    <span class="n">xmlInputReadCallback</span> <span class="n">readcallback</span><span class="p">;</span>
+    <span class="n">xmlInputCloseCallback</span> <span class="n">closecallback</span><span class="p">;</span>
+<span class="p">}</span> <span class="n">xmlInputCallback</span><span class="p">;</span>
+
+<span class="cp">#</span><span class="cp">define MAX_INPUT_CALLBACK 15</span><span class="cp">
+</span><span class="cp"></span>
+<span class="k">static</span> <span class="n">xmlInputCallback</span> <span class="n">xmlInputCallbackTable</span><span class="p">[</span><span class="n">MAX_INPUT_CALLBACK</span><span class="p">]</span><span class="p">;</span>
+<span class="k">static</span> <span class="kt">int</span> <span class="n">xmlInputCallbackNr</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+<span class="k">static</span> <span class="kt">int</span> <span class="n">xmlInputCallbackInitialized</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</code></pre></div><p><code>xmlInputMatchCallback</code> 型など
+<a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/include/libxml/xmlIO.h#L20-L63">xmlIO.h#L20-L63</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/*
+</span><span class="cm"> * Those are the functions and datatypes for the parser input
+</span><span class="cm"> * I/O structures.
+</span><span class="cm"> */</span>
+
+<span class="cm">/**
+</span><span class="cm"> * xmlInputMatchCallback:
+</span><span class="cm"> * @filename: the filename or URI
+</span><span class="cm"> *
+</span><span class="cm"> * Callback used in the I/O Input API to detect if the current handler
+</span><span class="cm"> * can provide input functionality for this resource.
+</span><span class="cm"> *
+</span><span class="cm"> * Returns 1 if yes and 0 if another Input module should be used
+</span><span class="cm"> */</span>
+<span class="k">typedef</span> <span class="nf">int</span> <span class="p">(</span><span class="n">XMLCALL</span> <span class="o">*</span><span class="n">xmlInputMatchCallback</span><span class="p">)</span> <span class="p">(</span><span class="kt">char</span> <span class="k">const</span> <span class="o">*</span><span class="n">filename</span><span class="p">)</span><span class="p">;</span>
+<span class="cm">/**
+</span><span class="cm"> * xmlInputOpenCallback:
+</span><span class="cm"> * @filename: the filename or URI
+</span><span class="cm"> *
+</span><span class="cm"> * Callback used in the I/O Input API to open the resource
+</span><span class="cm"> *
+</span><span class="cm"> * Returns an Input context or NULL in case or error
+</span><span class="cm"> */</span>
+<span class="k">typedef</span> <span class="kt">void</span> <span class="o">*</span> <span class="p">(</span><span class="n">XMLCALL</span> <span class="o">*</span><span class="n">xmlInputOpenCallback</span><span class="p">)</span> <span class="p">(</span><span class="kt">char</span> <span class="k">const</span> <span class="o">*</span><span class="n">filename</span><span class="p">)</span><span class="p">;</span>
+<span class="cm">/**
+</span><span class="cm"> * xmlInputReadCallback:
+</span><span class="cm"> * @context:  an Input context
+</span><span class="cm"> * @buffer:  the buffer to store data read
+</span><span class="cm"> * @len:  the length of the buffer in bytes
+</span><span class="cm"> *
+</span><span class="cm"> * Callback used in the I/O Input API to read the resource
+</span><span class="cm"> *
+</span><span class="cm"> * Returns the number of bytes read or -1 in case of error
+</span><span class="cm"> */</span>
+<span class="k">typedef</span> <span class="nf">int</span> <span class="p">(</span><span class="n">XMLCALL</span> <span class="o">*</span><span class="n">xmlInputReadCallback</span><span class="p">)</span> <span class="p">(</span><span class="kt">void</span> <span class="o">*</span> <span class="n">context</span><span class="p">,</span> <span class="kt">char</span> <span class="o">*</span> <span class="n">buffer</span><span class="p">,</span> <span class="kt">int</span> <span class="n">len</span><span class="p">)</span><span class="p">;</span>
+<span class="cm">/**
+</span><span class="cm"> * xmlInputCloseCallback:
+</span><span class="cm"> * @context:  an Input context
+</span><span class="cm"> *
+</span><span class="cm"> * Callback used in the I/O Input API to close the resource
+</span><span class="cm"> *
+</span><span class="cm"> * Returns 0 or -1 in case of error
+</span><span class="cm"> */</span>
+<span class="k">typedef</span> <span class="nf">int</span> <span class="p">(</span><span class="n">XMLCALL</span> <span class="o">*</span><span class="n">xmlInputCloseCallback</span><span class="p">)</span> <span class="p">(</span><span class="kt">void</span> <span class="o">*</span> <span class="n">context</span><span class="p">)</span><span class="p">;</span>
+</code></pre></div><p><code>xmlRegisterDefaultInputCallbacks</code> 関数
+<a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L2247-L2278">xmlIO.c#L2247-L2278</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
+</span><span class="cm"> * xmlRegisterDefaultInputCallbacks:
+</span><span class="cm"> *
+</span><span class="cm"> * Registers the default compiled-in I/O handlers.
+</span><span class="cm"> */</span>
+<span class="kt">void</span>
+<span class="nf">xmlRegisterDefaultInputCallbacks</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">xmlInputCallbackInitialized</span><span class="p">)</span>
+	<span class="k">return</span><span class="p">;</span>
+
+    <span class="n">xmlRegisterInputCallbacks</span><span class="p">(</span><span class="n">xmlFileMatch</span><span class="p">,</span> <span class="n">xmlFileOpen</span><span class="p">,</span>
+	                      <span class="n">xmlFileRead</span><span class="p">,</span> <span class="n">xmlFileClose</span><span class="p">)</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">ifdef LIBXML_ZLIB_ENABLED</span><span class="cp">
+</span><span class="cp"></span>    <span class="n">xmlRegisterInputCallbacks</span><span class="p">(</span><span class="n">xmlGzfileMatch</span><span class="p">,</span> <span class="n">xmlGzfileOpen</span><span class="p">,</span>
+	                      <span class="n">xmlGzfileRead</span><span class="p">,</span> <span class="n">xmlGzfileClose</span><span class="p">)</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">endif </span><span class="cm">/* LIBXML_ZLIB_ENABLED */</span><span class="cp">
+</span><span class="cp"></span><span class="cp">#</span><span class="cp">ifdef LIBXML_LZMA_ENABLED</span><span class="cp">
+</span><span class="cp"></span>    <span class="n">xmlRegisterInputCallbacks</span><span class="p">(</span><span class="n">xmlXzfileMatch</span><span class="p">,</span> <span class="n">xmlXzfileOpen</span><span class="p">,</span>
+	                      <span class="n">xmlXzfileRead</span><span class="p">,</span> <span class="n">xmlXzfileClose</span><span class="p">)</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">endif </span><span class="cm">/* LIBXML_LZMA_ENABLED */</span><span class="cp">
+</span><span class="cp"></span>
+<span class="cp">#</span><span class="cp">ifdef LIBXML_HTTP_ENABLED</span><span class="cp">
+</span><span class="cp"></span>    <span class="n">xmlRegisterInputCallbacks</span><span class="p">(</span><span class="n">xmlIOHTTPMatch</span><span class="p">,</span> <span class="n">xmlIOHTTPOpen</span><span class="p">,</span>
+	                      <span class="n">xmlIOHTTPRead</span><span class="p">,</span> <span class="n">xmlIOHTTPClose</span><span class="p">)</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">endif </span><span class="cm">/* LIBXML_HTTP_ENABLED */</span><span class="cp">
+</span><span class="cp"></span>
+<span class="cp">#</span><span class="cp">ifdef LIBXML_FTP_ENABLED</span><span class="cp">
+</span><span class="cp"></span>    <span class="n">xmlRegisterInputCallbacks</span><span class="p">(</span><span class="n">xmlIOFTPMatch</span><span class="p">,</span> <span class="n">xmlIOFTPOpen</span><span class="p">,</span>
+	                      <span class="n">xmlIOFTPRead</span><span class="p">,</span> <span class="n">xmlIOFTPClose</span><span class="p">)</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">endif </span><span class="cm">/* LIBXML_FTP_ENABLED */</span><span class="cp">
+</span><span class="cp"></span>    <span class="n">xmlInputCallbackInitialized</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><p><code>xmlFileMatch</code> 関数
+<a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L804-L815">xmlIO.c#L804-L815</a></p>
+<p><code>xmlInputCallbackTable</code> を最後から最初にマッチしていき、 0 番目の要素は常にマッチとさせるため、常に 1 を返す。</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
+</span><span class="cm"> * xmlFileMatch:
+</span><span class="cm"> * @filename:  the URI for matching
+</span><span class="cm"> *
+</span><span class="cm"> * input from FILE *
+</span><span class="cm"> *
+</span><span class="cm"> * Returns 1 if matches, 0 otherwise
+</span><span class="cm"> */</span>
+<span class="kt">int</span>
+<span class="nf">xmlFileMatch</span> <span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">filename</span> <span class="n">ATTRIBUTE_UNUSED</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">return</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><p><code>xmlFileOpen</code> 関数
+<a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L875-L899">xmlIO.c#L875-L899</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
+</span><span class="cm"> * xmlFileOpen:
+</span><span class="cm"> * @filename:  the URI for matching
+</span><span class="cm"> *
+</span><span class="cm"> * Wrapper around xmlFileOpen_real that try it with an unescaped
+</span><span class="cm"> * version of @filename, if this fails fallback to @filename
+</span><span class="cm"> *
+</span><span class="cm"> * Returns a handler or NULL in case or failure
+</span><span class="cm"> */</span>
+<span class="kt">void</span> <span class="o">*</span>
+<span class="nf">xmlFileOpen</span> <span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">filename</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kt">char</span> <span class="o">*</span><span class="n">unescaped</span><span class="p">;</span>
+    <span class="kt">void</span> <span class="o">*</span><span class="n">retval</span><span class="p">;</span>
+
+    <span class="n">retval</span> <span class="o">=</span> <span class="n">xmlFileOpen_real</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">retval</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">unescaped</span> <span class="o">=</span> <span class="n">xmlURIUnescapeString</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">unescaped</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	    <span class="n">retval</span> <span class="o">=</span> <span class="n">xmlFileOpen_real</span><span class="p">(</span><span class="n">unescaped</span><span class="p">)</span><span class="p">;</span>
+	    <span class="n">xmlFree</span><span class="p">(</span><span class="n">unescaped</span><span class="p">)</span><span class="p">;</span>
+	<span class="p">}</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">retval</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><p><code>xmlFileOpen_real</code> 関数
+<a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L817-L873">xmlIO.c#L817-L873</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
+</span><span class="cm"> * xmlFileOpen_real:
+</span><span class="cm"> * @filename:  the URI for matching
+</span><span class="cm"> *
+</span><span class="cm"> * input from FILE *, supports compressed input
+</span><span class="cm"> * if @filename is &#34; &#34; then the standard input is used
+</span><span class="cm"> *
+</span><span class="cm"> * Returns an I/O context or NULL in case of error
+</span><span class="cm"> */</span>
+<span class="k">static</span> <span class="kt">void</span> <span class="o">*</span>
+<span class="nf">xmlFileOpen_real</span> <span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">filename</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">path</span> <span class="o">=</span> <span class="n">filename</span><span class="p">;</span>
+    <span class="n">FILE</span> <span class="o">*</span><span class="n">fd</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">filename</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+        <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">strcmp</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">-</span><span class="s">&#34;</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">fd</span> <span class="o">=</span> <span class="n">stdin</span><span class="p">;</span>
+	<span class="k">return</span><span class="p">(</span><span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="p">)</span> <span class="n">fd</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">xmlStrncasecmp</span><span class="p">(</span><span class="n">BAD_CAST</span> <span class="n">filename</span><span class="p">,</span> <span class="n">BAD_CAST</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">file://localhost/</span><span class="s">&#34;</span><span class="p">,</span> <span class="mi">17</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+<span class="cp">#</span><span class="cp">if defined (_WIN32) || defined (__DJGPP__) &amp;&amp; !defined(__CYGWIN__)</span><span class="cp">
+</span><span class="cp"></span>	<span class="n">path</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">filename</span><span class="p">[</span><span class="mi">17</span><span class="p">]</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">else</span><span class="cp">
+</span><span class="cp"></span>	<span class="n">path</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">filename</span><span class="p">[</span><span class="mi">16</span><span class="p">]</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">endif</span><span class="cp">
+</span><span class="cp"></span>    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">xmlStrncasecmp</span><span class="p">(</span><span class="n">BAD_CAST</span> <span class="n">filename</span><span class="p">,</span> <span class="n">BAD_CAST</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">file:///</span><span class="s">&#34;</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+<span class="cp">#</span><span class="cp">if defined (_WIN32) || defined (__DJGPP__) &amp;&amp; !defined(__CYGWIN__)</span><span class="cp">
+</span><span class="cp"></span>	<span class="n">path</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">filename</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">else</span><span class="cp">
+</span><span class="cp"></span>	<span class="n">path</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">filename</span><span class="p">[</span><span class="mi">7</span><span class="p">]</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">endif</span><span class="cp">
+</span><span class="cp"></span>    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">xmlStrncasecmp</span><span class="p">(</span><span class="n">BAD_CAST</span> <span class="n">filename</span><span class="p">,</span> <span class="n">BAD_CAST</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">file:/</span><span class="s">&#34;</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+        <span class="cm">/* lots of generators seems to lazy to read RFC 1738 */</span>
+<span class="cp">#</span><span class="cp">if defined (_WIN32) || defined (__DJGPP__) &amp;&amp; !defined(__CYGWIN__)</span><span class="cp">
+</span><span class="cp"></span>	<span class="n">path</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">filename</span><span class="p">[</span><span class="mi">6</span><span class="p">]</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">else</span><span class="cp">
+</span><span class="cp"></span>	<span class="n">path</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">filename</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">endif</span><span class="cp">
+</span><span class="cp"></span>    <span class="p">}</span>
+
+    <span class="cm">/* Do not check DDNAME on zOS ! */</span>
+<span class="cp">#</span><span class="cp">if !defined(__MVS__)</span><span class="cp">
+</span><span class="cp"></span>    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">xmlCheckFilename</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="p">)</span>
+        <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">endif</span><span class="cp">
+</span><span class="cp"></span>
+<span class="cp">#</span><span class="cp">if defined(_WIN32) || defined (__DJGPP__) &amp;&amp; !defined (__CYGWIN__)</span><span class="cp">
+</span><span class="cp"></span>    <span class="n">fd</span> <span class="o">=</span> <span class="n">xmlWrapOpenUtf8</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">else</span><span class="cp">
+</span><span class="cp"></span>    <span class="n">fd</span> <span class="o">=</span> <span class="n">fopen</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">r</span><span class="s">&#34;</span><span class="p">)</span><span class="p">;</span>
+<span class="cp">#</span><span class="cp">endif </span><span class="cm">/* WIN32 */</span><span class="cp">
+</span><span class="cp"></span>    <span class="k">if</span> <span class="p">(</span><span class="n">fd</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="n">xmlIOErr</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">return</span><span class="p">(</span><span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="p">)</span> <span class="n">fd</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><p><code>xmlFileRead</code> 関数
+<a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L952-L970">xmlIO.c#L952-L970</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
+</span><span class="cm"> * xmlFileRead:
+</span><span class="cm"> * @context:  the I/O context
+</span><span class="cm"> * @buffer:  where to drop data
+</span><span class="cm"> * @len:  number of bytes to write
+</span><span class="cm"> *
+</span><span class="cm"> * Read @len bytes to @buffer from the I/O channel.
+</span><span class="cm"> *
+</span><span class="cm"> * Returns the number of bytes written or &lt; 0 in case of failure
+</span><span class="cm"> */</span>
+<span class="kt">int</span>
+<span class="nf">xmlFileRead</span> <span class="p">(</span><span class="kt">void</span> <span class="o">*</span> <span class="n">context</span><span class="p">,</span> <span class="kt">char</span> <span class="o">*</span> <span class="n">buffer</span><span class="p">,</span> <span class="kt">int</span> <span class="n">len</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kt">int</span> <span class="n">ret</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">context</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="o">|</span><span class="o">|</span> <span class="p">(</span><span class="n">buffer</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">)</span>
+        <span class="k">return</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="p">;</span>
+    <span class="n">ret</span> <span class="o">=</span> <span class="n">fread</span><span class="p">(</span><span class="o">&amp;</span><span class="n">buffer</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span>  <span class="n">len</span><span class="p">,</span> <span class="p">(</span><span class="n">FILE</span> <span class="o">*</span><span class="p">)</span> <span class="n">context</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ret</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="n">xmlIOErr</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">fread()</span><span class="s">&#34;</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">return</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><p><code>xmlAllocParserInputBuffer</code> 関数
+<a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L2342-L2378">xmlIO.c#L2342-L2378</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
+</span><span class="cm"> * xmlAllocParserInputBuffer:
+</span><span class="cm"> * @enc:  the charset encoding if known
+</span><span class="cm"> *
+</span><span class="cm"> * Create a buffered parser input for progressive parsing
+</span><span class="cm"> *
+</span><span class="cm"> * Returns the new parser input or NULL
+</span><span class="cm"> */</span>
+<span class="n">xmlParserInputBufferPtr</span>
+<span class="nf">xmlAllocParserInputBuffer</span><span class="p">(</span><span class="n">xmlCharEncoding</span> <span class="n">enc</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">xmlParserInputBufferPtr</span> <span class="n">ret</span><span class="p">;</span>
+
+    <span class="n">ret</span> <span class="o">=</span> <span class="p">(</span><span class="n">xmlParserInputBufferPtr</span><span class="p">)</span> <span class="n">xmlMalloc</span><span class="p">(</span><span class="k">sizeof</span><span class="p">(</span><span class="n">xmlParserInputBuffer</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ret</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">xmlIOErrMemory</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s">creating input buffer</span><span class="s">&#34;</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="n">memset</span><span class="p">(</span><span class="n">ret</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">(</span><span class="n">size_t</span><span class="p">)</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">xmlParserInputBuffer</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+    <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">buffer</span> <span class="o">=</span> <span class="n">xmlBufCreateSize</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">xmlDefaultBufferSize</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">buffer</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">xmlFree</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="n">xmlBufSetAllocationScheme</span><span class="p">(</span><span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">buffer</span><span class="p">,</span> <span class="n">XML_BUFFER_ALLOC_DOUBLEIT</span><span class="p">)</span><span class="p">;</span>
+    <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">encoder</span> <span class="o">=</span> <span class="n">xmlGetCharEncodingHandler</span><span class="p">(</span><span class="n">enc</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">encoder</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+        <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">raw</span> <span class="o">=</span> <span class="n">xmlBufCreateSize</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">xmlDefaultBufferSize</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">else</span>
+        <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">raw</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">readcallback</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">closecallback</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">context</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">compressed</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">rawconsumed</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+    <span class="k">return</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><h2 id="xmlschemavalidatedoc-関数"><code>xmlSchemaValidateDoc</code> 関数</h2>
+<p><a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlschemas.c#L28220-L28247">xmlschemas.c#L28220-L28247</a></p>
+<p><code>xmlSchemaValidateStream</code> とは別に <code>xmlSchemaValidateDoc</code> 関数というのもありました。
+メモリ上の XML をバリデートするならこちらのほうが使いやすいかもしれません。</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
+</span><span class="cm"> * xmlSchemaValidateDoc:
+</span><span class="cm"> * @ctxt:  a schema validation context
+</span><span class="cm"> * @doc:  a parsed document tree
+</span><span class="cm"> *
+</span><span class="cm"> * Validate a document tree in memory.
+</span><span class="cm"> *
+</span><span class="cm"> * Returns 0 if the document is schemas valid, a positive error code
+</span><span class="cm"> *     number otherwise and -1 in case of internal or API error.
+</span><span class="cm"> */</span>
+<span class="kt">int</span>
+<span class="nf">xmlSchemaValidateDoc</span><span class="p">(</span><span class="n">xmlSchemaValidCtxtPtr</span> <span class="n">ctxt</span><span class="p">,</span> <span class="n">xmlDocPtr</span> <span class="n">doc</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="p">(</span><span class="n">ctxt</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="o">|</span><span class="o">|</span> <span class="p">(</span><span class="n">doc</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="p">;</span>
+
+    <span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">doc</span> <span class="o">=</span> <span class="n">doc</span><span class="p">;</span>
+    <span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">node</span> <span class="o">=</span> <span class="n">xmlDocGetRootElement</span><span class="p">(</span><span class="n">doc</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">node</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">xmlSchemaCustomErr</span><span class="p">(</span><span class="n">ACTXT_CAST</span> <span class="n">ctxt</span><span class="p">,</span>
+	    <span class="n">XML_SCHEMAV_DOCUMENT_ELEMENT_MISSING</span><span class="p">,</span>
+	    <span class="p">(</span><span class="n">xmlNodePtr</span><span class="p">)</span> <span class="n">doc</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span>
+	    <span class="sa"></span><span class="s">&#34;</span><span class="s">The document has no document element</span><span class="s">&#34;</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">err</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">validationRoot</span> <span class="o">=</span> <span class="n">ctxt</span><span class="o">-</span><span class="o">&gt;</span><span class="n">node</span><span class="p">;</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">xmlSchemaVStart</span><span class="p">(</span><span class="n">ctxt</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
 </code></pre></div>
 </div>
 
