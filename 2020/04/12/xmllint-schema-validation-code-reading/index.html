@@ -136,6 +136,82 @@
 	    <span class="p">}</span>
 	<span class="p">}</span>
 	<span class="n">xmlSchemaFreeValidCtxt</span><span class="p">(</span><span class="n">vctxt</span><span class="p">)</span><span class="p">;</span>
+</code></pre></div><p><code>buf</code> はこの少し上で <code>xmlParserInputBufferCreateFilename</code> 関数を使って作成していました。これはファイル名を引数に渡してファイルから読んで作る版ですが、
+<code>xmlParserInputBufferCreateStatic</code> というメモリ上の XML データから作る版もありました。</p>
+<p><a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L2976-L3019">xmlIO.c#L2976-L3019</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
+</span><span class="cm"> * xmlParserInputBufferCreateStatic:
+</span><span class="cm"> * @mem:  the memory input
+</span><span class="cm"> * @size:  the length of the memory block
+</span><span class="cm"> * @enc:  the charset encoding if known
+</span><span class="cm"> *
+</span><span class="cm"> * Create a buffered parser input for the progressive parsing for the input
+</span><span class="cm"> * from an immutable memory area. This will not copy the memory area to
+</span><span class="cm"> * the buffer, but the memory is expected to be available until the end of
+</span><span class="cm"> * the parsing, this is useful for example when using mmap&#39;ed file.
+</span><span class="cm"> *
+</span><span class="cm"> * Returns the new parser input or NULL
+</span><span class="cm"> */</span>
+<span class="n">xmlParserInputBufferPtr</span>
+<span class="nf">xmlParserInputBufferCreateStatic</span><span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">mem</span><span class="p">,</span> <span class="kt">int</span> <span class="n">size</span><span class="p">,</span>
+                                 <span class="n">xmlCharEncoding</span> <span class="n">enc</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">xmlParserInputBufferPtr</span> <span class="n">ret</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">size</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">mem</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+
+    <span class="n">ret</span> <span class="o">=</span> <span class="p">(</span><span class="n">xmlParserInputBufferPtr</span><span class="p">)</span> <span class="n">xmlMalloc</span><span class="p">(</span><span class="k">sizeof</span><span class="p">(</span><span class="n">xmlParserInputBuffer</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ret</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">xmlIOErrMemory</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s">creating input buffer</span><span class="s">&#34;</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="n">memset</span><span class="p">(</span><span class="n">ret</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">(</span><span class="n">size_t</span><span class="p">)</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">xmlParserInputBuffer</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+    <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">buffer</span> <span class="o">=</span> <span class="n">xmlBufCreateStatic</span><span class="p">(</span><span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="p">)</span><span class="n">mem</span><span class="p">,</span> <span class="p">(</span><span class="n">size_t</span><span class="p">)</span> <span class="n">size</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">buffer</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">xmlFree</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span><span class="p">;</span>
+	<span class="k">return</span><span class="p">(</span><span class="nb">NULL</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">encoder</span> <span class="o">=</span> <span class="n">xmlGetCharEncodingHandler</span><span class="p">(</span><span class="n">enc</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">encoder</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span>
+        <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">raw</span> <span class="o">=</span> <span class="n">xmlBufCreateSize</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">xmlDefaultBufferSize</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">else</span>
+        <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">raw</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">compressed</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">context</span> <span class="o">=</span> <span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="p">)</span> <span class="n">mem</span><span class="p">;</span>
+    <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">readcallback</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="n">ret</span><span class="o">-</span><span class="o">&gt;</span><span class="n">closecallback</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+
+    <span class="k">return</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><p><code>buf</code> の解放は <code>xmlFreeParserInputBuffer</code> 関数で行います。
+<a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlIO.c#L2487-L2513">xmlIO.c#L2487-L2513</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
+</span><span class="cm"> * xmlFreeParserInputBuffer:
+</span><span class="cm"> * @in:  a buffered parser input
+</span><span class="cm"> *
+</span><span class="cm"> * Free up the memory used by a buffered parser input
+</span><span class="cm"> */</span>
+<span class="kt">void</span>
+<span class="nf">xmlFreeParserInputBuffer</span><span class="p">(</span><span class="n">xmlParserInputBufferPtr</span> <span class="n">in</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">in</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">in</span><span class="o">-</span><span class="o">&gt;</span><span class="n">raw</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">xmlBufFree</span><span class="p">(</span><span class="n">in</span><span class="o">-</span><span class="o">&gt;</span><span class="n">raw</span><span class="p">)</span><span class="p">;</span>
+	<span class="n">in</span><span class="o">-</span><span class="o">&gt;</span><span class="n">raw</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">in</span><span class="o">-</span><span class="o">&gt;</span><span class="n">encoder</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">xmlCharEncCloseFunc</span><span class="p">(</span><span class="n">in</span><span class="o">-</span><span class="o">&gt;</span><span class="n">encoder</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">in</span><span class="o">-</span><span class="o">&gt;</span><span class="n">closecallback</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">in</span><span class="o">-</span><span class="o">&gt;</span><span class="n">closecallback</span><span class="p">(</span><span class="n">in</span><span class="o">-</span><span class="o">&gt;</span><span class="n">context</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">in</span><span class="o">-</span><span class="o">&gt;</span><span class="n">buffer</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">xmlBufFree</span><span class="p">(</span><span class="n">in</span><span class="o">-</span><span class="o">&gt;</span><span class="n">buffer</span><span class="p">)</span><span class="p">;</span>
+	<span class="n">in</span><span class="o">-</span><span class="o">&gt;</span><span class="n">buffer</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="n">xmlFree</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="p">;</span>
+<span class="p">}</span>
 </code></pre></div><h2 id="xml-スキーマの読み込み-xmlschemanewparserctxt-の実装">XML スキーマの読み込み <code>xmlSchemaNewParserCtxt</code> の実装</h2>
 <p><a href="https://github.com/GNOME/libxml2/blob/e4fb36841800038c289997432ca547c9bfef9db1/xmlschemas.c#L12459-L12482">xmlschemas.c#L12459-L12482</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/**
