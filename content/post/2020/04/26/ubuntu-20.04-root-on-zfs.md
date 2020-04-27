@@ -445,6 +445,9 @@ update-initramfs: Generating /boot/initrd.img-5.4.0-26-generic
 W: Possible missing firmware /lib/firmware/ast_dp501_fw.bin for module ast
 ```
 
+試行錯誤中は作られないケースがあったのですが、その場合は
+`update-initramfs -u -k all` か `update-initramfs -u -k $(uname -r)` を実行して作成します。
+
 また `/lib/firmware/ast_dp501_fw.bin` というファームウェアがみつらかないという警告が出ていますが、これは無視して進みました。
 
 
@@ -467,117 +470,30 @@ Retype new password:
 passwd: password updated successfully
 ```
 
-`4.10 Enable importing bpool` はスキップして、 代わりに zfs-mount-generator を使った手順を実行します。
-
-bpool のマウントの設定を行います。
-
-Wiki の手順では後の `5.8 Fix filesystem mount ordering` でブート (/boot) パーティション用の ZFS のプール bpool をマウントするための作業が入るのですが、そこで ZFS の systemd mount generator が出来るまではという但し書きがあります。
-
-[zfsonlinux new feature: systemd mount integration : zfs](https://www.reddit.com/r/zfs/comments/8lf9d1/zfsonlinux_new_feature_systemd_mount_integration/)
-で紹介されているように zfs-mount-generator というのが今はあるのでそれを使います。
-
-一次情報としては [zfs-mount-generator (8)](https://manpages.ubuntu.com/manpages/focal/en/man8/zfs-mount-generator.8.html) を参照してください。
-
-ただ、 chroot 環境で zfs のセットアップを行っている関係で手順を変更する必要がありました。
-
-<!--
-`/etc/zfs/zfs-list.cache` ディレクトリを作成し、その下に 2 つのプール名 bpool, rpool に対応した空のファイルを作成します。
+bpool を確実にインポートするためのサービスのユニットファイルを作成します。
 
 ```console
-# mkdir /etc/zfs/zfs-list.cache
-# touch /etc/zfs/zfs-list.cache/{b,r}pool
-```
--->
+cat > /etc/systemd/system/zfs-import-bpool.service <<'EOF'
+[Unit]
+DefaultDependencies=no
+Before=zfs-import-scan.service
+Before=zfs-import-cache.service
 
-次で利用する `/usr/lib/zfs-linux/zed.d/history_event-zfs-list-cacher.sh` が含まれる zfs-zed パッケージをインストールします。
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/sbin/zpool import -N -o cachefile=none bpool
+
+[Install]
+WantedBy=zfs-import.target
+EOF
+```
+
+上で追加したサービスの自動起動を有効にします。
 
 ```console
-apt install --yes zfs-zed
+systemctl enable zfs-import-bpool.service
 ```
-
-次に manpage に書かれたようにシンボリックリンクを作成します。
-
-```console
-ln -s /usr/lib/zfs-linux/zed.d/history_event-zfs-list-cacher.sh /etc/zfs/zed.d/
-```
-
-通常の zfs の環境ならこの後 manpage の手順に従うと `/etc/zfs/zfs-list.cache/` 以下に zfs の pool の情報が反映されるのですが、今は chroot 環境で状況が異なるので、以下のコマンドで手動で作成します。
-
-<!--
-manpage には zfs-zed サービスの自動起動を有効にし、再起動するとありますが、インストールした時点で自動起動は有効になってるのと、再起動は `Running in chroot, ignoring request: restart` というエラーが出たのでスキップします。
-
-```console
-systemctl enable zfs-zed.service
-systemctl restart zfs-zed.service
-```
-
-manpage によると `/etc/zfs/zfs-list.cache/` 以下のファイルを更新するのに以下のコマンドを使うとのことなので、手動で実行してみます。
-
-```console
-# zfs list -H -o name,mountpoint,canmount,atime,relatime,devices,exec,readonly,setuid,nbmand,encroot,keylocation
-rpool   /       off     on      on      off     on      off     on      off     -       none
-rpool/ROOT      none    off     on      on      off     on      off     on      off     -       none
-rpool/ROOT/ubuntu       /       noauto  on      on      off     on      off     on      off     -       none
-rpool/home      /home   on      on      on      off     on      off     on      off     -       none
-rpool/home/hnakamur     /home/hnakamur  on      on      on      off     on      off     on      off     -       none
-rpool/home/root /root   on      on      on      off     on      off     on      off     -       none
-rpool/swap      -       -       -       -       -       -       off     -       -       -       none
-rpool/usr       /usr    off     on      on      off     on      off     on      off     -       none
-rpool/usr/local /usr/local      on      on      on      off     on      off     on      off     -       none
-rpool/var       /var    off     on      on      off     on      off     on      off     -       none
-rpool/var/lib   /var/lib        off     on      on      off     on      off     on      off     -       none
-rpool/var/lib/docker    /var/lib/docker on      on      on      off     on      off     on      off     -       none
-rpool/var/log   legacy  on      on      on      off     on      off     on      off     -       none
-rpool/var/snap  /var/snap       on      on      on      off     on      off     on      off     -       none
-rpool/var/spool legacy  on      on      on      off     on      off     on      off     -       none
-```
-
-manpage によると 1 つのプールにつき、どれか 1 つのデータセットについて `canmount` を同じ値で良いので設定すれば `/etc/zfs/zfs-list.cache/` 以下のファイルを更新されるとのことです。
-
-上記だと項目が多すぎてわかりにくいので name と canmount のみの一覧を出してみます。
-
-```console
-# zfs list -H -o name,canmount
-bpool   off
-bpool/BOOT      off
-bpool/BOOT/ubuntu       noauto
-rpool   off
-rpool/ROOT      off
-rpool/ROOT/ubuntu       noauto
-rpool/home      on
-rpool/home/hnakamur     on
-rpool/home/root on
-rpool/swap      -
-rpool/usr       off
-rpool/usr/local on
-rpool/var       off
-rpool/var/lib   off
-rpool/var/lib/docker    on
-rpool/var/log   on
-rpool/var/snap  on
-rpool/var/spool on
-```
-
-以下のように bpool と rpool 内のそれぞれ 1 つのデータセットの canmount の値を同じ値で設定してみました。
-
-```console
-zfs set canmount=off bpool/BOOT
-zfs set canmount=on rpool/home
-```
--->
-
-
-今の chroot 環境では `/mnt` にマウントしてますが、再起動後は `/` になるので sed で置換しつつ保存します。
-
-```console
-mkdir -p /etc/zfs/zfs-list.cache
-zfs list -H -o name,mountpoint,canmount,atime,relatime,devices,exec,readonly,setuid,nbmand,encroot,keylocation | grep ^bpool | sed -e 's|/mnt/|/|;s|/mnt|/|' | tee /etc/zfs/zfs-list.cache/bpool
-zfs list -H -o name,mountpoint,canmount,atime,relatime,devices,exec,readonly,setuid,nbmand,encroot,keylocation | grep ^rpool | sed -e 's|/mnt/|/|;s|/mnt|/|' | tee /etc/zfs/zfs-list.cache/rpool
-```
-
-<!--
-`ls -l /etc/zfs/zfs-list.cache/` を実行すると bpool と rpool のファイルが空でなくなっていました。※この手順だと空のままだった。
--->
 
 以下のコマンドで次回起動時に tmpfs を /tmp にマウントするようにします。
 
@@ -597,22 +513,6 @@ lpadmin と sambashare のグループ作成はスキップしました。
 # grub-probe /boot
 zfs
 ```
-
-`update-initramfs -u -k all` は [Ubuntu server 20.04 zfs root and OCI – Riaan's SysAdmin Blog](https://blog.ls-al.com/category/zfs/) でもうまくいかないと書いてあったので、手順を変更して以下のように実行していました。が、再度確認してみると、どちらでも以下のように実行できました。さらに言うと上記の grub-pc インストールのタイミングでも生成されているので、ここでは実行は不要そうな気もします。
-
-```console
-root@ubuntu:/# update-initramfs -u -k $(uname -r)
-update-initramfs: Generating /boot/initrd.img-5.4.0-26-generic
-W: Possible missing firmware /lib/firmware/ast_dp501_fw.bin for module ast
-```
-
-```console
-root@ubuntu:/# update-initramfs -u -k all
-update-initramfs: Generating /boot/initrd.img-5.4.0-26-generic
-W: Possible missing firmware /lib/firmware/ast_dp501_fw.bin for module ast
-```
-
-上記のように `/lib/firmware/ast_dp501_fw.bin` というファームウェアがみつらかないという警告が出ましたが、これは無視して進みました。
 
 （省略可）`cat /etc/default/grub` で変更前のファイルの内容を確認します。
 私の環境では以下のようになっていました。
@@ -666,7 +566,7 @@ s|^GRUB_CMDLINE_LINUX=.*|GRUB_CMDLINE_LINUX="root=ZFS=rpool/ROOT/ubuntu"|
 ' /etc/default/grub
 ```
 
-（省略可）変更後の `/etc/default/grub` も確認しておきます。
+変更後の `/etc/default/grub` を確認します。
 
 ```console
 root@ubuntu:/# cat /etc/default/grub
@@ -756,6 +656,20 @@ root@ubuntu:/# ls /boot/grub/*/zfs.mod
 /boot/grub/i386-pc/zfs.mod
 ```
 
+"5.8 Fix filesystem mount ordering" のマウント順の制御の設定を追加します。これはなくても行けた。
+
+```console
+zfs set mountpoint=legacy bpool/BOOT/ubuntu
+echo bpool/BOOT/ubuntu /boot zfs \
+    nodev,relatime,x-systemd.requires=zfs-import-bpool.service 0 0 >> /etc/fstab
+
+zfs set mountpoint=legacy rpool/var/log
+echo rpool/var/log /var/log zfs nodev,relatime 0 0 >> /etc/fstab
+
+zfs set mountpoint=legacy rpool/var/spool
+echo rpool/var/spool /var/spool zfs nodev,relatime 0 0 >> /etc/fstab
+```
+
 `5.8 Fix filesystem mount ordering` のところは、上記の zfs-mount-generator の手順で対応済みなのでスキップします。
 
 ## Step. 6: 初回のブート
@@ -785,6 +699,31 @@ zpool export -a
 ```console
 systemctl reboot
 ```
+
+上記の起動時にコンソールに以下のエラーが出るパターンがあった。
+`update-initramfs -u -k all` も `update-initramfs -u -k $(uname -r)` も行わず、fstabの追加を一切しなかった回。
+
+```console
+[FAILED] Failed to start GRUB failed boot detection.
+See 'systemctl status grub-initrd-fallback.service' for details.
+```
+
+```console
+$ systemctl status grub-initrd-fallback.service
+● grub-initrd-fallback.service - GRUB failed boot detection
+     Loaded: loaded (/lib/systemd/system/grub-initrd-fallback.service; enabled; vendor preset: enabled)
+     Active: failed (Result: exit-code) since Mon 2020-04-27 13:05:00 JST; 35min ago
+   Main PID: 1018 (code=exited, status=1/FAILURE)
+
+Apr 27 13:05:00 beagle systemd[1]: Starting GRUB failed boot detection...
+Apr 27 13:05:00 beagle grub-editenv[1018]: /usr/bin/grub-editenv: error: cannot open `/boot/grub/grubenv.new': No such file or directory.
+Apr 27 13:05:00 beagle systemd[1]: grub-initrd-fallback.service: Main process exited, code=exited, status=1/FAILURE
+Apr 27 13:05:00 beagle systemd[1]: grub-initrd-fallback.service: Failed with result 'exit-code'.
+Apr 27 13:05:00 beagle systemd[1]: Failed to start GRUB failed boot detection.
+```
+
+次回は `/boot/grub/grubenv.new` というファイルが作られているか確認すること。
+
 
 起動したらサーバーのコンソールで root ユーザーで上記で設定したパスワードを入力してログインします。
 
@@ -817,6 +756,9 @@ usermod -a -G adm,cdrom,dip,plugdev,sudo $YOURUSERNAME
 ```console
 dpkg-reconfigure grub-pc
 ```
+
+Linux command line: で root=ZFS=rpool/ROOT/ubuntu と表示されているので Ok を押し、
+次の Linux default command line: は空のまま Ok を押しました。
 
 ## Step. 7: スワップを設定します。
 
@@ -966,3 +908,117 @@ ssh beagle
 $ ssh -o PreferredAuthentications=password 192.168.2.5
 hnakamur@192.168.2.5: Permission denied (publickey).
 ```
+
+## temp
+
+`4.10 Enable importing bpool` はスキップして、 代わりに zfs-mount-generator を使った手順を実行します。
+
+bpool のマウントの設定を行います。
+
+Wiki の手順では後の `5.8 Fix filesystem mount ordering` でブート (/boot) パーティション用の ZFS のプール bpool をマウントするための作業が入るのですが、そこで ZFS の systemd mount generator が出来るまではという但し書きがあります。
+
+[zfsonlinux new feature: systemd mount integration : zfs](https://www.reddit.com/r/zfs/comments/8lf9d1/zfsonlinux_new_feature_systemd_mount_integration/)
+で紹介されているように zfs-mount-generator というのが今はあるのでそれを使います。
+
+一次情報としては [zfs-mount-generator (8)](https://manpages.ubuntu.com/manpages/focal/en/man8/zfs-mount-generator.8.html) を参照してください。
+
+ただ、 chroot 環境で zfs のセットアップを行っている関係で手順を変更する必要がありました。
+
+<!--
+`/etc/zfs/zfs-list.cache` ディレクトリを作成し、その下に 2 つのプール名 bpool, rpool に対応した空のファイルを作成します。
+
+```console
+# mkdir /etc/zfs/zfs-list.cache
+# touch /etc/zfs/zfs-list.cache/{b,r}pool
+```
+-->
+
+次で利用する `/usr/lib/zfs-linux/zed.d/history_event-zfs-list-cacher.sh` が含まれる zfs-zed パッケージをインストールします。
+
+```console
+apt install --yes zfs-zed
+```
+
+次に manpage に書かれたようにシンボリックリンクを作成します。
+
+```console
+ln -s /usr/lib/zfs-linux/zed.d/history_event-zfs-list-cacher.sh /etc/zfs/zed.d/
+```
+
+通常の zfs の環境ならこの後 manpage の手順に従うと `/etc/zfs/zfs-list.cache/` 以下に zfs の pool の情報が反映されるのですが、今は chroot 環境で状況が異なるので、以下のコマンドで手動で作成します。
+
+<!--
+manpage には zfs-zed サービスの自動起動を有効にし、再起動するとありますが、インストールした時点で自動起動は有効になってるのと、再起動は `Running in chroot, ignoring request: restart` というエラーが出たのでスキップします。
+
+```console
+systemctl enable zfs-zed.service
+systemctl restart zfs-zed.service
+```
+
+manpage によると `/etc/zfs/zfs-list.cache/` 以下のファイルを更新するのに以下のコマンドを使うとのことなので、手動で実行してみます。
+
+```console
+# zfs list -H -o name,mountpoint,canmount,atime,relatime,devices,exec,readonly,setuid,nbmand,encroot,keylocation
+rpool   /       off     on      on      off     on      off     on      off     -       none
+rpool/ROOT      none    off     on      on      off     on      off     on      off     -       none
+rpool/ROOT/ubuntu       /       noauto  on      on      off     on      off     on      off     -       none
+rpool/home      /home   on      on      on      off     on      off     on      off     -       none
+rpool/home/hnakamur     /home/hnakamur  on      on      on      off     on      off     on      off     -       none
+rpool/home/root /root   on      on      on      off     on      off     on      off     -       none
+rpool/swap      -       -       -       -       -       -       off     -       -       -       none
+rpool/usr       /usr    off     on      on      off     on      off     on      off     -       none
+rpool/usr/local /usr/local      on      on      on      off     on      off     on      off     -       none
+rpool/var       /var    off     on      on      off     on      off     on      off     -       none
+rpool/var/lib   /var/lib        off     on      on      off     on      off     on      off     -       none
+rpool/var/lib/docker    /var/lib/docker on      on      on      off     on      off     on      off     -       none
+rpool/var/log   legacy  on      on      on      off     on      off     on      off     -       none
+rpool/var/snap  /var/snap       on      on      on      off     on      off     on      off     -       none
+rpool/var/spool legacy  on      on      on      off     on      off     on      off     -       none
+```
+
+manpage によると 1 つのプールにつき、どれか 1 つのデータセットについて `canmount` を同じ値で良いので設定すれば `/etc/zfs/zfs-list.cache/` 以下のファイルを更新されるとのことです。
+
+上記だと項目が多すぎてわかりにくいので name と canmount のみの一覧を出してみます。
+
+```console
+# zfs list -H -o name,canmount
+bpool   off
+bpool/BOOT      off
+bpool/BOOT/ubuntu       noauto
+rpool   off
+rpool/ROOT      off
+rpool/ROOT/ubuntu       noauto
+rpool/home      on
+rpool/home/hnakamur     on
+rpool/home/root on
+rpool/swap      -
+rpool/usr       off
+rpool/usr/local on
+rpool/var       off
+rpool/var/lib   off
+rpool/var/lib/docker    on
+rpool/var/log   on
+rpool/var/snap  on
+rpool/var/spool on
+```
+
+以下のように bpool と rpool 内のそれぞれ 1 つのデータセットの canmount の値を同じ値で設定してみました。
+
+```console
+zfs set canmount=off bpool/BOOT
+zfs set canmount=on rpool/home
+```
+-->
+
+
+今の chroot 環境では `/mnt` にマウントしてますが、再起動後は `/` になるので sed で置換しつつ保存します。
+
+```console
+mkdir -p /etc/zfs/zfs-list.cache
+zfs list -H -o name,mountpoint,canmount,atime,relatime,devices,exec,readonly,setuid,nbmand,encroot,keylocation | grep ^bpool | sed -e 's|/mnt/|/|;s|/mnt|/|' | tee /etc/zfs/zfs-list.cache/bpool
+zfs list -H -o name,mountpoint,canmount,atime,relatime,devices,exec,readonly,setuid,nbmand,encroot,keylocation | grep ^rpool | sed -e 's|/mnt/|/|;s|/mnt|/|' | tee /etc/zfs/zfs-list.cache/rpool
+```
+
+<!--
+`ls -l /etc/zfs/zfs-list.cache/` を実行すると bpool と rpool のファイルが空でなくなっていました。※この手順だと空のままだった。
+-->
