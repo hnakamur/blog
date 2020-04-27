@@ -41,7 +41,7 @@ date: 2020-04-26T15:13:33+09:00
 
 サーバーに USB メモリを挿して、 BIOS のメニューで起動順序で USB メモリの優先度を上げて USB メモリから起動します。
 
-GUI インストーラーが立ち上がって Welcome という画面が表示されたら、 TAB キーを押して Try Ubuntu にフォーカスを移動して Enter キーを押します（画面のスクリーンショットは [How to install Ubuntu 20.04 Focal Fossa Desktop - LinuxConfig.org](https://linuxconfig.org/how-to-install-ubuntu-20-04-focal-fossa-desktop) 参照）。
+GUI インストーラーが立ち上がって Welcome という画面が表示されたら、 TAB キーを押して Try Ubuntu ボタンにフォーカスを移動して（ボタンにオレンジの枠がつきます） Enter キーを押します（画面のスクリーンショットは [How to install Ubuntu 20.04 Focal Fossa Desktop - LinuxConfig.org](https://linuxconfig.org/how-to-install-ubuntu-20-04-focal-fossa-desktop) 参照）。
 
 私は DHCP でネットワークが自動で設定されましたが、そうでない場合は手動で設定します。
 
@@ -53,6 +53,8 @@ Ctrl + Alt + T キーを押してターミナルを開き、以下のコマン�
 sudo apt-add-repository universe
 sudo apt update
 ```
+
+アップグレード可能なパッケージがある旨表示されるかもしれませんが、 Live CD 環境は一時的なものなのでここでは更新せずに次に進みます。
 
 passwd コマンドを実行して ubuntu ユーザーのパスワードを設定します。プロンプトが表示されますので設定したいパスワードを入力します。
 
@@ -126,7 +128,7 @@ sgdisk --zap-all $DISK
 sgdisk -a1 -n1:24K:+1000K -t1:EF02 $DISK
 ```
 
-ブート (/boot) パーティションを作成します。
+ブート (/boot) パーティションを作成します（ `-t` の後のパーティション番号は詰めて 2 にしても良いのですが、 Wiki の手順と合わせて UEFI 用の 2 を欠番とし、 3 としています）。
 
 ```console
 sgdisk     -n3:0:+1G      -t3:BF01 $DISK
@@ -388,7 +390,7 @@ mount --rbind /sys  /mnt/sys
 chroot /mnt /usr/bin/env DISK=$DISK bash --login
 ```
 
-Wiki ではここで
+（省略可）Wiki ではここで
 `ln -s /proc/self/mounts /etc/mtab`
 を実行せよとありますが、以下のように既に同等のシンボリックリンクがありエラーになるのでスキップします。
 
@@ -397,7 +399,7 @@ root@ubuntu:/# ls -l /etc/mtab
 lrwxrwxrwx 1 root root 19 Apr 25 09:07 /etc/mtab -> ../proc/self/mounts
 ```
 
-以下のコマンドを実行します。
+以下のコマンドを実行して chroot 環境内の apt のインデクスを更新します。
 
 ```console
 apt update
@@ -429,19 +431,16 @@ Local time is now:      Sat Apr 25 20:25:44 JST 2020.
 Universal Time is now:  Sat Apr 25 11:25:44 UTC 2020.
 ```
 
-Linux のカーネルイメージと ZFS を chroot 環境にインストールします（ HWE カーネルを使いたい場合は linux-image-generic の代わりに linux-image-generic-hwe-20.04 を指定すれば良いそうです）。
+Linux のカーネルイメージと ZFS を chroot 環境にインストールします（ HWE カーネルを使いたい場合は linux-image-generic の代わりに linux-image-generic-hwe-20.04 を指定します）。
 
 ```console
 apt install --yes --no-install-recommends linux-image-generic zfs-initramfs
 ```
 
 上記のコマンド実行の出力の最後に以下のようなメッセージが出ました。
-`update-initramfs` が `/boot/initrd.img-5.4.0-26-generic` を生成したというのが重要です。この後 grub-pc のインストール時に必要になるためです。
+`update-initramfs` が `/boot/initrd.img-5.4.0-26-generic` を生成したというのが重要です。この後 grub のインストール時に必要になるためです。
 
 ```text
-update-initramfs: Generating /boot/initrd.img-5.4.0-26-generic
-W: Possible missing firmware /lib/firmware/ast_dp501_fw.bin for module ast
-Processing triggers for initramfs-tools (0.136ubuntu6) ...
 update-initramfs: Generating /boot/initrd.img-5.4.0-26-generic
 W: Possible missing firmware /lib/firmware/ast_dp501_fw.bin for module ast
 ```
@@ -451,29 +450,15 @@ W: Possible missing firmware /lib/firmware/ast_dp501_fw.bin for module ast
 
 GRUB をレガシー BIOS 用にインストールします。
 
-```console
-apt install --yes grub-pc
-```
-
-TUI のダイアログが開きますので、インストール先を選択します。パーティションではなくディスクを選択してください（私の環境では /dev/sda が USB メモリ、 /dev/sdb が SSD だったので /dev/sdb を選びました）。
-
-その後の出力に以下の 2 行が出ていることを確認します。
-
-```text
-Found linux image: vmlinuz-5.4.0-26-generic in rpool/ROOT/ubuntu
-Found initrd image: initrd.img-5.4.0-26-generic in rpool/ROOT/ubuntu
-```
-
-ここを自動化したくてググって見つけた
-`DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install grub-pc` も試してみたりしたのですが、うまく行ってなさそうで深追いしてません。
-
-root ユーザーのパスワードを設定します。
+Wiki の手順では `apt install --yes grub-pc` ですが、CUI のダイアログが開いてインストール先を選択する必要があり、今後自動化したいときに困るので、代わりにググって見つけた以下のコマンドを実行します。
 
 ```console
-passwd
+DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install grub-pc
 ```
 
-実行例です。
+これだとインストール先を選べないのですが、 後述の手順で `/etc/default/grub` を変更した後 `grub-install $DISK` でインストールするので問題ありません。
+
+passwd コマンドを実行して root ユーザーのパスワードを設定します。
 
 ```console
 root@ubuntu:/# passwd
@@ -482,24 +467,29 @@ Retype new password:
 passwd: password updated successfully
 ```
 
+`4.10 Enable importing bpool` はスキップして、 代わりに zfs-mount-generator を使った手順を実行します。
+
 bpool のマウントの設定を行います。
 
-ここは Wiki とは異なり
+Wiki の手順では後の `5.8 Fix filesystem mount ordering` でブート (/boot) パーティション用の ZFS のプール bpool をマウントするための作業が入るのですが、そこで ZFS の systemd mount generator が出来るまではという但し書きがあります。
+
 [zfsonlinux new feature: systemd mount integration : zfs](https://www.reddit.com/r/zfs/comments/8lf9d1/zfsonlinux_new_feature_systemd_mount_integration/)
-に書かれていた zfs-mount-generator を使った手順にしています。
+で紹介されているように zfs-mount-generator というのが今はあるのでそれを使います。
 
 一次情報としては [zfs-mount-generator (8)](https://manpages.ubuntu.com/manpages/focal/en/man8/zfs-mount-generator.8.html) を参照してください。
 
+ただ、 chroot 環境で zfs のセットアップを行っている関係で手順を変更する必要がありました。
+
+<!--
 `/etc/zfs/zfs-list.cache` ディレクトリを作成し、その下に 2 つのプール名 bpool, rpool に対応した空のファイルを作成します。
 
 ```console
-mkdir /etc/zfs/zfs-list.cache
-touch /etc/zfs/zfs-list.cache/{b,r}pool
+# mkdir /etc/zfs/zfs-list.cache
+# touch /etc/zfs/zfs-list.cache/{b,r}pool
 ```
+-->
 
-次に利用する `/usr/lib/zfs-linux/zed.d/history_event-zfs-list-cacher.sh` は
-[Ubuntu – Ubuntu パッケージ検索](https://packages.ubuntu.com/) の
-「パッケージの内容を検索」で調べると zfs-zed パッケージに含まれるので、まずそれをインストールします。
+次で利用する `/usr/lib/zfs-linux/zed.d/history_event-zfs-list-cacher.sh` が含まれる zfs-zed パッケージをインストールします。
 
 ```console
 apt install --yes zfs-zed
@@ -508,9 +498,12 @@ apt install --yes zfs-zed
 次に manpage に書かれたようにシンボリックリンクを作成します。
 
 ```console
-ln -s "/usr/lib/zfs-linux/zed.d/history_event-zfs-list-cacher.sh" "/etc/zfs/zed.d"
+ln -s /usr/lib/zfs-linux/zed.d/history_event-zfs-list-cacher.sh /etc/zfs/zed.d/
 ```
 
+通常の zfs の環境ならこの後 manpage の手順に従うと `/etc/zfs/zfs-list.cache/` 以下に zfs の pool の情報が反映されるのですが、今は chroot 環境で状況が異なるので、以下のコマンドで手動で作成します。
+
+<!--
 manpage には zfs-zed サービスの自動起動を有効にし、再起動するとありますが、インストールした時点で自動起動は有効になってるのと、再起動は `Running in chroot, ignoring request: restart` というエラーが出たのでスキップします。
 
 ```console
@@ -571,8 +564,20 @@ rpool/var/spool on
 zfs set canmount=off bpool/BOOT
 zfs set canmount=on rpool/home
 ```
+-->
 
+
+今の chroot 環境では `/mnt` にマウントしてますが、再起動後は `/` になるので sed で置換しつつ保存します。
+
+```console
+mkdir -p /etc/zfs/zfs-list.cache
+zfs list -H -o name,mountpoint,canmount,atime,relatime,devices,exec,readonly,setuid,nbmand,encroot,keylocation | grep ^bpool | sed -e 's|/mnt/|/|;s|/mnt|/|' | tee /etc/zfs/zfs-list.cache/bpool
+zfs list -H -o name,mountpoint,canmount,atime,relatime,devices,exec,readonly,setuid,nbmand,encroot,keylocation | grep ^rpool | sed -e 's|/mnt/|/|;s|/mnt|/|' | tee /etc/zfs/zfs-list.cache/rpool
+```
+
+<!--
 `ls -l /etc/zfs/zfs-list.cache/` を実行すると bpool と rpool のファイルが空でなくなっていました。※この手順だと空のままだった。
+-->
 
 以下のコマンドで次回起動時に tmpfs を /tmp にマウントするようにします。
 
@@ -609,7 +614,7 @@ W: Possible missing firmware /lib/firmware/ast_dp501_fw.bin for module ast
 
 上記のように `/lib/firmware/ast_dp501_fw.bin` というファームウェアがみつらかないという警告が出ましたが、これは無視して進みました。
 
-`cat /etc/default/grub` で変更前のファイルの内容を確認します。
+（省略可）`cat /etc/default/grub` で変更前のファイルの内容を確認します。
 私の環境では以下のようになっていました。
 
 ```console
@@ -661,7 +666,7 @@ s|^GRUB_CMDLINE_LINUX=.*|GRUB_CMDLINE_LINUX="root=ZFS=rpool/ROOT/ubuntu"|
 ' /etc/default/grub
 ```
 
-変更後の `/etc/default/grub` も確認しておきます。
+（省略可）変更後の `/etc/default/grub` も確認しておきます。
 
 ```console
 root@ubuntu:/# cat /etc/default/grub
@@ -724,7 +729,7 @@ Command failed.
 done
 ```
 
-レガシー BIOS 用に GRUB をインストールします（ここでディスクを指定してインストールするので上記で grub-pc をインストールする際は noninteractive な指定有りの方でも大丈夫そうな気もします）。
+レガシー BIOS 用に GRUB をインストールします。
 
 ```console
 grub-install $DISK
@@ -789,13 +794,16 @@ systemctl reboot
 YOURUSERNAME=hnakamur
 ```
 
-ユーザーを作成します。
+ユーザーを作成します（私は `adduser` より `useradd` のほうがプロンプト出たりしないので好きです）。
 
 ```console
-zfs create rpool/home/$YOURUSERNAME
-adduser $YOURUSERNAME
-cp -a /etc/skel/. /home/$YOURUSERNAME
-chown -R $YOURUSERNAME:$YOURUSERNAME /home/$YOURUSERNAME
+useradd -m $YOURUSERNAME
+```
+
+作成したユーザーのパスワードを設定します。
+
+```console
+passwd $YOURUSERNAME
 ```
 
 作成したユーザーを adm などのグループに所属させます。上記で lpadmin と sambashare グループの作成を私はスキップしたので、ここでもその 2 つは除いています。
