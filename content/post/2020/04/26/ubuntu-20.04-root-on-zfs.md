@@ -37,6 +37,9 @@ date: 2020-04-26T15:13:33+09:00
 次に [balenaEtcher - Flash OS images to SD cards & USB drives](https://www.balena.io/etcher/) をダウンロードして上記の iso ファイルを USB メモリに書き出します。
 
 ## Step. 1:  インストール環境の整備
+
+この Step の番号は Wiki に合わせています。
+
 ### デスクトップインストーラーを起動しsshの環境整備
 
 サーバーに USB メモリを挿して、 BIOS のメニューで起動順序で USB メモリの優先度を上げて USB メモリから起動します。
@@ -461,14 +464,12 @@ DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::="--force-confdef" -
 
 これだとインストール先を選べないのですが、 後述の手順で `/etc/default/grub` を変更した後 `grub-install $DISK` でインストールするので問題ありません。
 
-passwd コマンドを実行して root ユーザーのパスワードを設定します。
+root ユーザーのパスワードを設定します。
 
 ```console
-root@ubuntu:/# passwd
-New password:
-Retype new password:
-passwd: password updated successfully
+passwd
 ```
+
 
 bpool を確実にインポートするためのサービスのユニットファイルを作成します。
 
@@ -495,6 +496,13 @@ EOF
 systemctl enable zfs-import-bpool.service
 ```
 
+実行すると以下のようにシンボリックリンクが作成されたというメッセージが出ました。
+
+```console
+root@ubuntu:/# systemctl enable zfs-import-bpool.service
+Created symlink /etc/systemd/system/zfs-import.target.wants/zfs-import-bpool.service → /etc/systemd/system/zfs-import-bpool.service.
+```
+
 以下のコマンドで次回起動時に tmpfs を /tmp にマウントするようにします。
 
 ```console
@@ -503,6 +511,7 @@ systemctl enable tmp.mount
 ```
 
 lpadmin と sambashare のグループ作成はスキップしました。
+
 
 ## Step. 5: GRUB のインストール
 
@@ -656,21 +665,7 @@ root@ubuntu:/# ls /boot/grub/*/zfs.mod
 /boot/grub/i386-pc/zfs.mod
 ```
 
-"5.8 Fix filesystem mount ordering" のマウント順の制御の設定を追加します。これはなくても行けた。
-
-```console
-zfs set mountpoint=legacy bpool/BOOT/ubuntu
-echo bpool/BOOT/ubuntu /boot zfs \
-    nodev,relatime,x-systemd.requires=zfs-import-bpool.service 0 0 >> /etc/fstab
-
-zfs set mountpoint=legacy rpool/var/log
-echo rpool/var/log /var/log zfs nodev,relatime 0 0 >> /etc/fstab
-
-zfs set mountpoint=legacy rpool/var/spool
-echo rpool/var/spool /var/spool zfs nodev,relatime 0 0 >> /etc/fstab
-```
-
-`5.8 Fix filesystem mount ordering` のところは、上記の zfs-mount-generator の手順で対応済みなのでスキップします。
+Wiki では `5.8 Fix filesystem mount ordering` でブート (/boot) パーティション用の ZFS のプール bpool をマウントするための手順があるのですが、これは実行しなくても動いたのでスキップします。
 
 ## Step. 6: 初回のブート
 
@@ -725,6 +720,25 @@ Apr 27 13:05:00 beagle systemd[1]: Failed to start GRUB failed boot detection.
 次回は `/boot/grub/grubenv.new` というファイルが作られているか確認すること。
 
 
+`/usr/lib/systemd/system/grub-initrd-fallback.service` の内容。
+
+```
+[Unit]
+Description=GRUB failed boot detection
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/grub-editenv /boot/grub/grubenv unset initrdfail
+ExecStart=/usr/bin/grub-editenv /boot/grub/grubenv unset prev_entry
+TimeoutSec=0
+
+[Install]
+WantedBy=multi-user.target rescue.target emergency.target
+```
+
+
+
 起動したらサーバーのコンソールで root ユーザーで上記で設定したパスワードを入力してログインします。
 
 ログインしたら、自分用のユーザーを作成します。まずユーザー名を一旦変数にセットします。以下は例です。
@@ -736,7 +750,7 @@ YOURUSERNAME=hnakamur
 ユーザーを作成します（私は `adduser` より `useradd` のほうがプロンプト出たりしないので好きです）。
 
 ```console
-useradd -m $YOURUSERNAME
+useradd -m -s /bin/bash $YOURUSERNAME
 ```
 
 作成したユーザーのパスワードを設定します。
@@ -745,20 +759,85 @@ useradd -m $YOURUSERNAME
 passwd $YOURUSERNAME
 ```
 
-作成したユーザーを adm などのグループに所属させます。上記で lpadmin と sambashare グループの作成を私はスキップしたので、ここでもその 2 つは除いています。
+作成したユーザーを adm と sudo グループに所属させます（Wikiではほかのグループも追加していましたが自分が使うものに限定しました）。
 
 ```console
-usermod -a -G adm,cdrom,dip,plugdev,sudo $YOURUSERNAME
+usermod -a -G adm,sudo $YOURUSERNAME
 ```
 
-レガシー BIOS 用に GRUB の設定を再度行います。本当に必要かは調べていませんが、とりあえず Wiki の手順に従います。上記で grub-pc をインストールしたときと同様に TUI で対象のディスクを選択します。
+OpenSSH サーバーをインストールします。
 
 ```console
-dpkg-reconfigure grub-pc
+apt install --yes openssh-server
 ```
 
-Linux command line: で root=ZFS=rpool/ROOT/ubuntu と表示されているので Ok を押し、
-次の Linux default command line: は空のまま Ok を押しました。
+ここでサーバーとは別の作業用マシンで `~/.ssh/config` にこのサーバーのエントリを追加します。以下は例です。
+
+```console
+Host beagle
+  Hostname 192.168.2.5
+```
+
+作業マシンからこのあと何度かサーバーに接続するので、ホスト名を変数に設定しておきます。以下は例ですので適宜変更してください。
+
+```console
+SERVER=beagle
+```
+
+次に以下のコマンドを実行して ssh の公開鍵を転送します。
+
+```console
+ssh-copy-id $SERVER
+```
+
+この状態で以下のコマンドを実行しパスワード無しで鍵認証でログイン出来ることを確認します。
+
+```console
+ssh $SERVER
+```
+
+この端末は抜けずに維持しておきます（この後 ssh サーバーの設定変更を失敗したときも作業継続できるように保険として。この手順はコンソールにアクセスできる前提なのでそこまで気にしなくても良いですが）。
+
+ssh サーバーの設定を変更し、パスワード入力を無効にします。
+
+```console
+sudo sed -i -e '/^#PasswordAuthentication yes/a\
+PasswordAuthentication no
+/^UsePAM yes/{s/^/#/;a\
+UsePAM no
+}
+/^X11Forwarding yes/{s/^/#/;a\
+X11Forwarding no
+}
+' /etc/ssh/sshd_config
+```
+
+上記の設定変更を反映します。
+
+```console
+systemctl reload sshd
+```
+
+別の作業マシンから鍵認証で ssh 出来ることを確認します。
+
+```console
+ssh $SERVER
+```
+
+こちらはログアウトして、次は以下のようにパスワード認証を優先にしてログインできないことを確認します。
+
+```console
+$ ssh -o PreferredAuthentications=password $SERVER
+hnakamur@192.168.2.5: Permission denied (publickey).
+```
+
+最初に ssh で接続していた端末に戻って root ユーザーに切り替えます。
+
+```console
+sudo -i
+```
+
+"6.8 Mirror GRUB" は私は単一のディスクにしかインストールしていないのでスキップしました。
 
 ## Step. 7: スワップを設定します。
 
@@ -811,7 +890,7 @@ apt dist-upgrade --yes
 apt install --yes ubuntu-standard
 ```
 
-オプションでログの圧縮を無効化します。 ZFS で圧縮する設定にしたので、ログのローテートのほうでは圧縮しないことにする場合は以下のコマンドを実行して無効にします。
+（省略可）ログの圧縮を無効化します。 ZFS で圧縮する設定にしたので、ログのローテートのほうでは圧縮しないことにする場合は以下のコマンドを実行して無効にします。
 
 が、後で他のサーバーに転送したりする場合は無効にしないほうが良いかもしれません。
 
@@ -833,105 +912,49 @@ systemctl reboot
 
 再起動が正常に出来ることを確認し、上記で作成した自分用のユーザーでログインできることを確認します。
 
-オプションで上記で作成したスナップショットを削除します。
+（省略可）上記で作成したスナップショットを削除します。
 
 ```console
 sudo zfs destroy bpool/BOOT/ubuntu@install
 sudo zfs destroy rpool/ROOT/ubuntu@install
 ```
 
-上記で設定した root ユーザーのパスワードを削除します。
+（省略可）上記で設定した root ユーザーのパスワードを削除します。
 
 ```console
 sudo usermod -p '*' root
 ```
 
-今後は root 権限で作業するときは自分のユーザーから sudo つきでコマンドを実行するか、 `sudo -i` で root ユーザーに切り替えます。
+root ユーザーのパスワードを削除した場合は root 権限で作業するときは自分のユーザーから sudo つきでコマンドを実行するか、 `sudo -i` で root ユーザーに切り替えます。
 
-Wiki には書いていませんが、 ssh の設定も行います。
+## 上記手順外で気になること
 
-他の作業用マシンの `~/.ssh/config` にこのサーバーのエントリを追加します。以下は例です。
+### zfs-mount-generator
 
-```console
-Host beagle
-  Hostname 192.168.2.5
-```
-
-まず他の作業用マシンからこのサーバーに自分のユーザーでパスワードでログイン出来ることを確認します。以下の例でホスト名は適宜変更してください。
-
-```console
-ssh beagle
-````
-
-
-ログイン出来たら作業用マシンの別端末で ssh の公開鍵を設定します。
-
-```console
-ssh-copy-id beagle
-```
-
-その後再度 ssh でログインし、今度はパスワード入力無しで鍵認証で入れることを確認します。
-
-```console
-ssh beagle
-```
-
-ssh サーバーの設定を変更し、パスワード入力を無効にします。
-
-```console
-sudo sed -i -e '/^#PasswordAuthentication yes/a\
-PasswordAuthentication no
-/^UsePAM yes/{s/^/#/;a\
-UsePAM no
-}
-/^X11Forwarding yes/{s/^/#/;a\
-X11Forwarding no
-}
-' /etc/ssh/sshd_config
-```
-
-上記の設定変更を反映します。
-
-```console
-systemctl reload sshd
-```
-
-別の作業マシンから鍵認証で ssh 出来ることを確認します。
-
-```console
-ssh beagle
-```
-
-以下のようにパスワード認証を優先にしてログインできないことを確認します。
-
-```console
-$ ssh -o PreferredAuthentications=password 192.168.2.5
-hnakamur@192.168.2.5: Permission denied (publickey).
-```
-
-## temp
-
-`4.10 Enable importing bpool` はスキップして、 代わりに zfs-mount-generator を使った手順を実行します。
-
-bpool のマウントの設定を行います。
-
-Wiki の手順では後の `5.8 Fix filesystem mount ordering` でブート (/boot) パーティション用の ZFS のプール bpool をマウントするための作業が入るのですが、そこで ZFS の systemd mount generator が出来るまではという但し書きがあります。
+Wiki の手順では後の "5.8 Fix filesystem mount ordering" でブート (/boot) パーティション用の ZFS のプール bpool をマウントするための作業が入るのですが、これは ZFS の systemd mount generator が出来るまではという但し書きがあります。
 
 [zfsonlinux new feature: systemd mount integration : zfs](https://www.reddit.com/r/zfs/comments/8lf9d1/zfsonlinux_new_feature_systemd_mount_integration/)
-で紹介されているように zfs-mount-generator というのが今はあるのでそれを使います。
+で紹介されているように zfs-mount-generator というのが今はあるので、これも一度試してみました。
 
-一次情報としては [zfs-mount-generator (8)](https://manpages.ubuntu.com/manpages/focal/en/man8/zfs-mount-generator.8.html) を参照してください。
+zfs-import-bpool.service も含めて上記の手順を実行した後に zfs-mount-generator をセットアップし、その後 zfs-import-bpool.service を削除するという手順はうまく行きました。
+
+しかし、一からの環境構築で zfs-import-bpool.service の手順をスキップして代わりにzfs-mount-generator をセットアップするのを試行錯誤したのですが、リブート後に `zpool list` や `zfs list` で rpool のみ見えて bpool が見えないようになってしまいました。
+
+zfs-import-bpool.service を作るのであれば zfs-mount-generator はなくても上記の手順で問題なく動いているようなので、 zfs-mount-generator はとりあえず使わないことにします。
+
+手順の一部をメモしておきます。
+
+zfs-mount-generator の一次情報としては [zfs-mount-generator (8)](https://manpages.ubuntu.com/manpages/focal/en/man8/zfs-mount-generator.8.html) を参照してください。
+
 
 ただ、 chroot 環境で zfs のセットアップを行っている関係で手順を変更する必要がありました。
 
-<!--
 `/etc/zfs/zfs-list.cache` ディレクトリを作成し、その下に 2 つのプール名 bpool, rpool に対応した空のファイルを作成します。
 
 ```console
 # mkdir /etc/zfs/zfs-list.cache
 # touch /etc/zfs/zfs-list.cache/{b,r}pool
 ```
--->
 
 次で利用する `/usr/lib/zfs-linux/zed.d/history_event-zfs-list-cacher.sh` が含まれる zfs-zed パッケージをインストールします。
 
@@ -945,11 +968,7 @@ apt install --yes zfs-zed
 ln -s /usr/lib/zfs-linux/zed.d/history_event-zfs-list-cacher.sh /etc/zfs/zed.d/
 ```
 
-通常の zfs の環境ならこの後 manpage の手順に従うと `/etc/zfs/zfs-list.cache/` 以下に zfs の pool の情報が反映されるのですが、今は chroot 環境で状況が異なるので、以下のコマンドで手動で作成します。
-
-<!--
-manpage には zfs-zed サービスの自動起動を有効にし、再起動するとありますが、インストールした時点で自動起動は有効になってるのと、再起動は `Running in chroot, ignoring request: restart` というエラーが出たのでスキップします。
-
+zfs-zed サービスの自動起動を有効にし、再起動します。
 ```console
 systemctl enable zfs-zed.service
 systemctl restart zfs-zed.service
@@ -1008,17 +1027,99 @@ rpool/var/spool on
 zfs set canmount=off bpool/BOOT
 zfs set canmount=on rpool/home
 ```
--->
 
+`ls -l /etc/zfs/zfs-list.cache/` を実行すると bpool と rpool のファイルが空でなくなっていました。
 
-今の chroot 環境では `/mnt` にマウントしてますが、再起動後は `/` になるので sed で置換しつつ保存します。
+### シャットダウン時に一部アンマウント失敗のエラーが出る
 
-```console
-mkdir -p /etc/zfs/zfs-list.cache
-zfs list -H -o name,mountpoint,canmount,atime,relatime,devices,exec,readonly,setuid,nbmand,encroot,keylocation | grep ^bpool | sed -e 's|/mnt/|/|;s|/mnt|/|' | tee /etc/zfs/zfs-list.cache/bpool
-zfs list -H -o name,mountpoint,canmount,atime,relatime,devices,exec,readonly,setuid,nbmand,encroot,keylocation | grep ^rpool | sed -e 's|/mnt/|/|;s|/mnt|/|' | tee /etc/zfs/zfs-list.cache/rpool
+全てではないのですが一部のデータセットはシャットダウン時にアンマウント失敗のエラーがコンソールに出ています。
+
+```text
+[FAILED] Failed unmounting /home.
+[FAILED] Failed unmounting /root.
+[FAILED] Failed unmounting Temporary Directory (/tmp).
 ```
 
-<!--
-`ls -l /etc/zfs/zfs-list.cache/` を実行すると bpool と rpool のファイルが空でなくなっていました。※この手順だと空のままだった。
--->
+ところで、ブート時とシャットダウン時の `[  OK  ]` や `[FAILED]` のログは後からファイルやコマンドで見れないのでしょうか。 `[    0.000000]` のような起動開始からの秒数が入った行は `dmesg` で見れるのですが、 `[  OK  ]` や `[FAILED]` のログは含まれていないようです。
+
+仕方ないのでスマホで動画撮影して PC にコピーしてました。上記はそれを見ながら書き起こしたものです。
+
+https://github.com/systemd/systemd/issues/867#issuecomment-421655744
+などで `LazyUnmount=yes` を使えば良いというコメントがありました。
+
+zfs-mount-generator を導入したときは以下のようなファイルが生成されていました。
+
+```console
+# ls -l /run/systemd/generator/
+total 28
+-rw-r--r-- 1 root root 233 Apr 26 14:24 dev-zvol-rpool-swap.swap
+-rw-r--r-- 1 root root 358 Apr 26 14:24 home-hnakamur.mount
+-rw-r--r-- 1 root root 340 Apr 26 14:24 home.mount
+drwxr-xr-x 2 root root 180 Apr 26 14:24 local-fs.target.wants
+drwxr-xr-x 2 root root  60 Apr 26 14:24 multi-user.target.wants
+-rw-r--r-- 1 root root   0 Apr 26 14:24 netplan.stamp
+drwxr-xr-x 2 root root  60 Apr 26 14:24 network-online.target.wants
+-rw-r--r-- 1 root root 345 Apr 26 14:24 root.mount
+drwxr-xr-x 2 root root  60 Apr 26 14:24 swap.target.requires
+-rw-r--r-- 1 root root 350 Apr 26 14:24 usr-local.mount
+-rw-r--r-- 1 root root 360 Apr 26 14:24 var-lib-docker.mount
+-rw-r--r-- 1 root root 348 Apr 26 14:24 var-snap.mount
+```
+
+2 つ中身を見てみると以下のような感じでした。
+
+```console
+root@beagle:~# cat /run/systemd/generator/usr-local.mount
+# Automatically generated by zfs-mount-generator
+
+[Unit]
+SourcePath=/etc/zfs/zfs-list.cache/rpool
+Documentation=man:zfs-mount-generator(8)
+Before=local-fs.target zfs-mount.service
+After=zfs-import.target
+Wants=zfs-import.target
+
+[Mount]
+Where=/usr/local
+What=rpool/usr/local
+Type=zfs
+Options=defaults,atime,relatime,nodev,exec,rw,suid,nomand,zfsutil
+```
+
+```console
+root@beagle:~# cat /run/systemd/generator/home.mount
+# Automatically generated by zfs-mount-generator
+
+[Unit]
+SourcePath=/etc/zfs/zfs-list.cache/rpool
+Documentation=man:zfs-mount-generator(8)
+Before=local-fs.target zfs-mount.service
+After=zfs-import.target
+Wants=zfs-import.target
+
+[Mount]
+Where=/home
+What=rpool/home
+Type=zfs
+Options=defaults,atime,relatime,nodev,exec,rw,suid,nomand,zfsutil
+```
+
+そこで以下のようにファイルを作って、何回か再起動を試してみたのですが、上記のシャットダウン時のエラーは出なくなったり出たりで良く分からない状態でした。
+
+```console
+for m in $(cd /run/systemd/generator; ls *.mount); do
+  mkdir -p /etc/systemd/system/${m}.d
+  cat > /etc/systemd/system/${m}.d/override.conf <<'EOF'
+[Unit]
+LazyUnmount=yes
+EOF
+done
+```
+
+とりあえず実害はなさそうなので、上記の FAILED は一旦諦めることにしました。
+
+## おわりに
+
+上記のように気になる点は残るものの、ブートパーティションとルートパーティションを ZFS にして Ubuntu 20.04 LTS をセットアップして動くようにはなりました。
+
+まだ experimental なので壊れても大丈夫なサーバーに限定しておくほうが良いとは思いますが、使ってみたいと思います。
