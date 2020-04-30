@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.64.1" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>OpenSSLのSSL_sendfileとパッチを当てたnginxでLinuxのkTLSを試してみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2020. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>OpenSSLのSSL_sendfileとパッチを当てたnginxでLinuxのkTLSを試してみた</h1>
+  <time datetime=2020-04-29T17:51:58&#43;0900 class="post-date">2020-04-29</time>
+  <h2 id="試したきっかけ">試したきっかけ</h2>
+<p><a href="https://www.reddit.com/r/rust/comments/a82w9b/can_a_rust_web_server_beat_nginx_in_serving/#ec7ul6t">Can a Rust web server beat nginx in serving static files? : rust</a> に以下のようなコメントがありました。</p>
+<ul>
+<li>nginx は sendfile を使っているが TLS では使えない。</li>
+<li>Netflix は FreeBSD カーネルにパッチを当てて暗号化した内容を sendfile で送っている。</li>
+</ul>
+<p>余談ですが <a href="https://github.com/seanmonstar/futures-fs/issues/3">Suboptimal block sizes · Issue #3 · seanmonstar/futures-fs</a> と <a href="https://news.ycombinator.com/item?id=19698930">The lack of a zero-copy sendfile for ZFS is one of several reasons that we (Netf&hellip; | Hacker News</a> を見ると ZFS では sendfile が使えないそうで、 Netflix ではこれが ZFS ではなく UFS を使っている理由の 1 つだそうです。</p>
+<p>Linux にも <a href="https://www.kernel.org/doc/html/latest/networking/tls.html#kernel-tls">Kernel TLS (kTLS)</a> があるけどどうなんだろうと検索してみると nginx へのパッチを見つけました。</p>
+<ul>
+<li><a href="https://forum.nginx.org/read.php?29,283706">[PATCH] Add support for using sendfile when openssl support ktls</a> (2019-04-10)</li>
+<li><a href="https://forum.nginx.org/read.php?29,283833,283833#msg-283833">[PATCH] when we need to transfer data between file and socket we prefer to use sendfile instead of write because we save the copy to a buffer</a> (2019-04-18)</li>
+</ul>
+<p>最初のパッチにコメントを受けて改善されたのが 2 番目のパッチです。が、さらにコメントを受けて対応されずそのままになっていました。</p>
+<p>上のパッチでは OpenSSL の
+<a href="https://www.openssl.org/docs/manmaster/man3/SSL_sendfile.html">SSL_sendfile</a>
+という関数を使っています。
+ページ下部の HISTORY に OpenSSL 3.0.0 で追加されたと書いてあります。
+これはドキュメントが先行していますが、実際は 3.0.0-alpha1 が 2020-04-23 に出たところです。 <a href="https://www.openssl.org/blog/blog/2020/04/23/OpenSSL3.0Alpha1/">OpenSSL 3.0 Alpha1 Release - OpenSSL Blog</a> 。
+タグは打たれてないのですが <a href="https://github.com/openssl/openssl/commit/05feb0a0f1fecb6839888bb7590fb92be70d8d3c">Prepare for release of 3.0 alpha 1 · openssl/openssl@05feb0a</a> のコミットが 3.0.0-alpha1 に対応します。</p>
+<p><a href="https://github.com/openssl/openssl/blame/master/ssl/ssl_lib.c#L2030">openssl/ssl/ssl_lib.c at master · openssl/openssl</a> を見ると <code>SSL_sendfile</code> は 13 か月前に追加されてから変更は入っていません。追加されたのは <a href="https://github.com/openssl/openssl/commit/7c3a7561b536264b282f604efc959edad18807d7">ssl: Add SSL_sendfile · openssl/openssl@7c3a756</a> のコミットでこれは 2019-04-13 でした。</p>
+<p>上に貼ったパッチはこのコミット前後に作られていたんですね、早い。</p>
+<p>ということで、今回は上記の 2 つ目のパッチを nginx に組み込んで試してみました。</p>
+<p>わけもわからない状態から試行錯誤したのですが、全部書くとごちゃごちゃになるのである程度絞って書きます（自分用にはできれば試行錯誤の際に知ったことも記録しておきたいのですが、記事がごちゃごちゃしすぎるので省略）。</p>
+<p>試行錯誤の結果、以下の 3 ステップで確認するのが良いことが分かったのでその順に書いていきます。</p>
+<ul>
+<li>OpenSSL 同梱のテストコードでの動作確認</li>
+<li><code>openssl s_server</code> と <code>curl</code> での動作確認</li>
+<li>パッチを当てた <code>nginx</code> と <code>curl</code> での動作確認</li>
+</ul>
+<h2 id="検証環境">検証環境</h2>
+<p>今回上記以外でもう一つ非常に参考にさせていただいた記事が
+<a href="https://blog.filippo.io/playing-with-kernel-tls-in-linux-4-13-and-go/">Playing with kernel TLS in Linux 4.13 and Go</a>
+です。これによると Linux カーネル 4.13 以降なら kTLS が使えるらしいです。</p>
+<p>私は今回以下の 2 つの環境で試しましたが、うまく動いたのは後者のみでした（前者で動かない原因は未調査）。</p>
+<ul>
+<li>Ubuntu 18.04 LTS + linux-image-generic-hwe-18.04 5.3.0.46.102</li>
+<li>Ubuntu 20.04 LTS + linux-image-unsigned-5.6.0-050600-generic 5.6.0-050600.202003292333</li>
+</ul>
+<p>まずカーネルの tls モジュールがロードされているか確認します。</p>
+<pre><code class="language-console" data-lang="console">lsmod | grep tls
+</code></pre><p>出力が空の場合は以下のコマンドを実行してロードします。</p>
+<pre><code class="language-console" data-lang="console">sudo modprobe tls
+</code></pre><p>試行錯誤の時点では物理サーバーで試していましたが、この記事を書くために一から再検証する際は docker を使いました。</p>
+<p><a href="https://docs.docker.com/engine/install/ubuntu/#os-requirements">Install Docker Engine on Ubuntu | Docker Documentation</a> の手順を試しましたが focal 用のレポジトリはまだないようでした。
+<a href="https://docs.docker.com/engine/install/binaries/">Install Docker Engine from binaries | Docker Documentation</a> から <a href="https://download.docker.com/linux/static/stable/x86_64/">Index of linux/static/stable/x86_64/</a> を見ると upstream の最新版は 2020-04-29 時点で 19.0.3.8 ですが、 focal の Ubuntu の標準レポジトリでも同じバージョンが入るので、今回はそれを使いました。</p>
+<pre><code class="language-console" data-lang="console">sudo apt install -y docker.io
+</code></pre><h2 id="openssl-同梱のテストコードでの動作確認">OpenSSL 同梱のテストコードでの動作確認</h2>
+<p>まず OpenSSL をビルドして
+<a href="https://github.com/openssl/openssl/blob/5e427a435b3b1db0fb0626b26e031f71bde65f7a/test/sslapitest.c">test/sslapitest.c</a> 内の
+<a href="https://github.com/openssl/openssl/blob/5e427a435b3b1db0fb0626b26e031f71bde65f7a/test/sslapitest.c#L1070-L1169">test_ktls_sendfile</a>
+のテストを実行してみます。</p>
+<p>ただそのまま実行しても kTLS が使われたのか確認できなかったので、試行錯誤中は気になるところに <code>printf</code> を入れまくって実行しました。</p>
+<p>その後 <a href="https://www.openssl.org/docs/manmaster/man3/OSSL_TRACE.html">OpenSSL Tracing API</a> というのを見つけたので <code>printf</code> の代わりにこちらを使うようにして見ました。 <a href="https://github.com/openssl/openssl/commit/09f7dd6a4ffe71277ae114a8aeec4f5fa47c8d9b">Add trace category for kTLS · openssl/openssl@09f7dd6</a></p>
+<p>また <code>test_ktls_sendfile</code> だけ実行する方法がわからなかったので <code>test/sslapitest.c</code> の他のテストをコメントアウトしました。 <a href="https://github.com/openssl/openssl/commit/63e6ecec1279f1afdc4213d13340b7e42593c70c">Temporarily delete tests other than test_ktls_sendfile · openssl/openssl@63e6ece</a></p>
+<p>この変更を加えた OpenSSL をビルドする手順を Dockerfile より抜粋します。
+<code>./config</code> の引数に <code>enable-ktls</code> と <code>enable-trace</code> を指定しています。</p>
+<pre><code class="language-console" data-lang="console">git clone https://github.com/hnakamur/openssl \
+ &amp;&amp; cd openssl \
+ &amp;&amp; git switch add_trace_category_ktls \
+ &amp;&amp; ./config enable-ktls enable-trace \
+ &amp;&amp; make \
+ &amp;&amp; make install
+</code></pre><p>テストを実行するのは以下のようにします。</p>
+<pre><code class="language-console" data-lang="console">sudo docker run --rm -it sslsendfile bash -c 'cd /openssl; make tests TESTS=test_sslapi OPENSSL_TRACE=KTLS'
+</code></pre><p>実行例です。
+TRACE メッセージで <code>BIO_set_ktls</code> が成功し、 <a href="https://github.com/openssl/openssl/blob/5e427a435b3b1db0fb0626b26e031f71bde65f7a/include/internal/ktls.h#L264-L271">ktls_sendfile</a> が呼ばれていることが確認できます。</p>
+<pre><code class="language-console" data-lang="console">$ sudo docker run --rm -it sslsendfile bash -c 'cd /openssl; make tests TESTS=test_sslapi NO_FIPS=1 V=1 OPENSSL_TRACE=KTLS'
+make depend &amp;&amp; make _tests
+make[1]: Entering directory '/openssl'
+make[1]: Leaving directory '/openssl'
+make[1]: Entering directory '/openssl'
+( SRCTOP=. \
+  BLDTOP=. \
+  PERL=&quot;/usr/bin/perl&quot; \
+  EXE_EXT= \
+  /usr/bin/perl ./test/run_tests.pl test_sslapi )
+90-test_sslapi.t ..
+# The results of this test will end up in test-runs/test_sslapi
+1..1
+    # Subtest: ../../test/sslapitest
+    1..1
+TRACE[80:72:B2:D2:0E:7F:00:00]:KTLS: Calling BIO_set_ktls, s=0x55b9737ac8d0, which=18
+TRACE[80:72:B2:D2:0E:7F:00:00]:KTLS: BIO_set_ktls succeeded, s=0x55b9737ac8d0, which=18
+TRACE[80:72:B2:D2:0E:7F:00:00]:KTLS: Calling BIO_set_ktls, s=0x55b9737aab10, which=33
+TRACE[80:72:B2:D2:0E:7F:00:00]:KTLS: BIO_set_ktls succeeded, s=0x55b9737aab10, which=33
+TRACE[80:72:B2:D2:0E:7F:00:00]:KTLS: Calling BIO_set_ktls, s=0x55b9737aab10, which=34
+TRACE[80:72:B2:D2:0E:7F:00:00]:KTLS: BIO_set_ktls succeeded, s=0x55b9737aab10, which=34
+TRACE[80:72:B2:D2:0E:7F:00:00]:KTLS: Calling BIO_set_ktls, s=0x55b9737ac8d0, which=17
+TRACE[80:72:B2:D2:0E:7F:00:00]:KTLS: BIO_set_ktls succeeded, s=0x55b9737ac8d0, which=17
+TRACE[80:72:B2:D2:0E:7F:00:00]:KTLS: ktls_sendfile ret=16384, s=0x55b9737aab10, wfd=5, fd=3, offset=0, size=16384, flags=0
+TRACE[80:72:B2:D2:0E:7F:00:00]:KTLS: ktls_sendfile ret=16384, s=0x55b9737aab10, wfd=5, fd=3, offset=16384, size=16384, flags=0
+TRACE[80:72:B2:D2:0E:7F:00:00]:KTLS: ktls_sendfile ret=16384, s=0x55b9737aab10, wfd=5, fd=3, offset=32768, size=16384, flags=0
+TRACE[80:72:B2:D2:0E:7F:00:00]:KTLS: ktls_sendfile ret=16384, s=0x55b9737aab10, wfd=5, fd=3, offset=49152, size=16384, flags=0
+    ok 1 - test_ktls_sendfile
+../../util/wrap.pl ../../test/sslapitest ../../test/certs ../../test/recipes/90-test_sslapi_data/passwd.txt /tmp/qTAgg9B5PY default ../../test/default.cnf =&gt; 0
+ok 1 - running sslapitest
+ok
+All tests successful.
+Files=1, Tests=1,  1 wallclock secs ( 0.03 usr  0.01 sys +  0.66 cusr  0.08 csys =  0.78 CPU)
+Result: PASS
+make[1]: Leaving directory '/openssl'
+</code></pre><p><code>Calling BIO_set_ktls</code> と <code>BIO_set_ktls succeeded</code> のメッセージを出力しているのが以下の箇所です。</p>
+<p>引用した最後の行に <code>skip_ktls:</code> のラベルがありますが、このコードの上のほうに様々な理由で <code>goto skip_ktls;</code> で飛んで <code>BIO_set_ktls</code> を呼ばないケースがあります。</p>
+<p><a href="https://github.com/hnakamur/openssl/blob/63e6ecec1279f1afdc4213d13340b7e42593c70c/ssl/t1_enc.c#L525-L534">ssl/t1_enc.c#L525-L534</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c">    <span class="cm">/* ktls works with user provided buffers directly */</span>
+    <span class="n">OSSL_TRACE2</span><span class="p">(</span><span class="n">KTLS</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">Calling BIO_set_ktls, s=%p, which=%d</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">which</span><span class="p">)</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">BIO_set_ktls</span><span class="p">(</span><span class="n">bio</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">crypto_info</span><span class="p">,</span> <span class="n">which</span> <span class="o">&amp;</span> <span class="n">SSL3_CC_WRITE</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">OSSL_TRACE2</span><span class="p">(</span><span class="n">KTLS</span><span class="p">,</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">BIO_set_ktls succeeded, s=%p, which=%d</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">which</span><span class="p">)</span><span class="p">;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">which</span> <span class="o">&amp;</span> <span class="n">SSL3_CC_WRITE</span><span class="p">)</span>
+            <span class="n">ssl3_release_write_buffer</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="p">;</span>
+        <span class="n">SSL_set_options</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">SSL_OP_NO_RENEGOTIATION</span><span class="p">)</span><span class="p">;</span>
+    <span class="p">}</span>
+
+ <span class="nl">skip_ktls</span><span class="p">:</span>
+</code></pre></div><p>そのうち 2 つを以下に引用します。
+TLS のバージョンが 1.2 以外だったり cipher が <code>AES_GCM_128</code> 以外だと kTLS は使われないことが確認できます。</p>
+<p><a href="https://github.com/hnakamur/openssl/blob/63e6ecec1279f1afdc4213d13340b7e42593c70c/ssl/t1_enc.c#L445-L457">ssl/t1_enc.c#L445-L457</a></p>
+<pre><code class="language-console" data-lang="console">    /* check that cipher is AES_GCM_128 */
+    if (EVP_CIPHER_nid(c) != NID_aes_128_gcm
+        || EVP_CIPHER_mode(c) != EVP_CIPH_GCM_MODE
+        || EVP_CIPHER_key_length(c) != TLS_CIPHER_AES_GCM_128_KEY_SIZE) {
+        OSSL_TRACE2(KTLS, &quot;Skip ktls because of cipher, s=%p, which=%d\n&quot;, s, which);
+        goto skip_ktls;
+    }
+
+    /* check version is 1.2 */
+    if (s-&gt;version != TLS1_2_VERSION) {
+        OSSL_TRACE2(KTLS, &quot;Skip ktls because of TLS version not 1.2, s=%p, which=%d\n&quot;, s, which);
+        goto skip_ktls;
+    }
+</code></pre><h2 id="openssl-s_server-と-curl-での動作確認"><code>openssl s_server</code> と <code>curl</code> での動作確認</h2>
+<h3 id="ktls-が使われるケースの検証">kTLS が使われるケースの検証</h3>
+<p>まず <code>openssl s_server</code> を以下のように起動します。</p>
+<pre><code class="language-console" data-lang="console">sudo docker run --rm -it sslsendfile bash -c 'cd /usr/local/nginx/html; OPENSSL_TRACE=KTLS openssl s_server -WWW -cert /usr/local/nginx/conf/example.com.crt -key /usr/local/nginx/conf/example.com.key -accept 443 -no_tls1_3 -sendfile'
+</code></pre><p>以下のように出力されたらリクエストを受け付ける準備完了です。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">Using default temp DH parameters
+ACCEPT
+</code></pre></div><p>別の端末で以下のように curl を実行します。</p>
+<pre><code class="language-console" data-lang="console">sudo docker exec -it $(sudo docker ps -q) curl -kv --tlsv1.2 --ciphers AES128-GCM-SHA256 https://localhost/index.html
+</code></pre><p><code>openssl s_server</code> の端末には以下のようにトレースメッセージが出力され kTLS が使われたことが分かります。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">TRACE[80:82:CD:4F:31:7F:00:00]:KTLS: Calling BIO_set_ktls, s=0x555aa2d09b30, which=33
+TRACE[80:82:CD:4F:31:7F:00:00]:KTLS: BIO_set_ktls succeeded, s=0x555aa2d09b30, which=33
+TRACE[80:82:CD:4F:31:7F:00:00]:KTLS: Calling BIO_set_ktls, s=0x555aa2d09b30, which=34
+TRACE[80:82:CD:4F:31:7F:00:00]:KTLS: BIO_set_ktls succeeded, s=0x555aa2d09b30, which=34
+FILE:index.html
+TRACE[80:82:CD:4F:31:7F:00:00]:KTLS: ktls_sendfile ret=612, s=0x555aa2d09b30, wfd=4, fd=5, offset=0, size=612, flags=0
+KTLS SENDFILE &#39;index.html&#39; OK
+</code></pre></div><p>curl のほうの端末の出力のうち下記の 1 行で TLSv1.2 と AES128-GCM-SHA256 の cipher が使われたことが確認できます。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">* SSL connection using TLSv1.2 / AES128-GCM-SHA256
+</code></pre></div><p>以下のコマンドを実行して Docker コンテナーを終了します。</p>
+<pre><code class="language-console" data-lang="console">sudo docker kill $(sudo docker ps -q)
+</code></pre><h3 id="ktls-が使われないケースその1-tlsv12-だが-cipher-が-aes_gcm_128-ではない">kTLS が使われないケースその1: TLSv1.2 だが cipher が <code>AES_GCM_128</code> ではない</h3>
+<p>まず <code>openssl s_server</code> を以下のように起動します。</p>
+<pre><code class="language-console" data-lang="console">sudo docker run --rm -it sslsendfile bash -c 'cd /usr/local/nginx/html; OPENSSL_TRACE=KTLS openssl s_server -WWW -cert /usr/local/nginx/conf/example.com.crt -key /usr/local/nginx/conf/example.com.key -accept 443 -no_tls1_3 -sendfile'
+</code></pre><p>別端末で curl を以下のように実行します。</p>
+<pre><code class="language-console" data-lang="console">sudo docker exec -it $(sudo docker ps -q) curl -kv --tlsv1.2 https://localhost/index.html
+</code></pre><p><code>openssl s_server</code> の端末には以下のように出力されました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">TRACE[80:42:EB:65:D1:7F:00:00]:KTLS: Skip ktls because of cipher, s=0x559306cdab30, which=33
+TRACE[80:42:EB:65:D1:7F:00:00]:KTLS: Skip ktls because of cipher, s=0x559306cdab30, which=34
+FILE:index.html
+</code></pre></div><p>curl の端末には以下のように出力されました。
+TLSv1.2 ですが cipher は ECDHE-RSA-AES256-GCM-SHA384 が選ばれています。
+また <code>openssl s_server</code> は <code>-sendfile</code> オプションを指定したのに <code>ktls_sendfile</code> が使えないパターンは想定してないようでエラーになってしまっています。</p>
+<pre><code class="language-console" data-lang="console">$ sudo docker exec -it $(sudo docker ps -q) curl -kv --tlsv1.2 https://localhost/index.html
+*   Trying 127.0.0.1:443...
+* TCP_NODELAY set
+* Connected to localhost (127.0.0.1) port 443 (#0)
+* ALPN, offering h2
+* ALPN, offering http/1.1
+* successfully set certificate verify locations:
+*   CAfile: /etc/ssl/certs/ca-certificates.crt
+  CApath: /etc/ssl/certs
+* TLSv1.3 (OUT), TLS handshake, Client hello (1):
+* TLSv1.3 (IN), TLS handshake, Server hello (2):
+* TLSv1.2 (IN), TLS handshake, Certificate (11):
+* TLSv1.2 (IN), TLS handshake, Server key exchange (12):
+* TLSv1.2 (IN), TLS handshake, Server finished (14):
+* TLSv1.2 (OUT), TLS handshake, Client key exchange (16):
+* TLSv1.2 (OUT), TLS change cipher, Change cipher spec (1):
+* TLSv1.2 (OUT), TLS handshake, Finished (20):
+* TLSv1.2 (IN), TLS handshake, Finished (20):
+* SSL connection using TLSv1.2 / ECDHE-RSA-AES256-GCM-SHA384
+* ALPN, server did not agree to a protocol
+* Server certificate:
+*  subject: C=JP; ST=Osaka; L=Osaka City; CN=example.com
+*  start date: Apr 29 11:47:10 2020 GMT
+*  expire date: Apr 29 11:47:10 2021 GMT
+*  issuer: C=JP; ST=Osaka; L=Osaka City; CN=example.com
+*  SSL certificate verify result: self signed certificate (18), continuing anyway.
+&gt; GET /index.html HTTP/1.1
+&gt; Host: localhost
+&gt; User-Agent: curl/7.68.0
+&gt; Accept: */*
+&gt;
+* Mark bundle as not supporting multiuse
+* HTTP 1.0, assume close after body
+&lt; HTTP/1.0 200 ok
+&lt; Content-type: text/html
+&lt;
+Error SSL_sendfile 'index.html'
+80:42:EB:65:D1:7F:00:00:error:SSL routines:SSL_sendfile:uninitialized:ssl/ssl_lib.c:2046:
+</code></pre><p>以下のコマンドを実行して Docker コンテナーを終了します。</p>
+<pre><code class="language-console" data-lang="console">sudo docker kill $(sudo docker ps -q)
+</code></pre><h3 id="ktls-が使われないケースその2-tlsv13">kTLS が使われないケースその2: TLSv1.3</h3>
+<p>まず <code>openssl s_server</code> を以下のように起動します。</p>
+<pre><code class="language-console" data-lang="console">sudo docker run --rm -it sslsendfile bash -c 'cd /usr/local/nginx/html; OPENSSL_TRACE=KTLS openssl s_server -WWW -cert /usr/local/nginx/conf/example.com.crt -key /usr/local/nginx/conf/example.com.key -accept 443 -sendfile'
+</code></pre><p>別端末で curl を以下のように実行します。</p>
+<pre><code class="language-console" data-lang="console">sudo docker exec -it $(sudo docker ps -q) curl -kv https://localhost/index.html
+</code></pre><p>今度は <code>openssl s_server</code> の端末にはトレースメッセージは何も表示されず、 curl の端末は以下のような出力になりました。
+接続には TLSv1.3 と <code>TLS_AES_256_GCM_SHA384</code> の cipher が使われ、今度も <code>openssl s_server</code> からエラーが返ってきています。</p>
+<pre><code class="language-console" data-lang="console">$ sudo docker exec -it $(sudo docker ps -q) curl -kv https://localhost/index.html
+*   Trying 127.0.0.1:443...
+* TCP_NODELAY set
+* Connected to localhost (127.0.0.1) port 443 (#0)
+* ALPN, offering h2
+* ALPN, offering http/1.1
+* successfully set certificate verify locations:
+*   CAfile: /etc/ssl/certs/ca-certificates.crt
+  CApath: /etc/ssl/certs
+* TLSv1.3 (OUT), TLS handshake, Client hello (1):
+* TLSv1.3 (IN), TLS handshake, Server hello (2):
+* TLSv1.3 (IN), TLS handshake, Encrypted Extensions (8):
+* TLSv1.3 (IN), TLS handshake, Certificate (11):
+* TLSv1.3 (IN), TLS handshake, CERT verify (15):
+* TLSv1.3 (IN), TLS handshake, Finished (20):
+* TLSv1.3 (OUT), TLS change cipher, Change cipher spec (1):
+* TLSv1.3 (OUT), TLS handshake, Finished (20):
+* SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384
+* ALPN, server did not agree to a protocol
+* Server certificate:
+*  subject: C=JP; ST=Osaka; L=Osaka City; CN=example.com
+*  start date: Apr 29 11:47:10 2020 GMT
+*  expire date: Apr 29 11:47:10 2021 GMT
+*  issuer: C=JP; ST=Osaka; L=Osaka City; CN=example.com
+*  SSL certificate verify result: self signed certificate (18), continuing anyway.
+&gt; GET /index.html HTTP/1.1
+&gt; Host: localhost
+&gt; User-Agent: curl/7.68.0
+&gt; Accept: */*
+&gt;
+* TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
+* TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
+* old SSL session ID is stale, removing
+* Mark bundle as not supporting multiuse
+* HTTP 1.0, assume close after body
+&lt; HTTP/1.0 200 ok
+&lt; Content-type: text/html
+&lt;
+Error SSL_sendfile 'index.html'
+80:02:AD:3C:5F:7F:00:00:error:SSL routines:SSL_sendfile:uninitialized:ssl/ssl_lib.c:2046:
+* Closing connection 0
+* TLSv1.3 (OUT), TLS alert, close notify (256):
+</code></pre><h2 id="パッチを当てた-nginx-と-curl-での動作確認">パッチを当てた <code>nginx</code> と <code>curl</code> での動作確認</h2>
+<p>記事の冒頭に書いたパッチは一か所 if の後を波括弧で囲む修正が必要でした。
+また <code>SSL_sendfile</code> が使えるかどうかを <code>auto/configure</code> で判定するように改善して、パッチにもさらに少し手を入れてみました。</p>
+<p>nginx.conf の <code>ssl_protocols</code> の設定を実行時に切り替えるために
+<a href="https://qiita.com/takyam/items/e92e5a6ca1548cbd58db">Docker上のNginxのconfに環境変数(env)を渡すたったひとつの全く優れてない方法（修正：+優れている方法） - Qiita</a>
+の方法を参考にしました。</p>
+<p>また OpenSSL Tracing API の出力を行うためには
+<a href="https://github.com/openssl/openssl/blob/master/apps/openssl.c#L194-L229">setup_trace</a> の処理が必要なので、このコードをコピーして
+<a href="https://github.com/hnakamur/ngx_ssl_trace_module">hnakamur/ngx_ssl_trace_module</a>
+という nginx 用のモジュールを作成し、これを利用しました。</p>
+<p>nginx を TLSv1.2 で起動します。</p>
+<pre><code class="language-console" data-lang="console">sudo docker run --rm -it -e SSL_PROTOCOLS=TLSv1.2 sslsendfile /bin/bash -c &quot;envsubst '\$SSL_PROTOCOLS' &lt; /usr/local/nginx/conf/nginx.conf.template &gt; /usr/local/nginx/conf/nginx.conf &amp;&amp; cat /usr/local/nginx/conf/nginx.conf&quot;
+</code></pre><p>TLSv1.2 で cipher を AES128-GCM-SHA256 にして接続すると</p>
+<pre><code class="language-console" data-lang="console">sudo docker exec -it $(sudo docker ps -q) curl -kv --tlsv1.2 --ciphers AES128-GCM-SHA256 https://localhost/index.html
+</code></pre><p>nginx のログに以下のようにトレースメッセージが出力され、 kTLS が使われたことが分かりました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">TRACE[40:37:69:2D:1B:7F:00:00]:KTLS: Skip ktls because of count unprocessed records failed, s=0x559fec91acf0, which=33
+TRACE[40:37:69:2D:1B:7F:00:00]:KTLS: Calling BIO_set_ktls, s=0x559fec91acf0, which=34
+TRACE[40:37:69:2D:1B:7F:00:00]:KTLS: BIO_set_ktls succeeded, s=0x559fec91acf0, which=34
+TRACE[40:37:69:2D:1B:7F:00:00]:KTLS: ktls_sendfile ret=612, s=0x559fec91acf0, wfd=3, fd=10, offset=0, size=612, flags=0
+127.0.0.1 - - [30/Apr/2020:13:05:03 +0000] &#34;GET /index.html HTTP/2.0&#34; 200 612 &#34;-&#34; &#34;curl/7.68.0&#34;
+</code></pre></div><p>curl の出力の接続部分は以下の通りでした。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">* SSL connection using TLSv1.2 / AES128-GCM-SHA256
+</code></pre></div><p>次に cipher を指定しない場合を試します。</p>
+<pre><code class="language-console" data-lang="console">sudo docker exec -it $(sudo docker ps -q) curl -kv --tlsv1.2 https://localhost/index.html
+</code></pre><p>nginx のログのトレースメッセージは以下のようになり、 kTLS は使われていません。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">TRACE[40:37:69:2D:1B:7F:00:00]:KTLS: Skip ktls because of cipher, s=0x559fec91acf0, which=33
+TRACE[40:37:69:2D:1B:7F:00:00]:KTLS: Skip ktls because of cipher, s=0x559fec91acf0, which=34
+</code></pre></div><p>curl の出力の接続部分は以下の通りでした。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">* SSL connection using TLSv1.2 / ECDHE-RSA-AES256-GCM-SHA384
+</code></pre></div><p>nginx を一旦終了させ、次は以下のように TLSv1.3 で起動します。</p>
+<pre><code class="language-console" data-lang="console">sudo docker run --rm -it -e SSL_PROTOCOLS=TLSv1.3 sslsendfile /bin/bash -c &quot;envsubst '\$SSL_PROTOCOLS' &lt; /usr/local/nginx/conf/nginx.conf.template &gt; /usr/local/nginx/conf/nginx.conf &amp;&amp; cat /usr/local/nginx/conf/nginx.conf&quot;
+</code></pre><p>そして以下のように curl でアクセスします。</p>
+<pre><code class="language-console" data-lang="console">sudo docker exec -it $(sudo docker ps -q) curl -kv https://localhost/index.html
+</code></pre><p>今回は nginx のログにはトレースメッセージは出力されませんでした（上記の <code>openssl s_server</code> のときと同じ）。</p>
+<p>curl の出力の接続部分は以下の通りでした。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">* SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384
+</code></pre></div><p><code>openssl s_server</code> の場合と違って、今回のパッチを当てた nginx では kTLS が使われない場合もレスポンスは正しく返していました。</p>
+<h2 id="linux-の-ktls-はその後-aes_gcm_256-と-tlsv13-のサポートも追加されていた">Linux の kTLS はその後 <code>AES_GCM_256</code> と TLSv1.3 のサポートも追加されていた</h2>
+<ul>
+<li><a href="https://github.com/torvalds/linux/commit/fb99bce7120014307dde57b3d7def6977a9a62a1">net: tls: Support 256 bit keys · torvalds/linux@fb99bce</a></li>
+<li><a href="https://github.com/torvalds/linux/commit/130b392c6cd6b2aed1b7eb32253d4920babb4891">net: tls: Add tls 1.3 support · torvalds/linux@130b392</a></li>
+</ul>
+<p>コミットのタグを見ると Linux カーネル 5.1 以降で使えるようです。</p>
+<p>ということで OpenSSL の <code>SSL_sendfile</code> も対応してほしいところですね。</p>
+
+</div>
+
+
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
