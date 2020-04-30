@@ -12,7 +12,7 @@ date: 2020-04-29T17:51:58+09:00
 
 余談ですが [Suboptimal block sizes · Issue #3 · seanmonstar/futures-fs](https://github.com/seanmonstar/futures-fs/issues/3) と [The lack of a zero-copy sendfile for ZFS is one of several reasons that we (Netf... | Hacker News](https://news.ycombinator.com/item?id=19698930) を見ると ZFS では sendfile が使えないそうで、 Netflix ではこれが ZFS ではなく UFS を使っている理由の 1 つだそうです。
 
-Linux にも [kTLS](https://www.kernel.org/doc/html/latest/networking/tls-offload.html) があるけどどうなんだろうと検索してみると nginx へのパッチを見つけました。
+Linux にも [Kernel TLS (kTLS)](https://www.kernel.org/doc/html/latest/networking/tls.html#kernel-tls) があるけどどうなんだろうと検索してみると nginx へのパッチを見つけました。
 
 * [\[PATCH\] Add support for using sendfile when openssl support ktls](https://forum.nginx.org/read.php?29,283706) (2019-04-10)
 * [\[PATCH\] when we need to transfer data between file and socket we prefer to use sendfile instead of write because we save the copy to a buffer](https://forum.nginx.org/read.php?29,283833,283833#msg-283833) (2019-04-18)
@@ -371,6 +371,89 @@ Error SSL_sendfile 'index.html'
 記事の冒頭に書いたパッチは一か所 if の後を波括弧で囲む修正が必要でした。
 また `SSL_sendfile` が使えるかどうかを `auto/configure` で判定するように改善して、パッチにもさらに少し手を入れてみました。
 
+nginx.conf の `ssl_protocols` の設定を実行時に切り替えるために
+[Docker上のNginxのconfに環境変数(env)を渡すたったひとつの全く優れてない方法（修正：+優れている方法） - Qiita](https://qiita.com/takyam/items/e92e5a6ca1548cbd58db)
+の方法を参考にしました。
+
+また OpenSSL Tracing API の出力を行うためには
+[setup_trace](https://github.com/openssl/openssl/blob/master/apps/openssl.c#L194-L229) の処理が必要なので、このコードをコピーして
+[hnakamur/ngx_ssl_trace_module](https://github.com/hnakamur/ngx_ssl_trace_module)
+という nginx 用のモジュールを作成し、これを利用しました。
+
+nginx を TLSv1.2 で起動します。
+
 ```console
-sudo docker run --rm -it sslsendfile /usr/local/nginx/sbin/nginx -g 'daemon off;'
+sudo docker run --rm -it -e SSL_PROTOCOLS=TLSv1.2 sslsendfile /bin/bash -c "envsubst '\$SSL_PROTOCOLS' < /usr/local/nginx/conf/nginx.conf.template > /usr/local/nginx/conf/nginx.conf && cat /usr/local/nginx/conf/nginx.conf"
 ```
+
+TLSv1.2 で cipher を AES128-GCM-SHA256 にして接続すると
+
+```console
+sudo docker exec -it $(sudo docker ps -q) curl -kv --tlsv1.2 --ciphers AES128-GCM-SHA256 https://localhost/index.html
+```
+
+nginx のログに以下のようにトレースメッセージが出力され、 kTLS が使われたことが分かりました。
+
+```text
+TRACE[40:37:69:2D:1B:7F:00:00]:KTLS: Skip ktls because of count unprocessed records failed, s=0x559fec91acf0, which=33
+TRACE[40:37:69:2D:1B:7F:00:00]:KTLS: Calling BIO_set_ktls, s=0x559fec91acf0, which=34
+TRACE[40:37:69:2D:1B:7F:00:00]:KTLS: BIO_set_ktls succeeded, s=0x559fec91acf0, which=34
+TRACE[40:37:69:2D:1B:7F:00:00]:KTLS: ktls_sendfile ret=612, s=0x559fec91acf0, wfd=3, fd=10, offset=0, size=612, flags=0
+127.0.0.1 - - [30/Apr/2020:13:05:03 +0000] "GET /index.html HTTP/2.0" 200 612 "-" "curl/7.68.0"
+```
+
+curl の出力の接続部分は以下の通りでした。
+
+```text
+* SSL connection using TLSv1.2 / AES128-GCM-SHA256
+```
+
+次に cipher を指定しない場合を試します。
+
+```console
+sudo docker exec -it $(sudo docker ps -q) curl -kv --tlsv1.2 https://localhost/index.html
+```
+
+nginx のログのトレースメッセージは以下のようになり、 kTLS は使われていません。
+
+```text
+TRACE[40:37:69:2D:1B:7F:00:00]:KTLS: Skip ktls because of cipher, s=0x559fec91acf0, which=33
+TRACE[40:37:69:2D:1B:7F:00:00]:KTLS: Skip ktls because of cipher, s=0x559fec91acf0, which=34
+```
+
+curl の出力の接続部分は以下の通りでした。
+
+```text
+* SSL connection using TLSv1.2 / ECDHE-RSA-AES256-GCM-SHA384
+```
+
+nginx を一旦終了させ、次は以下のように TLSv1.3 で起動します。
+
+```console
+sudo docker run --rm -it -e SSL_PROTOCOLS=TLSv1.3 sslsendfile /bin/bash -c "envsubst '\$SSL_PROTOCOLS' < /usr/local/nginx/conf/nginx.conf.template > /usr/local/nginx/conf/nginx.conf && cat /usr/local/nginx/conf/nginx.conf"
+```
+
+そして以下のように curl でアクセスします。
+
+```console
+sudo docker exec -it $(sudo docker ps -q) curl -kv https://localhost/index.html
+```
+
+今回は nginx のログにはトレースメッセージは出力されませんでした（上記の `openssl s_server` のときと同じ）。
+
+curl の出力の接続部分は以下の通りでした。
+
+```text
+* SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384
+```
+
+`openssl s_server` の場合と違って、今回のパッチを当てた nginx では kTLS が使われない場合もレスポンスは正しく返していました。
+
+## Linux の kTLS はその後 `AES_GCM_256` と TLSv1.3 のサポートも追加されていた
+
+* [net: tls: Support 256 bit keys · torvalds/linux@fb99bce](https://github.com/torvalds/linux/commit/fb99bce7120014307dde57b3d7def6977a9a62a1)
+* [net: tls: Add tls 1.3 support · torvalds/linux@130b392](https://github.com/torvalds/linux/commit/130b392c6cd6b2aed1b7eb32253d4920babb4891)
+
+コミットのタグを見ると Linux カーネル 5.1 以降で使えるようです。
+
+ということで OpenSSL の `SSL_sendfile` も対応してほしいところですね。
