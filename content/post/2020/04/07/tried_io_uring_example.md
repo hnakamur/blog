@@ -1,7 +1,7 @@
 ---
 title: "io_uringのサンプルを試してみた"
 date: 2020-04-07T17:34:14+09:00
-lastmod: 2020-04-08T01:35:00+09:00
+lastmod: 2020-05-01T08:45:00+09:00
 ---
 
 ## はじめに
@@ -70,7 +70,7 @@ Ubuntu 20.04 LTS のインストールが終わったら再起動して、 Linux
 
 今回のマシンは検証用環境なので気兼ねなく mainline カーネルを入れてみました。
 
-[Index of /~kernel-ppa/mainline/v5.6](https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.6/0005-configs-based-on-Ubuntu-5.6.0-6.6.patch) から amd64 の `-all` と `-generic` の deb をダウンロードしました。
+[Index of /~kernel-ppa/mainline/v5.6](https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.6/) から amd64 の `-all` と `-generic` の deb をダウンロードしました。
 
 ```console
 $ curl -LO https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.6/linux-headers-5.6.0-050600_5.6.0-050600.202003292333_all.deb
