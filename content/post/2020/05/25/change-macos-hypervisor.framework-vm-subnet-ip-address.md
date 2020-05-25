@@ -36,7 +36,7 @@ sudo vim /Library/Preferences/SystemConfiguration/com.apple.vmnet.plist
         <string>255.255.255.0</string>
 ```
 
-`Shared_Net_Address` をお好みで `192.168.255.1` などと変更します。
+`Shared_Net_Address` をお好みで `192.168.254.1` などと変更します（私はVMを `192.168.254.0/24` でVM上のLXDコンテナを `192.168.255.0/24` にしてます）。
 
 [Troubleshooting networking on macOS | Multipass documentation](https://multipass.run/docs/troubleshooting-networking-on-macos) の
 "Possible other option - configure Multipass to use a different subnet?" には `192.168.` が multipass 内にハードコーディングされているので `192.168.` 以外にはしないよう書かれています。ソースコードを検索した限りではそうでもなさそうでしたが、 `192.168.` 以外のアドレスは試していません。
@@ -93,5 +93,5 @@ primary                 Unknown           --               Ubuntu 18.04 LTS
 ```console
 % multipass list
 Name                    State             IPv4             Image
-primary                 Running           192.168.64.2     Ubuntu 18.04 LTS
+primary                 Running           192.168.254.2     Ubuntu 18.04 LTS
 ```
