@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.64.1" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>macOSのpfでGlobalProtect用にNATを設定する &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2020. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>macOSのpfでGlobalProtect用にNATを設定する</h1>
+  <time datetime=2020-05-25T14:57:27&#43;0900 class="post-date">2020-05-25</time>
+  <h2 id="はじめに">はじめに</h2>
+<p>macOS で <a href="https://www.paloaltonetworks.jp/products/secure-the-network/subscriptions/globalprotect">GlobalProtect - Palo Alto Networks</a> でVPNに接続した際に <a href="https://multipass.run/">Multipass</a> で作成したHypervisor.frameworkベースのVMとそのVM上のLXDコンテナからの通信をNATにする方法を調べたのでメモです。</p>
+<p><a href="https://multipass.run/docs/troubleshooting-networking-on-macos">Troubleshooting networking on macOS | Multipass documentation</a> の &ldquo;Potential workaround for VPN conflicts&rdquo; に書いてありました。</p>
+<h2 id="globalprotect-のネットワークインターフェース名を-ifconfig-で確認">GlobalProtect のネットワークインターフェース名を ifconfig で確認</h2>
+<p>GlobalProtect でVPNに接続した状態で、以下のコマンドを実行して GlobalProtect のネットワークインターフェース名を確認します。</p>
+<pre><code class="language-console" data-lang="console">ifconfig
+</code></pre><p>私の環境では <code>gpd0</code> でした。
+また WiFi のインターフェース名は <code>en0</code> で、 Hypervisor.framework のブリッジのインターフェース名は <code>bridge100</code> でした。</p>
+<h2 id="pfconf-を編集して反映">pf.conf を編集して反映</h2>
+<p><code>man pf.conf</code> すると <code>pf.conf</code> は <code>packet filter configuration file</code> とのことです。 <a href="https://en.wikipedia.org/wiki/PF_(firewall%29">PF (firewall) - Wikipedia</a> も参照。</p>
+<p><code>/etc/pf.conf</code> は変更前はコメントを除くと以下のようになっていました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">scrub-anchor &#34;com.apple/*&#34;
+nat-anchor &#34;com.apple/*&#34;
+rdr-anchor &#34;com.apple/*&#34;
+dummynet-anchor &#34;com.apple/*&#34;
+anchor &#34;com.apple/*&#34;
+load anchor &#34;com.apple&#34; from &#34;/etc/pf.anchors/com.apple&#34;
+</code></pre></div><p>これを以下のコマンドを実行し</p>
+<pre><code class="language-console" data-lang="console">sudo vim /etc/pf.conf
+</code></pre><p>以下のように編集しました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">scrub-anchor &#34;com.apple/*&#34;
+nat-anchor &#34;com.apple/*&#34;
+table &lt;privbutvm&gt; const { 10/8, 172.16/12, 192.168/16, !192.168.254/24, !192.168.255/24 }
+table &lt;myglobal&gt; const { 0/0, !10/8, !172.16/12, !192.168/16 }
+nat on gpd0 from bridge100:network to &lt;privbutvm&gt; -&gt; (gpd0)
+nat on en0 from bridge100:network to &lt;myglobal&gt; -&gt; (en0)
+rdr-anchor &#34;com.apple/*&#34;
+dummynet-anchor &#34;com.apple/*&#34;
+anchor &#34;com.apple/*&#34;
+load anchor &#34;com.apple&#34; from &#34;/etc/pf.anchors/com.apple&#34;
+</code></pre></div><p><code>192.168.254/24</code> と <code>192.168.255/24</code> は <a href="/blog/2020/05/25/change-macos-hypervisor.framework-vm-subnet-ip-address/">macOSでHypervisor.frameworkのVMのサブネットIPアドレスを変える · hnakamur&rsquo;s blog</a> に書いたようにVMとLXDコンテナーのネットワークです。これを除いたプライベートアドレスは GlobalProtect に、グローバルアドレスは WiFi に向けてそれぞれNATを設定しました。</p>
+<p>以下のコマンドで反映します。</p>
+<pre><code class="language-console" data-lang="console">sudo pfctl -f /etc/pf.conf
+</code></pre><p>実行すると以下のようなメッセージが出ました。</p>
+<pre><code class="language-console" data-lang="console">% sudo pfctl -f /etc/pf.conf
+pfctl: Use of -f option, could result in flushing of rules
+present in the main ruleset added by the system at startup.
+See /etc/pf.conf for further details.
+No ALTQ support in kernel
+ALTQ related functions disabled
+</code></pre><h2 id="macosでtcpdumpを実行しつつ-vmやlxdコンテナから-ping-で動作確認">macOSでtcpdumpを実行しつつ VMやLXDコンテナから ping で動作確認</h2>
+<p>macOS 側で以下のように tcpdump を実行しておきます。
+<code>-k A</code> を指定しておくとインターフェース名も出力されるので便利です。</p>
+<pre><code class="language-console" data-lang="console">sudo tcpdump -n -k A -vvv -i any icmp
+</code></pre><p>対象のインターフェースを限定したいが複数指定したい場合は <code>man tcpdump</code> に書いてある pktap を使ってこの後に複数のインターフェースを指定できます。</p>
+<pre><code class="language-console" data-lang="console">sudo tcpdump -n -k A -vvv -i pktap,bridge100,gpd0,en0 icmp
+</code></pre><p>LXDコンテナ内からグローバルアドレスに ping を打ったときの出力は以下のような感じでした。
+<code>ping 8.8.8.8</code> で試しました。 <code>192.168.2.207</code> は <code>en0</code> についている IP アドレスです。</p>
+<pre><code>15:28:09.233218 (en7, svc BE, in) IP (tos 0x0, ttl 64, id 39934, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.254.2 &gt; 8.8.8.8: ICMP echo request, id 9752, seq 1, length 64
+15:28:09.233225 (bridge100, svc BE, in) IP (tos 0x0, ttl 64, id 39934, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.254.2 &gt; 8.8.8.8: ICMP echo request, id 9752, seq 1, length 64
+15:28:09.233277 (en0, proc :0:, eproc :0:, svc BE, out) IP (tos 0x0, ttl 63, id 39934, offset 0, flags [none], proto ICMP (1), length 84)
+    192.168.2.207 &gt; 8.8.8.8: ICMP echo request, id 35952, seq 1, length 64
+15:28:09.238693 (en0, svc BE, in) IP (tos 0x0, ttl 57, id 0, offset 0, flags [none], proto ICMP (1), length 84)
+    8.8.8.8 &gt; 192.168.2.207: ICMP echo reply, id 35952, seq 1, length 64
+15:28:09.238717 (bridge100, proc :0:, eproc :0:, svc BE, out) IP (tos 0x0, ttl 56, id 0, offset 0, flags [none], proto ICMP (1), length 84, bad cksum 0 (-&gt;b3ee)!)
+    8.8.8.8 &gt; 192.168.254.2: ICMP echo reply, id 9752, seq 1, length 64
+15:28:09.238720 (en7, proc :0:, eproc :0:, svc BE, out) IP (tos 0x0, ttl 56, id 0, offset 0, flags [none], proto ICMP (1), length 84)
+</code></pre><p>LXDコンテナ内から VPN 内のプライベートアドレス (XXX.XXX.XXX.XXX とします) に ping を打ったときの出力は以下のような感じでした。 gpd0 のアドレスを YYY.YYY.YYY.YYY とします。</p>
+<pre><code>15:25:30.464462 (en7, svc BE, in) IP (tos 0x0, ttl 63, id 44537, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.254.2 &gt; XXX.XXX.XXX.XXX: ICMP echo request, id 3367, seq 1, length 64
+15:25:30.464468 (bridge100, svc BE, in) IP (tos 0x0, ttl 63, id 44537, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.254.2 &gt; XXX.XXX.XXX.XXX: ICMP echo request, id 3367, seq 1, length 64
+15:25:30.464517 (gpd0, proc :0:, eproc :0:, svc BE, out) IP (tos 0x0, ttl 62, id 44537, offset 0, flags [none], proto ICMP (1), length 84)
+    YYY.YYY.YYY.YYY &gt; XXX.XXX.XXX.XXX: ICMP echo request, id 56265, seq 1, length 64
+15:25:30.495240 (gpd0, svc BE, in) IP (tos 0x0, ttl 60, id 38184, offset 0, flags [none], proto ICMP (1), length 84)
+    XXX.XXX.XXX.XXX &gt; YYY.YYY.YYY.YYY: ICMP echo reply, id 56265, seq 1, length 64
+15:25:30.495273 (bridge100, proc :0:, eproc :0:, svc BE, out) IP (tos 0x0, ttl 59, id 38184, offset 0, flags [none], proto ICMP (1), length 84, bad cksum 0 (-&gt;1f8a)!)
+    XXX.XXX.XXX.XXX &gt; 192.168.254.2: ICMP echo reply, id 3367, seq 1, length 64
+15:25:30.495277 (en7, proc :0:, eproc :0:, svc BE, out) IP (tos 0x0, ttl 59, id 38184, offset 0, flags [none], proto ICMP (1), length 84)
+    XXX.XXX.XXX.XXX &gt; 192.168.254.2: ICMP echo reply, id 3367, seq 1, length 64
+</code></pre><p><code>en7</code> は <code>ifconfig</code> で確認すると以下のようになっています（MACアドレスは伏せてます）が、これが何のインターフェースなのかは私はわかっていません。</p>
+<pre><code>en7: flags=8b63&lt;UP,BROADCAST,SMART,RUNNING,PROMISC,ALLMULTI,SIMPLEX,MULTICAST&gt; mtu 1500
+        options=400&lt;CHANNEL_IO&gt;
+        ether xx:xx:xx:xx:xx:xx 
+        media: autoselect
+        status: active
+</code></pre><p>NATを設定する前は <code>192.168.254.2</code> からターゲットのIPアドレスへのパケットだけがあって、 <code>en0</code> や <code>gpd0</code> のアドレスからターゲットのIPアドレスへのパケットはありませんでした。</p>
+<h2 id="ついでにルーティングの表示追加削除コマンドをメモ">ついでにルーティングの表示・追加・削除コマンドをメモ</h2>
+<p><a href="https://multipass.run/docs/troubleshooting-networking-on-macos">Troubleshooting networking on macOS | Multipass documentation</a> を見て最初はルーティングも変更してみたので、ついでにメモ。</p>
+<p>ルーティング表示</p>
+<pre><code class="language-console" data-lang="console">netstat -rn
+</code></pre><p>ルーティング追加（ターゲットは <code>-interface bridge100</code> のような指定方法もある。また <code>-static</code> というオプションもある）。</p>
+<pre><code class="language-console" data-lang="console">sudo route add -net 192.168.255.0/24 192.168.64.2
+</code></pre><p>ルーティング削除</p>
+<pre><code class="language-console" data-lang="console">sudo route delete -net 192.168.255.0/24
+</code></pre>
+</div>
+
+
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
