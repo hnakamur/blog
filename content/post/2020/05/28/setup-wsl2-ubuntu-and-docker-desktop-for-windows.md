@@ -1,20 +1,15 @@
 ---
-title: "WSL2のUbuntuでsystemdとsnapdとLXDを動かしてみた"
+title: "WSL2のUbuntuとDocker Desktop for Windowsを試してみた"
 date: 2020-05-28T19:46:07+09:00
 ---
 
 ## はじめに
 
-[「Windows 10 May 2020 Update」が一般公開 ～年2回の大規模アップデート - 窓の杜](https://forest.watch.impress.co.jp/docs/news/1255259.html) ということで WSL2 を試してみました。
+[「Windows 10 May 2020 Update」が一般公開 ～年2回の大規模アップデート - 窓の杜](https://forest.watch.impress.co.jp/docs/news/1255259.html) ということで [WSL 2 対応 Docker Desktop for Windowsを使うための手順 - Qiita](https://qiita.com/zembutsu/items/22a5cae1d13df0d04e7b) の記事を参考に WSL2 の Ubuntu と Docker Desktop for Windows を試してみました。いつもわかりやすい記事をありがとうございます！
 
-[WSL 2 対応 Docker Desktop for Windowsを使うための手順 - Qiita](https://qiita.com/zembutsu/items/22a5cae1d13df0d04e7b) の記事を参考にさせていただきました。いつもわかりやすい記事をありがとうございます！
+自分用に手順と調査メモを書いておきます。
 
-試してみると WSL2 では標準では systemd が動いていないため snapd や LXD が使えないことが分かりました。
-検索して見ると有志の方が systemd を動かす方法を紹介されていたので試してみたところ、 snapd と LXD も動かせました。
-
-そこで手順と調査メモを残しておきます。
-
-## 構築手順メモ
+## WSL2 の構築手順メモ
 
 ### Windows 10 May 2020 Update の適用
 
@@ -280,7 +275,7 @@ PS C:\Users\hnakamur> wsl -l -v
   Ubuntu-20.04    Running         2
 ```
 
-## 調査メモ
+## WSL2 の VM の調査メモ
 
 ### カーネルバージョン
 
@@ -358,6 +353,28 @@ Windows には IPv6 のグローバルアドレスがついているのですが
 
 [cannot reach ipv6 only address · Issue #4518 · microsoft/WSL](https://github.com/microsoft/WSL/issues/4518) の [コメント](https://github.com/microsoft/WSL/issues/4518#issuecomment-534267533) によると現状 WSL2 は IPv6 は使えないそうです。
 
+PowerShell で `ipconfig /all` で確認すると WSL 用に以下のような仮想のネットワークインタフェースが作成されていました。
+
+```
+イーサネット アダプター vEthernet (WSL):
+
+   接続固有の DNS サフィックス . . . . .:
+   説明. . . . . . . . . . . . . . . . .: Hyper-V Virtual Ethernet Adapter #3
+   物理アドレス. . . . . . . . . . . . .: 00-15-5D-3E-F8-EE
+   DHCP 有効 . . . . . . . . . . . . . .: いいえ
+   自動構成有効. . . . . . . . . . . . .: はい
+   リンクローカル IPv6 アドレス. . . . .: fe80::fde6:af3f:d161:518d%71(優先)
+   IPv4 アドレス . . . . . . . . . . . .: 172.26.128.1(優先)
+   サブネット マスク . . . . . . . . . .: 255.255.240.0
+   デフォルト ゲートウェイ . . . . . . .:
+   DHCPv6 IAID . . . . . . . . . . . . .: 1191187805
+   DHCPv6 クライアント DUID. . . . . . .: 00-01-00-01-20-40-55-86-C8-5B-76-D1-3D-7E
+   DNS サーバー. . . . . . . . . . . . .: fec0:0:0:ffff::1%1
+                                          fec0:0:0:ffff::2%1
+                                          fec0:0:0:ffff::3%1
+   NetBIOS over TCP/IP . . . . . . . . .: 有効
+```
+
 ### ディスク
 
 ```console
@@ -395,4 +412,102 @@ interpreter /tools/init
 flags: F
 offset 0
 magic 4d5a
+```
+
+## Docker Desktop for Windows のインストール手順メモ
+
+[Docker Desktop for Mac and Windows | Docker](https://www.docker.com/products/docker-desktop) から Windows の Stable のインストーラーをダウンロードして実行します。
+
+インストーラーの表示によるとバージョンは Docker Desktop 2.3.0.3 (45519) です。
+
+インストーラーの Configuration の画面で以下の2つのチェックボックスが表示されます。
+
+* Enable WSL 2 Windows Features
+* Add shortcut to desktop
+
+初期状態で両方チェックオンになっていますので、 1 つめはオンのまま OK ボタンを押してインストールします。
+
+インストールが完了したら Windows のスタートメニューから Docker Desktop を起動します。
+
+起動が完了したら "Get started with Docker in a few easy steps!" という画面が表示されるので Start ボタンを押してチュートリアルを見るか、下の "Skip tutorial" リンクを押してスキップします。
+
+[Docker Desktop WSL 2 backend | Docker Documentation](https://docs.docker.com/docker-for-windows/wsl/#prerequisites) の Install の 7. の手順を実行します。
+
+1. Windows のタスクトレイで Docker のポップアップメニューの Settings を選んで設定画面を開きます。
+2. Settings 画面が開いたら、左の Resources を開いて WSL INTEGRATION を選び、右で "Enable integration with my default WSL distro" のチェックボックスとその下の "Enable integration with additional distros:" の下のトグルボタンを適宜調整し、右下の [Apply & Restart] ボタンを押します。私の環境ではデフォルトは WSL1 の Ubuntu なので additional distros のほうの Ubuntu-20.04 を有効にしました。
+3. PowerShell を開き `wsl -t ubuntu-20.04` （ディストリビューションは適宜調整）を実行して、 WSL2 の VM を再起動します。
+
+これで WSL2 の VM のプロンプトを開いて `docker ps` を実行すると正常に動きます。
+
+```console
+hnakamur@sunshine7:/mnt/c/Users/hnakamur$ docker ps
+CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
+```
+
+`docker run hello-world` も正常に動きました。
+
+```console
+hnakamur@sunshine7:/mnt/c/Users/hnakamur$ docker run hello-world
+Unable to find image 'hello-world:latest' locally
+latest: Pulling from library/hello-world
+0e03bdcc26d7: Pull complete
+Digest: sha256:6a65f928fb91fcfbc963f7aa6d57c8eeb426ad9a20c7ee045538ef34847f44f1
+Status: Downloaded newer image for hello-world:latest
+
+Hello from Docker!
+This message shows that your installation appears to be working correctly.
+
+To generate this message, Docker took the following steps:
+ 1. The Docker client contacted the Docker daemon.
+ 2. The Docker daemon pulled the "hello-world" image from the Docker Hub.
+    (amd64)
+ 3. The Docker daemon created a new container from that image which runs the
+    executable that produces the output you are currently reading.
+ 4. The Docker daemon streamed that output to the Docker client, which sent it
+    to your terminal.
+
+To try something more ambitious, you can run an Ubuntu container with:
+ $ docker run -it ubuntu bash
+
+Share images, automate workflows, and more with a free Docker ID:
+ https://hub.docker.com/
+
+For more examples and ideas, visit:
+ https://docs.docker.com/get-started/
+```
+
+## Docker Desktop for Windows の調査メモ
+
+この状態で `df -h -T` を実行してみると Docker Desktop for Windows 用のマウントが追加されていました。
+
+
+```console
+hnakamur@sunshine7:/mnt/c/Users/hnakamur$ df -h -T
+Filesystem     Type      Size  Used Avail Use% Mounted on
+/dev/sdb       ext4      251G  1.1G  238G   1% /
+tmpfs          tmpfs     6.2G     0  6.2G   0% /mnt/wsl
+/dev/sdd       ext4      251G  949M  238G   1% /mnt/wsl/docker-desktop-data/isocache
+none           tmpfs     6.2G   12K  6.2G   1% /mnt/wsl/docker-desktop/shared-sockets/host-services
+/dev/sdc       ext4      251G  117M  239G   1% /mnt/wsl/docker-desktop/docker-desktop-proxy
+/dev/loop0     iso9660   244M  244M     0 100% /mnt/wsl/docker-desktop/cli-tools
+tools          9p        238G  185G   53G  78% /init
+none           devtmpfs  6.2G     0  6.2G   0% /dev
+none           tmpfs     6.2G  8.0K  6.2G   1% /run
+none           tmpfs     6.2G     0  6.2G   0% /run/lock
+none           tmpfs     6.2G     0  6.2G   0% /run/shm
+none           tmpfs     6.2G     0  6.2G   0% /run/user
+tmpfs          tmpfs     6.2G     0  6.2G   0% /sys/fs/cgroup
+C:\            9p        238G  185G   53G  78% /mnt/c
+```
+
+`docker` と `docker-compose` はマウント先のファイルへのシンボリックリンクになっていました。
+
+```console
+hnakamur@sunshine7:/mnt/c/Users/hnakamur$ which docker
+/usr/bin/docker
+hnakamur@sunshine7:/mnt/c/Users/hnakamur$ which docker-compose
+/usr/bin/docker-compose
+hnakamur@sunshine7:/mnt/c/Users/hnakamur$ ls -l /usr/bin/docker*
+lrwxrwxrwx 1 root root 48 May 28 23:08 /usr/bin/docker -> /mnt/wsl/docker-desktop/cli-tools/usr/bin/docker
+lrwxrwxrwx 1 root root 56 May 28 23:08 /usr/bin/docker-compose -> /mnt/wsl/docker-desktop/cli-tools/usr/bin/docker-compose
 ```
