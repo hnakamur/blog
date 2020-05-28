@@ -511,3 +511,43 @@ hnakamur@sunshine7:/mnt/c/Users/hnakamur$ ls -l /usr/bin/docker*
 lrwxrwxrwx 1 root root 48 May 28 23:08 /usr/bin/docker -> /mnt/wsl/docker-desktop/cli-tools/usr/bin/docker
 lrwxrwxrwx 1 root root 56 May 28 23:08 /usr/bin/docker-compose -> /mnt/wsl/docker-desktop/cli-tools/usr/bin/docker-compose
 ```
+
+Ubuntu の docker コンテナーも試してみました。
+
+```console
+hnakamur@sunshine7:/mnt/c/Users/hnakamur$ docker run -it ubuntu bash
+root@a0f4ec92b72f:/# apt update && apt -y install iproute2 iputils-ping
+…(略)…
+root@a0f4ec92b72f:/# ip a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+2: sit0@NONE: <NOARP> mtu 1480 qdisc noop state DOWN group default qlen 1000
+    link/sit 0.0.0.0 brd 0.0.0.0
+9: eth0@if10: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default
+    link/ether 02:42:ac:11:00:02 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 172.17.0.2/16 brd 172.17.255.255 scope global eth0
+       valid_lft forever preferred_lft forever
+```
+
+外部のドメインへの ping も通りました。
+
+このとき WSL2 の VM の `ip a` と Windows での `ipconfig /all` は変更無しでした。
+
+`/var/run/` に `docker.sock` というソケットファイルと `docker-desktop-proxy.pid` という PID ファイルがありました。
+
+```console
+hnakamur@sunshine7:/mnt/c/Users/hnakamur$ ls -l /var/run/docker*
+-rw-r--r-- 1 root root   2 May 28 23:08 /var/run/docker-desktop-proxy.pid
+srw-rw---- 1 root docker 0 May 28 23:08 /var/run/docker.sock
+```
+
+`docker-desktop-proxy.pid` の PID のプロセスは以下のようなコマンドでした。
+
+```console
+hnakamur@sunshine7:/mnt/c/Users/hnakamur$ ps ww -p $(cat /var/run/docker-desktop-proxy.pid)
+  PID TTY      STAT   TIME COMMAND
+   47 pts/1    Ssl+   0:00 /mnt/wsl/docker-desktop/docker-desktop-proxy --distro-name Ubuntu-20.04 --docker-desktop-root /mnt/wsl/docker-desktop
+```
+
