@@ -1,6 +1,7 @@
 ---
 title: "WSL2のUbuntuとDocker Desktop for Windowsを試してみた"
 date: 2020-05-28T19:46:07+09:00
+lastmod: 2020-05-29T21:27:00+09:00
 ---
 
 ## はじめに
@@ -551,3 +552,16 @@ hnakamur@sunshine7:/mnt/c/Users/hnakamur$ ps ww -p $(cat /var/run/docker-desktop
    47 pts/1    Ssl+   0:00 /mnt/wsl/docker-desktop/docker-desktop-proxy --distro-name Ubuntu-20.04 --docker-desktop-root /mnt/wsl/docker-desktop
 ```
 
+## docker-desktop-data と docker-desktop は WSL2 のディストリビューションだった (2020-05-29 追記)
+
+Docker Desktop for Windows のセットアップ後に PowerShell で `wsl -l -v` でディストリビューション一覧を表示してみると以下のようになりました。
+
+```console
+PS C:\Users\hnakamur> wsl -l -v
+  NAME                   STATE           VERSION
+* Ubuntu                 Running         2
+  docker-desktop-data    Running         2
+  docker-desktop         Running         2
+```
+
+上記で `df -h -T` を実行したときに `/mnt/wsl/docker-desktop-data` と `/mnt/wsl/docker-desktop` というのがありましたが、これは WSL2 のディストリビューションとして作られたものがマウントされているようです。
