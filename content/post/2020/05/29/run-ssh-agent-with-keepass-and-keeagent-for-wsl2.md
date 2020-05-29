@@ -23,7 +23,7 @@ date: 2020-05-29T19:59:34+09:00
 2. [KeeAgent の Download](https://lechnology.com/software/keeagent/#download) から KeeAgent の zip ファイルをダウンロード。
 3. KeePass を起動し [Tools]/[Plugins] メニューを開き、 Plugins ダイアログ下部の [Open Folder] ボタンを押す。
 4. エクスプローラーで KeePass のプラグインのフォルダーが開いたら、 KeeAgent の zip ファイル内の `KeeAgent.plgx` ファイルをそこにコピー。
-5. KeeAgent プラグインのインストールが終わったら KeePass の [Tools]/[Options] メニューを選んで Options ダイアログを開き KeeAgent タブの [Enable agent for Windows OpenSSH (experimental)] チェックボックスにチェックして [OK] ボタンを押す。
+5. KeePass を一旦終了し再度起動してKeeAgent プラグインのインストールが終わったら KeePass の [Tools]/[Options] メニューを選んで Options ダイアログを開き KeeAgent タブの [Enable agent for Windows OpenSSH (experimental)] チェックボックスにチェックして [OK] ボタンを押す。
 
 ## npiperelay.exe のセットアップ
 
