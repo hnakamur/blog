@@ -22,7 +22,7 @@ ifconfig
 
 ## pf.conf を編集して反映
 
-`man pf.conf` すると `pf.conf` は `packet filter configuration file` とのことです。 [PF (firewall) - Wikipedia](https://en.wikipedia.org/wiki/PF_\(firewall%29) も参照。 
+`man pf.conf` すると `pf.conf` は `packet filter configuration file` とのことです。 [PF (firewall) - Wikipedia](https://en.wikipedia.org/wiki/PF_%28firewall%29) も参照。 
 
 `/etc/pf.conf` は変更前はコメントを除くと以下のようになっていました。
 
