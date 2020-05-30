@@ -1,7 +1,7 @@
 ---
-title: "WSL2のUbuntuでsystemdとsnapdとLXDを動かしてみた"
+title: "WSL2のUbuntuでsystemdとsnapdとLXDとdockerを動かしてみた"
 date: 2020-05-30T15:50:00+09:00
-lastmod: 2020-05-31T02:30:00+09:00
+lastmod: 2020-05-31T03:03:00+09:00
 ---
 
 ## はじめに
