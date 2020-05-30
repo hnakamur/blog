@@ -309,7 +309,56 @@ wsl.ext -t ubuntu-20.04
 <p>また <a href="https://forum.snapcraft.io/t/running-snaps-on-wsl2-insiders-only-for-now/13033/25">izznatsir さんのコメント</a> によるとこの手順に従って systemd を動かすと Docker Desktop for Windows 無しで WSL2 の Ubuntu 内だけで docker を動かせたそうです（カスタムカーネルを使う手順を試されたそうですが、カスタムカーネルなしでも動くかも）とのこと。
 こちらも別途試してみたいところです。</p>
 <p>それと <a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script">DamionGans/ubuntu-wsl2-systemd-script: Script to enable systemd support on current Ubuntu WSL2 images from the Windows store</a> の <a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script/blob/master/enter-systemd-namespace">enter-systemd-namespace</a> のスクリプト内では <code>unshare</code> コマンドや <code>nsenter</code> コマンドを実行していて興味深いので、今後もう少し時間かけて理解したいところです。</p>
+<h2 id="docker-desktop-for-windows-をアンインストールして-docker-を動かしてみた-2020-05-31-追記">Docker Desktop for Windows をアンインストールして docker を動かしてみた （2020-05-31 追記）</h2>
+<p>カスタムカーネル無しで動きました。</p>
+<p>手順は以下の通りです。</p>
+<ol>
+<li>Docker Desktop for Windows をアンインストールして、Windows を再起動。</li>
+<li>WSL2 を起動し <code>~/.docker/config.json</code> を削除。</li>
+<li>WSL2 の Ubuntu で docker.io と docker-compose をインストール。</li>
+</ol>
+<pre><code class="language-console" data-lang="console">sudo apt update
+sudo apt -y install docker.io docker-compose
+</code></pre><p><code>apt show docker.io</code> で確認するとバージョンは <code>Version: 19.03.8-0ubuntu1</code> でした。</p>
+<ol start="4">
+<li>docker サービスを開始。自動起動も有効にしてみます。</li>
+</ol>
+<pre><code class="language-console" data-lang="console">sudo systemctl start docker
+sudo systemctl enable docker
+</code></pre><ol start="5">
+<li>docker で hello-world コンテナーを実行</li>
+</ol>
+<pre><code class="language-console" data-lang="console">docker run hello-world
+</code></pre><ol start="6">
+<li>WSL2 の Ubuntu を停止（-t の後のディストリビューション名は環境に応じて変更）</li>
+</ol>
+<pre><code class="language-console" data-lang="console">wsl.exe -t ubuntu-20.04
+</code></pre><ol start="7">
+<li>WSL2 の端末を開きなおして docker サービスが動いているか確認すると動いていました。</li>
+</ol>
+<pre><code class="language-console" data-lang="console">hnakamur@sunshine7:/mnt/c/Users/hnakamur$ systemctl status docker
+● docker.service - Docker Application Container Engine
+     Loaded: loaded (/lib/systemd/system/docker.service; enabled; vendor preset: enabled)
+     Active: active (running) since Sun 2020-05-31 02:27:41 JST; 1s ago
+TriggeredBy: ● docker.socket
+       Docs: https://docs.docker.com
+   Main PID: 350 (dockerd)
+      Tasks: 13
+     Memory: 123.7M
+     CGroup: /system.slice/docker.service
+             └─350 /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
 
+May 31 02:27:41 sunshine7 dockerd[350]: time=&quot;2020-05-31T02:27:41.087765984+09:00&quot; level=warning msg=&quot;Your kernel does not support cgroup blkio throttle.write_bp&gt;
+May 31 02:27:41 sunshine7 dockerd[350]: time=&quot;2020-05-31T02:27:41.087775085+09:00&quot; level=warning msg=&quot;Your kernel does not support cgroup blkio throttle.read_iop&gt;
+May 31 02:27:41 sunshine7 dockerd[350]: time=&quot;2020-05-31T02:27:41.087784286+09:00&quot; level=warning msg=&quot;Your kernel does not support cgroup blkio throttle.write_io&gt;
+May 31 02:27:41 sunshine7 dockerd[350]: time=&quot;2020-05-31T02:27:41.087989410+09:00&quot; level=info msg=&quot;Loading containers: start.&quot;
+May 31 02:27:41 sunshine7 dockerd[350]: time=&quot;2020-05-31T02:27:41.256396853+09:00&quot; level=info msg=&quot;Default bridge (docker0) is assigned with an IP address 172.17&gt;
+May 31 02:27:41 sunshine7 dockerd[350]: time=&quot;2020-05-31T02:27:41.321192118+09:00&quot; level=info msg=&quot;Loading containers: done.&quot;
+May 31 02:27:41 sunshine7 dockerd[350]: time=&quot;2020-05-31T02:27:41.382092941+09:00&quot; level=info msg=&quot;Docker daemon&quot; commit=afacb8b7f0 graphdriver(s)=overlay2 versi&gt;
+May 31 02:27:41 sunshine7 dockerd[350]: time=&quot;2020-05-31T02:27:41.383232471+09:00&quot; level=info msg=&quot;Daemon has completed initialization&quot;
+May 31 02:27:41 sunshine7 dockerd[350]: time=&quot;2020-05-31T02:27:41.406493715+09:00&quot; level=info msg=&quot;API listen on /run/docker.sock&quot;
+May 31 02:27:41 sunshine7 systemd[1]: Started Docker Application Container Engine.
+</code></pre>
 </div>
 
 
