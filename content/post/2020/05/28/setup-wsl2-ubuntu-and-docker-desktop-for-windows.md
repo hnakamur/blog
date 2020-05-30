@@ -1,7 +1,7 @@
 ---
 title: "WSL2のUbuntuとDocker Desktop for Windowsを試してみた"
 date: 2020-05-28T19:46:07+09:00
-lastmod: 2020-05-29T21:27:00+09:00
+lastmod: 2020-05-30T14:38:00+09:00
 ---
 
 ## はじめに
@@ -565,3 +565,12 @@ PS C:\Users\hnakamur> wsl -l -v
 ```
 
 上記で `df -h -T` を実行したときに `/mnt/wsl/docker-desktop-data` と `/mnt/wsl/docker-desktop` というのがありましたが、これは WSL2 のディストリビューションとして作られたものがマウントされているようです。
+
+## WSL2 の記事 (2020-05-30 追記)
+
+WSL2 についての詳しい記事を見つけたのでリンクを貼っておきます。
+
+* [ASCII.jp：20H1の完成とともにWindows Subsystem for Linux 2が来る (1/2)](https://ascii.jp/elem/000/004/007/4007561/)
+* [ASCII.jp：20H1とともに正式に来るWindows Subsystem for Linux 2の実力を見る (1/2)](https://ascii.jp/elem/000/004/012/4012149/)
+
+1 つめの記事内に他の記事へのリンクも貼ってあってそちらもためになりました。
