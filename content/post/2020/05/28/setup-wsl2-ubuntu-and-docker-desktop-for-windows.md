@@ -1,8 +1,16 @@
 ---
 title: "WSL2のUbuntuとDocker Desktop for Windowsを試してみた"
 date: 2020-05-28T19:46:07+09:00
-lastmod: 2020-05-30T14:38:00+09:00
+lastmod: 2020-05-31T02:58:00+09:00
 ---
+
+## Docker Desktop for Windows を使わない方法もあります （2020-05-31 追記）
+
+[WSL2のUbuntuでsystemdとsnapdとLXDを動かしてみた · hnakamur's blog](/blog/2020/05/30/run-systemd-snapd-and-lxd-on-wsl2-ubuntu/) の手順で systemd を動かして、あとは WSL2 の Ubuntu 内で docker を動かすという方法もあります。
+
+上記の記事の「Docker Desktop for Windows をアンインストールして docker を動かしてみた」の項に手順を書いています。
+
+私は Docker Desktop for Windows を入れていたのでアンインストールの手順が必要でしたが、最初から入れない場合はその手順を飛ばせば大丈夫だと思います。
 
 ## はじめに
 
