@@ -107,53 +107,66 @@ Description: Transitional package - lxd -&gt; snap (lxd)
 <a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script">DamionGans/ubuntu-wsl2-systemd-script: Script to enable systemd support on current Ubuntu WSL2 images from the Windows store</a> のレポジトリを作ったと書かれています。</p>
 <p><a href="https://forum.snapcraft.io/t/running-snaps-on-wsl2-insiders-only-for-now/13033/38">トピ主の daniel さんのコメント</a> で冒頭のスクリプトは古いので最新版はこののレポジトリを参照するように書かれていました（最初の投稿から日にちがある程度経つとロックされて編集不可になるとのこと）。</p>
 <p>細かいところで少し気になるところがあったのでフォークして改変しました。改変についてはプルリクエストを送ったところです。</p>
-<p><a href="https://github.com/hnakamur/ubuntu-wsl2-systemd-script/tree/modify">hnakamur/ubuntu-wsl2-systemd-script at modify</a></p>
-<p>以下の手順ではこの改変版を使います。</p>
+<p>2020-06-01 追記。私の 3 つのプルリクエストはマージされました。また <a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script/issues/15">Too many levels of symbolic links when running ls -l /proc/sys/fs/binfmt_misc · Issue #15 · DamionGans/ubuntu-wsl2-systemd-script</a> というイシューを立てたところ <a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script/pull/17/files">Add binfmt_misc override by diddledan · Pull Request #17 · DamionGans/ubuntu-wsl2-systemd-script</a> で修正頂きました。</p>
+<p>以下の手順ではこの修正版を使います。</p>
+<h2 id="横道-varlibubuntu-release-upgraderrelease-upgrade-available-作成のパーミションエラー-2020-06-01-追記">（横道） /var/lib/ubuntu-release-upgrader/release-upgrade-available 作成のパーミションエラー （2020-06-01 追記）</h2>
+<p>一度 ubuntu-wsl2-systemd-script の古い版を組み込んでいたのを外して起動したときに以下のエラーが出ました。</p>
+<pre><code>/usr/lib/ubuntu-release-upgrader/release-upgrade-motd: 31: cannot create /var/lib/ubuntu-release-upgrader/release-upgrade-available: Permission denied
+</code></pre><p><code>grep -r release-upgrade-motd /etc/</code> で調べると <code>/etc/update-motd.d/91-release-upgrade</code> と <code>/etc/cron.weekly/update-notifier-common</code> が <code>/usr/lib/ubuntu-release-upgrader/release-upgrade-motd</code> を呼んでいます。</p>
+<p>このスクリプトを見ると <code>[ &quot;$(id -u)&quot; = 0 ]</code> という分岐があって root で実行される場合とそうでない場合があるようです。で root で作ったファイルを非 root ユーザーで更新しようとしてエラーになっているということのようです。</p>
+<p>一旦置いときます。</p>
 <h2 id="wsl2-で-systemd-と-snapd-を動かす手順">WSL2 で systemd と snapd を動かす手順</h2>
-<p>以下のコマンドを実行して上記のスクリプトをダウンロード、展開します（お好みで git clone でも構いません）。</p>
-<pre><code>cd
-curl -sSL https://github.com/hnakamur/ubuntu-wsl2-systemd-script/archive/modify.tar.gz | tar zx
-cd ubuntu-wsl2-systemd-script-modify
-bash ubuntu-wsl2-systemd-script.sh
-</code></pre><p>最後の <code>ubuntu-wsl2-systemd-script.sh</code> を実行すると sudo のパスワードプロンプトが出るのでパスワードを入力します。
-その後の出力も参考のため貼っておきます。</p>
-<pre><code>$ bash ubuntu-wsl2-systemd-script.sh
-[sudo] password for hnakamur:
+<p>以下のコマンドを実行して上記のスクリプトをダウンロード、展開して移動します。</p>
+<pre><code class="language-console" data-lang="console">cd
+curl -sSL https://github.com/diddledan/ubuntu-wsl2-systemd-script/archive/binfmt_misc.tar.gz | tar zx
+cd ubuntu-wsl2-systemd-script-binfmt_misc
+</code></pre><p>あるいはお好みで <code>git clone</code> を使う方式でも構いません。</p>
+<pre><code class="language-console" data-lang="console">cd
+git clone https://github.com/diddledan/ubuntu-wsl2-systemd-script
+cd ubuntu-wsl2-systemd-script
+git switch binfmt_misc
+</code></pre><p>以下のコマンドを実行すると、 <code>/etc/bash.bashrc</code> を改変し、 WSL2 の起動時に systemd を実行するようになります。</p>
+<pre><code class="language-console" data-lang="console">bash ubuntu-wsl2-systemd-script.sh
+</code></pre><p>最後の <code>ubuntu-wsl2-systemd-script.sh</code> を実行すると sudo のパスワードプロンプトが出るのでパスワードを入力します。</p>
+<p>実行されるコマンドを確認したいので bash の <code>-x</code> つきで実行したときの出力を参考のため貼っておきます（実は今回は事前に sudo つきのコマンドを実行していたので sudo のパスワードプロンプトは出ませんでしたが、そうでない場合は <code>sudo apt-get update</code> のところでパスワード入力を求められます）。</p>
+<pre><code>$ bash -x ubuntu-wsl2-systemd-script.sh
++ '[' -z '' ']'
++ return
++ '[' -f /usr/sbin/start-systemd-namespace ']'
+++ dirname ubuntu-wsl2-systemd-script.sh
++ self_dir=.
++ sudo apt-get update
 Hit:1 http://archive.ubuntu.com/ubuntu focal InRelease
-Get:2 http://security.ubuntu.com/ubuntu focal-security InRelease [107 kB]
-Get:3 http://archive.ubuntu.com/ubuntu focal-updates InRelease [107 kB]
-Hit:4 http://ppa.launchpad.net/hnakamur/libsxg/ubuntu focal InRelease
+Hit:2 http://ppa.launchpad.net/hnakamur/libsxg/ubuntu focal InRelease
+Get:3 http://security.ubuntu.com/ubuntu focal-security InRelease [107 kB]
+Get:4 http://archive.ubuntu.com/ubuntu focal-updates InRelease [107 kB]
 Hit:5 http://ppa.launchpad.net/hnakamur/nginx/ubuntu focal InRelease
 Hit:6 http://ppa.launchpad.net/hnakamur/openresty-luajit/ubuntu focal InRelease
 Get:7 http://archive.ubuntu.com/ubuntu focal-backports InRelease [98.3 kB]
-Fetched 312 kB in 2s (129 kB/s)
+Get:8 http://archive.ubuntu.com/ubuntu focal-updates/main amd64 Packages [148 kB]
+Get:9 http://archive.ubuntu.com/ubuntu focal-updates/universe amd64 Packages [74.9 kB]
+Fetched 535 kB in 3s (205 kB/s)
 Reading package lists... Done
-Selecting previously unselected package daemonize.
-(Reading database ... 32218 files and directories currently installed.)
-Preparing to unpack .../daemonize_1.7.8-1_amd64.deb ...
-Unpacking daemonize (1.7.8-1) ...
-Selecting previously unselected package fontconfig.
-Preparing to unpack .../fontconfig_2.13.1-2ubuntu3_amd64.deb ...
-Unpacking fontconfig (2.13.1-2ubuntu3) ...
-Setting up fontconfig (2.13.1-2ubuntu3) ...
-Regenerating fonts cache... done.
-Setting up daemonize (1.7.8-1) ...
-Processing triggers for man-db (2.9.1-1) ...
-Defaults        env_keep += WSLPATH
-Defaults        env_keep += WSLENV
-Defaults        env_keep += WSL_INTEROP
-Defaults        env_keep += WSL_DISTRO_NAME
-Defaults        env_keep += PRE_NAMESPACE_PATH
-Defaults        env_keep += PRE_NAMESPACE_PWD
-%sudo ALL=(ALL) NOPASSWD: /usr/sbin/enter-systemd-namespace
-'\\wsl$\Ubuntu-20.04\home\hnakamur\ubuntu-wsl2-systemd-script-modify'
-上記の現在のディレクトリで CMD.EXE を開始しました。
-UNC パスはサポートされません。Windows ディレクトリを既定で使用します。
++ sudo apt-get install -yqq daemonize dbus-user-session fontconfig
++ sudo cp ./start-systemd-namespace /usr/sbin/start-systemd-namespace
++ sudo cp ./enter-systemd-namespace /usr/sbin/enter-systemd-namespace
++ sudo chmod +x /usr/sbin/enter-systemd-namespace
++ sudo tee /etc/sudoers.d/systemd-namespace
++ grep start-systemd-namespace /etc/bash.bashrc
++ sudo sed -i '2a# Start or enter a PID namespace in WSL2\nsource /usr/sbin/start-systemd-namespace\n' /etc/bash.bashrc
++ sudo rm /etc/systemd/user/sockets.target.wants/dirmngr.socket
++ sudo rm /etc/systemd/user/sockets.target.wants/gpg-agent-browser.socket /etc/systemd/user/sockets.target.wants/gpg-agent-extra.socket /etc/systemd/user/sockets.target.wants/gpg-agent-ssh.socket /etc/systemd/user/sockets.target.wants/gpg-agent.socket
++ sudo rm /lib/systemd/system/sysinit.target.wants/proc-sys-fs-binfmt_misc.automount
++ sudo rm /lib/systemd/system/sysinit.target.wants/proc-sys-fs-binfmt_misc.mount
+rm: cannot remove '/lib/systemd/system/sysinit.target.wants/proc-sys-fs-binfmt_misc.mount': No such file or directory
++ sudo rm /lib/systemd/system/sysinit.target.wants/systemd-binfmt.service
++ '[' -f /proc/sys/fs/binfmt_misc/WSLInterop ']'
+++ head -n1 /proc/sys/fs/binfmt_misc/WSLInterop
++ '[' enabled == enabled ']'
++ cmd.exe /C setx WSLENV BASH_ENV/u
 
 成功: 指定した値は保存されました。
-'\\wsl$\Ubuntu-20.04\home\hnakamur\ubuntu-wsl2-systemd-script-modify'
-上記の現在のディレクトリで CMD.EXE を開始しました。
-UNC パスはサポートされません。Windows ディレクトリを既定で使用します。
++ cmd.exe /C setx BASH_ENV /etc/bash.bashrc
 
 成功: 指定した値は保存されました。
 </code></pre><p><code>ps auxwwf</code> でプロセス一覧を確認すると、この時点ではまだ WSL2 の独自 init が動いています。</p>
@@ -174,7 +187,13 @@ root        50  0.0  0.1 487988 21888 pts/1    Ssl+ 16:04   0:00      \_ /mnt/ws
 [プロセスはコード 1 で終了しました]
 </code></pre><p>このコマンドは WSL2 の VM 上で実行しても大丈夫です。
 ただし上記のように <a href="https://github.com/microsoft/terminal">Windows Terminal</a> のセッションは終了するので、閉じて再度開きなおす必要があります。</p>
-<p>端末を開きなおして <code>ps auxwwf</code> でプロセス一覧を確認すると、以下のように systemd と snapd が動いていました。</p>
+<p>端末を開きなおすと <code>/etc/bash.bashrc</code> から <code>source /usr/sbin/start-systemd-namespace</code> を実行するところで以下のようなメッセージが出力されました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">Sleeping for 2 seconds to let systemd settle
+</code></pre></div><p>その後いつもの Welcome メッセージとプロンプトが表示されました。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">Welcome to Ubuntu 20.04 LTS (GNU/Linux 4.19.104-microsoft-standard x86_64)
+…(略)…
+</code></pre></div><p><code>ps auxwwf</code> でプロセス一覧を確認すると、以下のように systemd と snapd が動いていました。
+nginx が動いているのは別途インストールして <code>systemctl enable nginx</code> していたからです。</p>
 <pre><code class="language-console" data-lang="console">hnakamur@sunshine7:/mnt/c/Users/hnakamur$ ps auxwwf
 USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
 root           2  0.0  0.0  10560  4588 pts/1    S    16:27   0:00 /bin/login -p -f          'HOSTTYPE=x86_64' 'PWD=/mnt/c/Users/hnakamur' 'TERM=xterm-256color' 'WSLENV=WT_SESSION::WT_PROFILE_ID' 'WSL_DISTRO_NAME=Ubuntu-20.04' 'WSL_INTEROP=/run/WSL/37_interop' 'WT_PROFILE_ID={07b52e3e-de2c-5db4-bd2d-ba144ed6c273}' 'WT_SESSION=fc0d0da7-2ebf-446f-adec-b6424ccc2fdf'
@@ -285,21 +304,36 @@ rtt min/avg/max/mdev = 225.115/225.115/225.115/0.000 ms
 <pre><code class="language-console" data-lang="console">root@focal:~# exit
 exit
 $
-</code></pre><h2 id="未解決の課題-procsysfsbinfmt_misc-の参照でエラー">未解決の課題: <code>/proc/sys/fs/binfmt_misc</code> の参照でエラー</h2>
+</code></pre><h2 id="未解決の課題-procsysfsbinfmt_misc-の参照でエラー--解決-2020-06-01-追記">未解決の課題: <code>/proc/sys/fs/binfmt_misc</code> の参照でエラー → 解決 （2020-06-01 追記）</h2>
 <p>上記の手順で systemd を動かすと <code>/proc/sys/fs/binfmt_misc</code> を参照しようとすると以下のようなエラーになります。</p>
 <pre><code class="language-console" data-lang="console">$ ls -l /proc/sys/fs/binfmt_misc
 ls: cannot open directory '/proc/sys/fs/binfmt_misc': Too many levels of symbolic links
 </code></pre><p>原因は分からないので、とりあえずイシューを立ててみました。
 <a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script/issues/15">Too many levels of symbolic links when running ls -l /proc/sys/fs/binfmt_misc · Issue #15 · DamionGans/ubuntu-wsl2-systemd-script</a></p>
-<h2 id="systemd-を起動しないように戻す場合の手順">systemd を起動しないように戻す場合の手順</h2>
+<p><a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script/pull/17/files">Add binfmt_misc override by diddledan · Pull Request #17 · DamionGans/ubuntu-wsl2-systemd-script</a> で修正されました。</p>
+<p>古いバージョンを消して再起動した後、このバージョンを実行して再起動すると、以下のように参照できていました。</p>
+<pre><code class="language-console" data-lang="console">$ ls -l /proc/sys/fs/binfmt_misc
+total 0
+-rw-r--r-- 1 root root 0 Jun  1 01:38 WSLInterop
+--w------- 1 root root 0 Jun  1 01:38 register
+-rw-r--r-- 1 root root 0 Jun  1 01:38 status
+$ cat /proc/sys/fs/binfmt_misc/WSLInterop
+enabled
+interpreter /tools/init
+flags: F
+offset 0
+magic 4d5a
+</code></pre><h2 id="systemd-を起動しないように戻す場合の手順-2020-06-01-更新">systemd を起動しないように戻す場合の手順 （2020-06-01 更新）</h2>
 <p>今回利用したスクリプトの
 <a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script/blob/5a5dd97114c81ee82d24353e3f9d9f2f1782d1a5/ubuntu-wsl2-systemd-script.sh#L27">ubuntu-wsl2-systemd-script.sh#L27</a> で <code>/etc/bash.bashrc</code> の 3,4 行目に以下の内容を追加していますので、これをコメントアウトか削除すれば、次回の起動では systemd を実行しないようになります。</p>
 <pre><code># Start or enter a PID namespace in WSL2
 source /usr/sbin/start-systemd-namespace
-</code></pre><p>ということで以下のようなコマンドを実行すれば OK です。
-<code>wsl.exe -t</code> の後のディストリビューション名は環境に応じて適宜変更。</p>
-<pre><code class="language-console" data-lang="console">sed -i -e 's|^source /usr/sbin/start-systemd-namespace$|#&amp;|' /etc/bash.bashrc
-wsl.ext -t ubuntu-20.04
+</code></pre><p><a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script/pull/17/files">Add binfmt_misc override by diddledan · Pull Request #17 · DamionGans/ubuntu-wsl2-systemd-script</a> で 2 重インストールしないようにチェックが厳しくなったので、綺麗に消す必要があります。</p>
+<p>ということで以下のようなコマンドを実行して削除します。</p>
+<pre><code class="language-console" data-lang="console">sudo sed -i -e '/^# Start or enter a PID namespace in WSL2$/,/^$/d' /etc/bash.bashrc
+sudo rm /usr/sbin/{start,enter}-systemd-namespace
+</code></pre><p>削除後 WSL2 の Ubuntu を終了します。 <code>wsl.exe -t</code> の後のディストリビューション名は環境に応じて適宜変更。</p>
+<pre><code class="language-console" data-lang="console">wsl.exe -t ubuntu-20.04
 </code></pre><p>これで端末を開きなおして <code>ps auxwwf</code> を実行すると PID 1 は <code>/init</code> に戻り <code>ls -l /proc/sys/fs/binfmt_misc</code> や <code>cat /proc/sys/fs/binfmt_misc/WSLInterop</code> も正常に実行されます。</p>
 <h2 id="おわりに">おわりに</h2>
 <p><a href="https://forum.snapcraft.io/t/running-snaps-on-wsl2-insiders-only-for-now/13033/23">Running Snaps on WSL2 (Insiders only for now) - snapd - snapcraft.io</a> の冒頭の投稿には &ldquo;Optional: Strict confinement support&rdquo; というセクションがあります。</p>
