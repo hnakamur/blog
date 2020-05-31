@@ -1,6 +1,7 @@
 +++
 title="Ubuntu 18.04でcopr-cliのdebパッケージを作ったときのメモ"
 date = "2018-05-01T12:35:00+09:00"
+lastmod = "2020-05-31T15:33:00+09:00"
 tags = ["ubuntu"]
 categories = ["blog"]
 +++
@@ -163,3 +164,17 @@ PPAからcopr-cliをインストールします。
 sudo add-apt-repository ppa:hnakamur/copr-cli
 sudo apt-get update
 sudo apt install python3-copr-cli
+```
+
+## Ubuntu 20.04 LTS では python3 の venv を使うことにした（2020-05-31 追記）
+
+```console
+sudo apt update
+sudo apt -y install python3-venv
+python3 -m venv ~/copr-cli-venv
+source ~/copr-cli-venv/bin/activate
+pip install wheel
+pip install copr-cli
+```
+
+あとは [Ubuntu16.04でrpmビルド用にmockとcopr-cliをセットアップ · hnakamur's blog](/blog/2018/04/21/setup-mock-and-copr-cli-for-building-rpm-on-ubuntu-16.04/) に書いた通り、ブラウザで [API for Copr](https://copr.fedorainfracloud.org/api/)  を開き fedora coprアカウントでログインするとAPIトークンのファイルの内容が表示されますので、 それを ~/.config/copr というファイルに保存します。
