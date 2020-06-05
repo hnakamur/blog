@@ -343,22 +343,48 @@ sudo rm /usr/sbin/{start,enter}-systemd-namespace
 <p>また <a href="https://forum.snapcraft.io/t/running-snaps-on-wsl2-insiders-only-for-now/13033/25">izznatsir さんのコメント</a> によるとこの手順に従って systemd を動かすと Docker Desktop for Windows 無しで WSL2 の Ubuntu 内だけで docker を動かせたそうです（カスタムカーネルを使う手順を試されたそうですが、カスタムカーネルなしでも動くかも）とのこと。
 こちらも別途試してみたいところです。</p>
 <p>それと <a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script">DamionGans/ubuntu-wsl2-systemd-script: Script to enable systemd support on current Ubuntu WSL2 images from the Windows store</a> の <a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script/blob/master/enter-systemd-namespace">enter-systemd-namespace</a> のスクリプト内では <code>unshare</code> コマンドや <code>nsenter</code> コマンドを実行していて興味深いので、今後もう少し時間かけて理解したいところです。</p>
-<h2 id="docker-desktop-for-windows-をアンインストールして-docker-を動かしてみた-2020-05-31-追記">Docker Desktop for Windows をアンインストールして docker を動かしてみた （2020-05-31 追記）</h2>
+<h2 id="docker-desktop-for-windows-をアンインストールして-docker-を動かしてみた-2020-05-31-追記-2020-06-05-更新">Docker Desktop for Windows をアンインストールして docker を動かしてみた （2020-05-31 追記、 2020-06-05 更新）</h2>
+<p>2020-06-05 追記: 2020-05-31 の時点では Ubuntu の標準パッケージの docker.io を入れる手順を書いていましたが、その後 <a href="https://docs.docker.com/engine/install/ubuntu/">Install Docker Engine on Ubuntu | Docker Documentation</a> を確認すると Docker の apt レポジトリが Ubuntu 20.04 LTS も対応になっていたので、そちらの手順に書き換えました。</p>
 <p>カスタムカーネル無しで動きました。</p>
 <p>手順は以下の通りです。</p>
 <ol>
 <li>Docker Desktop for Windows をアンインストールして、Windows を再起動。</li>
 <li>WSL2 を起動し <code>~/.docker/config.json</code> を削除。</li>
-<li>WSL2 の Ubuntu で docker.io と docker-compose をインストール。</li>
+<li>WSL2 の Ubuntu で docker 公式レポジトリを追加して docker-ce と docker-compose をインストール。</li>
 </ol>
+<p><a href="https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository">Install using the repository</a> の手順にほぼ従います。</p>
+<p>まず必要なソフトウェアを追加します。</p>
 <pre><code class="language-console" data-lang="console">sudo apt update
-sudo apt -y install docker.io docker-compose
-</code></pre><p><code>apt show docker.io</code> で確認するとバージョンは <code>Version: 19.03.8-0ubuntu1</code> でした。</p>
-<ol start="4">
-<li>docker サービスを開始。自動起動も有効にしてみます。</li>
+sudo apt -y install \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    gnupg-agent \
+    software-properties-common
+</code></pre><p>docker の GPG 鍵を追加します。</p>
+<pre><code class="language-console" data-lang="console">curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+</code></pre><p>上記で追加した鍵のフィンガープリントを確認します。</p>
+<pre><code class="language-console" data-lang="console">$ sudo apt-key fingerprint 0EBFCD88
+pub   rsa4096 2017-02-22 [SCEA]
+      9DC8 5822 9FC7 DD38 854A  E2D8 8D81 803C 0EBF CD88
+uid           [ unknown] Docker Release (CE deb) &lt;docker@docker.com&gt;
+sub   rsa4096 2017-02-22 [S]
+</code></pre><p>apt のレポジトリを追加します。
+<a href="https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository">Install using the repository</a> の手順では <code>add-apt-repository</code> を使っていますが、これだと <code>/etc/apt/sources.list</code> が変更されます。
+私は <code>/etc/apt/sources.list.d/</code> にファイルを追加するほうが好きなので、以下の手順にします。</p>
+<pre><code class="language-console" data-lang="console">echo &quot;deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable&quot; \
+  | sudo tee /etc/apt/sources.list.d/docker.list
+</code></pre><p>以下のコマンドで docker-ce と関連パッケージをインストールします。</p>
+<pre><code class="language-console" data-lang="console">sudo apt-get update
+sudo apt-get install docker-ce docker-ce-cli containerd.io
+</code></pre><ol start="4">
+<li>docker グループに自ユーザーを追加</li>
 </ol>
-<pre><code class="language-console" data-lang="console">sudo systemctl start docker
-sudo systemctl enable docker
+<pre><code class="language-console" data-lang="console">sudo usermod -a -G docker $USER
+</code></pre><p>一旦端末を閉じて開きなおすか <code>newgrp docker</code> を実行すれば docker グループにも所属した状態になります。</p>
+<p><code>docker ps</code> が実行できるかを確認します。</p>
+<pre><code class="language-console" data-lang="console">$ docker ps
+CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
 </code></pre><ol start="5">
 <li>docker で hello-world コンテナーを実行</li>
 </ol>
@@ -373,25 +399,29 @@ sudo systemctl enable docker
 <pre><code class="language-console" data-lang="console">hnakamur@sunshine7:/mnt/c/Users/hnakamur$ systemctl status docker
 ● docker.service - Docker Application Container Engine
      Loaded: loaded (/lib/systemd/system/docker.service; enabled; vendor preset: enabled)
-     Active: active (running) since Sun 2020-05-31 02:27:41 JST; 1s ago
+     Active: active (running) since Fri 2020-06-05 17:55:28 JST; 4s ago
 TriggeredBy: ● docker.socket
        Docs: https://docs.docker.com
-   Main PID: 350 (dockerd)
-      Tasks: 13
-     Memory: 123.7M
+   Main PID: 279 (dockerd)
+      Tasks: 12
+     Memory: 121.9M
      CGroup: /system.slice/docker.service
-             └─350 /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+             └─279 /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
 
-May 31 02:27:41 sunshine7 dockerd[350]: time=&quot;2020-05-31T02:27:41.087765984+09:00&quot; level=warning msg=&quot;Your kernel does not support cgroup blkio throttle.write_bp&gt;
-May 31 02:27:41 sunshine7 dockerd[350]: time=&quot;2020-05-31T02:27:41.087775085+09:00&quot; level=warning msg=&quot;Your kernel does not support cgroup blkio throttle.read_iop&gt;
-May 31 02:27:41 sunshine7 dockerd[350]: time=&quot;2020-05-31T02:27:41.087784286+09:00&quot; level=warning msg=&quot;Your kernel does not support cgroup blkio throttle.write_io&gt;
-May 31 02:27:41 sunshine7 dockerd[350]: time=&quot;2020-05-31T02:27:41.087989410+09:00&quot; level=info msg=&quot;Loading containers: start.&quot;
-May 31 02:27:41 sunshine7 dockerd[350]: time=&quot;2020-05-31T02:27:41.256396853+09:00&quot; level=info msg=&quot;Default bridge (docker0) is assigned with an IP address 172.17&gt;
-May 31 02:27:41 sunshine7 dockerd[350]: time=&quot;2020-05-31T02:27:41.321192118+09:00&quot; level=info msg=&quot;Loading containers: done.&quot;
-May 31 02:27:41 sunshine7 dockerd[350]: time=&quot;2020-05-31T02:27:41.382092941+09:00&quot; level=info msg=&quot;Docker daemon&quot; commit=afacb8b7f0 graphdriver(s)=overlay2 versi&gt;
-May 31 02:27:41 sunshine7 dockerd[350]: time=&quot;2020-05-31T02:27:41.383232471+09:00&quot; level=info msg=&quot;Daemon has completed initialization&quot;
-May 31 02:27:41 sunshine7 dockerd[350]: time=&quot;2020-05-31T02:27:41.406493715+09:00&quot; level=info msg=&quot;API listen on /run/docker.sock&quot;
-May 31 02:27:41 sunshine7 systemd[1]: Started Docker Application Container Engine.
+Jun 05 17:55:27 sunshine7 dockerd[279]: time=&quot;2020-06-05T17:55:27.908189300+09:00&quot; level=warning msg=&quot;Your kernel does not support cgroup blkio throttle.write_bp&gt;
+Jun 05 17:55:27 sunshine7 dockerd[279]: time=&quot;2020-06-05T17:55:27.908200000+09:00&quot; level=warning msg=&quot;Your kernel does not support cgroup blkio throttle.read_iop&gt;
+Jun 05 17:55:27 sunshine7 dockerd[279]: time=&quot;2020-06-05T17:55:27.908210100+09:00&quot; level=warning msg=&quot;Your kernel does not support cgroup blkio throttle.write_io&gt;
+Jun 05 17:55:27 sunshine7 dockerd[279]: time=&quot;2020-06-05T17:55:27.908412800+09:00&quot; level=info msg=&quot;Loading containers: start.&quot;
+Jun 05 17:55:28 sunshine7 dockerd[279]: time=&quot;2020-06-05T17:55:28.078619400+09:00&quot; level=info msg=&quot;Default bridge (docker0) is assigned with an IP address 172.17&gt;
+Jun 05 17:55:28 sunshine7 dockerd[279]: time=&quot;2020-06-05T17:55:28.147477000+09:00&quot; level=info msg=&quot;Loading containers: done.&quot;
+Jun 05 17:55:28 sunshine7 dockerd[279]: time=&quot;2020-06-05T17:55:28.248031800+09:00&quot; level=info msg=&quot;Docker daemon&quot; commit=42e35e61f3 graphdriver(s)=overlay2 versi&gt;
+Jun 05 17:55:28 sunshine7 dockerd[279]: time=&quot;2020-06-05T17:55:28.249390500+09:00&quot; level=info msg=&quot;Daemon has completed initialization&quot;
+Jun 05 17:55:28 sunshine7 systemd[1]: Started Docker Application Container Engine.
+Jun 05 17:55:28 sunshine7 dockerd[279]: time=&quot;2020-06-05T17:55:28.272997200+09:00&quot; level=info msg=&quot;API listen on /run/docker.sock&quot;
+</code></pre><p>Docker Compose のインストールは <a href="https://docs.docker.com/compose/install/">Install Docker Compose | Docker Documentation</a> を参考に以下のようにしました。</p>
+<pre><code class="language-console" data-lang="console">release=&quot;$(basename $(curl -s -o /dev/null -w '%{redirect_url}' https://github.com/docker/compose/releases/latest))&quot;
+sudo curl -L &quot;https://github.com/docker/compose/releases/download/$release/docker-compose-$(uname -s)-$(uname -m)&quot; -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
 </code></pre>
 </div>
 
