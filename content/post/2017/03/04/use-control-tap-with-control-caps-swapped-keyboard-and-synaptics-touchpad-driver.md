@@ -18,7 +18,7 @@ categories = ["blog"]
 以下のファイルを保存して、エクスプローラで選択、右クリックでポップアップメニューを開いて[結合]メニューを選択。
 警告が出ますが進んで設定を完了し、Windowsを再起動すると設定が有効になります。
 
-[swap-caps-ctrl.reg]({attach}/files/2017/03/04/swap-caps-ctrl.reg)
+[swap-caps-ctrl.reg](/files/2017/03/04/swap-caps-ctrl.reg)
 
 ```reg {linenos=table}
 Windows Registry Editor Version 5.00
