@@ -404,7 +404,101 @@
 <p>この 2 つのコミットは <a href="https://github.com/grafana/carbon-relay-ng/pull/273">Cache mutex2 by Dieterbe · Pull Request #273 · grafana/carbon-relay-ng</a> のプルリクエストに含まれています。
 これともとになった <a href="https://github.com/grafana/carbon-relay-ng/pull/271">fix race condition in aggregator match cache by DanCech · Pull Request #271 · grafana/carbon-relay-ng</a> も見てみましたが、全く説明がなく、関連するイシューも無いので背景は不明でした。</p>
 <p>うーん、なぜ <code>reCache</code> フィールドは排他制御が必要で <code>aggregations</code> フィールドは不要なのか、謎です。</p>
+<h2 id="2020-06-17-追記-recache-フィールドで排他制御が必要な理由が判明">2020-06-17 追記 <code>reCache</code> フィールドで排他制御が必要な理由が判明</h2>
+<p><code>Aggregator</code> の <code>matchWithCache</code> メソッドは <code>run</code> メソッド以外に <code>AddMaybe</code> メソッドでも呼ばれていました。</p>
+<p><a href="https://github.com/grafana/carbon-relay-ng/blob/2dc70e909221a0408ca0505759f9e8f290c1d6f9/aggregator/aggregator.go#L225-L244">aggregator/aggregator.go#L225-L244</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">a</span> <span class="o">*</span><span class="nx">Aggregator</span><span class="p">)</span> <span class="nf">AddMaybe</span><span class="p">(</span><span class="nx">buf</span> <span class="p">[</span><span class="p">]</span><span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">val</span> <span class="kt">float64</span><span class="p">,</span> <span class="nx">ts</span> <span class="kt">uint32</span><span class="p">)</span> <span class="kt">bool</span> <span class="p">{</span>
+  <span class="k">if</span> <span class="p">!</span><span class="nx">a</span><span class="p">.</span><span class="nx">Matcher</span><span class="p">.</span><span class="nf">PreMatch</span><span class="p">(</span><span class="nx">buf</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="kc">false</span>
+  <span class="p">}</span>
 
+  <span class="k">if</span> <span class="nx">a</span><span class="p">.</span><span class="nx">DropRaw</span> <span class="p">{</span>
+    <span class="nx">_</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">a</span><span class="p">.</span><span class="nf">matchWithCache</span><span class="p">(</span><span class="nx">buf</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
+      <span class="k">return</span> <span class="kc">false</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+
+  <span class="nx">a</span><span class="p">.</span><span class="nx">in</span> <span class="o">&lt;-</span> <span class="nx">msg</span><span class="p">{</span>
+    <span class="nx">buf</span><span class="p">,</span>
+    <span class="nx">val</span><span class="p">,</span>
+    <span class="nx">ts</span><span class="p">,</span>
+  <span class="p">}</span>
+
+  <span class="k">return</span> <span class="nx">a</span><span class="p">.</span><span class="nx">DropRaw</span>
+<span class="p">}</span>
+</code></pre></div><p>そして <code>AddMaybe</code> メソッドは <code>Table</code> の <code>dispatch</code> メソッドから呼ばれていました。</p>
+<p><a href="https://github.com/grafana/carbon-relay-ng/blob/2dc70e909221a0408ca0505759f9e8f290c1d6f9/table/table.go#L109-L177">table/table.go#L109-L177</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Dispatch is the entrypoint to send data into the table.
+</span><span class="c1"></span><span class="c1">// it dispatches incoming metrics into matching aggregators and routes,
+</span><span class="c1"></span><span class="c1">// after checking against the blacklist
+</span><span class="c1"></span><span class="c1">// buf is assumed to have no whitespace at the end
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">table</span> <span class="o">*</span><span class="nx">Table</span><span class="p">)</span> <span class="nf">Dispatch</span><span class="p">(</span><span class="nx">buf</span> <span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">{</span>
+  <span class="nx">buf_copy</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nx">buf</span><span class="p">)</span><span class="p">)</span>
+  <span class="nb">copy</span><span class="p">(</span><span class="nx">buf_copy</span><span class="p">,</span> <span class="nx">buf</span><span class="p">)</span>
+  <span class="nx">log</span><span class="p">.</span><span class="nf">Tracef</span><span class="p">(</span><span class="s">&#34;table received packet %s&#34;</span><span class="p">,</span> <span class="nx">buf_copy</span><span class="p">)</span>
+
+  <span class="nx">table</span><span class="p">.</span><span class="nx">numIn</span><span class="p">.</span><span class="nf">Inc</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+  <span class="nx">conf</span> <span class="o">:=</span> <span class="nx">table</span><span class="p">.</span><span class="nx">config</span><span class="p">.</span><span class="nf">Load</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="p">(</span><span class="nx">TableConfig</span><span class="p">)</span>
+
+  <span class="nx">key</span><span class="p">,</span> <span class="nx">val</span><span class="p">,</span> <span class="nx">ts</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">m20</span><span class="p">.</span><span class="nf">ValidatePacket</span><span class="p">(</span><span class="nx">buf_copy</span><span class="p">,</span> <span class="nx">conf</span><span class="p">.</span><span class="nx">Validation_level_legacy</span><span class="p">.</span><span class="nx">Level</span><span class="p">,</span> <span class="nx">conf</span><span class="p">.</span><span class="nx">Validation_level_m20</span><span class="p">.</span><span class="nx">Level</span><span class="p">)</span>
+  <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+    <span class="nx">table</span><span class="p">.</span><span class="nx">bad</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="nx">key</span><span class="p">,</span> <span class="nx">buf_copy</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+    <span class="nx">table</span><span class="p">.</span><span class="nx">numInvalid</span><span class="p">.</span><span class="nf">Inc</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span>
+  <span class="p">}</span>
+
+  <span class="k">if</span> <span class="nx">conf</span><span class="p">.</span><span class="nx">Validate_order</span> <span class="p">{</span>
+    <span class="nx">err</span> <span class="p">=</span> <span class="nx">validate</span><span class="p">.</span><span class="nf">Ordered</span><span class="p">(</span><span class="nx">key</span><span class="p">,</span> <span class="nx">ts</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+      <span class="nx">table</span><span class="p">.</span><span class="nx">bad</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="nx">key</span><span class="p">,</span> <span class="nx">buf_copy</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+      <span class="nx">table</span><span class="p">.</span><span class="nx">numOutOfOrder</span><span class="p">.</span><span class="nf">Inc</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+      <span class="k">return</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+
+  <span class="nx">fields</span> <span class="o">:=</span> <span class="nx">bytes</span><span class="p">.</span><span class="nf">Fields</span><span class="p">(</span><span class="nx">buf_copy</span><span class="p">)</span>
+
+  <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">matcher</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">conf</span><span class="p">.</span><span class="nx">blacklist</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="nx">matcher</span><span class="p">.</span><span class="nf">Match</span><span class="p">(</span><span class="nx">fields</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="p">)</span> <span class="p">{</span>
+      <span class="nx">table</span><span class="p">.</span><span class="nx">numBlacklist</span><span class="p">.</span><span class="nf">Inc</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+      <span class="nx">log</span><span class="p">.</span><span class="nf">Tracef</span><span class="p">(</span><span class="s">&#34;table dropped %s, matched blacklist entry %s&#34;</span><span class="p">,</span> <span class="nx">buf_copy</span><span class="p">,</span> <span class="nx">matcher</span><span class="p">)</span>
+      <span class="k">return</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+
+  <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">rw</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">conf</span><span class="p">.</span><span class="nx">rewriters</span> <span class="p">{</span>
+    <span class="nx">fields</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">=</span> <span class="nx">rw</span><span class="p">.</span><span class="nf">Do</span><span class="p">(</span><span class="nx">fields</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="p">)</span>
+  <span class="p">}</span>
+
+  <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">aggregator</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">conf</span><span class="p">.</span><span class="nx">aggregators</span> <span class="p">{</span>
+    <span class="c1">// we rely on incoming metrics already having been validated
+</span><span class="c1"></span>    <span class="nx">dropRaw</span> <span class="o">:=</span> <span class="nx">aggregator</span><span class="p">.</span><span class="nf">AddMaybe</span><span class="p">(</span><span class="nx">fields</span><span class="p">,</span> <span class="nx">val</span><span class="p">,</span> <span class="nx">ts</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nx">dropRaw</span> <span class="p">{</span>
+      <span class="nx">log</span><span class="p">.</span><span class="nf">Tracef</span><span class="p">(</span><span class="s">&#34;table dropped %s, matched dropRaw aggregator %s&#34;</span><span class="p">,</span> <span class="nx">buf_copy</span><span class="p">,</span> <span class="nx">aggregator</span><span class="p">.</span><span class="nx">Matcher</span><span class="p">.</span><span class="nx">Regex</span><span class="p">)</span>
+      <span class="k">return</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+
+  <span class="nx">final</span> <span class="o">:=</span> <span class="nx">bytes</span><span class="p">.</span><span class="nf">Join</span><span class="p">(</span><span class="nx">fields</span><span class="p">,</span> <span class="p">[</span><span class="p">]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&#34; &#34;</span><span class="p">)</span><span class="p">)</span>
+
+  <span class="nx">routed</span> <span class="o">:=</span> <span class="kc">false</span>
+
+  <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">route</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">conf</span><span class="p">.</span><span class="nx">routes</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="nx">route</span><span class="p">.</span><span class="nf">Match</span><span class="p">(</span><span class="nx">fields</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="p">)</span> <span class="p">{</span>
+      <span class="nx">routed</span> <span class="p">=</span> <span class="kc">true</span>
+      <span class="nx">log</span><span class="p">.</span><span class="nf">Tracef</span><span class="p">(</span><span class="s">&#34;table sending to route: %s&#34;</span><span class="p">,</span> <span class="nx">final</span><span class="p">)</span>
+      <span class="nx">route</span><span class="p">.</span><span class="nf">Dispatch</span><span class="p">(</span><span class="nx">final</span><span class="p">)</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+
+  <span class="k">if</span> <span class="p">!</span><span class="nx">routed</span> <span class="p">{</span>
+    <span class="nx">table</span><span class="p">.</span><span class="nx">numUnroutable</span><span class="p">.</span><span class="nf">Inc</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="nx">log</span><span class="p">.</span><span class="nf">Tracef</span><span class="p">(</span><span class="s">&#34;unrouteable: %s&#34;</span><span class="p">,</span> <span class="nx">final</span><span class="p">)</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
 </div>
 
 
