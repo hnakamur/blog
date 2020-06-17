@@ -1,6 +1,7 @@
 ---
 title: "carbon-relay-ngのAggregationについてのコードリーディング"
 date: 2020-06-16T21:49:01+09:00
+lastmod: 2020-06-17T17:25:00+09:00
 ---
 
 ## はじめに
@@ -396,3 +397,108 @@ func NewMocked(fun string, matcher matcher.Matcher, outFmt string, cache bool, i
 これともとになった [fix race condition in aggregator match cache by DanCech · Pull Request #271 · grafana/carbon-relay-ng](https://github.com/grafana/carbon-relay-ng/pull/271) も見てみましたが、全く説明がなく、関連するイシューも無いので背景は不明でした。
 
 うーん、なぜ `reCache` フィールドは排他制御が必要で `aggregations` フィールドは不要なのか、謎です。
+
+## 2020-06-17 追記 `reCache` フィールドで排他制御が必要な理由が判明
+
+`Aggregator` の `matchWithCache` メソッドは `run` メソッド以外に `AddMaybe` メソッドでも呼ばれていました。
+
+[aggregator/aggregator.go#L225-L244](https://github.com/grafana/carbon-relay-ng/blob/2dc70e909221a0408ca0505759f9e8f290c1d6f9/aggregator/aggregator.go#L225-L244)
+
+```go
+func (a *Aggregator) AddMaybe(buf [][]byte, val float64, ts uint32) bool {
+  if !a.Matcher.PreMatch(buf[0]) {
+    return false
+  }
+
+  if a.DropRaw {
+    _, ok := a.matchWithCache(buf[0])
+    if !ok {
+      return false
+    }
+  }
+
+  a.in <- msg{
+    buf,
+    val,
+    ts,
+  }
+
+  return a.DropRaw
+}
+```
+
+そして `AddMaybe` メソッドは `Table` の `dispatch` メソッドから呼ばれていました。
+
+[table/table.go#L109-L177](https://github.com/grafana/carbon-relay-ng/blob/2dc70e909221a0408ca0505759f9e8f290c1d6f9/table/table.go#L109-L177)
+
+```go
+// Dispatch is the entrypoint to send data into the table.
+// it dispatches incoming metrics into matching aggregators and routes,
+// after checking against the blacklist
+// buf is assumed to have no whitespace at the end
+func (table *Table) Dispatch(buf []byte) {
+  buf_copy := make([]byte, len(buf))
+  copy(buf_copy, buf)
+  log.Tracef("table received packet %s", buf_copy)
+
+  table.numIn.Inc(1)
+
+  conf := table.config.Load().(TableConfig)
+
+  key, val, ts, err := m20.ValidatePacket(buf_copy, conf.Validation_level_legacy.Level, conf.Validation_level_m20.Level)
+  if err != nil {
+    table.bad.Add(key, buf_copy, err)
+    table.numInvalid.Inc(1)
+    return
+  }
+
+  if conf.Validate_order {
+    err = validate.Ordered(key, ts)
+    if err != nil {
+      table.bad.Add(key, buf_copy, err)
+      table.numOutOfOrder.Inc(1)
+      return
+    }
+  }
+
+  fields := bytes.Fields(buf_copy)
+
+  for _, matcher := range conf.blacklist {
+    if matcher.Match(fields[0]) {
+      table.numBlacklist.Inc(1)
+      log.Tracef("table dropped %s, matched blacklist entry %s", buf_copy, matcher)
+      return
+    }
+  }
+
+  for _, rw := range conf.rewriters {
+    fields[0] = rw.Do(fields[0])
+  }
+
+  for _, aggregator := range conf.aggregators {
+    // we rely on incoming metrics already having been validated
+    dropRaw := aggregator.AddMaybe(fields, val, ts)
+    if dropRaw {
+      log.Tracef("table dropped %s, matched dropRaw aggregator %s", buf_copy, aggregator.Matcher.Regex)
+      return
+    }
+  }
+
+  final := bytes.Join(fields, []byte(" "))
+
+  routed := false
+
+  for _, route := range conf.routes {
+    if route.Match(fields[0]) {
+      routed = true
+      log.Tracef("table sending to route: %s", final)
+      route.Dispatch(final)
+    }
+  }
+
+  if !routed {
+    table.numUnroutable.Inc(1)
+    log.Tracef("unrouteable: %s", final)
+  }
+}
+```
