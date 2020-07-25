@@ -372,7 +372,5 @@ To open developer menu press "d"
 
 少し苦労しましたがとりあえず動かせるようになりました。
 
-あとは冒頭の動画によると [GitHub - microsoft/fluentui-react-native: A react-native component library that implements the Fluent Design System.](https://github.com/microsoft/fluentui-react-native) でキーボードフォーカスやアクセサビリティ対応もされるらしいので、こちらも気になります。
+あとは冒頭の動画によると [GitHub - microsoft/fluentui-react-native: A react-native component library that implements the Fluent Design System.](https://github.com/microsoft/fluentui-react-native) というのも開発中とのことでこちらも気になります。
 README によるとまだアルファとのことですが今後に期待です。
-
-
