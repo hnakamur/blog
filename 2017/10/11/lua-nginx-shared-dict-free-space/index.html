@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.64.1" />
+  <meta name="generator" content="Hugo 0.74.3" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -92,10 +92,10 @@
 <p>また <code>ngx_http_lua_shdict_init_zone</code> 関数で slab allocator から2つメモリ割り当てを行っています。</p>
 <p>1つめは <code>sizeof(ngx_http_lua_shdict_shctx_t)</code> = 80バイトを割り当てるので128バイトのスロットの1エントリを消費します。</p>
 <p><a href="https://github.com/openresty/lua-nginx-module/blob/bf14723e4e7749c989134c029742185db1c78255/src/ngx_http_lua_shdict.c#L108">lua-nginx-module/ngx_http_lua_shdict.c#L108</a></p>
-<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="n">ctx</span><span class="o">-</span><span class="o">&gt;</span><span class="n">sh</span> <span class="o">=</span> <span class="n">ngx_slab_alloc</span><span class="p">(</span><span class="n">ctx</span><span class="o">-</span><span class="o">&gt;</span><span class="n">shpool</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">ngx_http_lua_shdict_shctx_t</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">sh</span> <span class="o">=</span> <span class="n">ngx_slab_alloc</span><span class="p">(</span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">shpool</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">ngx_http_lua_shdict_shctx_t</span><span class="p">));</span>
 </code></pre></div><p>2つめは <code>sizeof(&quot; in lua_shared_dict zone \&quot;\&quot;&quot;) + shm_zone-&gt;shm.name.len</code> バイトの割り当てです。</p>
 <p><a href="https://github.com/openresty/lua-nginx-module/blob/bf14723e4e7749c989134c029742185db1c78255/src/ngx_http_lua_shdict.c#L120">lua-nginx-module/ngx_http_lua_shdict.c#L120</a></p>
-<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="n">len</span> <span class="o">=</span> <span class="k">sizeof</span><span class="p">(</span><span class="sa"></span><span class="s">&#34;</span><span class="s"> in lua_shared_dict zone </span><span class="se">\&#34;</span><span class="se">\&#34;</span><span class="s">&#34;</span><span class="p">)</span> <span class="o">+</span> <span class="n">shm_zone</span><span class="o">-</span><span class="o">&gt;</span><span class="n">shm</span><span class="p">.</span><span class="n">name</span><span class="p">.</span><span class="n">len</span><span class="p">;</span>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="n">len</span> <span class="o">=</span> <span class="k">sizeof</span><span class="p">(</span><span class="s">&#34; in lua_shared_dict zone </span><span class="se">\&#34;\&#34;</span><span class="s">&#34;</span><span class="p">)</span> <span class="o">+</span> <span class="n">shm_zone</span><span class="o">-&gt;</span><span class="n">shm</span><span class="p">.</span><span class="n">name</span><span class="p">.</span><span class="n">len</span><span class="p">;</span>
 </code></pre></div><p>.. code-block:: text</p>
 <pre><code>    (gdb) print sizeof(&quot; in lua_shared_dict zone \&quot;\&quot;&quot;)
     $4 = 28
@@ -203,31 +203,31 @@ key=key00003, val=val00003
 </span><span class="lnt">2439
 </span></code></pre></td>
 <td class="lntd">
-<pre class="chroma"><code class="language-c" data-lang="c"><span class="n">node</span> <span class="o">=</span> <span class="n">ngx_slab_alloc_locked</span><span class="p">(</span><span class="n">ctx</span><span class="o">-</span><span class="o">&gt;</span><span class="n">shpool</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span><span class="p">;</span>
+<pre class="chroma"><code class="language-c" data-lang="c"><span class="n">node</span> <span class="o">=</span> <span class="n">ngx_slab_alloc_locked</span><span class="p">(</span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">shpool</span><span class="p">,</span> <span class="n">n</span><span class="p">);</span>
 
-<span class="k">if</span> <span class="p">(</span><span class="n">node</span> <span class="o">=</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+<span class="k">if</span> <span class="p">(</span><span class="n">node</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
 
-    <span class="n">ngx_log_debug2</span><span class="p">(</span><span class="n">NGX_LOG_DEBUG_HTTP</span><span class="p">,</span> <span class="n">ctx</span><span class="o">-</span><span class="o">&gt;</span><span class="n">log</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
-                   <span class="sa"></span><span class="s">&#34;</span><span class="s">lua shared dict incr: overriding non-expired items </span><span class="s">&#34;</span>
-                   <span class="sa"></span><span class="s">&#34;</span><span class="s">due to memory shortage for entry </span><span class="se">\&#34;</span><span class="s">%*s</span><span class="se">\&#34;</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">key_len</span><span class="p">,</span>
-                   <span class="n">key</span><span class="p">)</span><span class="p">;</span>
+    <span class="n">ngx_log_debug2</span><span class="p">(</span><span class="n">NGX_LOG_DEBUG_HTTP</span><span class="p">,</span> <span class="n">ctx</span><span class="o">-&gt;</span><span class="n">log</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
+                   <span class="s">&#34;lua shared dict incr: overriding non-expired items &#34;</span>
+                   <span class="s">&#34;due to memory shortage for entry </span><span class="se">\&#34;</span><span class="s">%*s</span><span class="se">\&#34;</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">key_len</span><span class="p">,</span>
+                   <span class="n">key</span><span class="p">);</span>
 
-    <span class="k">for</span> <span class="p">(</span><span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="mi">30</span><span class="p">;</span> <span class="n">i</span><span class="o">+</span><span class="o">+</span><span class="p">)</span> <span class="p">{</span>
-        <span class="k">if</span> <span class="p">(</span><span class="n">ngx_http_lua_shdict_expire</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">=</span><span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="mi">30</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">ngx_http_lua_shdict_expire</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
             <span class="k">break</span><span class="p">;</span>
         <span class="p">}</span>
 
         <span class="o">*</span><span class="n">forcible</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
 
-        <span class="n">node</span> <span class="o">=</span> <span class="n">ngx_slab_alloc_locked</span><span class="p">(</span><span class="n">ctx</span><span class="o">-</span><span class="o">&gt;</span><span class="n">shpool</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span><span class="p">;</span>
-        <span class="k">if</span> <span class="p">(</span><span class="n">node</span> <span class="o">!</span><span class="o">=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="n">ngx_slab_alloc_locked</span><span class="p">(</span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">shpool</span><span class="p">,</span> <span class="n">n</span><span class="p">);</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">node</span> <span class="o">!=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
             <span class="k">goto</span> <span class="n">allocated</span><span class="p">;</span>
         <span class="p">}</span>
     <span class="p">}</span>
 
-    <span class="n">ngx_shmtx_unlock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ctx</span><span class="o">-</span><span class="o">&gt;</span><span class="n">shpool</span><span class="o">-</span><span class="o">&gt;</span><span class="n">mutex</span><span class="p">)</span><span class="p">;</span>
+    <span class="n">ngx_shmtx_unlock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">shpool</span><span class="o">-&gt;</span><span class="n">mutex</span><span class="p">);</span>
 
-    <span class="o">*</span><span class="n">err</span> <span class="o">=</span> <span class="sa"></span><span class="s">&#34;</span><span class="s">no memory</span><span class="s">&#34;</span><span class="p">;</span>
+    <span class="o">*</span><span class="n">err</span> <span class="o">=</span> <span class="s">&#34;no memory&#34;</span><span class="p">;</span>
     <span class="k">return</span> <span class="n">NGX_ERROR</span><span class="p">;</span>
 <span class="p">}</span>
 </code></pre></td></tr></table>

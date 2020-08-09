@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.64.1" />
+  <meta name="generator" content="Hugo 0.74.3" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -88,8 +88,8 @@
 </code></pre></div><p><code>oracle</code> の <code>newCommitTs</code> メソッド
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/txn.go#L167-L191">txn.go#L167-L191</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">o</span> <span class="o">*</span><span class="nx">oracle</span><span class="p">)</span> <span class="nf">newCommitTs</span><span class="p">(</span><span class="nx">txn</span> <span class="o">*</span><span class="nx">Txn</span><span class="p">)</span> <span class="kt">uint64</span> <span class="p">{</span>
-	<span class="nx">o</span><span class="p">.</span><span class="nf">Lock</span><span class="p">(</span><span class="p">)</span>
-	<span class="k">defer</span> <span class="nx">o</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">(</span><span class="p">)</span>
+	<span class="nx">o</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">o</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
 
 	<span class="k">if</span> <span class="nx">o</span><span class="p">.</span><span class="nf">hasConflict</span><span class="p">(</span><span class="nx">txn</span><span class="p">)</span> <span class="p">{</span>
 		<span class="k">return</span> <span class="mi">0</span>
@@ -122,7 +122,7 @@
 	<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">ro</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">txn</span><span class="p">.</span><span class="nx">reads</span> <span class="p">{</span>
 		<span class="c1">// A commit at the read timestamp is expected.
 </span><span class="c1"></span>		<span class="c1">// But, any commit after the read timestamp should cause a conflict.
-</span><span class="c1"></span>		<span class="k">if</span> <span class="nx">ts</span><span class="p">,</span> <span class="nx">has</span> <span class="o">:=</span> <span class="nx">o</span><span class="p">.</span><span class="nx">commits</span><span class="p">[</span><span class="nx">ro</span><span class="p">]</span><span class="p">;</span> <span class="nx">has</span> <span class="o">&amp;&amp;</span> <span class="nx">ts</span> <span class="p">&gt;</span> <span class="nx">txn</span><span class="p">.</span><span class="nx">readTs</span> <span class="p">{</span>
+</span><span class="c1"></span>		<span class="k">if</span> <span class="nx">ts</span><span class="p">,</span> <span class="nx">has</span> <span class="o">:=</span> <span class="nx">o</span><span class="p">.</span><span class="nx">commits</span><span class="p">[</span><span class="nx">ro</span><span class="p">];</span> <span class="nx">has</span> <span class="o">&amp;&amp;</span> <span class="nx">ts</span> <span class="p">&gt;</span> <span class="nx">txn</span><span class="p">.</span><span class="nx">readTs</span> <span class="p">{</span>
 			<span class="k">return</span> <span class="kc">true</span>
 		<span class="p">}</span>
 	<span class="p">}</span>
@@ -177,8 +177,8 @@
 	<span class="nx">commitTs</span> <span class="kt">uint64</span>
 
 	<span class="nx">update</span> <span class="kt">bool</span>     <span class="c1">// update is used to conditionally keep track of reads.
-</span><span class="c1"></span>	<span class="nx">reads</span>  <span class="p">[</span><span class="p">]</span><span class="kt">uint64</span> <span class="c1">// contains fingerprints of keys read.
-</span><span class="c1"></span>	<span class="nx">writes</span> <span class="p">[</span><span class="p">]</span><span class="kt">uint64</span> <span class="c1">// contains fingerprints of keys written.
+</span><span class="c1"></span>	<span class="nx">reads</span>  <span class="p">[]</span><span class="kt">uint64</span> <span class="c1">// contains fingerprints of keys read.
+</span><span class="c1"></span>	<span class="nx">writes</span> <span class="p">[]</span><span class="kt">uint64</span> <span class="c1">// contains fingerprints of keys written.
 </span><span class="c1"></span>
 	<span class="nx">pendingWrites</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="o">*</span><span class="nx">Entry</span> <span class="c1">// cache stores any writes done by txn.
 </span><span class="c1"></span>
@@ -191,7 +191,7 @@
 <span class="p">}</span>
 </code></pre></div><p><code>Txn</code> の <code>reads</code> は <code>addReadKey</code> メソッドで追加されていました。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/txn.go#L429-L434">txn.go#L429-L434</a></p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">txn</span> <span class="o">*</span><span class="nx">Txn</span><span class="p">)</span> <span class="nf">addReadKey</span><span class="p">(</span><span class="nx">key</span> <span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">{</span>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">txn</span> <span class="o">*</span><span class="nx">Txn</span><span class="p">)</span> <span class="nf">addReadKey</span><span class="p">(</span><span class="nx">key</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">{</span>
 	<span class="k">if</span> <span class="nx">txn</span><span class="p">.</span><span class="nx">update</span> <span class="p">{</span>
 		<span class="nx">fp</span> <span class="o">:=</span> <span class="nx">z</span><span class="p">.</span><span class="nf">MemHash</span><span class="p">(</span><span class="nx">key</span><span class="p">)</span>
 		<span class="nx">txn</span><span class="p">.</span><span class="nx">reads</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">txn</span><span class="p">.</span><span class="nx">reads</span><span class="p">,</span> <span class="nx">fp</span><span class="p">)</span>
@@ -207,15 +207,15 @@
 <span class="p">}</span>
 
 <span class="c1">//go:noescape
-</span><span class="c1"></span><span class="c1">//go:linkname memhash runtime.memhash
+</span><span class="c1">//go:linkname memhash runtime.memhash
 </span><span class="c1"></span><span class="kd">func</span> <span class="nf">memhash</span><span class="p">(</span><span class="nx">p</span> <span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="p">,</span> <span class="nx">h</span><span class="p">,</span> <span class="nx">s</span> <span class="kt">uintptr</span><span class="p">)</span> <span class="kt">uintptr</span>
 
 <span class="c1">// MemHash is the hash function used by go map, it utilizes available hardware instructions(behaves
-</span><span class="c1"></span><span class="c1">// as aeshash if aes instruction is available).
-</span><span class="c1"></span><span class="c1">// NOTE: The hash seed changes for every process. So, this cannot be used as a persistent hash.
-</span><span class="c1"></span><span class="kd">func</span> <span class="nf">MemHash</span><span class="p">(</span><span class="nx">data</span> <span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">)</span> <span class="kt">uint64</span> <span class="p">{</span>
-	<span class="nx">ss</span> <span class="o">:=</span> <span class="p">(</span><span class="o">*</span><span class="nx">stringStruct</span><span class="p">)</span><span class="p">(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">data</span><span class="p">)</span><span class="p">)</span>
-	<span class="k">return</span> <span class="nb">uint64</span><span class="p">(</span><span class="nf">memhash</span><span class="p">(</span><span class="nx">ss</span><span class="p">.</span><span class="nx">str</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">uintptr</span><span class="p">(</span><span class="nx">ss</span><span class="p">.</span><span class="nx">len</span><span class="p">)</span><span class="p">)</span><span class="p">)</span>
+</span><span class="c1">// as aeshash if aes instruction is available).
+</span><span class="c1">// NOTE: The hash seed changes for every process. So, this cannot be used as a persistent hash.
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">MemHash</span><span class="p">(</span><span class="nx">data</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="kt">uint64</span> <span class="p">{</span>
+	<span class="nx">ss</span> <span class="o">:=</span> <span class="p">(</span><span class="o">*</span><span class="nx">stringStruct</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">data</span><span class="p">))</span>
+	<span class="k">return</span> <span class="nb">uint64</span><span class="p">(</span><span class="nf">memhash</span><span class="p">(</span><span class="nx">ss</span><span class="p">.</span><span class="nx">str</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">uintptr</span><span class="p">(</span><span class="nx">ss</span><span class="p">.</span><span class="nx">len</span><span class="p">)))</span>
 <span class="p">}</span>
 </code></pre></div><p><code>//go:linkname</code> というコメントを使って <code>runtime</code> パッケージの <code>memhash</code> という非公開関数を呼び出しています。
 Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/maphash</a> を使うところでしょうが、それ以前に作られたのでこのような実装になっています。</p>
@@ -233,7 +233,7 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 <li><code>Iterator</code> の <code>Item</code> メソッド内。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/iterator.go#L504">iterator.go#L504</a></li>
 </ol>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go">	<span class="nx">tx</span><span class="p">.</span><span class="nf">addReadKey</span><span class="p">(</span><span class="nx">it</span><span class="p">.</span><span class="nx">item</span><span class="p">.</span><span class="nf">Key</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go">	<span class="nx">tx</span><span class="p">.</span><span class="nf">addReadKey</span><span class="p">(</span><span class="nx">it</span><span class="p">.</span><span class="nx">item</span><span class="p">.</span><span class="nf">Key</span><span class="p">())</span>
 </code></pre></div><h2 id="txn-の-writes-フィールドの更新箇所"><code>Txn</code> の <code>writes</code> フィールドの更新箇所</h2>
 <p><code>Txn</code> の <code>modify</code> メソッド内の 1 箇所です。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/txn.go#L335-L336">txn.go#L335-L336</a></p>
@@ -242,23 +242,23 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 </code></pre></div><p><code>Txn</code> の <code>modify</code> メソッドの呼び出しは <code>SetEntry</code> と <code>Delete</code> メソッドの 2 箇所です。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/txn.go#L350-L373">txn.go#L350-L373</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// SetEntry takes an Entry struct and adds the key-value pair in the struct,
-</span><span class="c1"></span><span class="c1">// along with other metadata to the database.
-</span><span class="c1"></span><span class="c1">//
-</span><span class="c1"></span><span class="c1">// The current transaction keeps a reference to the entry passed in argument.
-</span><span class="c1"></span><span class="c1">// Users must not modify the entry until the end of the transaction.
+</span><span class="c1">// along with other metadata to the database.
+</span><span class="c1">//
+</span><span class="c1">// The current transaction keeps a reference to the entry passed in argument.
+</span><span class="c1">// Users must not modify the entry until the end of the transaction.
 </span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">txn</span> <span class="o">*</span><span class="nx">Txn</span><span class="p">)</span> <span class="nf">SetEntry</span><span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">Entry</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
 	<span class="k">return</span> <span class="nx">txn</span><span class="p">.</span><span class="nf">modify</span><span class="p">(</span><span class="nx">e</span><span class="p">)</span>
 <span class="p">}</span>
 
 <span class="c1">// Delete deletes a key.
-</span><span class="c1"></span><span class="c1">//
-</span><span class="c1"></span><span class="c1">// This is done by adding a delete marker for the key at commit timestamp.  Any
-</span><span class="c1"></span><span class="c1">// reads happening before this timestamp would be unaffected. Any reads after
-</span><span class="c1"></span><span class="c1">// this commit would see the deletion.
-</span><span class="c1"></span><span class="c1">//
-</span><span class="c1"></span><span class="c1">// The current transaction keeps a reference to the key byte slice argument.
-</span><span class="c1"></span><span class="c1">// Users must not modify the key until the end of the transaction.
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">txn</span> <span class="o">*</span><span class="nx">Txn</span><span class="p">)</span> <span class="nf">Delete</span><span class="p">(</span><span class="nx">key</span> <span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span><span class="c1">//
+</span><span class="c1">// This is done by adding a delete marker for the key at commit timestamp.  Any
+</span><span class="c1">// reads happening before this timestamp would be unaffected. Any reads after
+</span><span class="c1">// this commit would see the deletion.
+</span><span class="c1">//
+</span><span class="c1">// The current transaction keeps a reference to the key byte slice argument.
+</span><span class="c1">// Users must not modify the key until the end of the transaction.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">txn</span> <span class="o">*</span><span class="nx">Txn</span><span class="p">)</span> <span class="nf">Delete</span><span class="p">(</span><span class="nx">key</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
 	<span class="nx">e</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">Entry</span><span class="p">{</span>
 		<span class="nx">Key</span><span class="p">:</span>  <span class="nx">key</span><span class="p">,</span>
 		<span class="nx">meta</span><span class="p">:</span> <span class="nx">bitDelete</span><span class="p">,</span>
@@ -281,27 +281,27 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 </span><span class="c1"></span>	<span class="c1">//    would be detected.
 </span><span class="c1"></span>	<span class="c1">// See issue: https://github.com/dgraph-io/badger/issues/574
 </span><span class="c1"></span>	<span class="k">if</span> <span class="p">!</span><span class="nx">isManaged</span> <span class="p">{</span>
-		<span class="nx">txn</span><span class="p">.</span><span class="nx">readTs</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nx">orc</span><span class="p">.</span><span class="nf">readTs</span><span class="p">(</span><span class="p">)</span>
+		<span class="nx">txn</span><span class="p">.</span><span class="nx">readTs</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nx">orc</span><span class="p">.</span><span class="nf">readTs</span><span class="p">()</span>
 	<span class="p">}</span>
 </code></pre></div><p>上記のコメントの先頭に read timestamp を取得する前に oracle addRef を実行することが重要とありますが、このコメントの直前で呼んでいます。</p>
 <p><code>oracle</code> の <code>readTs</code> メソッド。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/txn.go#L104-L121">txn.go#L104-L121</a></p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">o</span> <span class="o">*</span><span class="nx">oracle</span><span class="p">)</span> <span class="nf">readTs</span><span class="p">(</span><span class="p">)</span> <span class="kt">uint64</span> <span class="p">{</span>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">o</span> <span class="o">*</span><span class="nx">oracle</span><span class="p">)</span> <span class="nf">readTs</span><span class="p">()</span> <span class="kt">uint64</span> <span class="p">{</span>
 	<span class="k">if</span> <span class="nx">o</span><span class="p">.</span><span class="nx">isManaged</span> <span class="p">{</span>
 		<span class="nb">panic</span><span class="p">(</span><span class="s">&#34;ReadTs should not be retrieved for managed DB&#34;</span><span class="p">)</span>
 	<span class="p">}</span>
 
 	<span class="kd">var</span> <span class="nx">readTs</span> <span class="kt">uint64</span>
-	<span class="nx">o</span><span class="p">.</span><span class="nf">Lock</span><span class="p">(</span><span class="p">)</span>
+	<span class="nx">o</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
 	<span class="nx">readTs</span> <span class="p">=</span> <span class="nx">o</span><span class="p">.</span><span class="nx">nextTxnTs</span> <span class="o">-</span> <span class="mi">1</span>
 	<span class="nx">o</span><span class="p">.</span><span class="nx">readMark</span><span class="p">.</span><span class="nf">Begin</span><span class="p">(</span><span class="nx">readTs</span><span class="p">)</span>
-	<span class="nx">o</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">(</span><span class="p">)</span>
+	<span class="nx">o</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
 
 	<span class="c1">// Wait for all txns which have no conflicts, have been assigned a commit
 </span><span class="c1"></span>	<span class="c1">// timestamp and are going through the write to value log and LSM tree
 </span><span class="c1"></span>	<span class="c1">// process. Not waiting here could mean that some txns which have been
 </span><span class="c1"></span>	<span class="c1">// committed would not be read.
-</span><span class="c1"></span>	<span class="nx">y</span><span class="p">.</span><span class="nf">Check</span><span class="p">(</span><span class="nx">o</span><span class="p">.</span><span class="nx">txnMark</span><span class="p">.</span><span class="nf">WaitForMark</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nf">Background</span><span class="p">(</span><span class="p">)</span><span class="p">,</span> <span class="nx">readTs</span><span class="p">)</span><span class="p">)</span>
+</span><span class="c1"></span>	<span class="nx">y</span><span class="p">.</span><span class="nf">Check</span><span class="p">(</span><span class="nx">o</span><span class="p">.</span><span class="nx">txnMark</span><span class="p">.</span><span class="nf">WaitForMark</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nf">Background</span><span class="p">(),</span> <span class="nx">readTs</span><span class="p">))</span>
 	<span class="k">return</span> <span class="nx">readTs</span>
 <span class="p">}</span>
 </code></pre></div><h2 id="oracle-の-nexttxnts-の更新箇所"><code>oracle</code> の <code>nextTxnTs</code> の更新箇所</h2>
@@ -318,9 +318,9 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 <li><code>oracle</code> の <code>incrementNextTs</code> メソッド内。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/txn.go#L129-L133">txn.go#L129-L133</a></li>
 </ol>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">o</span> <span class="o">*</span><span class="nx">oracle</span><span class="p">)</span> <span class="nf">incrementNextTs</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
-	<span class="nx">o</span><span class="p">.</span><span class="nf">Lock</span><span class="p">(</span><span class="p">)</span>
-	<span class="k">defer</span> <span class="nx">o</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">(</span><span class="p">)</span>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">o</span> <span class="o">*</span><span class="nx">oracle</span><span class="p">)</span> <span class="nf">incrementNextTs</span><span class="p">()</span> <span class="p">{</span>
+	<span class="nx">o</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">o</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
 	<span class="nx">o</span><span class="p">.</span><span class="nx">nextTxnTs</span><span class="o">++</span>
 <span class="p">}</span>
 </code></pre></div><ol start="3">
@@ -350,12 +350,12 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 <li><code>Open</code> 関数。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/db.go#L373">db.go#L373</a></li>
 </ol>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go">	<span class="nx">db</span><span class="p">.</span><span class="nx">orc</span><span class="p">.</span><span class="nf">incrementNextTs</span><span class="p">(</span><span class="p">)</span>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go">	<span class="nx">db</span><span class="p">.</span><span class="nx">orc</span><span class="p">.</span><span class="nf">incrementNextTs</span><span class="p">()</span>
 </code></pre></div><ol start="2">
 <li><code>StreamWriter</code> の <code>Flush</code> メソッド内。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/stream_writer.go#L238">stream_writer.go#L238</a></li>
 </ol>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go">		<span class="nx">sw</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">orc</span><span class="p">.</span><span class="nf">incrementNextTs</span><span class="p">(</span><span class="p">)</span>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go">		<span class="nx">sw</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">orc</span><span class="p">.</span><span class="nf">incrementNextTs</span><span class="p">()</span>
 </code></pre></div><h2 id="oracle-の-newcommitts-の呼び出し元"><code>oracle</code> の <code>newCommitTs</code> の呼び出し元</h2>
 <p><code>oracle</code> の <code>newCommitTs</code> メソッドの呼び出し元は <code>commitAndSend</code> メソッド内の 1 箇所です（この記事の冒頭参照）。</p>
 <p><code>Txn</code> の <code>commitAndSend</code> メソッドの呼び出し元は以下の 2 箇所です。</p>
@@ -365,32 +365,32 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/txn.go#L520-L555">txn.go#L520-L555</a></li>
 </ol>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Commit commits the transaction, following these steps:
-</span><span class="c1"></span><span class="c1">//
-</span><span class="c1"></span><span class="c1">// 1. If there are no writes, return immediately.
-</span><span class="c1"></span><span class="c1">//
-</span><span class="c1"></span><span class="c1">// 2. Check if read rows were updated since txn started. If so, return ErrConflict.
-</span><span class="c1"></span><span class="c1">//
-</span><span class="c1"></span><span class="c1">// 3. If no conflict, generate a commit timestamp and update written rows&#39; commit ts.
-</span><span class="c1"></span><span class="c1">//
-</span><span class="c1"></span><span class="c1">// 4. Batch up all writes, write them to value log and LSM tree.
-</span><span class="c1"></span><span class="c1">//
-</span><span class="c1"></span><span class="c1">// 5. If callback is provided, Badger will return immediately after checking
-</span><span class="c1"></span><span class="c1">// for conflicts. Writes to the database will happen in the background.  If
-</span><span class="c1"></span><span class="c1">// there is a conflict, an error will be returned and the callback will not
-</span><span class="c1"></span><span class="c1">// run. If there are no conflicts, the callback will be called in the
-</span><span class="c1"></span><span class="c1">// background upon successful completion of writes or any error during write.
-</span><span class="c1"></span><span class="c1">//
-</span><span class="c1"></span><span class="c1">// If error is nil, the transaction is successfully committed. In case of a non-nil error, the LSM
-</span><span class="c1"></span><span class="c1">// tree won&#39;t be updated, so there&#39;s no need for any rollback.
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">txn</span> <span class="o">*</span><span class="nx">Txn</span><span class="p">)</span> <span class="nf">Commit</span><span class="p">(</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
-	<span class="nx">txn</span><span class="p">.</span><span class="nf">commitPrecheck</span><span class="p">(</span><span class="p">)</span> <span class="c1">// Precheck before discarding txn.
-</span><span class="c1"></span>	<span class="k">defer</span> <span class="nx">txn</span><span class="p">.</span><span class="nf">Discard</span><span class="p">(</span><span class="p">)</span>
+</span><span class="c1">//
+</span><span class="c1">// 1. If there are no writes, return immediately.
+</span><span class="c1">//
+</span><span class="c1">// 2. Check if read rows were updated since txn started. If so, return ErrConflict.
+</span><span class="c1">//
+</span><span class="c1">// 3. If no conflict, generate a commit timestamp and update written rows&#39; commit ts.
+</span><span class="c1">//
+</span><span class="c1">// 4. Batch up all writes, write them to value log and LSM tree.
+</span><span class="c1">//
+</span><span class="c1">// 5. If callback is provided, Badger will return immediately after checking
+</span><span class="c1">// for conflicts. Writes to the database will happen in the background.  If
+</span><span class="c1">// there is a conflict, an error will be returned and the callback will not
+</span><span class="c1">// run. If there are no conflicts, the callback will be called in the
+</span><span class="c1">// background upon successful completion of writes or any error during write.
+</span><span class="c1">//
+</span><span class="c1">// If error is nil, the transaction is successfully committed. In case of a non-nil error, the LSM
+</span><span class="c1">// tree won&#39;t be updated, so there&#39;s no need for any rollback.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">txn</span> <span class="o">*</span><span class="nx">Txn</span><span class="p">)</span> <span class="nf">Commit</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
+	<span class="nx">txn</span><span class="p">.</span><span class="nf">commitPrecheck</span><span class="p">()</span> <span class="c1">// Precheck before discarding txn.
+</span><span class="c1"></span>	<span class="k">defer</span> <span class="nx">txn</span><span class="p">.</span><span class="nf">Discard</span><span class="p">()</span>
 
 	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">txn</span><span class="p">.</span><span class="nx">writes</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
 		<span class="k">return</span> <span class="kc">nil</span> <span class="c1">// Nothing to do.
 </span><span class="c1"></span>	<span class="p">}</span>
 
-	<span class="nx">txnCb</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">txn</span><span class="p">.</span><span class="nf">commitAndSend</span><span class="p">(</span><span class="p">)</span>
+	<span class="nx">txnCb</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">txn</span><span class="p">.</span><span class="nf">commitAndSend</span><span class="p">()</span>
 	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
 		<span class="k">return</span> <span class="nx">err</span>
 	<span class="p">}</span>
@@ -398,7 +398,7 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 </span><span class="c1"></span>
 	<span class="c1">// TODO: What if some of the txns successfully make it to value log, but others fail.
 </span><span class="c1"></span>	<span class="c1">// Nothing gets updated to LSM, until a restart happens.
-</span><span class="c1"></span>	<span class="k">return</span> <span class="nf">txnCb</span><span class="p">(</span><span class="p">)</span>
+</span><span class="c1"></span>	<span class="k">return</span> <span class="nf">txnCb</span><span class="p">()</span>
 <span class="p">}</span>
 </code></pre></div><p>メソッドのコメントの 2. が <code>commitAndSend</code> メソッドの呼び出しに対応していてエラーが返ってきたらそれを返します。</p>
 <ol start="2">
@@ -406,12 +406,12 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/txn.go#L579-L606">txn.go#L579-L606</a></li>
 </ol>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// CommitWith acts like Commit, but takes a callback, which gets run via a
-</span><span class="c1"></span><span class="c1">// goroutine to avoid blocking this function. The callback is guaranteed to run,
-</span><span class="c1"></span><span class="c1">// so it is safe to increment sync.WaitGroup before calling CommitWith, and
-</span><span class="c1"></span><span class="c1">// decrementing it in the callback; to block until all callbacks are run.
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">txn</span> <span class="o">*</span><span class="nx">Txn</span><span class="p">)</span> <span class="nf">CommitWith</span><span class="p">(</span><span class="nx">cb</span> <span class="kd">func</span><span class="p">(</span><span class="kt">error</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span>
-	<span class="nx">txn</span><span class="p">.</span><span class="nf">commitPrecheck</span><span class="p">(</span><span class="p">)</span> <span class="c1">// Precheck before discarding txn.
-</span><span class="c1"></span>	<span class="k">defer</span> <span class="nx">txn</span><span class="p">.</span><span class="nf">Discard</span><span class="p">(</span><span class="p">)</span>
+</span><span class="c1">// goroutine to avoid blocking this function. The callback is guaranteed to run,
+</span><span class="c1">// so it is safe to increment sync.WaitGroup before calling CommitWith, and
+</span><span class="c1">// decrementing it in the callback; to block until all callbacks are run.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">txn</span> <span class="o">*</span><span class="nx">Txn</span><span class="p">)</span> <span class="nf">CommitWith</span><span class="p">(</span><span class="nx">cb</span> <span class="kd">func</span><span class="p">(</span><span class="kt">error</span><span class="p">))</span> <span class="p">{</span>
+	<span class="nx">txn</span><span class="p">.</span><span class="nf">commitPrecheck</span><span class="p">()</span> <span class="c1">// Precheck before discarding txn.
+</span><span class="c1"></span>	<span class="k">defer</span> <span class="nx">txn</span><span class="p">.</span><span class="nf">Discard</span><span class="p">()</span>
 
 	<span class="k">if</span> <span class="nx">cb</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
 		<span class="nb">panic</span><span class="p">(</span><span class="s">&#34;Nil callback provided to CommitWith&#34;</span><span class="p">)</span>
@@ -421,22 +421,22 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 		<span class="c1">// Do not run these callbacks from here, because the CommitWith and the
 </span><span class="c1"></span>		<span class="c1">// callback might be acquiring the same locks. Instead run the callback
 </span><span class="c1"></span>		<span class="c1">// from another goroutine.
-</span><span class="c1"></span>		<span class="k">go</span> <span class="nf">runTxnCallback</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">txnCb</span><span class="p">{</span><span class="nx">user</span><span class="p">:</span> <span class="nx">cb</span><span class="p">,</span> <span class="nx">err</span><span class="p">:</span> <span class="kc">nil</span><span class="p">}</span><span class="p">)</span>
+</span><span class="c1"></span>		<span class="k">go</span> <span class="nf">runTxnCallback</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">txnCb</span><span class="p">{</span><span class="nx">user</span><span class="p">:</span> <span class="nx">cb</span><span class="p">,</span> <span class="nx">err</span><span class="p">:</span> <span class="kc">nil</span><span class="p">})</span>
 		<span class="k">return</span>
 	<span class="p">}</span>
 
-	<span class="nx">commitCb</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">txn</span><span class="p">.</span><span class="nf">commitAndSend</span><span class="p">(</span><span class="p">)</span>
+	<span class="nx">commitCb</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">txn</span><span class="p">.</span><span class="nf">commitAndSend</span><span class="p">()</span>
 	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-		<span class="k">go</span> <span class="nf">runTxnCallback</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">txnCb</span><span class="p">{</span><span class="nx">user</span><span class="p">:</span> <span class="nx">cb</span><span class="p">,</span> <span class="nx">err</span><span class="p">:</span> <span class="nx">err</span><span class="p">}</span><span class="p">)</span>
+		<span class="k">go</span> <span class="nf">runTxnCallback</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">txnCb</span><span class="p">{</span><span class="nx">user</span><span class="p">:</span> <span class="nx">cb</span><span class="p">,</span> <span class="nx">err</span><span class="p">:</span> <span class="nx">err</span><span class="p">})</span>
 		<span class="k">return</span>
 	<span class="p">}</span>
 
-	<span class="k">go</span> <span class="nf">runTxnCallback</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">txnCb</span><span class="p">{</span><span class="nx">user</span><span class="p">:</span> <span class="nx">cb</span><span class="p">,</span> <span class="nx">commit</span><span class="p">:</span> <span class="nx">commitCb</span><span class="p">}</span><span class="p">)</span>
+	<span class="k">go</span> <span class="nf">runTxnCallback</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">txnCb</span><span class="p">{</span><span class="nx">user</span><span class="p">:</span> <span class="nx">cb</span><span class="p">,</span> <span class="nx">commit</span><span class="p">:</span> <span class="nx">commitCb</span><span class="p">})</span>
 <span class="p">}</span>
 </code></pre></div><p>ここで使用している <code>txnCb</code> 構造体と <code>runTxnCallback</code> 関数の定義は以下の通りです。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/txn.go#L557-L577">txn.go#L557-L577</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">txnCb</span> <span class="kd">struct</span> <span class="p">{</span>
-	<span class="nx">commit</span> <span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="kt">error</span>
+	<span class="nx">commit</span> <span class="kd">func</span><span class="p">()</span> <span class="kt">error</span>
 	<span class="nx">user</span>   <span class="kd">func</span><span class="p">(</span><span class="kt">error</span><span class="p">)</span>
 	<span class="nx">err</span>    <span class="kt">error</span>
 <span class="p">}</span>
@@ -450,7 +450,7 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 	<span class="k">case</span> <span class="nx">cb</span><span class="p">.</span><span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span><span class="p">:</span>
 		<span class="nx">cb</span><span class="p">.</span><span class="nf">user</span><span class="p">(</span><span class="nx">cb</span><span class="p">.</span><span class="nx">err</span><span class="p">)</span>
 	<span class="k">case</span> <span class="nx">cb</span><span class="p">.</span><span class="nx">commit</span> <span class="o">!=</span> <span class="kc">nil</span><span class="p">:</span>
-		<span class="nx">err</span> <span class="o">:=</span> <span class="nx">cb</span><span class="p">.</span><span class="nf">commit</span><span class="p">(</span><span class="p">)</span>
+		<span class="nx">err</span> <span class="o">:=</span> <span class="nx">cb</span><span class="p">.</span><span class="nf">commit</span><span class="p">()</span>
 		<span class="nx">cb</span><span class="p">.</span><span class="nf">user</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
 	<span class="k">default</span><span class="p">:</span>
 		<span class="nx">cb</span><span class="p">.</span><span class="nf">user</span><span class="p">(</span><span class="kc">nil</span><span class="p">)</span>
@@ -461,14 +461,14 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">newOracle</span><span class="p">(</span><span class="nx">opt</span> <span class="nx">Options</span><span class="p">)</span> <span class="o">*</span><span class="nx">oracle</span> <span class="p">{</span>
 	<span class="nx">orc</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">oracle</span><span class="p">{</span>
 		<span class="nx">isManaged</span><span class="p">:</span> <span class="nx">opt</span><span class="p">.</span><span class="nx">managedTxns</span><span class="p">,</span>
-		<span class="nx">commits</span><span class="p">:</span>   <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">uint64</span><span class="p">]</span><span class="kt">uint64</span><span class="p">)</span><span class="p">,</span>
+		<span class="nx">commits</span><span class="p">:</span>   <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">uint64</span><span class="p">]</span><span class="kt">uint64</span><span class="p">),</span>
 		<span class="c1">// We&#39;re not initializing nextTxnTs and readOnlyTs. It would be done after replay in Open.
 </span><span class="c1"></span>		<span class="c1">//
 </span><span class="c1"></span>		<span class="c1">// WaterMarks must be 64-bit aligned for atomic package, hence we must use pointers here.
 </span><span class="c1"></span>		<span class="c1">// See https://golang.org/pkg/sync/atomic/#pkg-note-BUG.
-</span><span class="c1"></span>		<span class="nx">readMark</span><span class="p">:</span> <span class="o">&amp;</span><span class="nx">y</span><span class="p">.</span><span class="nx">WaterMark</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span> <span class="s">&#34;badger.PendingReads&#34;</span><span class="p">}</span><span class="p">,</span>
-		<span class="nx">txnMark</span><span class="p">:</span>  <span class="o">&amp;</span><span class="nx">y</span><span class="p">.</span><span class="nx">WaterMark</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span> <span class="s">&#34;badger.TxnTimestamp&#34;</span><span class="p">}</span><span class="p">,</span>
-		<span class="nx">closer</span><span class="p">:</span>   <span class="nx">y</span><span class="p">.</span><span class="nf">NewCloser</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="p">,</span>
+</span><span class="c1"></span>		<span class="nx">readMark</span><span class="p">:</span> <span class="o">&amp;</span><span class="nx">y</span><span class="p">.</span><span class="nx">WaterMark</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span> <span class="s">&#34;badger.PendingReads&#34;</span><span class="p">},</span>
+		<span class="nx">txnMark</span><span class="p">:</span>  <span class="o">&amp;</span><span class="nx">y</span><span class="p">.</span><span class="nx">WaterMark</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span> <span class="s">&#34;badger.TxnTimestamp&#34;</span><span class="p">},</span>
+		<span class="nx">closer</span><span class="p">:</span>   <span class="nx">y</span><span class="p">.</span><span class="nf">NewCloser</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span>
 	<span class="p">}</span>
 	<span class="nx">orc</span><span class="p">.</span><span class="nx">readMark</span><span class="p">.</span><span class="nf">Init</span><span class="p">(</span><span class="nx">orc</span><span class="p">.</span><span class="nx">closer</span><span class="p">,</span> <span class="nx">opt</span><span class="p">.</span><span class="nx">EventLogging</span><span class="p">)</span>
 	<span class="nx">orc</span><span class="p">.</span><span class="nx">txnMark</span><span class="p">.</span><span class="nf">Init</span><span class="p">(</span><span class="nx">orc</span><span class="p">.</span><span class="nx">closer</span><span class="p">,</span> <span class="nx">opt</span><span class="p">.</span><span class="nx">EventLogging</span><span class="p">)</span>
@@ -481,29 +481,29 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 </ol>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go">
 	<span class="nx">db</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">DB</span><span class="p">{</span>
-		<span class="nx">imm</span><span class="p">:</span>           <span class="nb">make</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="o">*</span><span class="nx">skl</span><span class="p">.</span><span class="nx">Skiplist</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">opt</span><span class="p">.</span><span class="nx">NumMemtables</span><span class="p">)</span><span class="p">,</span>
-		<span class="nx">flushChan</span><span class="p">:</span>     <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="nx">flushTask</span><span class="p">,</span> <span class="nx">opt</span><span class="p">.</span><span class="nx">NumMemtables</span><span class="p">)</span><span class="p">,</span>
-		<span class="nx">writeCh</span><span class="p">:</span>       <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="o">*</span><span class="nx">request</span><span class="p">,</span> <span class="nx">kvWriteChCapacity</span><span class="p">)</span><span class="p">,</span>
+		<span class="nx">imm</span><span class="p">:</span>           <span class="nb">make</span><span class="p">([]</span><span class="o">*</span><span class="nx">skl</span><span class="p">.</span><span class="nx">Skiplist</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">opt</span><span class="p">.</span><span class="nx">NumMemtables</span><span class="p">),</span>
+		<span class="nx">flushChan</span><span class="p">:</span>     <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="nx">flushTask</span><span class="p">,</span> <span class="nx">opt</span><span class="p">.</span><span class="nx">NumMemtables</span><span class="p">),</span>
+		<span class="nx">writeCh</span><span class="p">:</span>       <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="o">*</span><span class="nx">request</span><span class="p">,</span> <span class="nx">kvWriteChCapacity</span><span class="p">),</span>
 		<span class="nx">opt</span><span class="p">:</span>           <span class="nx">opt</span><span class="p">,</span>
 		<span class="nx">manifest</span><span class="p">:</span>      <span class="nx">manifestFile</span><span class="p">,</span>
 		<span class="nx">elog</span><span class="p">:</span>          <span class="nx">elog</span><span class="p">,</span>
 		<span class="nx">dirLockGuard</span><span class="p">:</span>  <span class="nx">dirLockGuard</span><span class="p">,</span>
 		<span class="nx">valueDirGuard</span><span class="p">:</span> <span class="nx">valueDirLockGuard</span><span class="p">,</span>
-		<span class="nx">orc</span><span class="p">:</span>           <span class="nf">newOracle</span><span class="p">(</span><span class="nx">opt</span><span class="p">)</span><span class="p">,</span>
-		<span class="nx">pub</span><span class="p">:</span>           <span class="nf">newPublisher</span><span class="p">(</span><span class="p">)</span><span class="p">,</span>
+		<span class="nx">orc</span><span class="p">:</span>           <span class="nf">newOracle</span><span class="p">(</span><span class="nx">opt</span><span class="p">),</span>
+		<span class="nx">pub</span><span class="p">:</span>           <span class="nf">newPublisher</span><span class="p">(),</span>
 	<span class="p">}</span>
 </code></pre></div><ol start="2">
 <li><code>StreamWriter</code> の <code>Flush</code> メソッド内。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/stream_writer.go#L231-L238">stream_writer.go#L231-L238</a></li>
 </ol>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go">		<span class="k">if</span> <span class="nx">sw</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">orc</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-			<span class="nx">sw</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">orc</span><span class="p">.</span><span class="nf">Stop</span><span class="p">(</span><span class="p">)</span>
+			<span class="nx">sw</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">orc</span><span class="p">.</span><span class="nf">Stop</span><span class="p">()</span>
 		<span class="p">}</span>
 		<span class="nx">sw</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">orc</span> <span class="p">=</span> <span class="nf">newOracle</span><span class="p">(</span><span class="nx">sw</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">opt</span><span class="p">)</span>
 		<span class="nx">sw</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">orc</span><span class="p">.</span><span class="nx">nextTxnTs</span> <span class="p">=</span> <span class="nx">sw</span><span class="p">.</span><span class="nx">maxVersion</span>
 		<span class="nx">sw</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">orc</span><span class="p">.</span><span class="nx">txnMark</span><span class="p">.</span><span class="nf">Done</span><span class="p">(</span><span class="nx">sw</span><span class="p">.</span><span class="nx">maxVersion</span><span class="p">)</span>
 		<span class="nx">sw</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">orc</span><span class="p">.</span><span class="nx">readMark</span><span class="p">.</span><span class="nf">Done</span><span class="p">(</span><span class="nx">sw</span><span class="p">.</span><span class="nx">maxVersion</span><span class="p">)</span>
-		<span class="nx">sw</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">orc</span><span class="p">.</span><span class="nf">incrementNextTs</span><span class="p">(</span><span class="p">)</span>
+		<span class="nx">sw</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">orc</span><span class="p">.</span><span class="nf">incrementNextTs</span><span class="p">()</span>
 </code></pre></div><h2 id="通常の-read-write-トランザクションでの-errconflict">通常の read write トランザクションでの <code>ErrConflict</code></h2>
 <p>まとめると通常の read write トランザクションについては以下のようになります。</p>
 <ul>
@@ -537,33 +537,33 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 <p><a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/README.md">badger/README.md</a> の FAQ の <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/README.md#my-writes-are-really-slow-why">My writes are really slow. Why?</a> に <code>WriteBatch</code> の使い方の説明があります。</p>
 <p>説明の最後に <code>WriteBatch</code> API では DB の値を読み取ることは出来ないと書いてあります。読み取りと書き込みが必要な場合は <code>Transaction</code> API を使う必要があります。</p>
 <p><code>WriteBatch</code> の使用例も書かれています。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">wb</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">NewWriteBatch</span><span class="p">(</span><span class="p">)</span>
-<span class="k">defer</span> <span class="nx">wb</span><span class="p">.</span><span class="nf">Cancel</span><span class="p">(</span><span class="p">)</span>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">wb</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">NewWriteBatch</span><span class="p">()</span>
+<span class="k">defer</span> <span class="nx">wb</span><span class="p">.</span><span class="nf">Cancel</span><span class="p">()</span>
 
 <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nx">N</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
-  <span class="nx">err</span> <span class="o">:=</span> <span class="nx">wb</span><span class="p">.</span><span class="nf">Set</span><span class="p">(</span><span class="nf">key</span><span class="p">(</span><span class="nx">i</span><span class="p">)</span><span class="p">,</span> <span class="nf">value</span><span class="p">(</span><span class="nx">i</span><span class="p">)</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="c1">// Will create txns as needed.
+  <span class="nx">err</span> <span class="o">:=</span> <span class="nx">wb</span><span class="p">.</span><span class="nf">Set</span><span class="p">(</span><span class="nf">key</span><span class="p">(</span><span class="nx">i</span><span class="p">),</span> <span class="nf">value</span><span class="p">(</span><span class="nx">i</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span> <span class="c1">// Will create txns as needed.
 </span><span class="c1"></span>  <span class="nf">handle</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
 <span class="p">}</span>
-<span class="nf">handle</span><span class="p">(</span><span class="nx">wb</span><span class="p">.</span><span class="nf">Flush</span><span class="p">(</span><span class="p">)</span><span class="p">)</span> <span class="c1">// Wait for all txns to finish.
+<span class="nf">handle</span><span class="p">(</span><span class="nx">wb</span><span class="p">.</span><span class="nf">Flush</span><span class="p">())</span> <span class="c1">// Wait for all txns to finish.
 </span></code></pre></div><h3 id="db-の-newwritebatch-メソッド"><code>DB</code> の <code>NewWriteBatch</code> メソッド</h3>
 <p><a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/batch.go#L35-L53">batch.go#L35-L53</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// NewWriteBatch creates a new WriteBatch. This provides a way to conveniently do a lot of writes,
-</span><span class="c1"></span><span class="c1">// batching them up as tightly as possible in a single transaction and using callbacks to avoid
-</span><span class="c1"></span><span class="c1">// waiting for them to commit, thus achieving good performance. This API hides away the logic of
-</span><span class="c1"></span><span class="c1">// creating and committing transactions. Due to the nature of SSI guaratees provided by Badger,
-</span><span class="c1"></span><span class="c1">// blind writes can never encounter transaction conflicts (ErrConflict).
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">db</span> <span class="o">*</span><span class="nx">DB</span><span class="p">)</span> <span class="nf">NewWriteBatch</span><span class="p">(</span><span class="p">)</span> <span class="o">*</span><span class="nx">WriteBatch</span> <span class="p">{</span>
+</span><span class="c1">// batching them up as tightly as possible in a single transaction and using callbacks to avoid
+</span><span class="c1">// waiting for them to commit, thus achieving good performance. This API hides away the logic of
+</span><span class="c1">// creating and committing transactions. Due to the nature of SSI guaratees provided by Badger,
+</span><span class="c1">// blind writes can never encounter transaction conflicts (ErrConflict).
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">db</span> <span class="o">*</span><span class="nx">DB</span><span class="p">)</span> <span class="nf">NewWriteBatch</span><span class="p">()</span> <span class="o">*</span><span class="nx">WriteBatch</span> <span class="p">{</span>
 	<span class="k">if</span> <span class="nx">db</span><span class="p">.</span><span class="nx">opt</span><span class="p">.</span><span class="nx">managedTxns</span> <span class="p">{</span>
 		<span class="nb">panic</span><span class="p">(</span><span class="s">&#34;cannot use NewWriteBatch in managed mode. Use NewWriteBatchAt instead&#34;</span><span class="p">)</span>
 	<span class="p">}</span>
-	<span class="k">return</span> <span class="nx">db</span><span class="p">.</span><span class="nf">newWriteBatch</span><span class="p">(</span><span class="p">)</span>
+	<span class="k">return</span> <span class="nx">db</span><span class="p">.</span><span class="nf">newWriteBatch</span><span class="p">()</span>
 <span class="p">}</span>
 
-<span class="kd">func</span> <span class="p">(</span><span class="nx">db</span> <span class="o">*</span><span class="nx">DB</span><span class="p">)</span> <span class="nf">newWriteBatch</span><span class="p">(</span><span class="p">)</span> <span class="o">*</span><span class="nx">WriteBatch</span> <span class="p">{</span>
+<span class="kd">func</span> <span class="p">(</span><span class="nx">db</span> <span class="o">*</span><span class="nx">DB</span><span class="p">)</span> <span class="nf">newWriteBatch</span><span class="p">()</span> <span class="o">*</span><span class="nx">WriteBatch</span> <span class="p">{</span>
 	<span class="k">return</span> <span class="o">&amp;</span><span class="nx">WriteBatch</span><span class="p">{</span>
 		<span class="nx">db</span><span class="p">:</span>       <span class="nx">db</span><span class="p">,</span>
-		<span class="nx">txn</span><span class="p">:</span>      <span class="nx">db</span><span class="p">.</span><span class="nf">newTransaction</span><span class="p">(</span><span class="kc">true</span><span class="p">,</span> <span class="kc">true</span><span class="p">)</span><span class="p">,</span>
-		<span class="nx">throttle</span><span class="p">:</span> <span class="nx">y</span><span class="p">.</span><span class="nf">NewThrottle</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span><span class="p">,</span>
+		<span class="nx">txn</span><span class="p">:</span>      <span class="nx">db</span><span class="p">.</span><span class="nf">newTransaction</span><span class="p">(</span><span class="kc">true</span><span class="p">,</span> <span class="kc">true</span><span class="p">),</span>
+		<span class="nx">throttle</span><span class="p">:</span> <span class="nx">y</span><span class="p">.</span><span class="nf">NewThrottle</span><span class="p">(</span><span class="mi">16</span><span class="p">),</span>
 	<span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div><p>コメントにある <code>SSI</code> は <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/README.md">badger/README.md</a> の Design の <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/README.md#comparisons">Comparisons</a> に説明がありました。</p>
@@ -577,19 +577,19 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 <p><a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/batch.go#L91-L110">batch.go#L91-L110</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// SetEntry is the equivalent of Txn.SetEntry.
 </span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">wb</span> <span class="o">*</span><span class="nx">WriteBatch</span><span class="p">)</span> <span class="nf">SetEntry</span><span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">Entry</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
-	<span class="nx">wb</span><span class="p">.</span><span class="nf">Lock</span><span class="p">(</span><span class="p">)</span>
-	<span class="k">defer</span> <span class="nx">wb</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">(</span><span class="p">)</span>
+	<span class="nx">wb</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">wb</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
 
-	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">wb</span><span class="p">.</span><span class="nx">txn</span><span class="p">.</span><span class="nf">SetEntry</span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="p">;</span> <span class="nx">err</span> <span class="o">!=</span> <span class="nx">ErrTxnTooBig</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">wb</span><span class="p">.</span><span class="nx">txn</span><span class="p">.</span><span class="nf">SetEntry</span><span class="p">(</span><span class="nx">e</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="nx">ErrTxnTooBig</span> <span class="p">{</span>
 		<span class="k">return</span> <span class="nx">err</span>
 	<span class="p">}</span>
 	<span class="c1">// Txn has reached it&#39;s zenith. Commit now.
-</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">cerr</span> <span class="o">:=</span> <span class="nx">wb</span><span class="p">.</span><span class="nf">commit</span><span class="p">(</span><span class="p">)</span><span class="p">;</span> <span class="nx">cerr</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">cerr</span> <span class="o">:=</span> <span class="nx">wb</span><span class="p">.</span><span class="nf">commit</span><span class="p">();</span> <span class="nx">cerr</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
 		<span class="k">return</span> <span class="nx">cerr</span>
 	<span class="p">}</span>
 	<span class="c1">// This time the error must not be ErrTxnTooBig, otherwise, we make the
 </span><span class="c1"></span>	<span class="c1">// error permanent.
-</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">wb</span><span class="p">.</span><span class="nx">txn</span><span class="p">.</span><span class="nf">SetEntry</span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="p">;</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">wb</span><span class="p">.</span><span class="nx">txn</span><span class="p">.</span><span class="nf">SetEntry</span><span class="p">(</span><span class="nx">e</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
 		<span class="nx">wb</span><span class="p">.</span><span class="nx">err</span> <span class="p">=</span> <span class="nx">err</span>
 		<span class="k">return</span> <span class="nx">err</span>
 	<span class="p">}</span>
@@ -604,7 +604,7 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 <p><code>Entry</code> のインスタンスを作って <code>SetEntry</code> メソッドを呼んでいるだけです。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/batch.go#L112-L116">batch.go#L112-L116</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Set is equivalent of Txn.Set().
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">wb</span> <span class="o">*</span><span class="nx">WriteBatch</span><span class="p">)</span> <span class="nf">Set</span><span class="p">(</span><span class="nx">k</span><span class="p">,</span> <span class="nx">v</span> <span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">wb</span> <span class="o">*</span><span class="nx">WriteBatch</span><span class="p">)</span> <span class="nf">Set</span><span class="p">(</span><span class="nx">k</span><span class="p">,</span> <span class="nx">v</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
 	<span class="nx">e</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">Entry</span><span class="p">{</span><span class="nx">Key</span><span class="p">:</span> <span class="nx">k</span><span class="p">,</span> <span class="nx">Value</span><span class="p">:</span> <span class="nx">v</span><span class="p">}</span>
 	<span class="k">return</span> <span class="nx">wb</span><span class="p">.</span><span class="nf">SetEntry</span><span class="p">(</span><span class="nx">e</span><span class="p">)</span>
 <span class="p">}</span>
@@ -612,17 +612,17 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 <p><code>wb.txn</code> の <code>SetEntry</code> ではなく <code>Delete</code> を呼ぶ点を除いて <code>WriteBatch</code> の <code>SetEntry</code> と全く同じ構造です。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/batch.go#L118-L134">batch.go#L118-L134</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Delete is equivalent of Txn.Delete.
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">wb</span> <span class="o">*</span><span class="nx">WriteBatch</span><span class="p">)</span> <span class="nf">Delete</span><span class="p">(</span><span class="nx">k</span> <span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
-	<span class="nx">wb</span><span class="p">.</span><span class="nf">Lock</span><span class="p">(</span><span class="p">)</span>
-	<span class="k">defer</span> <span class="nx">wb</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">(</span><span class="p">)</span>
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">wb</span> <span class="o">*</span><span class="nx">WriteBatch</span><span class="p">)</span> <span class="nf">Delete</span><span class="p">(</span><span class="nx">k</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+	<span class="nx">wb</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">wb</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
 
-	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">wb</span><span class="p">.</span><span class="nx">txn</span><span class="p">.</span><span class="nf">Delete</span><span class="p">(</span><span class="nx">k</span><span class="p">)</span><span class="p">;</span> <span class="nx">err</span> <span class="o">!=</span> <span class="nx">ErrTxnTooBig</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">wb</span><span class="p">.</span><span class="nx">txn</span><span class="p">.</span><span class="nf">Delete</span><span class="p">(</span><span class="nx">k</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="nx">ErrTxnTooBig</span> <span class="p">{</span>
 		<span class="k">return</span> <span class="nx">err</span>
 	<span class="p">}</span>
-	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">wb</span><span class="p">.</span><span class="nf">commit</span><span class="p">(</span><span class="p">)</span><span class="p">;</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">wb</span><span class="p">.</span><span class="nf">commit</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
 		<span class="k">return</span> <span class="nx">err</span>
 	<span class="p">}</span>
-	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">wb</span><span class="p">.</span><span class="nx">txn</span><span class="p">.</span><span class="nf">Delete</span><span class="p">(</span><span class="nx">k</span><span class="p">)</span><span class="p">;</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">wb</span><span class="p">.</span><span class="nx">txn</span><span class="p">.</span><span class="nf">Delete</span><span class="p">(</span><span class="nx">k</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
 		<span class="nx">wb</span><span class="p">.</span><span class="nx">err</span> <span class="p">=</span> <span class="nx">err</span>
 		<span class="k">return</span> <span class="nx">err</span>
 	<span class="p">}</span>
@@ -631,11 +631,11 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 </code></pre></div><h3 id="writebatch-の-commit-メソッド"><code>WriteBatch</code> の <code>commit</code> メソッド</h3>
 <p><a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/batch.go#L136-L149">batch.go#L136-L149</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Caller to commit must hold a write lock.
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">wb</span> <span class="o">*</span><span class="nx">WriteBatch</span><span class="p">)</span> <span class="nf">commit</span><span class="p">(</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">wb</span> <span class="o">*</span><span class="nx">WriteBatch</span><span class="p">)</span> <span class="nf">commit</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
 	<span class="k">if</span> <span class="nx">wb</span><span class="p">.</span><span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
 		<span class="k">return</span> <span class="nx">wb</span><span class="p">.</span><span class="nx">err</span>
 	<span class="p">}</span>
-	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">wb</span><span class="p">.</span><span class="nx">throttle</span><span class="p">.</span><span class="nf">Do</span><span class="p">(</span><span class="p">)</span><span class="p">;</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">wb</span><span class="p">.</span><span class="nx">throttle</span><span class="p">.</span><span class="nf">Do</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
 		<span class="k">return</span> <span class="nx">err</span>
 	<span class="p">}</span>
 	<span class="nx">wb</span><span class="p">.</span><span class="nx">txn</span><span class="p">.</span><span class="nf">CommitWith</span><span class="p">(</span><span class="nx">wb</span><span class="p">.</span><span class="nx">callback</span><span class="p">)</span>
@@ -654,8 +654,8 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 		<span class="k">return</span>
 	<span class="p">}</span>
 
-	<span class="nx">wb</span><span class="p">.</span><span class="nf">Lock</span><span class="p">(</span><span class="p">)</span>
-	<span class="k">defer</span> <span class="nx">wb</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">(</span><span class="p">)</span>
+	<span class="nx">wb</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">wb</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
 	<span class="k">if</span> <span class="nx">wb</span><span class="p">.</span><span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
 		<span class="k">return</span>
 	<span class="p">}</span>
@@ -666,12 +666,12 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 <p><code>y.Throttle</code> 構造体。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/y/y.go#L236-L245">y/y.go#L236-L245</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Throttle allows a limited number of workers to run at a time. It also
-</span><span class="c1"></span><span class="c1">// provides a mechanism to check for errors encountered by workers and wait for
-</span><span class="c1"></span><span class="c1">// them to finish.
+</span><span class="c1">// provides a mechanism to check for errors encountered by workers and wait for
+</span><span class="c1">// them to finish.
 </span><span class="c1"></span><span class="kd">type</span> <span class="nx">Throttle</span> <span class="kd">struct</span> <span class="p">{</span>
 	<span class="nx">once</span>      <span class="nx">sync</span><span class="p">.</span><span class="nx">Once</span>
 	<span class="nx">wg</span>        <span class="nx">sync</span><span class="p">.</span><span class="nx">WaitGroup</span>
-	<span class="nx">ch</span>        <span class="kd">chan</span> <span class="kd">struct</span><span class="p">{</span><span class="p">}</span>
+	<span class="nx">ch</span>        <span class="kd">chan</span> <span class="kd">struct</span><span class="p">{}</span>
 	<span class="nx">errCh</span>     <span class="kd">chan</span> <span class="kt">error</span>
 	<span class="nx">finishErr</span> <span class="kt">error</span>
 <span class="p">}</span>
@@ -680,19 +680,19 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// NewThrottle creates a new throttle with a max number of workers.
 </span><span class="c1"></span><span class="kd">func</span> <span class="nf">NewThrottle</span><span class="p">(</span><span class="nx">max</span> <span class="kt">int</span><span class="p">)</span> <span class="o">*</span><span class="nx">Throttle</span> <span class="p">{</span>
 	<span class="k">return</span> <span class="o">&amp;</span><span class="nx">Throttle</span><span class="p">{</span>
-		<span class="nx">ch</span><span class="p">:</span>    <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kd">struct</span><span class="p">{</span><span class="p">}</span><span class="p">,</span> <span class="nx">max</span><span class="p">)</span><span class="p">,</span>
-		<span class="nx">errCh</span><span class="p">:</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kt">error</span><span class="p">,</span> <span class="nx">max</span><span class="p">)</span><span class="p">,</span>
+		<span class="nx">ch</span><span class="p">:</span>    <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kd">struct</span><span class="p">{},</span> <span class="nx">max</span><span class="p">),</span>
+		<span class="nx">errCh</span><span class="p">:</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kt">error</span><span class="p">,</span> <span class="nx">max</span><span class="p">),</span>
 	<span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div><p><code>Do</code> メソッド。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/y/y.go#L255-L270">y/y.go#L255-L270</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Do should be called by workers before they start working. It blocks if there
-</span><span class="c1"></span><span class="c1">// are already maximum number of workers working. If it detects an error from
-</span><span class="c1"></span><span class="c1">// previously Done workers, it would return it.
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">Throttle</span><span class="p">)</span> <span class="nf">Do</span><span class="p">(</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span><span class="c1">// are already maximum number of workers working. If it detects an error from
+</span><span class="c1">// previously Done workers, it would return it.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">Throttle</span><span class="p">)</span> <span class="nf">Do</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
 	<span class="k">for</span> <span class="p">{</span>
 		<span class="k">select</span> <span class="p">{</span>
-		<span class="k">case</span> <span class="nx">t</span><span class="p">.</span><span class="nx">ch</span> <span class="o">&lt;-</span> <span class="kd">struct</span><span class="p">{</span><span class="p">}</span><span class="p">{</span><span class="p">}</span><span class="p">:</span>
+		<span class="k">case</span> <span class="nx">t</span><span class="p">.</span><span class="nx">ch</span> <span class="o">&lt;-</span> <span class="kd">struct</span><span class="p">{}{}:</span>
 			<span class="nx">t</span><span class="p">.</span><span class="nx">wg</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 			<span class="k">return</span> <span class="kc">nil</span>
 		<span class="k">case</span> <span class="nx">err</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">t</span><span class="p">.</span><span class="nx">errCh</span><span class="p">:</span>
@@ -706,7 +706,7 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 <p><code>Done</code> メソッド。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/y/y.go#L272-L284">y/y.go#L272-L284</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Done should be called by workers when they finish working. They can also
-</span><span class="c1"></span><span class="c1">// pass the error status of work done.
+</span><span class="c1">// pass the error status of work done.
 </span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">Throttle</span><span class="p">)</span> <span class="nf">Done</span><span class="p">(</span><span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
 	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
 		<span class="nx">t</span><span class="p">.</span><span class="nx">errCh</span> <span class="o">&lt;-</span> <span class="nx">err</span>
@@ -716,16 +716,16 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 	<span class="k">default</span><span class="p">:</span>
 		<span class="nb">panic</span><span class="p">(</span><span class="s">&#34;Throttle Do Done mismatch&#34;</span><span class="p">)</span>
 	<span class="p">}</span>
-	<span class="nx">t</span><span class="p">.</span><span class="nx">wg</span><span class="p">.</span><span class="nf">Done</span><span class="p">(</span><span class="p">)</span>
+	<span class="nx">t</span><span class="p">.</span><span class="nx">wg</span><span class="p">.</span><span class="nf">Done</span><span class="p">()</span>
 <span class="p">}</span>
 </code></pre></div><p><code>Finish</code> メソッド。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/y/y.go#L286-L303">y/y.go#L286-L303</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Finish waits until all workers have finished working. It would return any error passed by Done.
-</span><span class="c1"></span><span class="c1">// If Finish is called multiple time, it will wait for workers to finish only once(first time).
-</span><span class="c1"></span><span class="c1">// From next calls, it will return same error as found on first call.
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">Throttle</span><span class="p">)</span> <span class="nf">Finish</span><span class="p">(</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
-	<span class="nx">t</span><span class="p">.</span><span class="nx">once</span><span class="p">.</span><span class="nf">Do</span><span class="p">(</span><span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
-		<span class="nx">t</span><span class="p">.</span><span class="nx">wg</span><span class="p">.</span><span class="nf">Wait</span><span class="p">(</span><span class="p">)</span>
+</span><span class="c1">// If Finish is called multiple time, it will wait for workers to finish only once(first time).
+</span><span class="c1">// From next calls, it will return same error as found on first call.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">Throttle</span><span class="p">)</span> <span class="nf">Finish</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
+	<span class="nx">t</span><span class="p">.</span><span class="nx">once</span><span class="p">.</span><span class="nf">Do</span><span class="p">(</span><span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+		<span class="nx">t</span><span class="p">.</span><span class="nx">wg</span><span class="p">.</span><span class="nf">Wait</span><span class="p">()</span>
 		<span class="nb">close</span><span class="p">(</span><span class="nx">t</span><span class="p">.</span><span class="nx">ch</span><span class="p">)</span>
 		<span class="nb">close</span><span class="p">(</span><span class="nx">t</span><span class="p">.</span><span class="nx">errCh</span><span class="p">)</span>
 		<span class="k">for</span> <span class="nx">err</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">t</span><span class="p">.</span><span class="nx">errCh</span> <span class="p">{</span>
@@ -734,21 +734,21 @@ Go 1.14 以降であれば <a href="https://golang.org/pkg/hash/maphash/">hash/m
 				<span class="k">return</span>
 			<span class="p">}</span>
 		<span class="p">}</span>
-	<span class="p">}</span><span class="p">)</span>
+	<span class="p">})</span>
 
 	<span class="k">return</span> <span class="nx">t</span><span class="p">.</span><span class="nx">finishErr</span>
 <span class="p">}</span>
 </code></pre></div><h3 id="writebatch-の-flush-メソッド"><code>WriteBatch</code> の <code>Flush</code> メソッド</h3>
 <p><a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/batch.go#L151-L164">batch.go#L151-L164</a></p>
 <div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Flush must be called at the end to ensure that any pending writes get committed to Badger. Flush
-</span><span class="c1"></span><span class="c1">// returns any error stored by WriteBatch.
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">wb</span> <span class="o">*</span><span class="nx">WriteBatch</span><span class="p">)</span> <span class="nf">Flush</span><span class="p">(</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
-	<span class="nx">wb</span><span class="p">.</span><span class="nf">Lock</span><span class="p">(</span><span class="p">)</span>
-	<span class="nx">_</span> <span class="p">=</span> <span class="nx">wb</span><span class="p">.</span><span class="nf">commit</span><span class="p">(</span><span class="p">)</span>
-	<span class="nx">wb</span><span class="p">.</span><span class="nx">txn</span><span class="p">.</span><span class="nf">Discard</span><span class="p">(</span><span class="p">)</span>
-	<span class="nx">wb</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">(</span><span class="p">)</span>
+</span><span class="c1">// returns any error stored by WriteBatch.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">wb</span> <span class="o">*</span><span class="nx">WriteBatch</span><span class="p">)</span> <span class="nf">Flush</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
+	<span class="nx">wb</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="nx">_</span> <span class="p">=</span> <span class="nx">wb</span><span class="p">.</span><span class="nf">commit</span><span class="p">()</span>
+	<span class="nx">wb</span><span class="p">.</span><span class="nx">txn</span><span class="p">.</span><span class="nf">Discard</span><span class="p">()</span>
+	<span class="nx">wb</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
 
-	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">wb</span><span class="p">.</span><span class="nx">throttle</span><span class="p">.</span><span class="nf">Finish</span><span class="p">(</span><span class="p">)</span><span class="p">;</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">wb</span><span class="p">.</span><span class="nx">throttle</span><span class="p">.</span><span class="nf">Finish</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
 		<span class="k">return</span> <span class="nx">err</span>
 	<span class="p">}</span>
 

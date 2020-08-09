@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.64.1" />
+  <meta name="generator" content="Hugo 0.74.3" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -90,23 +90,23 @@
 	<span class="nx">t</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">Ticker</span><span class="p">{</span>
 		<span class="nx">C</span><span class="p">:</span> <span class="nx">c</span><span class="p">,</span>
 		<span class="nx">r</span><span class="p">:</span> <span class="nx">runtimeTimer</span><span class="p">{</span>
-			<span class="nx">when</span><span class="p">:</span>   <span class="nf">when</span><span class="p">(</span><span class="nx">d</span><span class="p">)</span><span class="p">,</span>
-			<span class="nx">period</span><span class="p">:</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">d</span><span class="p">)</span><span class="p">,</span>
+			<span class="nx">when</span><span class="p">:</span>   <span class="nf">when</span><span class="p">(</span><span class="nx">d</span><span class="p">),</span>
+			<span class="nx">period</span><span class="p">:</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">d</span><span class="p">),</span>
 			<span class="nx">f</span><span class="p">:</span>      <span class="nx">sendTime</span><span class="p">,</span>
 			<span class="nx">arg</span><span class="p">:</span>    <span class="nx">c</span><span class="p">,</span>
-		<span class="p">}</span><span class="p">,</span>
+		<span class="p">},</span>
 	<span class="p">}</span>
 </code></pre></div><p>バッファーサイズ 1 でチャンネルを作っていて、受け取り側が追い付かない場合は残りの tick は捨てられるとのことです。</p>
 <p><a href="https://github.com/golang/go/blob/go1.14.5/src/time/sleep.go#L130-L140">src/time/sleep.go at go1.14.5</a>
 で <code>sendTime</code> 関数でチャンネルに時刻を送る処理の実装を見ると確かにそのようになっています。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">sendTime</span><span class="p">(</span><span class="nx">c</span> <span class="kd">interface</span><span class="p">{</span><span class="p">}</span><span class="p">,</span> <span class="nx">seq</span> <span class="kt">uintptr</span><span class="p">)</span> <span class="p">{</span>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">sendTime</span><span class="p">(</span><span class="nx">c</span> <span class="kd">interface</span><span class="p">{},</span> <span class="nx">seq</span> <span class="kt">uintptr</span><span class="p">)</span> <span class="p">{</span>
 	<span class="c1">// Non-blocking send of time on c.
 </span><span class="c1"></span>	<span class="c1">// Used in NewTimer, it cannot block anyway (buffer).
 </span><span class="c1"></span>	<span class="c1">// Used in NewTicker, dropping sends on the floor is
 </span><span class="c1"></span>	<span class="c1">// the desired behavior when the reader gets behind,
 </span><span class="c1"></span>	<span class="c1">// because the sends are periodic.
 </span><span class="c1"></span>	<span class="k">select</span> <span class="p">{</span>
-	<span class="k">case</span> <span class="nx">c</span><span class="p">.</span><span class="p">(</span><span class="kd">chan</span> <span class="nx">Time</span><span class="p">)</span> <span class="o">&lt;-</span> <span class="nf">Now</span><span class="p">(</span><span class="p">)</span><span class="p">:</span>
+	<span class="k">case</span> <span class="nx">c</span><span class="p">.(</span><span class="kd">chan</span> <span class="nx">Time</span><span class="p">)</span> <span class="o">&lt;-</span> <span class="nf">Now</span><span class="p">():</span>
 	<span class="k">default</span><span class="p">:</span>
 	<span class="p">}</span>
 <span class="p">}</span>
@@ -157,20 +157,20 @@ production では予め実時間のグローバル変数が設定されていて
 	<span class="nx">mu</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">Mutex</span>
 <span class="p">}</span>
 
-<span class="kd">func</span> <span class="p">(</span><span class="nx">l</span> <span class="o">*</span><span class="nx">strLog</span><span class="p">)</span> <span class="nf">Write</span><span class="p">(</span><span class="nx">p</span> <span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">(</span><span class="kt">int</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
-	<span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">(</span><span class="p">)</span>
-	<span class="k">defer</span> <span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">(</span><span class="p">)</span>
+<span class="kd">func</span> <span class="p">(</span><span class="nx">l</span> <span class="o">*</span><span class="nx">strLog</span><span class="p">)</span> <span class="nf">Write</span><span class="p">(</span><span class="nx">p</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">(</span><span class="kt">int</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
 	<span class="k">return</span> <span class="nx">l</span><span class="p">.</span><span class="nx">b</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="nx">p</span><span class="p">)</span>
 <span class="p">}</span>
 
-<span class="kd">func</span> <span class="p">(</span><span class="nx">l</span> <span class="o">*</span><span class="nx">strLog</span><span class="p">)</span> <span class="nf">String</span><span class="p">(</span><span class="p">)</span> <span class="kt">string</span> <span class="p">{</span>
-	<span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">(</span><span class="p">)</span>
-	<span class="k">defer</span> <span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">(</span><span class="p">)</span>
-	<span class="k">return</span> <span class="nx">l</span><span class="p">.</span><span class="nx">b</span><span class="p">.</span><span class="nf">String</span><span class="p">(</span><span class="p">)</span>
+<span class="kd">func</span> <span class="p">(</span><span class="nx">l</span> <span class="o">*</span><span class="nx">strLog</span><span class="p">)</span> <span class="nf">String</span><span class="p">()</span> <span class="kt">string</span> <span class="p">{</span>
+	<span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+	<span class="k">return</span> <span class="nx">l</span><span class="p">.</span><span class="nx">b</span><span class="p">.</span><span class="nf">String</span><span class="p">()</span>
 <span class="p">}</span>
 
 <span class="kd">func</span> <span class="nf">TestMockTime</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
-	<span class="nx">l</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">strLog</span><span class="p">{</span><span class="p">}</span>
+	<span class="nx">l</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">strLog</span><span class="p">{}</span>
 	<span class="nx">log</span><span class="p">.</span><span class="nf">SetOutput</span><span class="p">(</span><span class="nx">l</span><span class="p">)</span>
 	<span class="nx">log</span><span class="p">.</span><span class="nf">SetFlags</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
 
@@ -178,28 +178,28 @@ production では予め実時間のグローバル変数が設定されていて
 	<span class="nx">flextime</span><span class="p">.</span><span class="nf">Set</span><span class="p">(</span><span class="nx">time0</span><span class="p">)</span>
 
 	<span class="c1">// Create some timers using AfterFunc with a custom callback
-</span><span class="c1"></span>	<span class="nx">flextime</span><span class="p">.</span><span class="nf">AfterFunc</span><span class="p">(</span><span class="mi">200</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">,</span> <span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
-		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;AfterFunc1 fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">flextime</span><span class="p">.</span><span class="nf">Now</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">)</span><span class="p">)</span>
-	<span class="p">}</span><span class="p">)</span>
-	<span class="nx">flextime</span><span class="p">.</span><span class="nf">AfterFunc</span><span class="p">(</span><span class="mi">50</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">,</span> <span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
-		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;AfterFunc2 fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">flextime</span><span class="p">.</span><span class="nf">Now</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">)</span><span class="p">)</span>
-	<span class="p">}</span><span class="p">)</span>
+</span><span class="c1"></span>	<span class="nx">flextime</span><span class="p">.</span><span class="nf">AfterFunc</span><span class="p">(</span><span class="mi">200</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">,</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;AfterFunc1 fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">flextime</span><span class="p">.</span><span class="nf">Now</span><span class="p">().</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">))</span>
+	<span class="p">})</span>
+	<span class="nx">flextime</span><span class="p">.</span><span class="nf">AfterFunc</span><span class="p">(</span><span class="mi">50</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">,</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;AfterFunc2 fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">flextime</span><span class="p">.</span><span class="nf">Now</span><span class="p">().</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">))</span>
+	<span class="p">})</span>
 
 	<span class="c1">// Create some regular timers
-</span><span class="c1"></span>	<span class="kd">var</span> <span class="nx">mytimers</span> <span class="p">[</span><span class="p">]</span><span class="o">*</span><span class="nx">flextime</span><span class="p">.</span><span class="nx">Timer</span>
-	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">flextime</span><span class="p">.</span><span class="nf">NewTimer</span><span class="p">(</span><span class="mi">1</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span><span class="p">)</span>
-	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">flextime</span><span class="p">.</span><span class="nf">NewTimer</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span><span class="p">)</span>
-	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">flextime</span><span class="p">.</span><span class="nf">NewTimer</span><span class="p">(</span><span class="mi">5</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span><span class="p">)</span>
-	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">flextime</span><span class="p">.</span><span class="nf">NewTimer</span><span class="p">(</span><span class="mi">100</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">)</span><span class="p">)</span>
+</span><span class="c1"></span>	<span class="kd">var</span> <span class="nx">mytimers</span> <span class="p">[]</span><span class="o">*</span><span class="nx">flextime</span><span class="p">.</span><span class="nx">Timer</span>
+	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">flextime</span><span class="p">.</span><span class="nf">NewTimer</span><span class="p">(</span><span class="mi">1</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">))</span>
+	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">flextime</span><span class="p">.</span><span class="nf">NewTimer</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">))</span>
+	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">flextime</span><span class="p">.</span><span class="nf">NewTimer</span><span class="p">(</span><span class="mi">5</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">))</span>
+	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">flextime</span><span class="p">.</span><span class="nf">NewTimer</span><span class="p">(</span><span class="mi">100</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">))</span>
 
 	<span class="c1">// Create some tickers
-</span><span class="c1"></span>	<span class="kd">var</span> <span class="nx">mytickers</span> <span class="p">[</span><span class="p">]</span><span class="o">*</span><span class="nx">flextime</span><span class="p">.</span><span class="nx">Ticker</span>
-	<span class="nx">mytickers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytickers</span><span class="p">,</span> <span class="nx">flextime</span><span class="p">.</span><span class="nf">NewTicker</span><span class="p">(</span><span class="mi">500</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">)</span><span class="p">)</span>
+</span><span class="c1"></span>	<span class="kd">var</span> <span class="nx">mytickers</span> <span class="p">[]</span><span class="o">*</span><span class="nx">flextime</span><span class="p">.</span><span class="nx">Ticker</span>
+	<span class="nx">mytickers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytickers</span><span class="p">,</span> <span class="nx">flextime</span><span class="p">.</span><span class="nf">NewTicker</span><span class="p">(</span><span class="mi">500</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">))</span>
 
-	<span class="k">go</span> <span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">go</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
 		<span class="nx">flextime</span><span class="p">.</span><span class="nf">Sleep</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span>
-		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;Came after Sleep 2 seconds, time:%s&#34;</span><span class="p">,</span> <span class="nx">flextime</span><span class="p">.</span><span class="nf">Now</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">)</span><span class="p">)</span>
-	<span class="p">}</span><span class="p">(</span><span class="p">)</span>
+		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;Came after Sleep 2 seconds, time:%s&#34;</span><span class="p">,</span> <span class="nx">flextime</span><span class="p">.</span><span class="nf">Now</span><span class="p">().</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">))</span>
+	<span class="p">}()</span>
 
 	<span class="nx">flextime</span><span class="p">.</span><span class="nf">Sleep</span><span class="p">(</span><span class="mi">3</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span>
 
@@ -210,7 +210,7 @@ production では予め実時間のグローバル変数が設定されていて
 		<span class="kd">var</span> <span class="nx">val</span> <span class="kt">string</span>
 		<span class="k">select</span> <span class="p">{</span>
 		<span class="k">case</span> <span class="nx">t</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">tmr</span><span class="p">.</span><span class="nx">C</span><span class="p">:</span>
-			<span class="nx">val</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">t</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">)</span><span class="p">)</span>
+			<span class="nx">val</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">t</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">))</span>
 		<span class="k">default</span><span class="p">:</span>
 			<span class="nx">val</span> <span class="p">=</span> <span class="s">&#34;not fired yet&#34;</span>
 		<span class="p">}</span>
@@ -222,7 +222,7 @@ production では予め実時間のグローバル変数が設定されていて
 		<span class="kd">var</span> <span class="nx">val</span> <span class="kt">string</span>
 		<span class="k">select</span> <span class="p">{</span>
 		<span class="k">case</span> <span class="nx">t</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">tkr</span><span class="p">.</span><span class="nx">C</span><span class="p">:</span>
-			<span class="nx">val</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">t</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">)</span><span class="p">)</span>
+			<span class="nx">val</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">t</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">))</span>
 		<span class="k">default</span><span class="p">:</span>
 			<span class="nx">val</span> <span class="p">=</span> <span class="s">&#34;not fired yet&#34;</span>
 		<span class="p">}</span>
@@ -230,8 +230,8 @@ production では予め実時間のグローバル変数が設定されていて
 		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;Ticker #%d: %s&#34;</span><span class="p">,</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">val</span><span class="p">)</span>
 	<span class="p">}</span>
 
-	<span class="nx">got</span> <span class="o">:=</span> <span class="nx">l</span><span class="p">.</span><span class="nf">String</span><span class="p">(</span><span class="p">)</span>
-	<span class="nx">want</span> <span class="o">:=</span> <span class="nx">strings</span><span class="p">.</span><span class="nf">Join</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="kt">string</span><span class="p">{</span>
+	<span class="nx">got</span> <span class="o">:=</span> <span class="nx">l</span><span class="p">.</span><span class="nf">String</span><span class="p">()</span>
+	<span class="nx">want</span> <span class="o">:=</span> <span class="nx">strings</span><span class="p">.</span><span class="nf">Join</span><span class="p">([]</span><span class="kt">string</span><span class="p">{</span>
 		<span class="s">&#34;AfterFunc2 fired, time:2020-05-01T00:00:00.05Z&#34;</span><span class="p">,</span>
 		<span class="s">&#34;AfterFunc1 fired, time:2020-05-01T00:00:00.2Z&#34;</span><span class="p">,</span>
 		<span class="s">&#34;Came after Sleep 2 seconds, time:2020-05-01T00:00:02Z&#34;</span><span class="p">,</span>
@@ -240,9 +240,9 @@ production では予め実時間のグローバル変数が設定されていて
 		<span class="s">&#34;Timer #2: not fired yet&#34;</span><span class="p">,</span>
 		<span class="s">&#34;Timer #3: fired, time:2020-05-01T00:00:00.1Z&#34;</span><span class="p">,</span>
 		<span class="s">&#34;Ticker #0: fired, time:2020-05-01T00:00:00.5Z&#34;</span><span class="p">,</span>
-	<span class="p">}</span><span class="p">,</span> <span class="s">&#34;\n&#34;</span><span class="p">)</span> <span class="o">+</span> <span class="s">&#34;\n&#34;</span>
+	<span class="p">},</span> <span class="s">&#34;\n&#34;</span><span class="p">)</span> <span class="o">+</span> <span class="s">&#34;\n&#34;</span>
 	<span class="k">if</span> <span class="nx">got</span> <span class="o">!=</span> <span class="nx">want</span> <span class="p">{</span>
-		<span class="nx">t</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;logs unmatched,\ngot:\n%s\nwant:\n%s\ndiff:\n%s&#34;</span><span class="p">,</span> <span class="nx">got</span><span class="p">,</span> <span class="nx">want</span><span class="p">,</span> <span class="nx">diff</span><span class="p">.</span><span class="nf">Diff</span><span class="p">(</span><span class="nx">got</span><span class="p">,</span> <span class="nx">want</span><span class="p">)</span><span class="p">)</span>
+		<span class="nx">t</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;logs unmatched,\ngot:\n%s\nwant:\n%s\ndiff:\n%s&#34;</span><span class="p">,</span> <span class="nx">got</span><span class="p">,</span> <span class="nx">want</span><span class="p">,</span> <span class="nx">diff</span><span class="p">.</span><span class="nf">Diff</span><span class="p">(</span><span class="nx">got</span><span class="p">,</span> <span class="nx">want</span><span class="p">))</span>
 	<span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div><h4 id="テストの結果">テストの結果</h4>
@@ -361,58 +361,58 @@ FAIL    github.com/hnakamur/go-mock-clock-experiment    0.003s
 	<span class="nx">mu</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">Mutex</span>
 <span class="p">}</span>
 
-<span class="kd">func</span> <span class="p">(</span><span class="nx">l</span> <span class="o">*</span><span class="nx">strLog</span><span class="p">)</span> <span class="nf">Write</span><span class="p">(</span><span class="nx">p</span> <span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">(</span><span class="kt">int</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
-	<span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">(</span><span class="p">)</span>
-	<span class="k">defer</span> <span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">(</span><span class="p">)</span>
+<span class="kd">func</span> <span class="p">(</span><span class="nx">l</span> <span class="o">*</span><span class="nx">strLog</span><span class="p">)</span> <span class="nf">Write</span><span class="p">(</span><span class="nx">p</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">(</span><span class="kt">int</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
 	<span class="k">return</span> <span class="nx">l</span><span class="p">.</span><span class="nx">b</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="nx">p</span><span class="p">)</span>
 <span class="p">}</span>
 
-<span class="kd">func</span> <span class="p">(</span><span class="nx">l</span> <span class="o">*</span><span class="nx">strLog</span><span class="p">)</span> <span class="nf">String</span><span class="p">(</span><span class="p">)</span> <span class="kt">string</span> <span class="p">{</span>
-	<span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">(</span><span class="p">)</span>
-	<span class="k">defer</span> <span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">(</span><span class="p">)</span>
-	<span class="k">return</span> <span class="nx">l</span><span class="p">.</span><span class="nx">b</span><span class="p">.</span><span class="nf">String</span><span class="p">(</span><span class="p">)</span>
+<span class="kd">func</span> <span class="p">(</span><span class="nx">l</span> <span class="o">*</span><span class="nx">strLog</span><span class="p">)</span> <span class="nf">String</span><span class="p">()</span> <span class="kt">string</span> <span class="p">{</span>
+	<span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+	<span class="k">return</span> <span class="nx">l</span><span class="p">.</span><span class="nx">b</span><span class="p">.</span><span class="nf">String</span><span class="p">()</span>
 <span class="p">}</span>
 
-<span class="kd">func</span> <span class="nf">afterFunc</span><span class="p">(</span><span class="nx">c</span> <span class="nx">clock</span><span class="p">.</span><span class="nx">Clock</span><span class="p">,</span> <span class="nx">d</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Duration</span><span class="p">,</span> <span class="nx">f</span> <span class="kd">func</span><span class="p">(</span><span class="p">)</span><span class="p">)</span> <span class="nx">clock</span><span class="p">.</span><span class="nx">Timer</span> <span class="p">{</span>
+<span class="kd">func</span> <span class="nf">afterFunc</span><span class="p">(</span><span class="nx">c</span> <span class="nx">clock</span><span class="p">.</span><span class="nx">Clock</span><span class="p">,</span> <span class="nx">d</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Duration</span><span class="p">,</span> <span class="nx">f</span> <span class="kd">func</span><span class="p">())</span> <span class="nx">clock</span><span class="p">.</span><span class="nx">Timer</span> <span class="p">{</span>
 	<span class="nx">timer</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nf">NewTimer</span><span class="p">(</span><span class="nx">d</span><span class="p">)</span>
-	<span class="k">go</span> <span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
-		<span class="o">&lt;-</span><span class="nx">timer</span><span class="p">.</span><span class="nf">C</span><span class="p">(</span><span class="p">)</span>
-		<span class="nf">f</span><span class="p">(</span><span class="p">)</span>
-	<span class="p">}</span><span class="p">(</span><span class="p">)</span>
+	<span class="k">go</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+		<span class="o">&lt;-</span><span class="nx">timer</span><span class="p">.</span><span class="nf">C</span><span class="p">()</span>
+		<span class="nf">f</span><span class="p">()</span>
+	<span class="p">}()</span>
 	<span class="k">return</span> <span class="nx">timer</span>
 <span class="p">}</span>
 
 <span class="kd">func</span> <span class="nf">TestMockTime</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
-	<span class="nx">l</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">strLog</span><span class="p">{</span><span class="p">}</span>
+	<span class="nx">l</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">strLog</span><span class="p">{}</span>
 	<span class="nx">log</span><span class="p">.</span><span class="nf">SetOutput</span><span class="p">(</span><span class="nx">l</span><span class="p">)</span>
 	<span class="nx">log</span><span class="p">.</span><span class="nf">SetFlags</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
 
-	<span class="nx">c</span> <span class="o">:=</span> <span class="nx">fakeclock</span><span class="p">.</span><span class="nf">NewFakeClock</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nf">Date</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">time</span><span class="p">.</span><span class="nx">UTC</span><span class="p">)</span><span class="p">)</span>
+	<span class="nx">c</span> <span class="o">:=</span> <span class="nx">fakeclock</span><span class="p">.</span><span class="nf">NewFakeClock</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nf">Date</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">time</span><span class="p">.</span><span class="nx">UTC</span><span class="p">))</span>
 
 	<span class="c1">// Create some timers using AfterFunc with a custom callback
-</span><span class="c1"></span>	<span class="nf">afterFunc</span><span class="p">(</span><span class="nx">c</span><span class="p">,</span> <span class="mi">200</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">,</span> <span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
-		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;AfterFunc1 fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Now</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">)</span><span class="p">)</span>
-	<span class="p">}</span><span class="p">)</span>
-	<span class="nf">afterFunc</span><span class="p">(</span><span class="nx">c</span><span class="p">,</span> <span class="mi">50</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">,</span> <span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
-		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;AfterFunc2 fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Now</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">)</span><span class="p">)</span>
-	<span class="p">}</span><span class="p">)</span>
+</span><span class="c1"></span>	<span class="nf">afterFunc</span><span class="p">(</span><span class="nx">c</span><span class="p">,</span> <span class="mi">200</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">,</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;AfterFunc1 fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Now</span><span class="p">().</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">))</span>
+	<span class="p">})</span>
+	<span class="nf">afterFunc</span><span class="p">(</span><span class="nx">c</span><span class="p">,</span> <span class="mi">50</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">,</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;AfterFunc2 fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Now</span><span class="p">().</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">))</span>
+	<span class="p">})</span>
 
 	<span class="c1">// Create some regular timers
-</span><span class="c1"></span>	<span class="kd">var</span> <span class="nx">mytimers</span> <span class="p">[</span><span class="p">]</span><span class="nx">clock</span><span class="p">.</span><span class="nx">Timer</span>
-	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">NewTimer</span><span class="p">(</span><span class="mi">1</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span><span class="p">)</span>
-	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">NewTimer</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span><span class="p">)</span>
-	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">NewTimer</span><span class="p">(</span><span class="mi">5</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span><span class="p">)</span>
-	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">NewTimer</span><span class="p">(</span><span class="mi">100</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">)</span><span class="p">)</span>
+</span><span class="c1"></span>	<span class="kd">var</span> <span class="nx">mytimers</span> <span class="p">[]</span><span class="nx">clock</span><span class="p">.</span><span class="nx">Timer</span>
+	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">NewTimer</span><span class="p">(</span><span class="mi">1</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">))</span>
+	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">NewTimer</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">))</span>
+	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">NewTimer</span><span class="p">(</span><span class="mi">5</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">))</span>
+	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">NewTimer</span><span class="p">(</span><span class="mi">100</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">))</span>
 
 	<span class="c1">// Create some tickers
-</span><span class="c1"></span>	<span class="kd">var</span> <span class="nx">mytickers</span> <span class="p">[</span><span class="p">]</span><span class="nx">clock</span><span class="p">.</span><span class="nx">Ticker</span>
-	<span class="nx">mytickers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytickers</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">NewTicker</span><span class="p">(</span><span class="mi">500</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">)</span><span class="p">)</span>
+</span><span class="c1"></span>	<span class="kd">var</span> <span class="nx">mytickers</span> <span class="p">[]</span><span class="nx">clock</span><span class="p">.</span><span class="nx">Ticker</span>
+	<span class="nx">mytickers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytickers</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">NewTicker</span><span class="p">(</span><span class="mi">500</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">))</span>
 
 	<span class="c1">// Create goroutine calling sleep
-</span><span class="c1"></span>	<span class="k">go</span> <span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
+</span><span class="c1"></span>	<span class="k">go</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
 		<span class="nx">c</span><span class="p">.</span><span class="nf">Sleep</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span>
-		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;Came after Sleep 2 seconds, time:%s&#34;</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Now</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">)</span><span class="p">)</span>
-	<span class="p">}</span><span class="p">(</span><span class="p">)</span>
+		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;Came after Sleep 2 seconds, time:%s&#34;</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Now</span><span class="p">().</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">))</span>
+	<span class="p">}()</span>
 
 	<span class="nx">c</span><span class="p">.</span><span class="nf">Increment</span><span class="p">(</span><span class="mi">3</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span>
 
@@ -423,8 +423,8 @@ FAIL    github.com/hnakamur/go-mock-clock-experiment    0.003s
 	<span class="k">for</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">tmr</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">mytimers</span> <span class="p">{</span>
 		<span class="kd">var</span> <span class="nx">val</span> <span class="kt">string</span>
 		<span class="k">select</span> <span class="p">{</span>
-		<span class="k">case</span> <span class="nx">t</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">tmr</span><span class="p">.</span><span class="nf">C</span><span class="p">(</span><span class="p">)</span><span class="p">:</span>
-			<span class="nx">val</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">t</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">)</span><span class="p">)</span>
+		<span class="k">case</span> <span class="nx">t</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">tmr</span><span class="p">.</span><span class="nf">C</span><span class="p">():</span>
+			<span class="nx">val</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">t</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">))</span>
 		<span class="k">default</span><span class="p">:</span>
 			<span class="nx">val</span> <span class="p">=</span> <span class="s">&#34;not fired yet&#34;</span>
 		<span class="p">}</span>
@@ -435,8 +435,8 @@ FAIL    github.com/hnakamur/go-mock-clock-experiment    0.003s
 	<span class="k">for</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">tkr</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">mytickers</span> <span class="p">{</span>
 		<span class="kd">var</span> <span class="nx">val</span> <span class="kt">string</span>
 		<span class="k">select</span> <span class="p">{</span>
-		<span class="k">case</span> <span class="nx">t</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">tkr</span><span class="p">.</span><span class="nf">C</span><span class="p">(</span><span class="p">)</span><span class="p">:</span>
-			<span class="nx">val</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">t</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">)</span><span class="p">)</span>
+		<span class="k">case</span> <span class="nx">t</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">tkr</span><span class="p">.</span><span class="nf">C</span><span class="p">():</span>
+			<span class="nx">val</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">t</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">))</span>
 		<span class="k">default</span><span class="p">:</span>
 			<span class="nx">val</span> <span class="p">=</span> <span class="s">&#34;not fired yet&#34;</span>
 		<span class="p">}</span>
@@ -444,8 +444,8 @@ FAIL    github.com/hnakamur/go-mock-clock-experiment    0.003s
 		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;Ticker #%d: %s&#34;</span><span class="p">,</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">val</span><span class="p">)</span>
 	<span class="p">}</span>
 
-	<span class="nx">got</span> <span class="o">:=</span> <span class="nx">l</span><span class="p">.</span><span class="nf">String</span><span class="p">(</span><span class="p">)</span>
-	<span class="nx">want</span> <span class="o">:=</span> <span class="nx">strings</span><span class="p">.</span><span class="nf">Join</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="kt">string</span><span class="p">{</span>
+	<span class="nx">got</span> <span class="o">:=</span> <span class="nx">l</span><span class="p">.</span><span class="nf">String</span><span class="p">()</span>
+	<span class="nx">want</span> <span class="o">:=</span> <span class="nx">strings</span><span class="p">.</span><span class="nf">Join</span><span class="p">([]</span><span class="kt">string</span><span class="p">{</span>
 		<span class="s">&#34;AfterFunc2 fired, time:2020-05-01T00:00:00.05Z&#34;</span><span class="p">,</span>
 		<span class="s">&#34;AfterFunc1 fired, time:2020-05-01T00:00:00.2Z&#34;</span><span class="p">,</span>
 		<span class="s">&#34;Came after Sleep 2 seconds, time:2020-05-01T00:00:05Z&#34;</span><span class="p">,</span>
@@ -454,9 +454,9 @@ FAIL    github.com/hnakamur/go-mock-clock-experiment    0.003s
 		<span class="s">&#34;Timer #2: not fired yet&#34;</span><span class="p">,</span>
 		<span class="s">&#34;Timer #3: fired, time:2020-05-01T00:00:00.1Z&#34;</span><span class="p">,</span>
 		<span class="s">&#34;Ticker #0: fired, time:2020-05-01T00:00:00.5Z&#34;</span><span class="p">,</span>
-	<span class="p">}</span><span class="p">,</span> <span class="s">&#34;\n&#34;</span><span class="p">)</span> <span class="o">+</span> <span class="s">&#34;\n&#34;</span>
+	<span class="p">},</span> <span class="s">&#34;\n&#34;</span><span class="p">)</span> <span class="o">+</span> <span class="s">&#34;\n&#34;</span>
 	<span class="k">if</span> <span class="nx">got</span> <span class="o">!=</span> <span class="nx">want</span> <span class="p">{</span>
-		<span class="nx">t</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;logs unmatched,\ngot:\n%s\nwant:\n%s\ndiff:\n%s&#34;</span><span class="p">,</span> <span class="nx">got</span><span class="p">,</span> <span class="nx">want</span><span class="p">,</span> <span class="nx">diff</span><span class="p">.</span><span class="nf">Diff</span><span class="p">(</span><span class="nx">got</span><span class="p">,</span> <span class="nx">want</span><span class="p">)</span><span class="p">)</span>
+		<span class="nx">t</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;logs unmatched,\ngot:\n%s\nwant:\n%s\ndiff:\n%s&#34;</span><span class="p">,</span> <span class="nx">got</span><span class="p">,</span> <span class="nx">want</span><span class="p">,</span> <span class="nx">diff</span><span class="p">.</span><span class="nf">Diff</span><span class="p">(</span><span class="nx">got</span><span class="p">,</span> <span class="nx">want</span><span class="p">))</span>
 	<span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div><h4 id="テストの結果-1">テストの結果</h4>
@@ -546,49 +546,49 @@ FAIL    github.com/hnakamur/go-mock-clock-experiment    0.003s
 	<span class="nx">mu</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">Mutex</span>
 <span class="p">}</span>
 
-<span class="kd">func</span> <span class="p">(</span><span class="nx">l</span> <span class="o">*</span><span class="nx">strLog</span><span class="p">)</span> <span class="nf">Write</span><span class="p">(</span><span class="nx">p</span> <span class="p">[</span><span class="p">]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">(</span><span class="kt">int</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
-	<span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">(</span><span class="p">)</span>
-	<span class="k">defer</span> <span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">(</span><span class="p">)</span>
+<span class="kd">func</span> <span class="p">(</span><span class="nx">l</span> <span class="o">*</span><span class="nx">strLog</span><span class="p">)</span> <span class="nf">Write</span><span class="p">(</span><span class="nx">p</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">(</span><span class="kt">int</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
 	<span class="k">return</span> <span class="nx">l</span><span class="p">.</span><span class="nx">b</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="nx">p</span><span class="p">)</span>
 <span class="p">}</span>
 
-<span class="kd">func</span> <span class="p">(</span><span class="nx">l</span> <span class="o">*</span><span class="nx">strLog</span><span class="p">)</span> <span class="nf">String</span><span class="p">(</span><span class="p">)</span> <span class="kt">string</span> <span class="p">{</span>
-	<span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">(</span><span class="p">)</span>
-	<span class="k">defer</span> <span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">(</span><span class="p">)</span>
-	<span class="k">return</span> <span class="nx">l</span><span class="p">.</span><span class="nx">b</span><span class="p">.</span><span class="nf">String</span><span class="p">(</span><span class="p">)</span>
+<span class="kd">func</span> <span class="p">(</span><span class="nx">l</span> <span class="o">*</span><span class="nx">strLog</span><span class="p">)</span> <span class="nf">String</span><span class="p">()</span> <span class="kt">string</span> <span class="p">{</span>
+	<span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">l</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+	<span class="k">return</span> <span class="nx">l</span><span class="p">.</span><span class="nx">b</span><span class="p">.</span><span class="nf">String</span><span class="p">()</span>
 <span class="p">}</span>
 
 <span class="kd">func</span> <span class="nf">TestMockTime</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
-	<span class="nx">l</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">strLog</span><span class="p">{</span><span class="p">}</span>
+	<span class="nx">l</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">strLog</span><span class="p">{}</span>
 	<span class="nx">log</span><span class="p">.</span><span class="nf">SetOutput</span><span class="p">(</span><span class="nx">l</span><span class="p">)</span>
 	<span class="nx">log</span><span class="p">.</span><span class="nf">SetFlags</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
 
-	<span class="nx">c</span> <span class="o">:=</span> <span class="nx">clock</span><span class="p">.</span><span class="nf">NewMock</span><span class="p">(</span><span class="p">)</span>
-	<span class="nx">c</span><span class="p">.</span><span class="nf">Set</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nf">Date</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">time</span><span class="p">.</span><span class="nx">UTC</span><span class="p">)</span><span class="p">)</span>
+	<span class="nx">c</span> <span class="o">:=</span> <span class="nx">clock</span><span class="p">.</span><span class="nf">NewMock</span><span class="p">()</span>
+	<span class="nx">c</span><span class="p">.</span><span class="nf">Set</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nf">Date</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">time</span><span class="p">.</span><span class="nx">UTC</span><span class="p">))</span>
 
 	<span class="c1">// Create some timers using AfterFunc with a custom callback
-</span><span class="c1"></span>	<span class="nx">c</span><span class="p">.</span><span class="nf">AfterFunc</span><span class="p">(</span><span class="mi">200</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">,</span> <span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
-		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;AfterFunc1 fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Now</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">)</span><span class="p">)</span>
-	<span class="p">}</span><span class="p">)</span>
-	<span class="nx">c</span><span class="p">.</span><span class="nf">AfterFunc</span><span class="p">(</span><span class="mi">50</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">,</span> <span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
-		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;AfterFunc2 fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Now</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">)</span><span class="p">)</span>
-	<span class="p">}</span><span class="p">)</span>
+</span><span class="c1"></span>	<span class="nx">c</span><span class="p">.</span><span class="nf">AfterFunc</span><span class="p">(</span><span class="mi">200</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">,</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;AfterFunc1 fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Now</span><span class="p">().</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">))</span>
+	<span class="p">})</span>
+	<span class="nx">c</span><span class="p">.</span><span class="nf">AfterFunc</span><span class="p">(</span><span class="mi">50</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">,</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;AfterFunc2 fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Now</span><span class="p">().</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">))</span>
+	<span class="p">})</span>
 
 	<span class="c1">// Create some regular timers
-</span><span class="c1"></span>	<span class="kd">var</span> <span class="nx">mytimers</span> <span class="p">[</span><span class="p">]</span><span class="o">*</span><span class="nx">clock</span><span class="p">.</span><span class="nx">Timer</span>
-	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Timer</span><span class="p">(</span><span class="mi">1</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span><span class="p">)</span>
-	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Timer</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span><span class="p">)</span>
-	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Timer</span><span class="p">(</span><span class="mi">5</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span><span class="p">)</span>
-	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Timer</span><span class="p">(</span><span class="mi">100</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">)</span><span class="p">)</span>
+</span><span class="c1"></span>	<span class="kd">var</span> <span class="nx">mytimers</span> <span class="p">[]</span><span class="o">*</span><span class="nx">clock</span><span class="p">.</span><span class="nx">Timer</span>
+	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Timer</span><span class="p">(</span><span class="mi">1</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">))</span>
+	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Timer</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">))</span>
+	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Timer</span><span class="p">(</span><span class="mi">5</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">))</span>
+	<span class="nx">mytimers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytimers</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Timer</span><span class="p">(</span><span class="mi">100</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">))</span>
 
 	<span class="c1">// Create some tickers
-</span><span class="c1"></span>	<span class="kd">var</span> <span class="nx">mytickers</span> <span class="p">[</span><span class="p">]</span><span class="o">*</span><span class="nx">clock</span><span class="p">.</span><span class="nx">Ticker</span>
-	<span class="nx">mytickers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytickers</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Ticker</span><span class="p">(</span><span class="mi">500</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">)</span><span class="p">)</span>
+</span><span class="c1"></span>	<span class="kd">var</span> <span class="nx">mytickers</span> <span class="p">[]</span><span class="o">*</span><span class="nx">clock</span><span class="p">.</span><span class="nx">Ticker</span>
+	<span class="nx">mytickers</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">mytickers</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Ticker</span><span class="p">(</span><span class="mi">500</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">))</span>
 
-	<span class="k">go</span> <span class="kd">func</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">go</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
 		<span class="nx">c</span><span class="p">.</span><span class="nf">Sleep</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span>
-		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;Came after Sleep 2 seconds, time:%s&#34;</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Now</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">)</span><span class="p">)</span>
-	<span class="p">}</span><span class="p">(</span><span class="p">)</span>
+		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;Came after Sleep 2 seconds, time:%s&#34;</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Now</span><span class="p">().</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">))</span>
+	<span class="p">}()</span>
 
 	<span class="nx">c</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="mi">3</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span>
 
@@ -596,7 +596,7 @@ FAIL    github.com/hnakamur/go-mock-clock-experiment    0.003s
 		<span class="kd">var</span> <span class="nx">val</span> <span class="kt">string</span>
 		<span class="k">select</span> <span class="p">{</span>
 		<span class="k">case</span> <span class="nx">t</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">tmr</span><span class="p">.</span><span class="nx">C</span><span class="p">:</span>
-			<span class="nx">val</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">t</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">)</span><span class="p">)</span>
+			<span class="nx">val</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">t</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">))</span>
 		<span class="k">default</span><span class="p">:</span>
 			<span class="nx">val</span> <span class="p">=</span> <span class="s">&#34;not fired yet&#34;</span>
 		<span class="p">}</span>
@@ -608,7 +608,7 @@ FAIL    github.com/hnakamur/go-mock-clock-experiment    0.003s
 		<span class="kd">var</span> <span class="nx">val</span> <span class="kt">string</span>
 		<span class="k">select</span> <span class="p">{</span>
 		<span class="k">case</span> <span class="nx">t</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">tkr</span><span class="p">.</span><span class="nx">C</span><span class="p">:</span>
-			<span class="nx">val</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">t</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">)</span><span class="p">)</span>
+			<span class="nx">val</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;fired, time:%s&#34;</span><span class="p">,</span> <span class="nx">t</span><span class="p">.</span><span class="nf">Format</span><span class="p">(</span><span class="nx">timeFormat</span><span class="p">))</span>
 		<span class="k">default</span><span class="p">:</span>
 			<span class="nx">val</span> <span class="p">=</span> <span class="s">&#34;not fired yet&#34;</span>
 		<span class="p">}</span>
@@ -616,8 +616,8 @@ FAIL    github.com/hnakamur/go-mock-clock-experiment    0.003s
 		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;Ticker #%d: %s&#34;</span><span class="p">,</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">val</span><span class="p">)</span>
 	<span class="p">}</span>
 
-	<span class="nx">got</span> <span class="o">:=</span> <span class="nx">l</span><span class="p">.</span><span class="nf">String</span><span class="p">(</span><span class="p">)</span>
-	<span class="nx">want</span> <span class="o">:=</span> <span class="nx">strings</span><span class="p">.</span><span class="nf">Join</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="kt">string</span><span class="p">{</span>
+	<span class="nx">got</span> <span class="o">:=</span> <span class="nx">l</span><span class="p">.</span><span class="nf">String</span><span class="p">()</span>
+	<span class="nx">want</span> <span class="o">:=</span> <span class="nx">strings</span><span class="p">.</span><span class="nf">Join</span><span class="p">([]</span><span class="kt">string</span><span class="p">{</span>
 		<span class="s">&#34;AfterFunc2 fired, time:2020-05-01T00:00:00.05Z&#34;</span><span class="p">,</span>
 		<span class="s">&#34;AfterFunc1 fired, time:2020-05-01T00:00:00.2Z&#34;</span><span class="p">,</span>
 		<span class="s">&#34;Came after Sleep 2 seconds, time:2020-05-01T00:00:02Z&#34;</span><span class="p">,</span>
@@ -626,9 +626,9 @@ FAIL    github.com/hnakamur/go-mock-clock-experiment    0.003s
 		<span class="s">&#34;Timer #2: not fired yet&#34;</span><span class="p">,</span>
 		<span class="s">&#34;Timer #3: fired, time:2020-05-01T00:00:00.1Z&#34;</span><span class="p">,</span>
 		<span class="s">&#34;Ticker #0: fired, time:2020-05-01T00:00:00.5Z&#34;</span><span class="p">,</span>
-	<span class="p">}</span><span class="p">,</span> <span class="s">&#34;\n&#34;</span><span class="p">)</span> <span class="o">+</span> <span class="s">&#34;\n&#34;</span>
+	<span class="p">},</span> <span class="s">&#34;\n&#34;</span><span class="p">)</span> <span class="o">+</span> <span class="s">&#34;\n&#34;</span>
 	<span class="k">if</span> <span class="nx">got</span> <span class="o">!=</span> <span class="nx">want</span> <span class="p">{</span>
-		<span class="nx">t</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;logs unmatched,\ngot:\n%s\n\nwant:\n%s\n\ndiff:\n%s&#34;</span><span class="p">,</span> <span class="nx">got</span><span class="p">,</span> <span class="nx">want</span><span class="p">,</span> <span class="nx">diff</span><span class="p">.</span><span class="nf">Diff</span><span class="p">(</span><span class="nx">got</span><span class="p">,</span> <span class="nx">want</span><span class="p">)</span><span class="p">)</span>
+		<span class="nx">t</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;logs unmatched,\ngot:\n%s\n\nwant:\n%s\n\ndiff:\n%s&#34;</span><span class="p">,</span> <span class="nx">got</span><span class="p">,</span> <span class="nx">want</span><span class="p">,</span> <span class="nx">diff</span><span class="p">.</span><span class="nf">Diff</span><span class="p">(</span><span class="nx">got</span><span class="p">,</span> <span class="nx">want</span><span class="p">))</span>
 	<span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div><h4 id="テストの結果-2">テストの結果</h4>
