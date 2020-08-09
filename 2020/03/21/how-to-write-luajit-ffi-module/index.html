@@ -65,6 +65,33 @@
     <div class="post">
   <h1>LuaJIT FFIでモジュールを書く時のハウツー</h1>
   <time datetime=2020-03-21T23:10:18&#43;0900 class="post-date">2020-03-21</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#背景-なぜ-c-言語で-lua-用のモジュールを書くのではなく-luajit-ffi-でモジュールを書くのか">背景: なぜ C 言語で Lua 用のモジュールを書くのではなく LuaJIT FFI でモジュールを書くのか</a></li>
+    <li><a href="#参考資料">参考資料</a></li>
+    <li><a href="#c-言語で書かれた共有ライブラリをロードして-lua-から呼び出す">C 言語で書かれた共有ライブラリをロードして Lua から呼び出す。</a></li>
+    <li><a href="#c-言語で書かれたライブラリの関数宣言型定義定数を-fficdef-に書く">C 言語で書かれたライブラリの関数宣言、型定義、定数を <code>ffi.cdef</code> に書く</a>
+      <ul>
+        <li><a href="#c-言語で書かれたライブラリのヘッダーを検索する">C 言語で書かれたライブラリのヘッダーを検索する</a></li>
+        <li><a href="#実行時に使いたいライブラリーのヘッダーファイルを参照する">実行時に使いたいライブラリーのヘッダーファイルを参照する</a></li>
+        <li><a href="#関数の呼び出しに必要な宣言を探して追加していく">関数の呼び出しに必要な宣言を探して追加していく</a></li>
+        <li><a href="#define-での数値定数の定義は-enum-で書き換える"><code>#define</code> での数値定数の定義は <code>enum</code> で書き換える</a></li>
+        <li><a href="#ifdef-の定数定義がどうなっているか調べる"><code>#ifdef</code> の定数定義がどうなっているか調べる</a></li>
+        <li><a href="#c-言語で書かれたライブラリの構造体と-fficdef-に書いた構造体のサイズやフィールドのオフセットが一致するか確認">C 言語で書かれたライブラリの構造体と <code>ffi.cdef</code> に書いた構造体のサイズやフィールドのオフセットが一致するか確認</a></li>
+      </ul>
+    </li>
+    <li><a href="#lua-から-c-言語で書かれたライブラリの関数を呼び出す">Lua から C 言語で書かれたライブラリの関数を呼び出す</a>
+      <ul>
+        <li><a href="#c-言語で書かれたライブラリと-lua-のコードで引数や戻り値の受け渡す際の型変換">C 言語で書かれたライブラリと Lua のコードで引数や戻り値の受け渡す際の型変換</a></li>
+        <li><a href="#c-言語の-int-の戻り値を-lua-の-if-文で-boolean-として扱う場合の注意">C 言語の int の戻り値を Lua の if 文で boolean として扱う場合の注意</a></li>
+        <li><a href="#エラーの返し方とエラー処理">エラーの返し方とエラー処理</a></li>
+        <li><a href="#エラーで抜ける際の後処理をすっきり書く方法">エラーで抜ける際の後処理をすっきり書く方法</a></li>
+      </ul>
+    </li>
+    <li><a href="#おわりに">おわりに</a></li>
+  </ul>
+</nav>
   <h2 id="はじめに">はじめに</h2>
 <p><a href="/blog/2020/03/17/xmlsec-verify-code-reading/">XMLSecでの証明書検証のコードリーディング · hnakamur&rsquo;s blog</a> の結果を元に <a href="https://github.com/hnakamur/nginx-lua-saml-service-provider">hnakamur/nginx-lua-saml-service-provider</a> で SAML レスポンスを検証する処理を外部コマンド呼び出し方式から LuaJIT FFI でのライブラリ関数呼び出し方式に書き換えました。
 <a href="https://github.com/hnakamur/nginx-lua-saml-service-provider/pull/4">Add response:verify_response_memory method by hnakamur · Pull Request #4 · hnakamur/nginx-lua-saml-service-provider</a></p>

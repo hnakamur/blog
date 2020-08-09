@@ -65,6 +65,31 @@
     <div class="post">
   <h1>Linuxのvm_swapinessについてコードリーディングしてみた</h1>
   <time datetime=2020-02-16T20:10:48&#43;0900 class="post-date">2020-02-16</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#vm_swappiness-の検索結果"><code>vm_swappiness</code> の検索結果</a></li>
+    <li><a href="#sysctl-の-vm_swappiness-の定義">sysctl の <code>vm_swappiness</code> の定義</a></li>
+    <li><a href="#vm_swappiness-は-mem_cgroup_swappiness_write-関数で設定"><code>vm_swappiness</code> は <code>mem_cgroup_swappiness_write</code> 関数で設定</a></li>
+    <li><a href="#vm_swappiness-は-mem_cgroup_swappiness-関数で参照"><code>vm_swappiness</code> は <code>mem_cgroup_swappiness</code> 関数で参照</a></li>
+    <li><a href="#vm_swappiness-のデフォルト値は-60"><code>vm_swappiness</code> のデフォルト値は 60</a></li>
+    <li><a href="#get_scan_count-関数"><code>get_scan_count</code> 関数</a>
+      <ul>
+        <li><a href="#関数のコメントとシグネチャ">関数のコメントとシグネチャ</a></li>
+        <li><a href="#関数内のローカル変数宣言">関数内のローカル変数宣言</a></li>
+        <li><a href="#enum-scan_balance"><code>enum scan_balance</code></a></li>
+        <li><a href="#条件に応じた-scan_balance-の設定">条件に応じた <code>scan_balance</code> の設定</a></li>
+        <li><a href="#enum-lru_list"><code>enum lru_list</code></a></li>
+        <li><a href="#lru-についてのループ処理その1"><code>lru</code> についてのループ処理その1</a></li>
+        <li><a href="#mem_cgroup_protection-関数"><code>mem_cgroup_protection</code> 関数</a></li>
+        <li><a href="#lru-についてのループ処理その2"><code>lru</code> についてのループ処理その2</a></li>
+        <li><a href="#lru-についてのループ処理その3"><code>lru</code> についてのループ処理その3</a></li>
+        <li><a href="#mem_cgroup_online-関数"><code>mem_cgroup_online</code> 関数</a></li>
+        <li><a href="#lru-についてのループ処理その4"><code>lru</code> についてのループ処理その4</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
   <h2 id="はじめに">はじめに</h2>
 <p><a href="https://chrisdown.name/ja/2018/01/02/in-defence-of-swap.html">スワップの弁護：よくある誤解を解く</a> と <a href="https://chrisdown.name/ja/2019/07/18/linux-memory-management-at-scale.html">大規模システムでの Linux のメモリ管理</a> を読んで Linux のスワップについて理解を深めたところで、実際のコードを読んでみることにしました。今回のリーディングの対象バージョンは <a href="https://github.com/torvalds/linux/tree/v5.6-rc1">torvalds/linux at v5.6-rc1</a> です。</p>
 <p>なお、私は上記の記事以外の前提知識が無い状態で初めて読んでみたところなので、誤読しているかもしれません。あまり信用せず、おかしい箇所があったらご自分で確認してください。</p>

@@ -65,6 +65,40 @@
     <div class="post">
   <h1>BadgerのErrConflictについて</h1>
   <time datetime=2020-02-29T16:34:32&#43;0900 class="post-date">2020-02-29</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#errconflict-を返している個所"><code>ErrConflict</code> を返している個所</a></li>
+    <li><a href="#oracle-の-commits-フィールド"><code>oracle</code> の <code>commits</code> フィールド</a></li>
+    <li><a href="#txn-の-reads-フィールドの更新箇所"><code>Txn</code> の <code>reads</code> フィールドの更新箇所</a>
+      <ul>
+        <li><a href="#zmemhash-関数"><code>z.MemHash</code> 関数</a></li>
+      </ul>
+    </li>
+    <li><a href="#txn-の-addreadkey-メソッドの呼び出し箇所"><code>Txn</code> の <code>addReadKey</code> メソッドの呼び出し箇所</a></li>
+    <li><a href="#txn-の-writes-フィールドの更新箇所"><code>Txn</code> の <code>writes</code> フィールドの更新箇所</a></li>
+    <li><a href="#txn-の-readts-の設定箇所"><code>Txn</code> の <code>readTs</code> の設定箇所</a></li>
+    <li><a href="#oracle-の-nexttxnts-の更新箇所"><code>oracle</code> の <code>nextTxnTs</code> の更新箇所</a></li>
+    <li><a href="#oracle-の-incrementnextts-の呼び出し箇所"><code>oracle</code> の <code>incrementNextTs</code> の呼び出し箇所</a></li>
+    <li><a href="#oracle-の-newcommitts-の呼び出し元"><code>oracle</code> の <code>newCommitTs</code> の呼び出し元</a></li>
+    <li><a href="#neworacle-関数の定義と呼び出し元"><code>newOracle</code> 関数の定義と呼び出し元</a></li>
+    <li><a href="#通常の-read-write-トランザクションでの-errconflict">通常の read write トランザクションでの <code>ErrConflict</code></a></li>
+    <li><a href="#streamwriter-は新規-db-作成専用"><code>StreamWriter</code> は新規 DB 作成専用</a></li>
+    <li><a href="#writebatch"><code>WriteBatch</code></a>
+      <ul>
+        <li><a href="#db-の-newwritebatch-メソッド"><code>DB</code> の <code>NewWriteBatch</code> メソッド</a></li>
+        <li><a href="#writebatch-の-setentry-メソッド"><code>WriteBatch</code> の <code>SetEntry</code> メソッド</a></li>
+        <li><a href="#writebatch-の-set-メソッド"><code>WriteBatch</code> の <code>Set</code> メソッド</a></li>
+        <li><a href="#writebatch-の-delete-メソッド"><code>WriteBatch</code> の <code>Delete</code> メソッド</a></li>
+        <li><a href="#writebatch-の-commit-メソッド"><code>WriteBatch</code> の <code>commit</code> メソッド</a></li>
+        <li><a href="#writebatch-の-callback-メソッド"><code>WriteBatch</code> の <code>callback</code> メソッド</a></li>
+        <li><a href="#ythrottle"><code>y.Throttle</code></a></li>
+        <li><a href="#writebatch-の-flush-メソッド"><code>WriteBatch</code> の <code>Flush</code> メソッド</a></li>
+        <li><a href="#writebatch-のまとめ"><code>WriteBatch</code> のまとめ</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
   <h2 id="はじめに">はじめに</h2>
 <p><a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/README.md">badger の README.md</a> の <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/README.md#read-write-transactions">Read-write transactions</a> に <code>ErrConflict</code> について以下のように説明があります。</p>
 <blockquote>

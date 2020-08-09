@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.74.3" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>sysstatのバイナリファイルフォーマット &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2020. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>sysstatのバイナリファイルフォーマット</h1>
+  <time datetime=2020-08-09T16:31:09&#43;0900 class="post-date">2020-08-09</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#ファイル全体の構成図">ファイル全体の構成図</a></li>
+    <li><a href="#全ての書き込みは-write_all-関数で行う">全ての書き込みは write_all 関数で行う</a></li>
+    <li><a href="#sadcc-内の-write_all-関数の呼び出し箇所">sadc.c 内の write_all 関数の呼び出し箇所</a>
+      <ul>
+        <li><a href="#1-setup_file_hdr-関数で-file_magic-構造体を書く">1. <code>setup_file_hdr</code> 関数で <code>file_magic</code> 構造体を書く</a></li>
+        <li><a href="#2-setup_file_hdr-関数で-file_header-構造体を書く">2. <code>setup_file_hdr</code> 関数で <code>file_header</code> 構造体を書く</a></li>
+        <li><a href="#3-setup_file_hdr-関数で-file_activity-構造体を書く">3. <code>setup_file_hdr</code> 関数で <code>file_activity</code> 構造体を書く</a></li>
+        <li><a href="#4-write_new_cpu_nr-関数内で-cpu-番号を書く">4. <code>write_new_cpu_nr</code> 関数内で CPU 番号を書く</a></li>
+        <li><a href="#5-write_special_record-関数で-record_header-構造体を書く">5. <code>write_special_record</code> 関数で <code>record_header</code> 構造体を書く</a></li>
+        <li><a href="#6-write_special_record-関数で-comment-を書く">6. <code>write_special_record</code> 関数で <code>comment</code> を書く</a></li>
+        <li><a href="#7-write_stats-関数で-record_header-構造体を書く">7. <code>write_stats</code> 関数で <code>record_header</code> 構造体を書く</a></li>
+        <li><a href="#8-write_stats-関数で-activity-構造体の-nr0-を書く">8. <code>write_stats</code> 関数で <code>activity</code> 構造体の <code>nr[0]</code> を書く</a></li>
+        <li><a href="#9-write_stats-関数で-activity-構造体の-buf0-を書く">9. <code>write_stats</code> 関数で <code>activity</code> 構造体の <code>buf[0]</code> を書く</a></li>
+      </ul>
+    </li>
+    <li><a href="#activity-構造体の-buf0-への値のセット"><code>activity</code> 構造体の <code>buf[0]</code> への値のセット</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="http://sebastien.godard.pagesperso-orange.fr/">sysstat</a> のバイナリファイルのフォーマットを調べてみたメモです。</p>
+<p><a href="http://sebastien.godard.pagesperso-orange.fr/documentation.html">Documents</a> のページを見てみましたが、ファイルフォーマットについての記述は見つけられませんでした。</p>
+<p><a href="http://sebastien.godard.pagesperso-orange.fr/faq.html">FAQ</a> の &ldquo;2.5. Are sar daily data files fully compatible with Sun Solaris format sar files?&rdquo; で Solaris と Linux では形式が違うことはわかりました。</p>
+<p><a href="https://github.com/sysstat/sysstat/issues/135">portability of sa data files · Issue #135 · sysstat/sysstat</a> というイシューの2016年のコメントで sqlite などを使うことも考えているとも書かれていましたが、 2020-08-09 時点では独自のバイナリファイル形式です。</p>
+<p>ということでコードリーディングしてみました。
+対象は Ubuntu 20.04 LTS の sysstat パッケージに合わせて 12.2.0 にします（ちなみに 2020-08-09 時点の最新リリースの 12.4.0 で、 Ubuntu 18.04 LTS の sysstat パッケージは 11.6.1 でした）。</p>
+<h2 id="ファイル全体の構成図">ファイル全体の構成図</h2>
+<p>sa.h 内のコメントにファイル全体の構成図が書いてありました。</p>
+<p><a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L347-L445">sa.h#L347-L445</a></p>
+<h2 id="全ての書き込みは-write_all-関数で行う">全ての書き込みは write_all 関数で行う</h2>
+<p><code>ag 'write\('</code> で検索してみた感じでは、全ての書き込みは
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa_common.c#L403-L438">write_all</a>
+関数で行っているようです。</p>
+<p>一部 <a href="https://manpages.ubuntu.com/manpages/focal/en/man3/pmiWrite.3.html">pmiWrite (3)</a> という関数を使っている箇所もありますでが、今回は対象外とします。</p>
+<h2 id="sadcc-内の-write_all-関数の呼び出し箇所">sadc.c 内の write_all 関数の呼び出し箇所</h2>
+<p>write_all 関数の呼び出し箇所は sa_conv.c にもありますが、ここでは sadc.c のみを見ていきます。
+sadc.c 内での write_all 関数の呼び出し箇所は以下の9箇所です。</p>
+<pre><code>sadc.c
+480:    if (write_all(fd, &amp;file_magic, FILE_MAGIC_SIZE) != FILE_MAGIC_SIZE) {
+530:    if (write_all(fd, &amp;file_hdr, FILE_HEADER_SIZE) != FILE_HEADER_SIZE) {
+561:                    if (write_all(fd, &amp;file_act, FILE_ACTIVITY_SIZE) != FILE_ACTIVITY_SIZE) {
+584:    if (write_all(ofd, &amp;(act[p]-&gt;nr_ini), sizeof(__nr_t)) != sizeof(__nr_t)) {
+625:    if (write_all(ofd, &amp;record_hdr, RECORD_HEADER_SIZE) != RECORD_HEADER_SIZE) {
+635:            if (write_all(ofd, comment, MAX_COMMENT_LEN) != MAX_COMMENT_LEN) {
+664:    if (write_all(ofd, &amp;record_hdr, RECORD_HEADER_SIZE) != RECORD_HEADER_SIZE) {
+678:                            if (write_all(ofd, &amp;(act[p]-&gt;_nr0), sizeof(__nr_t)) != sizeof(__nr_t)) {
+682:                    if (write_all(ofd, act[p]-&gt;_buf0, act[p]-&gt;fsize * act[p]-&gt;_nr0 * act[p]-&gt;nr2) !=
+</code></pre><h3 id="1-setup_file_hdr-関数で-file_magic-構造体を書く">1. <code>setup_file_hdr</code> 関数で <code>file_magic</code> 構造体を書く</h3>
+<p><a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L461-L568">setup_file_hdr</a> 関数内の
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L480">sadc.c#L480</a> (下記にインデント省略して引用)</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">if</span> <span class="p">(</span><span class="n">write_all</span><span class="p">(</span><span class="n">fd</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">file_magic</span><span class="p">,</span> <span class="n">FILE_MAGIC_SIZE</span><span class="p">)</span> <span class="o">!=</span> <span class="n">FILE_MAGIC_SIZE</span><span class="p">)</span> <span class="p">{</span>
+</code></pre></div><p>でファイルのマジックヘッダーを書き込んでいます。</p>
+<p><a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L435-L459">fill_magic_header</a>
+関数と
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L471-L514">struct file_magic</a>
+構造体などを見るとファイルのマジックヘッダーは以下のようになります。</p>
+<p><code>struct file_magic</code> 構造体76バイト。実際の例は下記のとおりです。</p>
+<pre><code class="language-console" data-lang="console">$ xxd -l 76 /var/log/sysstat/sa09
+00000000: 96d5 7521 0c02 0000 5001 0000 0000 0000  ..u!....P.......
+00000010: 0100 0000 0100 0000 0c00 0000 0000 0000  ................
+00000020: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+00000030: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+00000040: 0000 0000 0000 0000 0000 0000            ............
+</code></pre><ul>
+<li><code>sysstat_magic</code> (2バイト): 0xd596</li>
+<li><code>format_magic</code>(2バイト): 0x2175</li>
+<li><code>sysstat_version</code> (1バイト): 0x0c</li>
+<li><code>sysstat_patchlevel</code> (1バイト): 0x02</li>
+<li><code>sysstat_sublevel</code> (1バイト): 0x00</li>
+<li><code>sysstat_extraversion</code> (1バイト): 0x00
+<ul>
+<li><code>sysstat_version</code> 以下の4つは 12.2.0 に対応した値ですので、別のバージョンでは違う値になります。</li>
+</ul>
+</li>
+<li><code>header_size</code> (4バイト): <code>sizeof(struct file_header)</code> = 0x00000150 = 336</li>
+<li><code>upgraded</code> (4バイト): 0x000000
+<ul>
+<li>別バージョンで作成後アップグレードされた場合は <a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L495-L501">sa.h#L495-L501</a> 参照。</li>
+</ul>
+</li>
+<li><code>hdr_types_nr[3]</code> (12バイト) <a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa_common.c#L52">hdr_types_nr</a>
+<ul>
+<li><code>hdr_types_nr[0]</code> (4バイト): 0x00000001 = 1 <a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L595">FILE_HEADER_ULL_NR</a></li>
+<li><code>hdr_types_nr[1]</code> (4バイト): 0x00000001 = 1 <a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L596">FILE_HEADER_UL_NR</a></li>
+<li><code>hdr_types_nr[2]</code> (4バイト): 0x0000000c = 12 <a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L597">FILE_HEADER_U_NR</a></li>
+</ul>
+</li>
+<li><code>pad</code> パディング (48バイト)</li>
+</ul>
+<h3 id="2-setup_file_hdr-関数で-file_header-構造体を書く">2. <code>setup_file_hdr</code> 関数で <code>file_header</code> 構造体を書く</h3>
+<p><a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L461-L568">setup_file_hdr</a> 関数内の
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L530">sadc.c#L530</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">if</span> <span class="p">(</span><span class="n">write_all</span><span class="p">(</span><span class="n">fd</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">file_hdr</span><span class="p">,</span> <span class="n">FILE_HEADER_SIZE</span><span class="p">)</span> <span class="o">!=</span> <span class="n">FILE_HEADER_SIZE</span><span class="p">)</span> <span class="p">{</span>
+</code></pre></div><p>で
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L518-L592">struct file_header</a>
+構造体を書いています。</p>
+<p><code>struct file_header</code> 構造体336バイト。</p>
+<pre><code class="language-console" data-lang="console">$ xxd -s 76 -l 336 /var/log/sysstat/sa09
+0000004c: 2949 2f5f 0000 0000 6400 0000 0000 0000  )I/_....d.......
+0000005c: 0900 0000 1000 0000 7800 0000 0000 0000  ........x.......
+0000006c: 0000 0000 0900 0000 0200 0000 0000 0000  ................
+0000007c: 0100 0000 2400 0000 1800 0000 0000 0000  ....$...........
+0000008c: 0907 084c 696e 7578 0000 0000 0000 0000  ...Linux........
+0000009c: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+000000ac: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+000000bc: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+000000cc: 0000 0000 7468 696e 6b63 656e 7472 6500  ....thinkcentre.
+000000dc: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+000000ec: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+000000fc: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+0000010c: 0000 0000 0035 2e34 2e30 2d34 322d 6765  .....5.4.0-42-ge
+0000011c: 6e65 7269 6300 0000 0000 0000 0000 0000  neric...........
+0000012c: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+0000013c: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+0000014c: 0000 0000 0000 7838 365f 3634 0000 0000  ......x86_64....
+0000015c: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+0000016c: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+0000017c: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+0000018c: 0000 0000 0000 004a 5354 0000 0000 0000  .......JST......
+</code></pre><ul>
+<li><code>sa_ust_time</code> (8バイト): 0x5f2f4929 (実際の日時によって変わります)
+<ul>
+<li><code>date +%Y-%m-%dT%H:%M:%SZ --date @$(echo $((16#5f2f4929)))</code> で確認すると 2020-08-09T09:54:01Z でした（16進数から10進数への変換は <a href="https://linuxhint.com/convert_hexadecimal_decimal_bash/">Convert Hexadecimal to Decimal in Bash – Linux Hint</a> を参考にしました）。</li>
+</ul>
+</li>
+<li><code>sa_hz</code> (4バイト, 8バイトアライン): 0x00000064 = 100
+<ul>
+<li><code>sysconf(_SC_CLK_TCK)</code> の値</li>
+</ul>
+</li>
+<li><code>sa_cpu_nr</code> (4バイト, 8バイトアライン): 0x00000009 = 9 = (8 + 1)
+<ul>
+<li>4コア8スレッドのCPUの場合。+1はALLの分。</li>
+</ul>
+</li>
+<li><code>sa_act_nr</code> (4バイト): 0x0000010 = 16 （ファイル内のアクティビティ数）</li>
+<li><code>sa_year</code> (4バイト): 0x00000078 = 120 （今年 - 1900）</li>
+<li><code>act_types_nr</code> (12バイト) <a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa_common.c#L53">act_types_nr</a>
+<ul>
+<li><code>act_types_nr[0]</code> (4バイト): 0x00000000 = 0 <a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L650">FILE_ACTIVITY_ULL_NR</a></li>
+<li><code>act_types_nr[1]</code> (4バイト): 0x00000000 = 0 <a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L651">FILE_ACTIVITY_UL_NR</a></li>
+<li><code>act_types_nr[2]</code> (4バイト): 0x00000009 = 1 <a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L652">FILE_ACTIVITY_U_NR</a></li>
+</ul>
+</li>
+<li><code>rec_types_nr</code> (12バイト) <a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa_common.c#L54">rec_types_nr</a>
+<ul>
+<li><code>rec_types_nr[0]</code> (4バイト): 0x00000002 = 2 <a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L748">RECORD_HEADER_ULL_NR</a></li>
+<li><code>rec_types_nr[1]</code> (4バイト): 0x00000000 = 0 <a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L749">RECORD_HEADER_UL_NR</a></li>
+<li><code>rec_types_nr[2]</code> (4バイト): 0x00000001 = 1 <a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L750">RECORD_HEADER_U_NR</a></li>
+</ul>
+</li>
+<li><code>act_size</code> (4バイト): 0x00000024 = 36
+<ul>
+<li><a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L648">FILE_ACTIVITY_SIZE</a> = <code>sizeof(struct file_activity)</code></li>
+</ul>
+</li>
+<li><code>rec_size</code> (4バイト): 0x00000018 = 24
+<ul>
+<li><a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L746">RECORD_HEADER_SIZE</a> = <code>sizeof(struct record_header)</code></li>
+</ul>
+</li>
+<li><code>extra_next</code> (4バイト): 0x00000000 (TRUE if an extra_desc structure exists.)</li>
+<li><code>sa_day</code> (1バイト): 0x09 = 9 (9日)</li>
+<li><code>sa_month</code> (1バイト): 0x07 = 7 (0が1月なので7は8月)</li>
+<li><code>sa_sizeof_long</code> (1バイト): 0x08 = 8 (Size of a long integer.)</li>
+<li><code>sa_sysname</code> (65バイト): Linux (Operating system name.) <a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L261">UTSNAME_LEN</a> = 65</li>
+<li><code>sa_nodename</code> (65バイト): thinkcentre (Machine hostname.)</li>
+<li><code>sa_release</code> (65バイト): 5.4.0-42-generic (Operating system release number.)</li>
+<li><code>sa_machine</code> (65バイト): x86_64 (Machine architecture.)</li>
+<li><code>sa_tzname</code> (65バイト): JST (Timezone value.)</li>
+</ul>
+<h3 id="3-setup_file_hdr-関数で-file_activity-構造体を書く">3. <code>setup_file_hdr</code> 関数で <code>file_activity</code> 構造体を書く</h3>
+<p><a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L461-L568">setup_file_hdr</a> 関数内の
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L561">sadc.c#L561</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">if</span> <span class="p">(</span><span class="n">write_all</span><span class="p">(</span><span class="n">fd</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">file_act</span><span class="p">,</span> <span class="n">FILE_ACTIVITY_SIZE</span><span class="p">)</span> <span class="o">!=</span> <span class="n">FILE_ACTIVITY_SIZE</span><span class="p">)</span> <span class="p">{</span>
+</code></pre></div><p>で
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L613-L646">struct file_activity</a>
+構造体を書いています。</p>
+<p><a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L538">sadc.c#L538</a> の <code>for</code> ループで最大
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L23">NR_ACT</a> = 39 個の <code>struct file_activity</code> を書きます。</p>
+<p>実際の個数は <code>file_header</code> 構造体の <code>sa_act_nr</code> に保持されていて今回の例では 16 です。</p>
+<pre><code class="language-console" data-lang="console">$ echo '76 + 336' | bc
+412
+$ echo '16 * 36' | bc
+576
+</code></pre><p>16個の <code>file_activity</code>。</p>
+<pre><code class="language-console" data-lang="console">$ xxd -s 412 -l 576 /var/log/sysstat/sa09
+0000019c: 0100 0000 8b00 0000 0900 0000 0100 0000  ................
+000001ac: 0100 0000 5000 0000 0a00 0000 0000 0000  ....P...........
+000001bc: 0000 0000 0200 0000 8b00 0000 0100 0000  ................
+000001cc: 0100 0000 0000 0000 1000 0000 0100 0000  ................
+000001dc: 0100 0000 0000 0000 0400 0000 8a00 0000  ................
+000001ec: 0100 0000 0100 0000 0000 0000 1000 0000  ................
+000001fc: 0000 0000 0200 0000 0000 0000 0500 0000  ................
+0000020c: 8a00 0000 0100 0000 0100 0000 0000 0000  ................
+0000021c: 4000 0000 0000 0000 0800 0000 0000 0000  @...............
+0000022c: 0600 0000 8b00 0000 0100 0000 0100 0000  ................
+0000023c: 0000 0000 3800 0000 0700 0000 0000 0000  ....8...........
+0000024c: 0000 0000 0700 0000 8b00 0000 0100 0000  ................
+0000025c: 0100 0000 0000 0000 8800 0000 1100 0000  ................
+0000026c: 0000 0000 0000 0000 2200 0000 8b00 0000  ........&quot;.......
+0000027c: 0100 0000 0100 0000 0000 0000 2000 0000  ............ ...
+0000028c: 0400 0000 0000 0000 0000 0000 0800 0000  ................
+0000029c: 8b00 0000 0100 0000 0100 0000 0000 0000  ................
+000002ac: 2000 0000 0400 0000 0000 0000 0000 0000   ...............
+000002bc: 0900 0000 8c00 0000 0100 0000 0100 0000  ................
+000002cc: 0000 0000 2800 0000 0300 0000 0000 0000  ....(...........
+000002dc: 0300 0000 0b00 0000 8c00 0000 0e00 0000  ................
+000002ec: 0100 0000 0100 0000 5000 0000 0300 0000  ........P.......
+000002fc: 0300 0000 0800 0000 0c00 0000 8d00 0000  ................
+0000030c: 0300 0000 0100 0000 0100 0000 5000 0000  ............P...
+0000031c: 0700 0000 0000 0000 0100 0000 0d00 0000  ................
+0000032c: 8c00 0000 0300 0000 0100 0000 0100 0000  ................
+0000033c: 5800 0000 0900 0000 0000 0000 0000 0000  X...............
+0000034c: 0e00 0000 8a00 0000 0100 0000 0100 0000  ................
+0000035c: 0000 0000 1800 0000 0000 0000 0000 0000  ................
+0000036c: 0600 0000 0f00 0000 8a00 0000 0100 0000  ................
+0000037c: 0100 0000 0000 0000 2c00 0000 0000 0000  ........,.......
+0000038c: 0000 0000 0b00 0000 1000 0000 8a00 0000  ................
+0000039c: 0100 0000 0100 0000 0000 0000 1800 0000  ................
+000003ac: 0000 0000 0000 0000 0600 0000 2700 0000  ............'...
+000003bc: 8a00 0000 0900 0000 0100 0000 0100 0000  ................
+000003cc: 1400 0000 0000 0000 0000 0000 0500 0000  ................
+</code></pre><p>最初の1個の <code>file_activity</code>。</p>
+<pre><code class="language-console" data-lang="console">$ xxd -s 412 -l 36 /var/log/sysstat/sa09
+0000019c: 0100 0000 8b00 0000 0900 0000 0100 0000  ................
+000001ac: 0100 0000 5000 0000 0a00 0000 0000 0000  ....P...........
+000001bc: 0000 0000                                ....
+</code></pre><p><a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L613-L646">struct file_activity</a> 構造体。</p>
+<p><a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L540-L563">sadc.c#L540-L563</a>
+で
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L76">unsigned int id_seq[NR_ACT]</a>
+と
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/activity.c#L1895-L1943">struct activity *act[NR_ACT]</a>
+を参照して、 <code>act</code> の要素をローカル変数の <a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L475">struct file_activity file_act</a> に移し替えてからファイルに書きます。</p>
+<ul>
+<li><code>id</code> (4バイト): Identification value of activity.</li>
+<li><code>magic</code> (4バイト): Activity magical number.</li>
+<li><code>nr</code> (4バイト): ファイル作成時のこのアクティビティのアイテム数
+<ul>
+<li><a href="https://github.com/sysstat/sysstat/blob/v12.2.0/rd_stats.h#L46-L47">__nr_t</a> は int に <code>#define</code> されている</li>
+</ul>
+</li>
+<li><code>nr2</code> (4バイト): このアクティビティのサブアイテム数</li>
+<li><code>has_nr</code> (4バイト): statistics の前に構造体の数がある場合は TRUE</li>
+<li><code>size</code> (4バイト): item構造体のサイズ</li>
+<li><code>types_nr[3]</code> (12バイト)
+<ul>
+<li><code>types_nr[0]</code> (4バイト): long long のサイズ</li>
+<li><code>types_nr[1]</code> (4バイト): long のサイズ</li>
+<li><code>types_nr[2]</code> (4バイト): int のサイズ</li>
+</ul>
+</li>
+</ul>
+<h3 id="4-write_new_cpu_nr-関数内で-cpu-番号を書く">4. <code>write_new_cpu_nr</code> 関数内で CPU 番号を書く</h3>
+<p><a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L570-L587">write_new_cpu_nr</a> 関数内の
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L584">sadc.c#L584</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">if</span> <span class="p">(</span><span class="n">write_all</span><span class="p">(</span><span class="n">ofd</span><span class="p">,</span> <span class="o">&amp;</span><span class="p">(</span><span class="n">act</span><span class="p">[</span><span class="n">p</span><span class="p">]</span><span class="o">-&gt;</span><span class="n">nr_ini</span><span class="p">),</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">__nr_t</span><span class="p">))</span> <span class="o">!=</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">__nr_t</span><span class="p">))</span> <span class="p">{</span>
+</code></pre></div><p>で
+RESTART レコードの後に CPU の新しい番号を書きます。</p>
+<h3 id="5-write_special_record-関数で-record_header-構造体を書く">5. <code>write_special_record</code> 関数で <code>record_header</code> 構造体を書く</h3>
+<p><a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L589-L639">write_special_record</a> 関数内の
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L625">sadc.c#L625</a>の</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">if</span> <span class="p">(</span><span class="n">write_all</span><span class="p">(</span><span class="n">ofd</span><span class="p">,</span> <span class="o">&amp;</span><span class="p">(</span><span class="n">act</span><span class="p">[</span><span class="n">p</span><span class="p">]</span><span class="o">-&gt;</span><span class="n">_nr0</span><span class="p">),</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">__nr_t</span><span class="p">))</span> <span class="o">!=</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">__nr_t</span><span class="p">))</span> <span class="p">{</span>
+</code></pre></div><p>で <a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L718-L744">struct record_header</a> 構造体の
+グローバル変数 <a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L72">record_hdr</a> を書きます。</p>
+<p><code>struct record_header</code> 構造体のサイズは24バイトです。</p>
+<h3 id="6-write_special_record-関数で-comment-を書く">6. <code>write_special_record</code> 関数で <code>comment</code> を書く</h3>
+<p><a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L589-L639">write_special_record</a> 関数内の
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L635">sadc.c#L635</a>の</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">if</span> <span class="p">(</span><span class="n">write_all</span><span class="p">(</span><span class="n">ofd</span><span class="p">,</span> <span class="n">comment</span><span class="p">,</span> <span class="n">MAX_COMMENT_LEN</span><span class="p">)</span> <span class="o">!=</span> <span class="n">MAX_COMMENT_LEN</span><span class="p">)</span> <span class="p">{</span>
+</code></pre></div><p>で
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L74">char comment[MAX_COMMENT_LEN]</a>
+を書きます。</p>
+<p>コメントの最大長 <a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L715-L716">MAX_COMMENT_LEN</a> は64です。</p>
+<h3 id="7-write_stats-関数で-record_header-構造体を書く">7. <code>write_stats</code> 関数で <code>record_header</code> 構造体を書く</h3>
+<p><a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L641-L688">write_stats</a> 関数内の
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L664">sadc.c#L664</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">if</span> <span class="p">(</span><span class="n">write_all</span><span class="p">(</span><span class="n">ofd</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">record_hdr</span><span class="p">,</span> <span class="n">RECORD_HEADER_SIZE</span><span class="p">)</span> <span class="o">!=</span> <span class="n">RECORD_HEADER_SIZE</span><span class="p">)</span> <span class="p">{</span>
+</code></pre></div><p>で <a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L718-L744">struct record_header</a> 構造体の
+グローバル変数 <a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L72">record_hdr</a> を書きます。</p>
+<h3 id="8-write_stats-関数で-activity-構造体の-nr0-を書く">8. <code>write_stats</code> 関数で <code>activity</code> 構造体の <code>nr[0]</code> を書く</h3>
+<p><a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L641-L688">write_stats</a> 関数内の
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L678">sadc.c#L678</a>の</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">if</span> <span class="p">(</span><span class="n">write_all</span><span class="p">(</span><span class="n">ofd</span><span class="p">,</span> <span class="o">&amp;</span><span class="p">(</span><span class="n">act</span><span class="p">[</span><span class="n">p</span><span class="p">]</span><span class="o">-&gt;</span><span class="n">_nr0</span><span class="p">),</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">__nr_t</span><span class="p">))</span> <span class="o">!=</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">__nr_t</span><span class="p">))</span> <span class="p">{</span>
+</code></pre></div><p>と
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L829">sa.h#L829</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cp">#define _nr0	nr[0]
+</span></code></pre></div><p>で</p>
+<p><a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L845-L1065">struct activity</a> 構造体の
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L1020-L1024">sa.h#L1020-L1024</a> の</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/*
+</span><span class="cm"> * Number of items, as read and saved in corresponding buffer (@buf: See below).
+</span><span class="cm"> * The value may be zero for a particular sample if no items have been found.
+</span><span class="cm"> */</span>
+<span class="n">__nr_t</span> <span class="n">nr</span><span class="p">[</span><span class="mi">3</span><span class="p">];</span>
+</code></pre></div><p>の <code>nr[0]</code> (4バイト) を書きます。</p>
+<h3 id="9-write_stats-関数で-activity-構造体の-buf0-を書く">9. <code>write_stats</code> 関数で <code>activity</code> 構造体の <code>buf[0]</code> を書く</h3>
+<p><a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L641-L688">write_stats</a> 関数内の
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sadc.c#L682">sadc.c#L682</a> (下記にインデント省略して引用)の</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">if</span> <span class="p">(</span><span class="n">write_all</span><span class="p">(</span><span class="n">ofd</span><span class="p">,</span> <span class="n">act</span><span class="p">[</span><span class="n">p</span><span class="p">]</span><span class="o">-&gt;</span><span class="n">_buf0</span><span class="p">,</span> <span class="n">act</span><span class="p">[</span><span class="n">p</span><span class="p">]</span><span class="o">-&gt;</span><span class="n">fsize</span> <span class="o">*</span> <span class="n">act</span><span class="p">[</span><span class="n">p</span><span class="p">]</span><span class="o">-&gt;</span><span class="n">_nr0</span> <span class="o">*</span> <span class="n">act</span><span class="p">[</span><span class="n">p</span><span class="p">]</span><span class="o">-&gt;</span><span class="n">nr2</span><span class="p">)</span> <span class="o">!=</span>
+</code></pre></div><p>と
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L828">sa.h#L828</a>
+の</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cp">#define _buf0	buf[0]
+</span></code></pre></div><p>で
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L845-L1065">struct activity</a> 構造体の
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L1052-L1059">sa.h#L1052-L1059</a> の</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/*
+</span><span class="cm"> * Buffers that will contain the statistics read. Its size is @nr * @nr2 * @size each.
+</span><span class="cm"> * [0]: used by sadc.
+</span><span class="cm"> * [0] and [1]: current/previous statistics values (used by sar).
+</span><span class="cm"> * [2]: Used by sar to save first collected stats (used later to
+</span><span class="cm"> * compute average).
+</span><span class="cm"> */</span>
+<span class="kt">void</span> <span class="o">*</span><span class="n">buf</span><span class="p">[</span><span class="mi">3</span><span class="p">];</span>
+</code></pre></div><p>の <code>buf[0]</code> を書きます。
+サイズは <code>act[p]-&gt;fsize * act[p]-&gt;_nr0 * act[p]-&gt;nr2</code> です。</p>
+<p><code>fsize</code> は
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L1030-L1035">sa.h#L1030-L1035</a> の</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/*
+</span><span class="cm"> * Size of an item.
+</span><span class="cm"> * This is the size of the corresponding structure, as read from or written
+</span><span class="cm"> * to a file, or read from or written by the data collector.
+</span><span class="cm"> */</span>
+<span class="kt">int</span> <span class="n">fsize</span><span class="p">;</span>
+</code></pre></div><p>です。</p>
+<p><code>_nr0</code> は前項に書いた <code>activity</code> 構造体の <code>nr[0]</code> です。</p>
+<p><code>nr2</code> は
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa.h#L996-L1013">sa.h#L996-L1013</a>
+の</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/*
+</span><span class="cm"> * Number of sub-items on the system.
+</span><span class="cm"> * @nr2 is in fact the second dimension of a matrix of items, the first
+</span><span class="cm"> * one being @nr. @nr is the number of lines, and @nr2 the number of columns.
+</span><span class="cm"> * A negative value (-1) is the default value and indicates that this number
+</span><span class="cm"> * has still not been calculated by the f_count2() function.
+</span><span class="cm"> * A value of 0 means that this number has been calculated, but no sub-items have
+</span><span class="cm"> * been found.
+</span><span class="cm"> * A positive value (&gt;0) has either been calculated or is a constant.
+</span><span class="cm"> * Rules:
+</span><span class="cm"> * 1) IF @nr2 = 0 THEN @nr = 0
+</span><span class="cm"> *    Note: If @nr = 0, then @nr2 is undetermined (may be -1, 0 or &gt;0).
+</span><span class="cm"> * 2) IF @nr &gt; 0 THEN @nr2 &gt; 0.
+</span><span class="cm"> *    Note: If @nr2 &gt; 0 then @nr is undetermined (may be -1, 0 or &gt;0).
+</span><span class="cm"> * 3) IF @nr &lt;= 0 THEN @nr2 = -1 (this is the default value for @nr2,
+</span><span class="cm"> * meaning that it has not been calculated).
+</span><span class="cm"> */</span>
+<span class="n">__nr_t</span> <span class="n">nr2</span><span class="p">;</span>
+</code></pre></div><p>です。</p>
+<p>つまり、サイズは (アイテムのサイズ * アイテム数 * サブアイテム数) です。</p>
+<h2 id="activity-構造体の-buf0-への値のセット"><code>activity</code> 構造体の <code>buf[0]</code> への値のセット</h2>
+<p>例えば CPU の統計情報の場合、 <code>struct activity</code> 型のグローバル変数
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/activity.c#L63-L114">cpu_act</a> の
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/activity.c#L78">activity.c#L78</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="p">.</span><span class="n">f_read</span>		<span class="o">=</span> <span class="n">wrap_read_stat_cpu</span><span class="p">,</span>
+</code></pre></div><p>で設定している
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/sa_wrap.c#L56-L87">wrap_read_stat_cpu</a>関数</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cm">/*
+</span><span class="cm"> ***************************************************************************
+</span><span class="cm"> * Read CPU statistics.
+</span><span class="cm"> *
+</span><span class="cm"> * IN:
+</span><span class="cm"> * @a	Activity structure.
+</span><span class="cm"> *
+</span><span class="cm"> * OUT:
+</span><span class="cm"> * @a	Activity structure with statistics.
+</span><span class="cm"> ***************************************************************************
+</span><span class="cm"> */</span>
+<span class="n">__read_funct_t</span> <span class="nf">wrap_read_stat_cpu</span><span class="p">(</span><span class="k">struct</span> <span class="n">activity</span> <span class="o">*</span><span class="n">a</span><span class="p">)</span>
+<span class="p">{</span>
+	<span class="k">struct</span> <span class="n">stats_cpu</span> <span class="o">*</span><span class="n">st_cpu</span>
+		<span class="o">=</span> <span class="p">(</span><span class="k">struct</span> <span class="n">stats_cpu</span> <span class="o">*</span><span class="p">)</span> <span class="n">a</span><span class="o">-&gt;</span><span class="n">_buf0</span><span class="p">;</span>
+	<span class="n">__nr_t</span> <span class="n">nr_read</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+	<span class="cm">/* Read CPU statistics */</span>
+	<span class="k">do</span> <span class="p">{</span>
+		<span class="n">nr_read</span> <span class="o">=</span> <span class="n">read_stat_cpu</span><span class="p">(</span><span class="n">st_cpu</span><span class="p">,</span> <span class="n">a</span><span class="o">-&gt;</span><span class="n">nr_allocated</span><span class="p">);</span>
+
+		<span class="k">if</span> <span class="p">(</span><span class="n">nr_read</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+			<span class="cm">/* Buffer needs to be reallocated */</span>
+			<span class="n">st_cpu</span> <span class="o">=</span> <span class="p">(</span><span class="k">struct</span> <span class="n">stats_cpu</span> <span class="o">*</span><span class="p">)</span> <span class="n">reallocate_buffer</span><span class="p">(</span><span class="n">a</span><span class="p">);</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+	<span class="k">while</span> <span class="p">(</span><span class="n">nr_read</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">);</span>
+
+	<span class="n">a</span><span class="o">-&gt;</span><span class="n">_nr0</span> <span class="o">=</span> <span class="n">nr_read</span><span class="p">;</span>
+
+	<span class="k">return</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div><p>で <code>activity</code> 構造体の <code>buf[0]</code> へのポインタを <code>struct stats_cpu *</code> にキャストし、そこに
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/rd_stats.c#L44-L152">read_stat_cpu</a> 関数で
+<a href="https://github.com/sysstat/sysstat/blob/v12.2.0/common.h#L71">common.h#L71</a> で定義されている</p>
+<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="cp">#define STAT			PRE &#34;/proc/stat&#34;
+</span></code></pre></div><p>のファイルを読んで <code>struct stats_cpu</code> 構造体に読み込んだ値を設定しています。</p>
+
+</div>
+
+
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
