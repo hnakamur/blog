@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.74.3" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Windows10上のGlobalProtectでVPN接続後にプログラムを最上位の特権で実行する &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2020. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Windows10上のGlobalProtectでVPN接続後にプログラムを最上位の特権で実行する</h1>
+  <time datetime=2020-08-14T11:16:18&#43;0900 class="post-date">2020-08-14</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#windows10のglobalprotectでvpn接続後にプログラムを実行する設定">Windows10のGlobalProtectでVPN接続後にプログラムを実行する設定</a></li>
+    <li><a href="#windows10のタスクスケジューラに最上位の特権で実行するタスクを登録">Windows10のタスクスケジューラに最上位の特権で実行するタスクを登録</a>
+      <ul>
+        <li><a href="#タスクスケジューラのguiでタスクを登録する方法">タスクスケジューラのGUIでタスクを登録する方法</a></li>
+        <li><a href="#powershellでタスクスケジューラにタスクを登録する方法">PowerShellでタスクスケジューラにタスクを登録する方法</a></li>
+      </ul>
+    </li>
+    <li><a href="#globalprotectでvpn接続後にタスクを実行する設定">GlobalProtectでVPN接続後にタスクを実行する設定</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>勤務先で共有されているVPN用のルート追加プログラムがあるのですが、
+今まではショートカットを作ってGlobalProtectでVPN接続後に手動で実行していました。</p>
+<p>今日時間を取って調査したら自動化できたのでメモです。
+なおログインしているユーザーに管理者権限がある前提です。</p>
+<h2 id="windows10のglobalprotectでvpn接続後にプログラムを実行する設定">Windows10のGlobalProtectでVPN接続後にプログラムを実行する設定</h2>
+<p><a href="https://docs.paloaltonetworks.com/globalprotect/9-0/globalprotect-admin/globalprotect-apps/deploy-app-settings-transparently/deploy-app-settings-to-windows-endpoints/deploy-scripts-using-the-windows-registry.html">Deploy Scripts Using the Windows Registry</a> に説明がありました。</p>
+<p>レジストリエディターで
+<code>HKEY_LOCAL_MACHINE\SOFTWARE\Palo Alto Networks\GlobalProtect\Settings\post-vpn-connect</code> というキーを作成し、そこに <code>command</code> という文字列値で起動したいプログラムと引数を作成すればVPN接続後に実行されます。</p>
+<p>まずは</p>
+<pre><code>Windows Registry Editor Version 5.00
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Palo Alto Networks\GlobalProtect\Settings\post-vpn-connect]
+&quot;command&quot;=&quot;C:\\Windows\\System32\\notepad.exe&quot;
+
+</code></pre><p>のようにメモ帳を起動する設定を追加して実験してみるとVPN接続後に無事起動されました。</p>
+<h2 id="windows10のタスクスケジューラに最上位の特権で実行するタスクを登録">Windows10のタスクスケジューラに最上位の特権で実行するタスクを登録</h2>
+<p>ルートを追加するのは一般ユーザー権限では出来ず管理者権限で実行する必要があります。</p>
+<p>通常であれば、管理者権限が必要なコマンドを動かすとWindowsのユーザーアカウント制御(UAC)ダイアログが表示され許可すると実行されます。</p>
+<p>一方上記のGlobalProtectでVPN接続後にプログラムを実行する設定では、UACダイアログが表示されず実行もされないことがわかりました。</p>
+<p><a href="https://www.raymond.cc/blog/task-scheduler-bypass-uac-prompt/">5 Ways to Disable User Account Control (UAC) for Specific Software • Raymond.CC</a>
+の &ldquo;5. Manually Bypass User Account Control Prompts Using The Task Scheduler&rdquo; にタスクスケジューラを使う方法が紹介されていました。</p>
+<p><a href="https://pc-karuma.net/windows-10-task-schedule-without-uac-prompt/">Windows10 - 管理者権限が必要なアプリを自動起動（スタートアップ） - PC設定のカルマ</a> などに日本語の記事もありました。</p>
+<p>その後 PowerShell でタスクを登録する方法も見つけたのでこちらも書いておきます。
+以下の2つのどちらかで登録すればOKです。</p>
+<ul>
+<li>タスクスケジューラのGUIでタスクを登録する方法</li>
+<li>PowerShellでタスクスケジューラにタスクを登録する方法</li>
+</ul>
+<h3 id="タスクスケジューラのguiでタスクを登録する方法">タスクスケジューラのGUIでタスクを登録する方法</h3>
+<ol>
+<li>タスクスケジューラを起動します。
+<ul>
+<li>Windowsキーを押して「スケジュ」と入力してインクリメンタルサーチでタスクスケジュールが表示されたら選択するなど。</li>
+</ul>
+</li>
+<li>左のツリーで「タスクスケジューラライブラリ」を選択して[操作]/[タスクの作成]メニューを実行します。</li>
+<li>[全般]タブの[名前]に作成したいタスク名を入力します。</li>
+<li>[全般]タブの[説明]に適宜説明を書いておきます。</li>
+<li>[全般]タブの[最上位の特権で実行する]チェックボックスをオンにします。</li>
+<li>[操作]タブの[新規]ボタンを押して[プログラム/スクリプト]に実行ファイル名を入力し、引数が必要な場合は[引数の追加(オプション)]に入力します。</li>
+<li>[新しい操作]ダイアログで[OK]ボタンを押して閉じ[タスクの作成]でも[OK]を押して閉じます。</li>
+</ol>
+<h3 id="powershellでタスクスケジューラにタスクを登録する方法">PowerShellでタスクスケジューラにタスクを登録する方法</h3>
+<p>以下の一連のコマンドを適宜修正して、管理者権限で PowerShell を起動して実行します。</p>
+<pre><code>$A = New-ScheduledTaskAction -Execute &quot;実行ファイルのフルパス&quot; -Argument &quot;必要な場合は引数&quot;
+$P = New-ScheduledTaskPrincipal -UserID $env:USERDOMAIN\$env:USERNAME -RunLevel Highest
+$S = New-ScheduledTaskSettingsSet
+$D = New-ScheduledTask -Action $A -Principal $P -Settings $S -Description &quot;適宜説明をここに書きます&quot;
+Register-ScheduledTask 作りたいタスク名 -InputObject $D
+</code></pre><p>上のスクリプトは
+<a href="https://docs.microsoft.com/en-us/powershell/module/scheduledtasks/new-scheduledtask?view=win10-ps#related-links">New-ScheduledTask</a> の Examples をベースに左のツリーから関連のコマンドレットのドキュメントも参照して書きました。</p>
+<h2 id="globalprotectでvpn接続後にタスクを実行する設定">GlobalProtectでVPN接続後にタスクを実行する設定</h2>
+<p>「作成したタスク名」を適宜変更して以下の内容でレジストリに登録します。</p>
+<pre><code>Windows Registry Editor Version 5.00
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Palo Alto Networks\GlobalProtect\Settings\post-vpn-connect]
+&quot;command&quot;=&quot;C:\Windows\System32\schtasks.exe /run /TN 作成したタスク名&quot;
+
+</code></pre><p>Goで標準出力に出力しつつroute addを実行するプログラムを使っているのですが、この設定をしてGlobalProtectでVPNに接続すると、コマンドプロンプトっぽいウィンドウが一瞬表示されてすぐ閉じた後、しばらくしてから再度コマンドプロンプトが開いて実行されるという挙動になりました。</p>
+<p>ちょっと気になる挙動ではあるのですが、とりあえず目的は達成できたので気にしないことにしました。</p>
+
+</div>
+
+
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
