@@ -1,6 +1,7 @@
 ---
 title: "KeePassとKeeAgentでWSL2用にssh-agentを動かす"
 date: 2020-05-29T19:59:34+09:00
+lastmod: 2020-08-23T00:34:00+09:00
 ---
 
 ## はじめに
@@ -15,7 +16,7 @@ date: 2020-05-29T19:59:34+09:00
 
 [KeePass Password Safe](https://keepass.info/) はパスワードマネージャーですが、 [KeeAgent – lechnology.com](https://lechnology.com/software/keeagent/) プラグインを入れると experimental ではありますが ssh-agent が動かせるんですね。
 
-私は以前 KeePass から [KeePassXC Password Manager](https://keepassxc.org/) に乗り換えていたのですが、今回 KeePass に戻しました。
+私は以前 KeePass から [KeePassXC Password Manager](https://keepassxc.org/) に乗り換えていたのですが、今回 KeePass に戻しました（→ KeePassXC でもssh-agentクライアント機能は使えました。追記参照）。
 
 セットアップの手順は以下の通りです。
 
@@ -74,3 +75,32 @@ WSL2 の端末を開きなおすか `exec $SHELL -l` を実行すれば ssh-agen
 Windows のタスクバーのアクションセンターのアイコン（あるいは Win+A キー）を押してアクションセンターを開き [通知の管理] を押します。
 
 [送信元ごとの通知の受信設定] の一覧で KeePass をクリックしてお好みで調整します。
+
+## 2020-08-23 追記： KeePassXC 標準の ssh-agent client 機能でもOK
+
+その後 [KeePassXC Password Manager](https://keepassxc.org/) の ssh-agent client 機能でも大丈夫なことに気づきました。
+
+[ツール]/[設定]メニューを選んで左のリストで[SSHエージェント]を選び、以下の2つのチェックボックスをオンにします。
+
+* SSH エージェント統合を有効にする
+* Pageant の代わりに OpenSSH for Windows を利用する
+
+[Windows 10 に OpenSSH クライアントをインストール · hnakamur's blog](https://hnakamur.github.io/blog/2020/02/22/install-openssh-client-to-windows10/) の手順で Windows の OpenSSH をインストールして ssh-agent サービスを動かしておく前提です。
+
+この状態で KeePassXC のパスワードエントリに SSH の秘密鍵ファイルを添付し、パスフレーズをパスワードとして登録しておきます。でソノエントリを選んでポップアップメニューの[鍵をSSHエージェントに追加]メニューを選択します。
+
+すると KeePassXC のマスターパスワードを入力してデータベースを開いた状態にすると ssh-agent に鍵が登録されます。 KeePassXC のデータベースをロック状態にすると ssh-agent から鍵は削除された状態になります。これは便利！
+
+## 2020-08-23 追記： Ubuntu の KeePassXC で ssh-agent client 機能を使う
+
+WSL2 とは無関係ですが KeePassXC 関連ということでついでに追記です。
+
+Ubuntu の KeePassXC の ssh-agent client 機能を使うと Agent connection failed をいうエラーが出て困っていたのですが、今日原因と回避策を [SSH Agent integration does not work with snap build · Issue #1951 · keepassxreboot/keepassxc](https://github.com/keepassxreboot/keepassxc/issues/1951#issuecomment-474688638) で知りました。
+
+snap のサンドボックスで制限されていたのが原因でした。 classic モードでインストールする技も今は使えなくっているそうで、以下のように開発モードでインストールすれば ssh-agent client 機能が使えました。
+
+```console
+sudo snap install --devmode keepassxc
+```
+
+インストール済みの場合は一旦アンインストールしてから上記のコマンドで再度インストールすればOKです。
