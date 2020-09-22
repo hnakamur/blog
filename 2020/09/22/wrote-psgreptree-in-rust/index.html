@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.74.3" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>psgreptree というコマンドラインツールを Rust で書いた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2020. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>psgreptree というコマンドラインツールを Rust で書いた</h1>
+  <time datetime=2020-09-22T18:47:59&#43;0900 class="post-date">2020-09-22</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#非同期-io-ライブラリー-stjepangsmol-を使ってみた">非同期 I/O ライブラリー stjepang/smol を使ってみた</a></li>
+    <li><a href="#プロセスツリーのデータ構造">プロセスツリーのデータ構造</a></li>
+    <li><a href="#バイト数を人間が見やすく表示する-humanize_number-を-freebsd-から移植した">バイト数を人間が見やすく表示する <code>humanize_number</code> を FreeBSD から移植した</a>
+      <ul>
+        <li><a href="#str-の-char_indices-の-char-は使わなければデコードのコストは発生しない"><code>&amp;str</code> の <code>char_indices()</code> の char は使わなければデコードのコストは発生しない</a></li>
+        <li><a href="#rust-のビルド後のアセンブラーを-rust-のコードと対比して確認する方法">Rust のビルド後のアセンブラーを Rust のコードと対比して確認する方法</a></li>
+        <li><a href="#criterion-crate-によるベンチマーク">criterion crate によるベンチマーク</a></li>
+      </ul>
+    </li>
+    <li><a href="#バイナリサイズの最適化">バイナリサイズの最適化</a></li>
+    <li><a href="#おわりに">おわりに</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>私は仕事で Ubuntu の物理サーバーに ssh して
+<code>LC_TIME=C ps auxwwf | grep [n]ginx</code> とか <code>LC_TIME=C ps auxwwf | grep -E '(nginx|traffic)' | grep -v grep</code> のようなコマンドを実行することがよくあります。</p>
+<p>しかし、ヘッダー行が出ない（grepのパターンに <code>^USER</code> を追加すれば出せますが）とか、 grep 自体を出力させない小技が面倒という問題がありました。</p>
+<p><a href="https://www.shuwasystem.co.jp/book/9784798061702.html">実践Rustプログラミング入門 - 秀和システム</a> も買ったことですし、 Rust でこれを代替するコマンドラインツールを書いてみました。</p>
+<p><a href="https://github.com/hnakamur/psgreptree">hnakamur/psgreptree</a></p>
+<p>Rust で何か書くのは <a href="https://github.com/hnakamur/tokio-xattr">hnakamur/tokio-xattr: Filesystem xattr (extended attributes) API for Rust/Tokio</a> から約1年ぶりです（そういえばこれも書いたけど使ってなくて放置しているので更新しないと）。</p>
+<p>このツール自体というより、このツールを書く過程で学んだことについてメモしておきます。</p>
+<h2 id="非同期-io-ライブラリー-stjepangsmol-を使ってみた">非同期 I/O ライブラリー stjepang/smol を使ってみた</h2>
+<p>そもそも大量のリクエストをさばくウェブサーバーというわけでもないので非同期 I/O にする必要性もないのですが、今後 Rust で非同期 I/O のソフトウェアーを書いていきたいので練習としてそうしました。</p>
+<p>現状だと <a href="https://github.com/tokio-rs/tokio/">tokio-rs/tokio</a> と <a href="https://github.com/async-rs/async-std">async-rs/async-std</a> が 2 大メジャーどころという認識ですが <a href="https://stjepang.github.io/">Stjepan’s blog</a> のいくつかの記事を呼んで、今回は <a href="https://github.com/stjepang/smol">stjepang/smol: A small and fast async runtime for Rust</a> を使ってみました。</p>
+<p>上記のブログの <a href="https://stjepang.github.io/2020/01/31/build-your-own-executor.html">Build your own executor</a> と <a href="https://stjepang.github.io/2020/01/25/build-your-own-block-on.html">Build your own block_on()</a> の他に Why I’m building a new async runtime という非常に良い記事があったのですが、 2020-09-22 時点では無くなっていました。以前にも一度ブログまるごとが 404 Not Found になって、その数日後に復活したのですがまた消されてしまったようです。</p>
+<p>非同期 I/O ランタイムをこれ以上増やすなという圧力があるんですかねえ。あまり乱立してエコシステムが分断するのは良くないですが、競合の存在が改善を促進するという面もあると思うので歓迎して良いと思うのですが。</p>
+<p>README にあるとおり smol は <a href="https://github.com/stjepang/">stjepang (Stjepan Glavina)</a> にある複数の crate を re-export しているだけになっています。それぞれシンプルでわかりやすく書かれていて、コードを読んで理解しやすいのが良いです。</p>
+<h2 id="プロセスツリーのデータ構造">プロセスツリーのデータ構造</h2>
+<p><a href="https://rust-leipzig.github.io/architecture/2016/12/20/idiomatic-trees-in-rust/">Idiomatic tree and graph like structures in Rust – Rust Leipzig</a> にあるように Rust でのツリー構造の素朴な実装として思いつくのは <code>Rc&lt;RefCell&lt;Box&lt;Node&lt;T&gt;&gt;&gt;&gt;</code> とか <code>Arc&lt;Mutex&lt;Box&lt;Node&lt;T&gt;&gt;&gt;&gt;</code> で他のノードを参照する方式ですが、循環参照が起きないように注意が必要とのことです。</p>
+<p>そこで Arena 方式でノードで Vec で保持しておいて、ツリー内で参照するときはノードのID (=Vec内のインデクス) を使うという手法があります。これの実装としては上の記事の最後に紹介されている <a href="https://github.com/saschagrunert/indextree">saschagrunert/indextree: Arena based tree 🌲 structure by using indices instead of reference counted pointers</a> があります。</p>
+<p>また別の手法として raw pointer を使った実装の <a href="https://github.com/oooutlk/trees">oooutlk/trees</a> というのも見つけました。</p>
+<p>今回は Arena 方式の独自実装を書いてそれでとりあえず動いているのでそのままにしました。
+PID でソートしたいので BTreeSet で PID をキーにしてノードを持ち、他のノードは PID で参照しています。</p>
+<p><a href="https://github.com/saschagrunert/indextree">saschagrunert/indextree</a> だとアプリケーションドメインのキー（今回だと PID）と indextree 内でのインデクスの対応を管理する必要が出てくるので、だったら直接 PID をキーにするほうが楽という判断で、 PID は途中に空きがあるので Vec ではなく BTreeSet で保持するようにしたというわけです。</p>
+<p><a href="https://github.com/oooutlk/trees">oooutlk/trees</a> もちらっと見た感じ良さそうで興味はあるのでまた別の機会にじっくりコードを読んで試してみたいです。</p>
+<h2 id="バイト数を人間が見やすく表示する-humanize_number-を-freebsd-から移植した">バイト数を人間が見やすく表示する <code>humanize_number</code> を FreeBSD から移植した</h2>
+<p>Linux の ps コマンドでは VSZ と RSS を KiB 単位で表示するのですが、大きいプロセスだと桁数が溢れてその後の TTY カラムで調整するようになっています。一旦その挙動も実装しては見たのですが、 MiB や GiB などにオートスケールするほうが便利なのでそうすることにしました。</p>
+<p>一旦 <a href="https://crates.io/crates/human_format">human_format</a> を使って実装してみたのですが <code>df -h</code> や <code>du -sh</code> のように整数部が 1 桁のときのみ小数第一位まで表示する方式のほうが、狭い幅で情報量が多くて良いなと思い FreeBSD の <a href="https://www.freebsd.org/cgi/man.cgi?query=humanize_number&amp;apropos=0&amp;sektion=0&amp;manpath=FreeBSD+12.1-RELEASE+and+Ports&amp;arch=default&amp;format=html">humanize_number (3)</a> (ソース: <a href="https://github.com/freebsd/freebsd/blob/master/lib/libutil/humanize_number.c">freebsd/humanize_number.c</a>、テスト: <a href="https://github.com/freebsd/freebsd/blob/master/lib/libutil/tests/humanize_number_test.c">freebsd/humanize_number_test.c</a> )を移植してみました。</p>
+<h3 id="str-の-char_indices-の-char-は使わなければデコードのコストは発生しない"><code>&amp;str</code> の <code>char_indices()</code> の char は使わなければデコードのコストは発生しない</h3>
+<p>FreeBSD の <code>humanize_number</code> では <a href="https://www.freebsd.org/cgi/man.cgi?query=snprintf&amp;apropos=0&amp;sektion=0&amp;manpath=FreeBSD+12.1-RELEASE+and+Ports&amp;arch=default&amp;format=html">snprintf (3)</a> で指定の文字数までしか出力しないということをしています。
+Rust の <code>write!</code> マクロや <a href="https://doc.rust-lang.org/beta/std/fmt/fn.write.html">std::fmt::write</a> だと難しいかと思ったのですが <a href="https://doc.rust-lang.org/beta/std/fmt/trait.Write.html">std::fmt::Write</a> トレイトを実装した独自の struct を実装すればよいということに気づいて LimitedWriter というのを書いてみました。</p>
+<p>そのときに <code>&amp;str</code> 内の UTF-8 のコードポイント単位で書くようにしたいのですが <a href="https://doc.rust-lang.org/beta/std/primitive.str.html#method.char_indices">char_indices()</a> だと各コードポイントの先頭のインデクスだけではなくデコードした char も受け取るようになっています。</p>
+<p>そこで <a href="https://internals.rust-lang.org/t/pre-rfc-add-len-utf8-at-method-to-str/13101">Pre-RFC: Add len_utf8_at method to str - libs - Rust Internals</a> というのを投稿してみたのですが、 <code>char_indices()</code> の char のほうを参照しなければ release ビルドで inline 化される際に最適化でデコードの処理は消えるはずというご指摘をいただきました。</p>
+<p>これを確認するため、次項の手順で出力されたアセンブラーを見てみました。</p>
+<h3 id="rust-のビルド後のアセンブラーを-rust-のコードと対比して確認する方法">Rust のビルド後のアセンブラーを Rust のコードと対比して確認する方法</h3>
+<p><a href="https://stackoverflow.com/questions/39219961/how-to-get-assembly-output-from-building-with-cargo/54287770#54287770">rust - How to get assembly output from building with Cargo? - Stack Overflow</a> で知りました。</p>
+<p><code>cargo-asm</code> をインストールします。</p>
+<pre><code class="language-console" data-lang="console">cargo install cargo-asm
+</code></pre><p>調べたい crate をリリースモードでビルドします。</p>
+<pre><code class="language-console" data-lang="console">cargo build --release
+</code></pre><p>後は調べたい関数名を crate 名と共に指定して以下のようにしてアセンブラーを出力します
+（下記の <code>your_crate_name</code> と <code>your_function_name</code> を適宜変更して実行します）。</p>
+<pre><code class="language-console" data-lang="console">cargo asm --no-color --rust your_crate_name::your_function_name &gt; your_function_name.s
+</code></pre><p>するとコンパイル結果のアセンブラーが対応する Rust のコードと共に見られます。
+これで <code>char_indices()</code> を iterate してもらえる char を参照しなければデコードの処理は発生しないことが確認できました。</p>
+<h3 id="criterion-crate-によるベンチマーク">criterion crate によるベンチマーク</h3>
+<p>Rust の nightly では cargo bench でベンチマークできますが <a href="https://www.reddit.com/r/rust/comments/8tplwr/what_is_the_standard_way_to_run_benchmarks_in/">What is the standard way to run benchmarks in stable rust? : rust</a> によると stable では <a href="https://crates.io/crates/criterion">criterion</a> が良さそうなので試してみました。</p>
+<p>User Guide の <a href="https://bheisler.github.io/criterion.rs/book/user_guide/comparing_functions.html">Comparing Functions</a> に2種類の実装をベンチマークして結果をわかりやすくグラフで表示してくれる方法の説明があるのでこれを試してみました。</p>
+<p>gnuplot があれば使うので Ubuntu のパッケージでインストールしておきます。</p>
+<pre><code class="language-console" data-lang="console">sudo apt install gnuplot
+</code></pre><p><a href="https://bheisler.github.io/criterion.rs/book/getting_started.html#step-1---add-dependency-to-cargotoml">Add Dependency to Cargo.toml</a> のように設定して、 <a href="https://bheisler.github.io/criterion.rs/book/user_guide/comparing_functions.html">Comparing Functions</a> を参考にベンチマークを書いて <code>cargo bench</code> で実行します。</p>
+<p>すると <code>target/criterion/${ベンチマークグループ名}/report/index.html</code> に HTML ファイルが生成されます（ベンチマークグループ名は <code>Criterion</code> の <code>benchmark_group</code> メソッドに指定した名前です）。</p>
+<p>これを開くと Violin Plot や Line Chart で結果がわかりやすく表示されます。</p>
+<h2 id="バイナリサイズの最適化">バイナリサイズの最適化</h2>
+<p><a href="https://www.shuwasystem.co.jp/book/9784798061702.html">実践Rustプログラミング入門 - 秀和システム</a> を参考にバイナリサイズの最適化をしてみると 5.9MiB から 1.7MiB まで小さくなりました。</p>
+<h2 id="おわりに">おわりに</h2>
+<p>プロファイラーで挙動を見て最適化とかもやってみたいところですが、現状でも体感で満足する速度が出ているので今回はスキップしてまた別の機会に。</p>
+
+</div>
+
+
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
