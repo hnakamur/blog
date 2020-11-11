@@ -29,19 +29,19 @@ $ sudo pbuilder create \
         --components "main restricted universe multiverse"
 ```
 
-.. code-block:: console
-
-        $ sudo mkdir -p /var/cache/pbuilder/scripts
-        $ cat <<'EOS' | sudo tee /var/cache/pbuilder/scripts/add-updates-backports-security.sh
-        echo 'deb http://jp.archive.ubuntu.com/ubuntu/ xenial-updates main restricted universe multiverse' \
-                > /etc/apt/sources.list.d/xenial-updates.list
-        echo 'deb http://jp.archive.ubuntu.com/ubuntu/ xenial-backports main restricted universe multiverse' \
-                > /etc/apt/sources.list.d/xenial-backports.list
-        echo 'deb http://security.ubuntu.com/ubuntu xenial-security main restricted universe multiverse' \
-                > /etc/apt/sources.list.d/xenial-security.list
-        apt update -y
-        apt upgrade -y
-        EOS
+```console
+$ sudo mkdir -p /var/cache/pbuilder/scripts
+$ cat <<'EOS' | sudo tee /var/cache/pbuilder/scripts/add-updates-backports-security.sh
+echo 'deb http://jp.archive.ubuntu.com/ubuntu/ xenial-updates main restricted universe multiverse' \
+        > /etc/apt/sources.list.d/xenial-updates.list
+echo 'deb http://jp.archive.ubuntu.com/ubuntu/ xenial-backports main restricted universe multiverse' \
+        > /etc/apt/sources.list.d/xenial-backports.list
+echo 'deb http://security.ubuntu.com/ubuntu xenial-security main restricted universe multiverse' \
+        > /etc/apt/sources.list.d/xenial-security.list
+apt update -y
+apt upgrade -y
+EOS
+```
 
 ```console
 $ sudo pbuilder execute --save-after-exec \
@@ -64,14 +64,14 @@ $ sudo pbuilder execute --save-after-exec \
 $ sudo cp /var/cache/pbuilder/base.tgz /var/cache/pbuilder/gcc7.tgz
 ```
 
-.. code-block:: console
-
-        $ cat <<'EOS' | sudo tee /var/cache/pbuilder/scripts/add-gcc-7-repo.sh
-        apt-key adv --keyserver keyserver.ubuntu.com --recv BA9EF27F
-        echo 'deb http://ppa.launchpad.net/ubuntu-toolchain-r/test/ubuntu xenial main' \
-                > /etc/apt/sources.list.d/ubuntu-toolchain-r-ubuntu-test-xenial.list
-        apt update -y
-        EOS
+```console
+$ cat <<'EOS' | sudo tee /var/cache/pbuilder/scripts/add-gcc-7-repo.sh
+apt-key adv --keyserver keyserver.ubuntu.com --recv BA9EF27F
+echo 'deb http://ppa.launchpad.net/ubuntu-toolchain-r/test/ubuntu xenial main' \
+        > /etc/apt/sources.list.d/ubuntu-toolchain-r-ubuntu-test-xenial.list
+apt update -y
+EOS
+```
 
 ```console
 $ sudo pbuilder execute --basetgz /var/cache/pbuilder/gcc7.tgz --save-after-exec \

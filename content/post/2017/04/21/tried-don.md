@@ -87,10 +87,10 @@ func main() {
 }
 ```
 
-.. code-block:: console
-
-    $ go run main.go
+```console
+$ go run main.go
     --cookie_signing_key=5072237fbdb086f2541cac0fb007e97f9e6ab90b28e9045e3a754ce329591fc5158f9e46843baf975a6a7caa7bce04f835a9f2ce7113682a26d29e7d76eb5081 --cookie_encryption_key=580bab08ccbc59c98ad43dd2d13d199c79a0033d54e284f8198383c1d8fac196
+```
 
 
 ## 実行

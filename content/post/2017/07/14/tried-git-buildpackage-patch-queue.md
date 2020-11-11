@@ -79,22 +79,22 @@ diff -r a39bc74873fa -r 5f5d70428655 src/core/ngx_output_chain.c
 @@ -658,6 +658,7 @@ ngx_chain_writer(void *data, ngx_chain_t
 ```
 
-.. code-block:: console
+```console
+$ head -13 ../ngx_http_v2_upstream-git-patches/ngx_http_v2_upstream-09-of-14.diff
+From: Piotr Sikora <piotrsikora at google.com>
+Date: 1489621682 -0700
+Subject: Proxy: add "proxy_ssl_alpn" directive.
 
-	$ head -13 ../ngx_http_v2_upstream-git-patches/ngx_http_v2_upstream-09-of-14.diff
-	From: Piotr Sikora <piotrsikora at google.com>
-	Date: 1489621682 -0700
-	Subject: Proxy: add "proxy_ssl_alpn" directive.
+ALPN is used here only to indicate which version of the HTTP protocol
+is going to be used and we doesn't verify that upstream agreed to it.
 
-	ALPN is used here only to indicate which version of the HTTP protocol
-	is going to be used and we doesn't verify that upstream agreed to it.
+Please note that upstream is allowed to reject SSL connection with a
+fatal "no_application_protocol" alert if it doesn't support it.
 
-	Please note that upstream is allowed to reject SSL connection with a
-	fatal "no_application_protocol" alert if it doesn't support it.
+Signed-off-by: Piotr Sikora <piotrsikora at google.com>
 
-	Signed-off-by: Piotr Sikora <piotrsikora at google.com>
-
-	diff -r 154ca6c5e62a -r 96075d4cd2a6 src/event/ngx_event_openssl.c
+diff -r 154ca6c5e62a -r 96075d4cd2a6 src/event/ngx_event_openssl.c
+```
 
 ## パッチのインポート
 
@@ -595,9 +595,9 @@ $ git status -sb
  M debian/changelog
 ```
 
-.. code-block:: console
-
-	$ git commit -m 'Release 1.13.3-1~xenial1ppa1' debian/changelog
+```console
+$ git commit -m 'Release 1.13.3-1~xenial1ppa1' debian/changelog
+```
 
 ## ソースパッケージのビルド
 

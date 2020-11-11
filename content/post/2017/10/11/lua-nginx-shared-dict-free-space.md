@@ -59,10 +59,10 @@ ctx->sh = ngx_slab_alloc(ctx->shpool, sizeof(ngx_http_lua_shdict_shctx_t));
 len = sizeof(" in lua_shared_dict zone \"\"") + shm_zone->shm.name.len;
 ```
 
-.. code-block:: text
-
-        (gdb) print sizeof(" in lua_shared_dict zone \"\"")
-        $4 = 28
+```text
+(gdb) print sizeof(" in lua_shared_dict zone \"\"")
+$4 = 28
+```
 
 shared dictの名前が5〜36バイトであれば33〜64バイト用のスロットのエントリを1つ消費します。
 名前が4バイト以下なら17〜32バイトのスロットになりますし、37〜100バイトなら65〜128バイトのスロットになります。 

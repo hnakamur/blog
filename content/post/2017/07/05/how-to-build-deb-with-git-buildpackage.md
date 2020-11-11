@@ -8,9 +8,7 @@ categories = ["blog"]
 
 ## はじめに
 
-.. _git-buildpackage: https://honk.sigxcpu.org/piki/projects/git-buildpackage/
-
-git-buildpackage_ を使ってカスタムdebパッケージをビルドして [Personal Package Archives : Ubuntu](https://launchpad.net/ubuntu/+ppas) (PPA) にアップロードする手順のメモです。
+[git-buildpackage](https://honk.sigxcpu.org/piki/projects/git-buildpackage/) を使ってカスタムdebパッケージをビルドして [Personal Package Archives : Ubuntu](https://launchpad.net/ubuntu/+ppas) (PPA) にアップロードする手順のメモです。
 
 自分で試行錯誤してまとめた手順なので、他のニーズには合わなかったり、改善の余地があるかもしれません。
 
@@ -231,43 +229,43 @@ git clone http://luajit.org/git/luajit-2.0.git
 cd luajit-2.0
 ```
 
-.. code-block:: console
-
-    hnakamur@express:~/deb-tutorial/luajit/luajit-2.0$ git tag
-    v2.0.0
-    v2.0.0-beta1
-    v2.0.0-beta10
-    v2.0.0-beta11
-    v2.0.0-beta2
-    v2.0.0-beta2-hotfix2
-    v2.0.0-beta3
-    v2.0.0-beta4
-    v2.0.0-beta5
-    v2.0.0-beta6
-    v2.0.0-beta7
-    v2.0.0-beta8
-    v2.0.0-beta8-fixed
-    v2.0.0-beta9
-    v2.0.0-rc1
-    v2.0.0-rc2
-    v2.0.0-rc3
-    v2.0.1
-    v2.0.1-fixed
-    v2.0.2
-    v2.0.3
-    v2.0.4
-    v2.0.5
-    v2.1.0-beta1
-    v2.1.0-beta2
-    v2.1.0-beta3
+```console
+hnakamur@express:~/deb-tutorial/luajit/luajit-2.0$ git tag
+v2.0.0
+v2.0.0-beta1
+v2.0.0-beta10
+v2.0.0-beta11
+v2.0.0-beta2
+v2.0.0-beta2-hotfix2
+v2.0.0-beta3
+v2.0.0-beta4
+v2.0.0-beta5
+v2.0.0-beta6
+v2.0.0-beta7
+v2.0.0-beta8
+v2.0.0-beta8-fixed
+v2.0.0-beta9
+v2.0.0-rc1
+v2.0.0-rc2
+v2.0.0-rc3
+v2.0.1
+v2.0.1-fixed
+v2.0.2
+v2.0.3
+v2.0.4
+v2.0.5
+v2.1.0-beta1
+v2.1.0-beta2
+v2.1.0-beta3
+```
 
 ```console
 git checkout v2.0.5
 ```
 
-.. code-block:: console
-
-    git archive --format=tar.gz --prefix=luajit/ -o ../luajit_2.0.5.orig.tar.gz tags/v2.0.5
+```console
+git archive --format=tar.gz --prefix=luajit/ -o ../luajit_2.0.5.orig.tar.gz tags/v2.0.5
+```
 
 ```console
 hnakamur@express:~/deb-tutorial/luajit/luajit-2.0$ popd
