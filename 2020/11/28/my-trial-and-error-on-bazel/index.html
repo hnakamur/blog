@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.75.1" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Bazel で試行錯誤したときのメモ &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2020. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Bazel で試行錯誤したときのメモ</h1>
+  <time datetime=2020-11-28T22:32:54&#43;0900 class="post-date">2020-11-28</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#bazel-のインストール">Bazel のインストール</a></li>
+    <li><a href="#bazel-の概要を把握して-c-のチュートリアルを試す">Bazel の概要を把握して C++ のチュートリアルを試す</a></li>
+    <li><a href="#bazel-のドキュメントのメモ">Bazel のドキュメントのメモ</a></li>
+    <li><a href="#bazel-を使ってない外部プロジェクトの利用には-rules_foreign_cc-が便利">Bazel を使ってない外部プロジェクトの利用には <code>rules_foreign_cc</code> が便利</a>
+      <ul>
+        <li><a href="#cofigure--make-で-configure-の前に独自コマンドを実行するには-make-の-make_commands-を使う">cofigure + make で configure の前に独自コマンドを実行するには <code>make</code> の <code>make_commands</code> を使う</a></li>
+      </ul>
+    </li>
+    <li><a href="#ビルドがうまく行かないときの調査方法">ビルドがうまく行かないときの調査方法</a>
+      <ul>
+        <li><a href="#bazel-build-のオプション">bazel build のオプション</a></li>
+        <li><a href="#rules_foreign_cc-で生成されるスクリプトとエラーログ"><code>rules_foreign_cc</code> で生成されるスクリプトとエラーログ</a></li>
+        <li><a href="#rules_foreign_cc-の-starlark-を-print-デバッグ"><code>rules_foreign_cc</code> の Starlark を print デバッグ</a></li>
+      </ul>
+    </li>
+    <li><a href="#ハマったネタと回避策">ハマったネタと回避策</a>
+      <ul>
+        <li><a href="#対象のレポジトリで直接-configure_make-を使うとconfigure呼び出し時のパスが変--別のレポジトリで-http_archive-で参照">対象のレポジトリで直接 <code>configure_make</code> を使うとconfigure呼び出し時のパスが変 → 別のレポジトリで <code>http_archive</code> で参照</a></li>
+        <li><a href="#ソースとは別のディレクトリーで-configure-が実行されるためエラーが起きるケースがある--configure_in_place-を-true-に設定する">ソースとは別のディレクトリーで <code>configure</code> が実行されるためエラーが起きるケースがある → <code>configure_in_place</code> を <code>True</code> に設定する</a></li>
+      </ul>
+    </li>
+    <li><a href="#サンプルのビルドがエラーになるのは未解決">サンプルのビルドがエラーになるのは未解決</a></li>
+    <li><a href="#toolchain-について">toolchain について</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="https://github.com/envoyproxy/envoy">envoyproxy/envoy: Cloud-native high-performance edge/middle/service proxy</a> がビルドツールとして
+<a href="https://www.bazel.build/">Bazel - a fast, scalable, multi-language and extensible build system&quot; - Bazel</a> を使っているので少し慣れておこうと2日ぐらい試行錯誤してみたメモです。</p>
+<p>具体的には
+<a href="https://cor3ntin.github.io/posts/iouring/">A Universal I/O Abstraction for C++ | cor3ntin</a>
+で紹介されている
+<a href="https://github.com/facebookexperimental/libunifex">facebookexperimental/libunifex: Unified Executors</a> のサンプルのビルドを試しました。</p>
+<p>libunifex 本家では cmake で libunifex 本体とサンプルをビルドするようになっていますが、 Bazel の勉強のためあえて Bazel でトライしてみました。
+現状は libunifex が依存している <a href="https://github.com/axboe/liburing">axboe/liburing</a> と libunifex 自体のビルドまでは一応できた（正しくビルドできたとは言っていない）けど、サンプルのビルドは出来ていません。が、今回はこのへんで止めようと思い、将来再度試すときのためにメモを残しておきます。</p>
+<p>試したファイルは
+<a href="https://github.com/hnakamur/libunifex_bazel">github.com/hnakamur/libunifex_bazel</a> に残しておきます。</p>
+<h2 id="bazel-のインストール">Bazel のインストール</h2>
+<p><a href="https://github.com/bazelbuild/bazel">bazelbuild/bazel: a fast, scalable, multi-language and extensible build system</a> は主に Java で書かれています。</p>
+<p><a href="https://docs.bazel.build/versions/3.7.0/install-ubuntu.html">Installing Bazel on Ubuntu - Bazel 3.7.0</a> を参考にして以下のようにインストールしました。</p>
+<pre><code class="language-console" data-lang="console">sudo apt install curl gnupg
+curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor &gt; bazel.gpg
+sudo mv bazel.gpg /etc/apt/trusted.gpg.d/
+echo &quot;deb [arch=amd64] https://storage.googleapis.com/bazel-apt stable jdk1.8&quot; | sudo tee /etc/apt/sources.list.d/bazel.list
+</code></pre><pre><code class="language-console" data-lang="console">sudo apt update &amp;&amp; sudo apt install bazel
+</code></pre><p>これで bazel 3.7.1 が入りました。
+<a href="https://github.com/bazelbuild/bazel/releases">Releases · bazelbuild/bazel</a> の最新です。</p>
+<p>&ldquo;Step 3: Install a JDK (optional)&rdquo; には Bazel はプライベートな JRE (Java Runtime Environment) を同梱していると書いてあったのでそれを使うことにして JDK (Java Development Kit) のインストールはスキップしました。</p>
+<h2 id="bazel-の概要を把握して-c-のチュートリアルを試す">Bazel の概要を把握して C++ のチュートリアルを試す</h2>
+<p>ドキュメントのページの左上のドロップダウンで Bazel のバージョンが選択できます。
+ググってヒットしたドキュメントページの Bazel のバージョンが古い場合はこれで切り替えます。</p>
+<p>まず
+<a href="https://docs.bazel.build/versions/master/bazel-overview.html">Bazel Overview - Bazel</a>
+と
+<a href="https://docs.bazel.build/versions/master/bazel-vision.html">Bazel vision - Bazel</a>
+を見ました。</p>
+<p>再現可能なビルド (reproducible build) を目指していて、ビルド対象のライブラリーのバージョンやコンパイラーツールチェインなどの入力全体を制御すれば出力であるビルド結果は同じものになるはずなのでそれをサーバーで共有すれば他のチームメンバーではビルドせずに結果を使えるといったあたりがウリのようです。</p>
+<p>次に
+<a href="https://docs.bazel.build/versions/master/tutorial/cpp.html">Build Tutorial - C++ - Bazel</a>
+を試しました。</p>
+<h2 id="bazel-のドキュメントのメモ">Bazel のドキュメントのメモ</h2>
+<p>他のドキュメントもいろいろ読みましたが、古いバージョンの記法が非推奨になって新しい記法に移行中というのがちょくちょくあるので要注意だなと思いました。</p>
+<p>そのうちの1つが toolchain です。C++ で GCC や LLVM のどのツールを使うかを指定するのに使うもののようですが <a href="https://docs.bazel.build/versions/master/cc-toolchain-config-reference.html">C++ toolchain configuration - Bazel</a> の <code>--cpu</code>, <code>--compiler</code>, <code>--crosstool_top</code> で切り替えるのは旧式らしく、
+<a href="https://docs.bazel.build/versions/master/toolchains.html">Toolchains - Bazel</a> と <a href="https://docs.bazel.build/versions/master/platforms.html">Platforms - Bazel</a> が新しい仕組みのようです。</p>
+<p><a href="https://docs.bazel.build/versions/master/platforms-intro.html">Building with platforms - Bazel</a> にも Android や iOS のプロジェクトではまだ <code>--cpu</code> と <code>--crosstool_top</code> で切り替える方式を使っているとありました（masterのリンクだと将来変わるかもしれないので、その場合は <a href="https://docs.bazel.build/versions/3.7.0/platforms-intro.html">Building with platforms - Bazel 3.7.0</a> を参照）。</p>
+<p>もう1つが <a href="https://docs.bazel.build/versions/master/be/workspace.html">Workspace Rules - Bazel</a> の <code>bind</code> です。</p>
+<p>Warning: use of bind() is not recommended. See &ldquo;Consider removing bind&rdquo; for a long discussion of its issues and alternatives.</p>
+<p>という警告が書かれていて <a href="https://github.com/bazelbuild/bazel/issues/1952">Consider removing bind() · Issue #1952 · bazelbuild/bazel</a> を見てみると
+<a href="https://github.com/bazelbuild/bazel/issues/1952#issuecomment-629113959">We have no plans to deprecate bind.</a> というコメントがあるので deprecated にはしないようです。</p>
+<p>他にもいろいろありそうです。</p>
+<p>ちなみに envoy は <a href="https://github.com/envoyproxy/envoy/tree/master/bazel">bazel</a> ディレクトリーに大量に <code>.bzl</code> ファイルがあるのですが、その中で <code>native.bind</code> を多用していました。</p>
+<p><a href="https://github.com/envoyproxy/envoy/tree/v1.16.1/bazel">envoy/bazel at v1.16.1 · envoyproxy/envoy</a></p>
+<h2 id="bazel-を使ってない外部プロジェクトの利用には-rules_foreign_cc-が便利">Bazel を使ってない外部プロジェクトの利用には <code>rules_foreign_cc</code> が便利</h2>
+<p>外部プロジェクトの扱いについては
+<a href="https://docs.bazel.build/versions/master/external.html">External dependencies - Bazel</a>
+に書いてあります。
+&ldquo;Depending on non-Bazel projects&rdquo; の項を見ると、外部プロジェクト用の <code>BUILD</code> ファイルを書くのがあるべき姿のようです。</p>
+<p>が、外部プロジェクトが configure + make だったり cmake を採用している場合に、自前で Bazel の <code>BUILD</code> ファイル書くのも大変だよなあと思って検索すると
+<a href="https://github.com/bazelbuild/rules_foreign_cc">bazelbuild/rules_foreign_cc: Build rules for interfacing with &ldquo;foreign&rdquo; (non-Bazel) build systems (CMake, configure-make, GNU Make, boost)</a>
+というのがありました。
+ただし、これは公式にサポートされる Google のプロダクトではないので、サポートが限定的だったり新しいリリースが出ない可能性があるとのことです。</p>
+<p>ドキュメントは README にあるだけですが、 examples ディレクトリーに例がたくさんあります。</p>
+<p>configure + make を使っているプロジェクトには <code>configure_make</code> を、 cmake を使っているプロジェクトには <code>cmake_external</code> が使えます。</p>
+<p>envoy でも <code>rules_foreign_cc</code> を使っていますが  <code>cmake_external</code> を Starlark で書かれた <code>.bzl</code> ファイルでラップして独自の <code>envoy_cmake_external</code> を定義していたりします。</p>
+<h3 id="cofigure--make-で-configure-の前に独自コマンドを実行するには-make-の-make_commands-を使う">cofigure + make で configure の前に独自コマンドを実行するには <code>make</code> の <code>make_commands</code> を使う</h3>
+<p>検索してたら
+<a href="https://stackoverflow.com/questions/60048460/bazel-for-packages-with-a-bootstrap-configure-make-build">autotools - Bazel for packages with a &ldquo;bootstrap-&gt;configure-&gt;make&rdquo; build? - Stack Overflow</a> の回答で知りました。</p>
+<p><code>configure_make</code> ではなく <code>make</code> を使いつつ <code>make_commands</code> に実行したいコマンドや <code>configure</code> を実行するコマンドを並べて書くという技を使えば良いそうです。</p>
+<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">make(
+    name = &#34;libhttpserver&#34;,
+    lib_source = &#34;@libhttpserver//:all&#34;,
+    make_commands = [
+        &#34;./bootstrap&#34;,
+        &#34;mkdir build_dir&#34;,
+        &#34;cd build_dir&#34;,
+        &#34;../configure --prefix=${INSTALLDIR}&#34;,
+        &#34;make&#34;,
+        &#34;make install&#34;,
+    ],
+    deps = [&#34;:libmicrohttpd&#34;, &#34;:libgnutls&#34;],
+)
+</code></pre></div><p>この回答者の方が作った
+<a href="https://github.com/megamegabits/libhttpserver-bazel-example">megamegabits/libhttpserver-bazel-example: Example for building libhttpserver with Bazel.</a>
+は、実際に動く例として非常に参考になりました。ただし、依存関係で各種の <code>*-dev</code> パッケージが必要だったのでエラーになるたびに <code>sudo apt install</code> でインストールしました。</p>
+<h2 id="ビルドがうまく行かないときの調査方法">ビルドがうまく行かないときの調査方法</h2>
+<h3 id="bazel-build-のオプション">bazel build のオプション</h3>
+<ul>
+<li><a href="https://docs.bazel.build/versions/master/command-line-reference.html#flag--subcommands"><code>--subcommands</code> オプション</a> 。ショートオプションは <code>-s</code>。これを指定すると各ステップで実行するコマンドが出力されます。</li>
+<li><a href="https://docs.bazel.build/versions/master/command-line-reference.html#flag--sandbox_debug"><code>--sandbox_debug</code> オプション</a>。 sandbox 環境でビルドする際の中間ディレクトリは通常はビルドエラー時も消されてしまうのですが、このオプションを指定すれば残るので後から中身を確認できます。</li>
+<li><a href="https://docs.bazel.build/versions/master/command-line-reference.html#flag--verbose_failures"><code>--verbose_failures</code> オプション</a></li>
+</ul>
+<p>うまく行かないときはこれらのオプションを使って以下のような感じで毎回クリーンビルドしていました（対象のラベルは適宜変更してください）。</p>
+<pre><code class="language-console" data-lang="console">bazel clean &amp;&amp; bazel build -s --sandbox_debug --verbose_failures //src:your_target_here
+</code></pre><h3 id="rules_foreign_cc-で生成されるスクリプトとエラーログ"><code>rules_foreign_cc</code> で生成されるスクリプトとエラーログ</h3>
+<p><code>configure_make</code> を使った設定でエラーが起きるといろいろメッセージが出ますが、その中に</p>
+<pre><code class="language-console" data-lang="console">rules_foreign_cc: Build script location: bazel-out/k8-fastbuild/bin/src/liburing/logs/Configure_script.sh
+rules_foreign_cc: Build log location: bazel-out/k8-fastbuild/bin/src/liburing/logs/Configure.log
+</code></pre><p>とか</p>
+<pre><code class="language-console" data-lang="console">export BUILD_SCRIPT=&quot;bazel-out/k8-fastbuild/bin/src/liburing/logs/Configure_script.sh&quot;
+export BUILD_LOG=&quot;bazel-out/k8-fastbuild/bin/src/liburing/logs/Configure.log&quot;
+</code></pre><p>というのが出ます。このログファイルの最後の方に具体的なエラーが出ていたので、これを見て対処します。</p>
+<p>例えば上記の
+<a href="https://github.com/megamegabits/libhttpserver-bazel-example">megamegabits/libhttpserver-bazel-example: Example for building libhttpserver with Bazel.</a>
+では configure 時にライブラリが見つからないというエラーが出たので、対応する Ubuntu のパッケージを調べてインストールして再実行し、また別のライブラリが無いと言われたらインストールしを繰り返すと最終的にはビルド成功しました。</p>
+<p>ついでに生成されたスクリプトの例の抜粋を貼っておきます。</p>
+<pre><code>export EXT_BUILD_ROOT=$(pwd)
+export BUILD_TMPDIR=$(mktemp -d)
+export EXT_BUILD_DEPS=$(mktemp -d)
+export INSTALLDIR=$EXT_BUILD_ROOT/bazel-out/k8-fastbuild/bin/liburing
+export PATH=&quot;$EXT_BUILD_ROOT:$PATH&quot;
+mkdir -p $INSTALLDIR
+printf &quot;Environment:______________\n&quot;
+env
+printf &quot;__________________________\n&quot;
+children_to_path $EXT_BUILD_DEPS/bin
+export PATH=&quot;$EXT_BUILD_DEPS/bin:$PATH&quot;
+cd $BUILD_TMPDIR
+export INSTALL_PREFIX=&quot;liburing&quot;
+
+echo &quot;PKG_CONFIG_PATH=$PKG_CONFIG_PATH&quot;
+CFLAGS=&quot;-U_FORTIFY_SOURCE -fstack-protector -Wall -Wunused-but-set-parameter -Wno-free-nonheap-object -fno-omit-frame-pointer -fno-canonical-system-headers -Wno-builtin-macro-redefined -D__DATE__=\&quot;redacted\&quot; -D__TIMESTAMP__=\&quot;redacted\&quot; -D__TIME__=\&quot;redacted\&quot;&quot; CXXFLAGS=&quot;-U_FORTIFY_SOURCE -fstack-protector -Wall -Wunused-but-set-parameter -Wno-free-nonheap-object -fno-omit-frame-pointer -std=c++0x -fno-canonical-system-headers -Wno-builtin-macro-redefined -D__DATE__=\&quot;redacted\&quot; -D__TIMESTAMP__=\&quot;redacted\&quot; -D__TIME__=\&quot;redacted\&quot;&quot; ARFLAGS=&quot;rcsD&quot; ASFLAGS=&quot;-U_FORTIFY_SOURCE -fstack-protector -Wall -Wunused-but-set-parameter -Wno-free-nonheap-object -fno-omit-frame-pointer -fno-canonical-system-headers -Wno-builtin-macro-redefined -D__DATE__=\&quot;redacted\&quot; -D__TIMESTAMP__=\&quot;redacted\&quot; -D__TIME__=\&quot;redacted\&quot;&quot; LDFLAGS=&quot;-fuse-ld=gold -Wl,-no-as-needed -Wl,-z,relro,-z,now -B/usr/bin -pass-exit-codes -lstdc++ -lm&quot; CC=&quot;/usr/bin/gcc&quot; CXX=&quot;/usr/bin/gcc&quot; AR=&quot;/usr/bin/ar&quot; CPPFLAGS=&quot;&quot; &quot;$EXT_BUILD_ROOT/external/liburing/configure&quot; --prefix=$BUILD_TMPDIR/$INSTALL_PREFIX
+make
+make install
+</code></pre><p>このスクリプトの内容は
+<a href="https://github.com/bazelbuild/rules_foreign_cc/blob/d54c78ab86b40770ee19f0949db9d74a831ab9f0/tools/build_defs/framework.bzl#L231-L268">tools/build_defs/framework.bzl#L231-L268</a> あたりで生成しています。</p>
+<h3 id="rules_foreign_cc-の-starlark-を-print-デバッグ"><code>rules_foreign_cc</code> の Starlark を print デバッグ</h3>
+<p><a href="https://github.com/bazelbuild/vscode-bazel/issues/184">Need Tutorial about Using the Starlark Debugger · Issue #184 · bazelbuild/vscode-bazel</a> や <a href="https://marketplace.visualstudio.com/items?itemName=BazelBuild.vscode-bazel&amp;ssr=false#overview">Bazel - Visual Studio Marketplace</a> を見ると Starlark のデバッガーもあるようなのですが、私はたいていのケースでは print デバッグのほうが好きなので、その方法を探りました。</p>
+<p>まず <code>WORKSPACE</code> で <code>rules_foreign_cc</code> を <code>http_archive</code> で取得するのを止めて <code>local_repository</code> にします。</p>
+<p>変更前の <code>WORKSPACE</code> 抜粋。</p>
+<pre><code>load(&quot;@bazel_tools//tools/build_defs/repo:http.bzl&quot;, &quot;http_archive&quot;)
+
+http_archive(
+    name = &quot;rules_foreign_cc&quot;,
+    strip_prefix = &quot;rules_foreign_cc-master&quot;,
+    url = &quot;https://github.com/bazelbuild/rules_foreign_cc/archive/master.tar.gz&quot;,
+)
+
+load(&quot;@rules_foreign_cc//:workspace_definitions.bzl&quot;, &quot;rules_foreign_cc_dependencies&quot;)
+
+rules_foreign_cc_dependencies()
+</code></pre><p>変更後の <code>WORKSPACE</code> 抜粋。 path は環境に応じて適宜調整してください。指定した path に <code>git clone https://github.com/bazelbuild/rules_foreign_cc</code> で配置しておきます。</p>
+<pre><code>local_repository(
+    name = &quot;rules_foreign_cc&quot;,
+    path = &quot;../../bazelbuild/rules_foreign_cc&quot;,
+)
+
+load(&quot;@rules_foreign_cc//:workspace_definitions.bzl&quot;, &quot;rules_foreign_cc_dependencies&quot;)
+
+rules_foreign_cc_dependencies()
+</code></pre><p>上記の path で指定した <code>rules_foreign_cc</code> の <code>.bzl</code> ファイルを改変して <code>print</code> 文を埋め込むと <code>bazel build</code> 実行時の出力に DEBUG ログとして出てきました。</p>
+<p>また上記のスクリプト生成箇所をいじって <code>ls</code> などを実行するように追加して <code>configure</code> 前後でファイルが存在するかをみたりしました。</p>
+<h2 id="ハマったネタと回避策">ハマったネタと回避策</h2>
+<h3 id="対象のレポジトリで直接-configure_make-を使うとconfigure呼び出し時のパスが変--別のレポジトリで-http_archive-で参照">対象のレポジトリで直接 <code>configure_make</code> を使うとconfigure呼び出し時のパスが変 → 別のレポジトリで <code>http_archive</code> で参照</h3>
+<p>最初 <a href="https://github.com/axboe/liburing">axboe/liburing</a> を <code>git clone</code> したディレクトリーに <code>WORKSPACE</code> と <code>BUILD</code> ファイルを作って試していたのですが、生成されるスクリプトで <code>configure</code> を実行するときの <code>configure</code> のパスがおかしくなるという現象が起きました。</p>
+<p>フルパスで <code>configure</code> を呼び出しているのですが、レポジトリ内のファイルをディレクトリーと誤認識してその下の <code>configure</code> というパスになっていました。具体的には <code>&quot;$EXT_BUILD_ROOT/config-host.h/configure&quot;</code> のような感じです。</p>
+<p><code>configure_make</code> の <code>source</code> に指定したソースファイル名群から
+<a href="https://github.com/bazelbuild/rules_foreign_cc/blob/master/tools/build_defs/detect_root.bzl">tools/build_defs/detect_root.bzl</a> の <code>detect_root</code> 関数で
+ルートディレクトリーを判定しているのですが、これが上記の構成で使うことは想定していないようです。</p>
+<p>回避策というかたぶん正しい使い方は、プロジェクト用のディレクトリーを別に作ってそちらから <code>http_archive</code> で対象のプロジェクトを参照することです。
+<code>rules_foreign_cc</code> と名前に foreign が入っているぐらいなので外部レポジトリーを参照する想定なのでしょう。</p>
+<p>こうすると参照するプロジェクト用にサブディレクトリーが切られるので <code>detect_root</code> が正しく機能するようになります。
+具体的には <code>&quot;$EXT_BUILD_ROOT/external/liburing/configure&quot;</code> のようなパスになります。</p>
+<h3 id="ソースとは別のディレクトリーで-configure-が実行されるためエラーが起きるケースがある--configure_in_place-を-true-に設定する">ソースとは別のディレクトリーで <code>configure</code> が実行されるためエラーが起きるケースがある → <code>configure_in_place</code> を <code>True</code> に設定する</h3>
+<p><code>configure_make</code> で生成されるスクリプトではビルドする際のソースのディレクトリー  <code>$EXT_BUILD_ROOT</code> とは別の作業ディレクトリー <code>$BUILD_TMPDIR</code> で configure, make を実行します。</p>
+<p><a href="https://github.com/megamegabits/libhttpserver-bazel-example">megamegabits/libhttpserver-bazel-example: Example for building libhttpserver with Bazel.</a> の <code>libgnutls</code> などはそれでも configure, make が実行できるのですが、 <code>liburing</code> では configure でサブディレクトリーにヘッダーファイルを生成しようとしてディレクトリーがないためエラーになりました（個人的には configure, make をソースディレクトリーと別の場所で実行するという発想はなかったです）。</p>
+<p><code>configure_make</code> の
+<a href="https://github.com/bazelbuild/rules_foreign_cc/blob/d54c78ab86b40770ee19f0949db9d74a831ab9f0/tools/build_defs/configure.bzl#L94-L96">configure_in_place</a>
+を <code>True</code> に設定すれば、エラー無く configure, make が実行できました。</p>
+<h2 id="サンプルのビルドがエラーになるのは未解決">サンプルのビルドがエラーになるのは未解決</h2>
+<p>大量にコンパイルエラーが出たのですが、最初のエラーはこれです。</p>
+<pre><code>In file included from bazel-out/k8-fastbuild/bin/src/libunifex/include/unifex/linux/io_uring_context.hpp:33,
+                 from src/io_uring_test.cpp:24:
+bazel-out/k8-fastbuild/bin/src/libunifex/include/unifex/linux/monotonic_clock.hpp:182:60: error: missing terminating ' character
+  182 |   constexpr std::int64_t nanoseconds_per_second = 1'000'000'000;
+      |                                                            ^~~~~
+</code></pre><p><a href="https://cpprefjp.github.io/lang/cpp14/digit_separators.html">数値リテラルの桁区切り文字 - cpprefjp C++日本語リファレンス</a> を認識できていないということでビルドに使っているコンパイラーとC++標準のバージョン指定を修正する必要がありそうです。</p>
+<p>が、このへんで疲れてきて
+<a href="https://www.reddit.com/r/cpp/comments/eppqhj/cmake_vs_meson_vs_bazel/">CMake vs Meson vs Bazel ? : cpp</a>
+や
+<a href="http://danielgalvez.me/jekyll/update/2018/01/12/CMake-vs.-Bazel.html">CMake vs Bazel | Daniel Galvez’s Website</a>
+や
+<a href="https://trends.google.co.jp/trends/explore?q=%2Fg%2F11bzyq50jp,%2Fm%2F0cxh7f">Bazel, CMake - 調べる - Google トレンド</a>
+を見て C++ に関しては当面は cmake を勉強するほうが良さそうかなあと思ったので、今回はここで止めることにしました。</p>
+<h2 id="toolchain-について">toolchain について</h2>
+<p>最後に試してないけどメモだけ。</p>
+<p><a href="https://github.com/bazelbuild/bazel-toolchains">bazelbuild/bazel-toolchains: Repository that hosts Bazel toolchain configs for remote execution and related support tools.</a> の <a href="https://github.com/bazelbuild/bazel-toolchains/tree/master/configs/ubuntu16_04_clang/11.0.0/bazel_3.7.1">configs/ubuntu16_04_clang/11.0.0/bazel_3.7.1</a> に Ubuntu 16.04 LTS 上で bazel 3.7.1 を使って LLVM clang 11.0.0 を toolchain として使うための設定があるのを見つけました。これを参考に改変していけば指定のコンパイラーを使うのは出来そうな雰囲気です。</p>
+
+</div>
+
+
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
