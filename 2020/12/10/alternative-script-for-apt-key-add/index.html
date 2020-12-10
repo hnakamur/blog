@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.75.1" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Ubuntu 20.10 で apt-key add が deprecated になっていたので代替スクリプトを書いた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2020. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Ubuntu 20.10 で apt-key add が deprecated になっていたので代替スクリプトを書いた</h1>
+  <time datetime=2020-12-10T22:37:26&#43;0900 class="post-date">2020-12-10</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a>
+      <ul>
+        <li><a href="#代替スクリプトの内容">代替スクリプトの内容</a></li>
+        <li><a href="#使い方">使い方</a></li>
+        <li><a href="#代替スクリプトの実装メモ">代替スクリプトの実装メモ</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>Ubuntu 20.10 環境でサードパーティのレポジトリを追加しようと <code>apt-key add</code> を実行したところ deprecated と言われました。</p>
+<p><a href="http://manpages.ubuntu.com/manpages/groovy/en/man8/apt-key.8.html">apt-key (8)</a> によると
+<code>/etc/apt/trusted.gpg.d/</code> にファイルを作れとのことです。</p>
+<blockquote>
+<p>Note: Instead of using this command a keyring should be placed directly in the
+/etc/apt/trusted.gpg.d/ directory with a descriptive name and either &ldquo;gpg&rdquo; or &ldquo;asc&rdquo; as
+file extension.</p>
+</blockquote>
+<p>検索してみると
+<a href="https://blog.sleeplessbeastie.eu/2018/08/08/how-to-download-public-key-used-to-verify-gnupg-signature-for-the-repository/">How to download public key used to verify GnuPG signature for the repository – sleeplessbeastie&rsquo;s notes</a>
+に手順が紹介されていました。</p>
+<p><code>gpg --import</code> を使ってキーをインポートした後、パーミションを 644 に変えれば良いそうです。
+これを毎回手で打つのは面倒と思ったのでスクリプトにしました。</p>
+<h3 id="代替スクリプトの内容">代替スクリプトの内容</h3>
+<p>以下のスクリプトを PATH の通った場所に <code>apt-key-add</code> というファイル名で保存します。</p>
+<div class="highlight"><pre class="chroma"><code class="language-sh" data-lang="sh"><span class="cp">#!/bin/bash
+</span><span class="cp"></span><span class="nb">set</span> -e
+<span class="k">if</span> <span class="o">[</span> <span class="nv">$#</span> -ne <span class="m">2</span> -o <span class="nv">$UID</span> -ne <span class="m">0</span> <span class="o">]</span><span class="p">;</span> <span class="k">then</span>
+  cat <span class="s">&lt;&lt;EOF &gt;&amp;2
+</span><span class="s">Usage: my-apt-key-add src dest_basename
+</span><span class="s">
+</span><span class="s">Specify - for src to use stdin as input.
+</span><span class="s">The imported key filename will be &#34;/etc/apt/trusted.gpg.d/\${dest_basename}.gpg&#34;.
+</span><span class="s">
+</span><span class="s">This script must be executed by root.
+</span><span class="s">EOF</span>
+  <span class="nb">exit</span> <span class="m">2</span>
+<span class="k">fi</span>
+
+<span class="nv">src</span><span class="o">=</span><span class="s2">&#34;</span><span class="nv">$1</span><span class="s2">&#34;</span>
+<span class="nv">dest</span><span class="o">=</span><span class="s2">&#34;/etc/apt/trusted.gpg.d/</span><span class="nv">$2</span><span class="s2">.gpg&#34;</span>
+<span class="k">if</span> <span class="o">[</span> -f <span class="s2">&#34;</span><span class="nv">$dest</span><span class="s2">&#34;</span> <span class="o">]</span><span class="p">;</span> <span class="k">then</span>
+  <span class="nb">echo</span> <span class="s2">&#34;Exiting without adding key since destination file </span><span class="nv">$dest</span><span class="s2"> already exists.&#34;</span> &gt;<span class="p">&amp;</span><span class="m">2</span>
+  <span class="nb">exit</span> <span class="m">1</span>
+<span class="k">fi</span>
+
+gpg --no-default-keyring --keyring <span class="s2">&#34;gnupg-ring:</span><span class="nv">$dest</span><span class="s2">&#34;</span> --import <span class="s2">&#34;</span><span class="nv">$src</span><span class="s2">&#34;</span>
+chmod <span class="m">644</span> <span class="s2">&#34;</span><span class="nv">$dest</span><span class="s2">&#34;</span>
+rm <span class="s2">&#34;</span><span class="nv">$dest</span><span class="s2">~&#34;</span>
+</code></pre></div><h3 id="使い方">使い方</h3>
+<p>従来は</p>
+<pre><code class="language-console" data-lang="console">curl キーのURL | sudo apt-key add -
+</code></pre><p>でしたが、 <code>apt-key add -</code> の代わりに <code>apt-key-add - 出力ファイルのベース名</code> と置き換えて</p>
+<pre><code class="language-console" data-lang="console">curl キーのURL | sudo apt-key-add - 出力ファイルのベース名
+</code></pre><p>と実行します。</p>
+<p>すると <code>/etc/apt/trusted.gpg.d/出力ファイルのベース名.gpg</code> というファイル名で保存されます。</p>
+<p>可能なら <code>apt-key add -</code> と同じような呼び出し方にしたいところでしたが <code>apt-key add</code> は <code>/etc/apt/trusted.gpg</code> という固定のファイル名にキーを追加していくのに対し、代替スクリプトの <code>apt-key-add</code> は <code>/etc/apt/trusted.gpg.d/</code> ディレクトリに新規ファイルを作るという違いがあるので、ベース名は明示的に指定するしかないのでこうなっています。</p>
+<h3 id="代替スクリプトの実装メモ">代替スクリプトの実装メモ</h3>
+<p>使うだけなら以下は読まなくて大丈夫です。</p>
+<h4 id="gpg---import-はascii形式とバイナリ形式どちらもインポート可能"><code>gpg --import</code> はASCII形式とバイナリ形式どちらもインポート可能</h4>
+<p>この代替スクリプトを書くにあたって <a href="https://apt.llvm.org/">LLVM Debian/Ubuntu packages</a> の <a href="https://apt.llvm.org/llvm-snapshot.gpg.key">llvm-snapshot.gpg.key</a> で検証しました。</p>
+<p>file コマンドでは ASCII 形式とバイナリ形式の GPG 鍵は以下のように表示されました。</p>
+<pre><code class="language-console" data-lang="console">$ file llvm-snapshot.gpg.key
+llvm-snapshot.gpg.key: PGP public key block Public-Key (old)
+</code></pre><pre><code class="language-console" data-lang="console">$ file /etc/apt/trusted.gpg.d/llvm-snapshot.gpg
+/etc/apt/trusted.gpg.d/llvm-snapshot.gpg: PGP/GPG key public ring (v4) created Mon Mar 11 17:22:04 2013 RSA (Encrypt or Sign) 4096 bits MPI=0xe2d1650002933f9a...
+</code></pre><p>import してできたバイナリ形式を再度別の新しいファイルに <code>gpg --import</code> でインポートするのも問題なくできました。
+この場合は入力ファイルと出力ファイルは全く同じ内容になっていました (cmp コマンドで比較して確認)。</p>
+
+</div>
+
+
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
