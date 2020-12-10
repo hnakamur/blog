@@ -1,5 +1,6 @@
 #!/bin/sh
-#git worktree add -B gh-pages public upstream/gh-pages
+set -e
 hugo
-cd public && git add --all && git commit -m "Publishing to gh-pages" && cd ..
+git -C public add --all
+git -C public commit -m "Publishing to gh-pages"
 git push origin --all
