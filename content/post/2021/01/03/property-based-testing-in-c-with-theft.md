@@ -21,6 +21,14 @@ date: 2021-01-03T17:49:10+09:00
 
 使い方自体は [doc/usage.md](https://github.com/silentbicycle/theft/blob/master/doc/usage.md) を読む前提でこの記事ではそれ以外の点についてメモしておきます。
 
+## 例の実行方法とログの場所
+
+[hnakamur/c-property-based-testing-example: An example of property based testing in C programming language using theft](https://github.com/hnakamur/c-property-based-testing-example) の例は `cmake` が必要です。
+
+ただ、 `cmake` のコマンドを引数付きで入力するのが面倒なのでそのための Makefile を置いていて、 `make test` でビルドとテストが実行されます。
+
+テスト結果の概要は標準出力に出ます。テストのログは `build/test/Testing/Temporary/LastTest.log` に出力されます。テスト失敗時はこのログを見ます。
+
 ## ランダムな入力パラメータを複数使う方法
 
 [doc/usage.md](https://github.com/silentbicycle/theft/blob/master/doc/usage.md)
