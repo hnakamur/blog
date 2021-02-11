@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.79.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>RustとRusotoを使ってさくらのクラウドのオブジェクトストレージAPIでオブジェクトを取得してみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2021. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>RustとRusotoを使ってさくらのクラウドのオブジェクトストレージAPIでオブジェクトを取得してみた</h1>
+  <time datetime=2021-02-11T09:52:45&#43;0900 class="post-date">2021-02-11</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#rusoto-について">Rusoto について</a></li>
+    <li><a href="#オブジェクト取得の例を書くための参考情報">オブジェクト取得の例を書くための参考情報</a></li>
+    <li><a href="#さくらのクラウドのオブジェクストストレージ用に変えた箇所">さくらのクラウドのオブジェクストストレージ用に変えた箇所</a></li>
+    <li><a href="#オブジェクトのキー指定の際は先頭に--はつけない">オブジェクトのキー指定の際は先頭に / はつけない</a></li>
+    <li><a href="#サンプルコード">サンプルコード</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="https://manual.sakura.ad.jp/cloud/manual-objectstorage.html">オブジェクトストレージ | さくらのクラウド ドキュメント</a> の
+<a href="https://manual.sakura.ad.jp/cloud/objectstorage/about.html#id6">オブジェクトストレージ サービス基本情報</a> を読んで
+Rust と <a href="https://github.com/rusoto/rusoto">rusoto/rusoto: AWS SDK for Rust</a> で
+API 経由でオブジェクトを1つ取得してボディーを標準出力に出力する（テキスト形式のオブジェクトを想定しています）サンプルを書いてみたのでメモです。</p>
+<p>この記事は個人的に検証してみただけのメモであって公式情報ではないです。</p>
+<p>なお <a href="https://manual.sakura.ad.jp/cloud/objectstorage/about.html#id6">オブジェクトストレージ サービス基本情報</a> に書かれているように2021年3月31日まではオープンベータです。</p>
+<p><a href="https://manual.sakura.ad.jp/cloud/objectstorage/api.html">オブジェクトストレージのAPI</a> によると「オブジェクトストレージはAmazon S3互換APIを備えており」とのことなので今回は Rust と Rusoto で試してみました。</p>
+<p>プロジェクトは <a href="https://github.com/hnakamur/rusoto-s3-example">hnakamur/rusoto-s3-example: さくらのクラウドのオブジェクトストレージからRustとRusotoでオブジェクト取得するサンプル</a> に置きました。</p>
+<h2 id="rusoto-について">Rusoto について</h2>
+<p><a href="https://aws.amazon.com/jp/blogs/opensource/aws-sponsorship-of-the-rust-project/">AWS’ sponsorship of the Rust project | AWS Open Source Blog</a> に Rust で AWS を使うならコミュニティーで開発されている AWS SDK である <a href="https://github.com/rusoto/rusoto">Rusoto</a> を使うと良いようなことが書かれていたのでこれを試すことにしました（他にもライブラリーあるかもしれませんが調べてないです）。</p>
+<p><a href="https://crates.io/crates/rusoto">rusoto - crates.io: Rust Package Registry</a> を見ると This crate for Rusoto is deprecated. と書いてあってあれってなったんですが、 リンクされている <a href="https://github.com/rusoto/rusoto/releases/tag/rusoto-v0.25.0">Release Rusoto 0.25.0</a> を見ると <code>rusoto_core</code> や <code>rusoto_credential</code> などの複数のクレートに分割されたという話でした。これは2017年と結構前で、今この記事を書いている2021-02-11時点では <a href="https://github.com/rusoto/rusoto/releases/tag/rusoto-v0.46.0">Release Rusoto 0.46.0 · rusoto/rusoto</a> が最新です。</p>
+<p><code>rusoto_core</code> の <code>Cargo.toml</code> の <code>[dependencies]</code> を確認すると以下のように tokio 1.0 に対応していました。良いですね。</p>
+<p><a href="https://github.com/rusoto/rusoto/blob/rusoto-v0.46.0/rusoto/core/Cargo.toml#L38">https://github.com/rusoto/rusoto/blob/rusoto-v0.46.0/rusoto/core/Cargo.toml#L38</a></p>
+<pre><code>tokio = { version = &quot;1.0&quot;, features = [&quot;time&quot;, &quot;io-util&quot;] }
+</code></pre><h2 id="オブジェクト取得の例を書くための参考情報">オブジェクト取得の例を書くための参考情報</h2>
+<p><a href="https://github.com/rusoto/rusoto/issues/1352">Example of reading from rusoto_s3::GetObjectOutput.body asynchronously? · Issue #1352 · rusoto/rusoto</a> というイシューによるとサンプルコードはないけどテストを見ると良いとコメントがあったのでテストコードを見ました。</p>
+<p>また
+<a href="https://stackoverflow.com/questions/51287360/how-to-save-a-file-downloaded-from-s3-with-rusoto-to-my-hard-drive">amazon s3 - How to save a file downloaded from S3 with Rusoto to my hard drive? - Stack Overflow</a>
+もかなり参考になりました。</p>
+<h2 id="さくらのクラウドのオブジェクストストレージ用に変えた箇所">さくらのクラウドのオブジェクストストレージ用に変えた箇所</h2>
+<p><a href="https://docs.rs/rusoto_core/0.46.0/rusoto_core/enum.Region.html">rusoto_core::Region</a> のドキュメントの
+<a href="https://docs.rs/rusoto_core/0.46.0/rusoto_core/enum.Region.html#aws-compatible-services">AWS-compatible services</a> に書かれているように <code>Region::Custom</code> を使ってリージョン名とエンドポイントの URL を指定すれば OK でした。</p>
+<p>リージョン名は
+<a href="https://manual.sakura.ad.jp/cloud/objectstorage/api.html">オブジェクトストレージのAPI | さくらのクラウド ドキュメント</a>
+には説明が見当たらないですが、とりあえず <code>us-east-1</code> を指定してみたら大丈夫でした。が、あくまで今回行けたというだけで今後もこれで大丈夫かは不明です。</p>
+<p>エンドポイント URL は今回のサンプルでは <code>https://s3.isk01.sakurastorage.jp</code> としました。
+<a href="https://manual.sakura.ad.jp/cloud/objectstorage/about.html#id6">オブジェクトストレージ サービス基本情報</a> の <a href="https://manual.sakura.ad.jp/cloud/objectstorage/about.html#id24">サイトの作成</a> を見るとサイト作成後にエンドポイントが作成されるとのことなので、本番運用する場合はコントロールパネルで確認したエンドポイントURLを指定するような方式にすべきです。
+今回はサンプルなのでハードコーディングしています。</p>
+<h2 id="オブジェクトのキー指定の際は先頭に--はつけない">オブジェクトのキー指定の際は先頭に / はつけない</h2>
+<p>例えば <code>/index.html</code> なら <code>index.html</code> とします。</p>
+<h2 id="サンプルコード">サンプルコード</h2>
+<p><code>src/main.rs</code> は以下の通りです。</p>
+<div class="highlight"><pre class="chroma"><code class="language-rust" data-lang="rust"><span class="k">use</span><span class="w"> </span><span class="n">anyhow</span>::<span class="p">{</span><span class="n">Context</span><span class="p">,</span><span class="w"> </span><span class="nb">Result</span><span class="p">};</span><span class="w">
+</span><span class="w"></span><span class="k">use</span><span class="w"> </span><span class="n">rusoto_core</span>::<span class="n">credential</span>::<span class="n">ProfileProvider</span><span class="p">;</span><span class="w">
+</span><span class="w"></span><span class="k">use</span><span class="w"> </span><span class="n">rusoto_core</span>::<span class="n">Region</span><span class="p">;</span><span class="w">
+</span><span class="w"></span><span class="k">use</span><span class="w"> </span><span class="n">rusoto_s3</span>::<span class="p">{</span><span class="n">GetObjectOutput</span><span class="p">,</span><span class="w"> </span><span class="n">GetObjectRequest</span><span class="p">,</span><span class="w"> </span><span class="n">S3Client</span><span class="p">,</span><span class="w"> </span><span class="n">S3</span><span class="p">};</span><span class="w">
+</span><span class="w"></span><span class="k">use</span><span class="w"> </span><span class="n">tokio</span>::<span class="n">io</span><span class="p">;</span><span class="w">
+</span><span class="w">
+</span><span class="w"></span><span class="k">const</span><span class="w"> </span><span class="n">SAKURA_OBJECT_STORAGE_ENDPOINT</span>: <span class="kp">&amp;</span><span class="kt">str</span> <span class="o">=</span><span class="w"> </span><span class="s">&#34;https://s3.isk01.sakurastorage.jp&#34;</span><span class="p">;</span><span class="w">
+</span><span class="w">
+</span><span class="w"></span><span class="k">fn</span> <span class="nf">sakura_object_storage_region</span><span class="p">(</span><span class="n">endpoint</span>: <span class="nb">String</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">Region</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">    </span><span class="n">Region</span>::<span class="n">Custom</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">        </span><span class="n">name</span>: <span class="nb">String</span>::<span class="n">from</span><span class="p">(</span><span class="n">Region</span>::<span class="n">UsEast1</span><span class="p">.</span><span class="n">name</span><span class="p">()),</span><span class="w">
+</span><span class="w">        </span><span class="n">endpoint</span>: <span class="nc">endpoint</span><span class="p">,</span><span class="w">
+</span><span class="w">    </span><span class="p">}</span><span class="w">
+</span><span class="w"></span><span class="p">}</span><span class="w">
+</span><span class="w">
+</span><span class="w"></span><span class="k">async</span><span class="w"> </span><span class="k">fn</span> <span class="nf">get_object</span><span class="p">(</span><span class="n">region</span>: <span class="nc">Region</span><span class="p">,</span><span class="w"> </span><span class="n">bucket_name</span>: <span class="nb">String</span><span class="p">,</span><span class="w"> </span><span class="n">key</span>: <span class="nb">String</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nb">Result</span><span class="o">&lt;</span><span class="n">GetObjectOutput</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">s3</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">S3Client</span>::<span class="n">new_with</span><span class="p">(</span><span class="w">
+</span><span class="w">        </span><span class="n">rusoto_core</span>::<span class="n">request</span>::<span class="n">HttpClient</span>::<span class="n">new</span><span class="p">()</span><span class="o">?</span><span class="p">,</span><span class="w">
+</span><span class="w">        </span><span class="n">ProfileProvider</span>::<span class="n">new</span><span class="p">()</span><span class="o">?</span><span class="p">,</span><span class="w">
+</span><span class="w">        </span><span class="n">region</span><span class="p">,</span><span class="w">
+</span><span class="w">    </span><span class="p">);</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">get_obj_req</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">GetObjectRequest</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">        </span><span class="n">bucket</span>: <span class="nc">bucket_name</span><span class="p">,</span><span class="w">
+</span><span class="w">        </span><span class="n">key</span>: <span class="nc">key</span><span class="p">,</span><span class="w">
+</span><span class="w">        </span><span class="p">..</span><span class="nb">Default</span>::<span class="n">default</span><span class="p">()</span><span class="w">
+</span><span class="w">    </span><span class="p">};</span><span class="w">
+</span><span class="w">    </span><span class="n">s3</span><span class="p">.</span><span class="n">get_object</span><span class="p">(</span><span class="n">get_obj_req</span><span class="p">)</span><span class="w">
+</span><span class="w">        </span><span class="p">.</span><span class="k">await</span><span class="w">
+</span><span class="w">        </span><span class="p">.</span><span class="n">context</span><span class="p">(</span><span class="s">&#34;get object from object storage&#34;</span><span class="p">)</span><span class="w">
+</span><span class="w"></span><span class="p">}</span><span class="w">
+</span><span class="w">
+</span><span class="w"></span><span class="cp">#[tokio::main]</span><span class="w">
+</span><span class="w"></span><span class="k">async</span><span class="w"> </span><span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">region</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sakura_object_storage_region</span><span class="p">(</span><span class="nb">String</span>::<span class="n">from</span><span class="p">(</span><span class="n">SAKURA_OBJECT_STORAGE_ENDPOINT</span><span class="p">));</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">bucket_name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">String</span>::<span class="n">from</span><span class="p">(</span><span class="s">&#34;gh-action-test&#34;</span><span class="p">);</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">String</span>::<span class="n">from</span><span class="p">(</span><span class="s">&#34;index.html&#34;</span><span class="p">);</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">output</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">get_object</span><span class="p">(</span><span class="n">region</span><span class="p">,</span><span class="w"> </span><span class="n">bucket_name</span><span class="p">,</span><span class="w"> </span><span class="n">key</span><span class="p">).</span><span class="k">await</span><span class="p">.</span><span class="n">unwrap</span><span class="p">();</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">body</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">output</span><span class="p">.</span><span class="n">body</span><span class="p">.</span><span class="n">take</span><span class="p">().</span><span class="n">expect</span><span class="p">(</span><span class="s">&#34;The object has no body&#34;</span><span class="p">);</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">body</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">body</span><span class="p">.</span><span class="n">into_async_read</span><span class="p">();</span><span class="w">
+</span><span class="w">    </span><span class="n">io</span>::<span class="n">copy</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">body</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">tokio</span>::<span class="n">io</span>::<span class="n">stdout</span><span class="p">()).</span><span class="k">await</span><span class="p">.</span><span class="n">unwrap</span><span class="p">();</span><span class="w">
+</span><span class="w"></span><span class="p">}</span><span class="w">
+</span></code></pre></div>
+</div>
+
+
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
