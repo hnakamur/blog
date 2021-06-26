@@ -2,6 +2,16 @@
 title: "RustとRusotoを使ってさくらのクラウドのオブジェクトストレージAPIでオブジェクトを取得してみた"
 date: 2021-02-11T09:52:45+09:00
 ---
+## 2021-06-26 追記
+
+2021-05-07 に [A New AWS SDK for Rust – Alpha Launch | AWS Developer Tools Blog](https://aws.amazon.com/blogs/developer/a-new-aws-sdk-for-rust-alpha-launch/) という記事が出て、今後は [awslabs/aws-sdk-rust](https://github.com/awslabs/aws-sdk-rust) に移行していくそうです。
+
+今日確認したところでは
+[rusoto/rusoto: AWS SDK for Rust](https://github.com/rusoto/rusoto) の README に Rusoto is in maintenance mode. と書かれていました。
+一方、 [awslabs/aws-sdk-rust](https://github.com/awslabs/aws-sdk-rust) のほうは 
+Please Note: The SDK is currently released as an alpha and is intended strictly for feedback purposes only. Do not use this SDK for production workloads.
+と書かれていました。
+
 ## はじめに
 
 [オブジェクトストレージ | さくらのクラウド ドキュメント](https://manual.sakura.ad.jp/cloud/manual-objectstorage.html) の
