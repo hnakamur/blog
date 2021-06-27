@@ -29,7 +29,7 @@ date: 2021-06-28T05:12:14+09:00
 
 GRUB のメニューに登録されているカーネル一覧を以下のコマンドで確認します。
 
-```
+```sh
 grep -A100 submenu /boot/grub/grub.cfg | grep menuentry
 ```
 
@@ -54,7 +54,7 @@ menuentry 'UEFI Firmware Settings' $menuentry_id_option 'uefi-firmware' {
 
 GRUB 設定を編集します。
 
-```
+```sh
 sudo vim /etc/default/grub
 ```
 
@@ -83,8 +83,11 @@ GRUB_DEFAULT="gnulinux-advanced-0e6937b5-14c5-496d-ba95-42efe61cd35e>gnulinux-5.
 
 あとは `update-grub` で変更を反映して再起動します。
 
-```
+```sh
 sudo update-grub
+```
+
+```sh
 sudo reboot
 ```
 
@@ -94,7 +97,7 @@ sudo reboot
 
 まず念のため今ブートしたカーネルのバージョンを確認します。
 
-```
+```sh
 uname -r
 ```
 
@@ -156,13 +159,13 @@ rc  linux-modules-extra-5.11.0-22-generic         5.11.0-22.23~20.04.1          
 
 対象を確認したら以下のコマンドでパージします。
 
-```
+```sh
 dpkg -l | grep ^.c | awk '{print $2}' | xargs sudo apt purge -y
 ```
 
 あとは GRUB の設定を元に戻します。
 
-```
+```sh
 sudo vim /etc/default/grub
 ```
 
@@ -174,7 +177,7 @@ GRUB_DEFAULT=0
 
 に戻して
 
-```
+```sh
 sudo update-grub
 ```
 
