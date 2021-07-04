@@ -1,6 +1,6 @@
 ---
 title: "ThinkPad P14s AMD Gen 2 のセットアップ"
-date: 2021-07-03T15:32:49+09:00
+date: 2021-07-04T13:30:00+09:00
 ---
 
 ## はじめに
@@ -230,7 +230,265 @@ BIOS に Fn と Ctrl の入れ替えという設定はありましたが、Ctrl 
 
 [windows10_keyboard_swap_ctrl_caps.reg](/blog/windows10_keyboard_swap_ctrl_caps.reg) を名前をつけて保存して、エクスプローラで選んでポップアップメニューの「結合」を選んでレジストリに登録します。その後 Windows を再起動して反映します。
 
+### マルチタスク設定
 
-続く
+1. Windows キー + i を押して設定画面を表示
+2. 「システム」を選択
+3. 左で「マルチタスク」を選択
+4. 「ウィンドウのスナップ」と「タイムライン」をオフ
+5. 「AltキーとTabキーを押すと表示されます」を「ウィンドウのみを開く」に変更
 
 
+### ホスト名設定
+
+参考: [ホスト名の設定（Windows 10）](http://alpha.shudo-u.ac.jp/~helpdesk/network/hostname-win10.html) と [Windows 10でパソコンの名前（PC名）を確認/変更する方法 - Lenovo Support RS](https://support.lenovo.com/rs/ja/solutions/ht105079)
+
+1. Windows キー + x を押して開いたメニューで「システム」をクリック
+2. 「このPCの名前を変更」ボタンを押す
+3. 「PC名を変更する」ダイアログで希望のPC名を入力後、再起動して反映
+
+### エクスプローラの表示設定
+
+1. Windows キー + e を押してエクスプローラーを開く
+2. [表示] / [詳細] メニューをクリック
+3. [表示] / [オプション] メニューをクリック
+4. 「フォルダー オプション」ダイアログで「表示」タブに切り替え
+5. 詳細設定で以下のように変更して「適用」ボタンを押す
+    - 「隠しファイル、隠しフォルダー、および隠しドライブを表示する」をクリック
+    - 「登録されている拡張子は表示しない」をオフ
+    - 「保護されたオペレーティングシステムファイルを表示しない(推奨)」をオフ
+6. 「フォルダーを表示」グループボックス内の「フォルダーに適用」ボタンを押す
+
+### Bluetooth をオフ
+
+1. Windows キー + i を押して設定画面を表示
+2. 「デバイス」をクリック
+3. 「Bluetoothとその他のデバイス」でBluetoothのスイッチをオフに変更
+
+
+## パスワードマネージャー KeePassXC インストール
+
+[KeePassXC Password Manager](https://keepassxc.org/) からインストーラーをダウンロードしてインストールします。
+
+データファイルは既存のPCからUSB外付けハードディスクにコピーし、それを新しいPCに繋ぎ変えてコピーします。
+
+## Firefox と Chrome のセットアップ
+
+### Firefox
+
+[Mozilla から高速、プライベート、無料の Firefox ブラウザー をダウンロード](https://www.mozilla.org/ja/firefox/new/) からダウンロードしてインストールします。
+
+私はFirefoxは敢えてログインしない使い方にしています。
+
+ブックマークは他の PC の Firefox からエクスポートしたものをインポートします。
+
+パスワードは保存しないように設定変更します。
+
+拡張は Diigo と拙作の Format Link を入れます。
+
+#### Google の英語での検索設定
+
+Firefox は設定の検索から「他の検索エンジンを追加」リンクをクリックすると `addons.mozilla.org` に登録された検索エンジンを追加できます。
+
+しかしこれだと自分で好きな設定に出来ないので、ブックマークを使う方式にしています。
+
+場所はどこでも良いので以下のようなブックマークを作ります。
+
+1. ハンバーガーメニューの「ブックマーク」の「ブックマークを管理」をクリック
+2. 左のツリーで「他のブックマーク」を選び(他でも可)、[管理]/[ブックマークを追加]メニューを選択
+3. 「新しいブックマークを追加」ダイアログで以下のように入力して「保存」ボタンを押す。
+    * 名前: Google en
+    * URL: `https://www.google.com/search?q=%s&hl=en`
+    * タグ: (空のまま)
+    * キーワード: g
+
+これでURL欄に g スペースと入れてその後に検索ワードを入れてEnterを押すと英語で検索されます。
+
+### Chrome
+
+[Google Chrome - Google の高速で安全なブラウザをダウンロード](https://www.google.com/intl/ja_jp/chrome/) からダウンロードしてインストールします。
+
+自分のアカウントでサインインすると設定(拡張のインストールとブックマーク)が同期されます。自分の写真がブラウザに常に表示されるのはうっとおしいのでアバターはChromeで用意されているアイコンに変更します。
+
+#### Google の英語での検索設定
+
+設定で同期されるので変更は不要ですが、「検索エンジンの管理」では以下の設定を追加しています。
+
+* 検索エンジン: Google en
+* キーワード: g
+* URL (%s=検索語): `https://www.google.com/search?q=%s&hl=en`
+
+これでURL欄に g とスペースを押すと Google en と表示され、続いて検索ワードを入れて Enter を押すと英語で検索されます。
+
+
+## WSL2 セットアップ
+
+参考: [WSL2のUbuntuとDocker Desktop for Windowsを試してみた · hnakamur's blog](/blog/2020/05/28/setup-wsl2-ubuntu-and-docker-desktop-for-windows/)
+
+今回も手順をミスって一旦 WSL1 で作った後 WSL2 に変換したので、下記の手順で一発で行けるかは不明です。
+
+管理者権限の PowerShell を開いて以下のコマンドを実行し Microsoft-Windows-Subsystem-Linux の機能を有効にします。
+
+```powershell
+dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+```
+
+ここで一度Windowsを再起動します。
+
+管理者権限の PowerShell を開いて以下のコマンドを実行し "仮想マシン プラットフォーム"のオプション コンポーネントを有効にします。
+
+```powershell
+dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+```
+
+[WSL 2 Linux カーネルの更新 | Microsoft Docs](https://docs.microsoft.com/ja-jp/windows/wsl/wsl2-kernel) から Linux カーネル更新プログラム パッケージ（ファイル名： wsl_update_x64.msi ）をダウンロード、インストールします。
+
+以下のコマンドを実行し、WSLのデフォルトバージョンを2にします。
+
+```powershell
+wsl --set-default-version 2
+```
+
+タスクバーの「Microsoft Store」を開き検索欄に「Ubuntu 20.04」と入力して「Ubuntu 20.04 LTS」を選択しインストールします。
+
+## Visual Studio Code インストール
+
+[Visual Studio Code - Code Editing. Redefined](https://code.visualstudio.com/) からインストーラーをダウンロードしてインストールします。
+
+## Cica フォントインストール
+
+[miiton/Cica: プログラミング用日本語等幅フォント Cica(シカ)](https://github.com/miiton/Cica) の [Releases · miiton/Cica](https://github.com/miiton/Cica/releases) から最新リリースの絵文字ありの zip ファイルをダウンロードします。
+
+エクスプローラで開いて `*.ttf` ファイルを zip の外にコピーして、選択してポップアップメニューの「インストール」でインストールします。
+
+## Windows Terminal インストールと設定
+
+## Windows Terminal のインストール
+
+タスクバーの「Microsoft Store」を開き検索欄に「terminal」と入力して「Windows Terminal」を選択しインストールします。
+
+### Windows Terminal の設定
+
+参考: [Windows Terminalの私の設定 · hnakamur's blog](/blog/2020/05/16/my-settings-for-windows-terminal/)
+
+ウィンドウの列数、行数と位置は以下のようにしました。
+
+```
+    "initialCols": 200,
+    "initialRows": 54,
+    "initialPosition": "0,0",
+```
+
+## 7-Zip をインストール
+
+[圧縮・解凍ソフト 7-Zip](https://sevenzip.osdn.jp/) から 7-Zip をダウンロードしてインストールします。
+(以前は次項の wsl-ssh-agent の配布物の解凍に必要だったのですが、最新版は通常のzip形式になっていたのでこの点だけなら不要です)
+
+## WSL2 と KeePassXC で ssh-agent を使う設定
+
+### ssh-agent のサービス自動起動設定
+
+#### OpenSSH クライアントはプリインストールされていました
+
+参考: [OpenSSH をインストールする | Microsoft Docs](https://docs.microsoft.com/ja-jp/windows-server/administration/openssh/openssh_install_firstuse) と [Windows 10 に OpenSSH クライアントをインストール · hnakamur's blog](/blog/2020/02/22/install-openssh-client-to-windows10/)
+
+管理権限の PowerShell を開いて以下のコマンドを実行して OpenSSH クライアントがインストール済みかを確認します。
+
+```powershell
+Get-WindowsCapability -Online | ? Name -like 'OpenSSH*'
+```
+
+私の環境では以下の出力となり OpenSSH クライアントはプリインストール済みでした。
+
+```
+Name  : OpenSSH.Client~~~~0.0.1.0
+State : Installed
+
+Name  : OpenSSH.Server~~~~0.0.1.0
+State : NotPresent
+```
+
+#### ssh-agent サービスの自動起動設定
+
+管理権限の PowerShell を開いて以下のコマンドを実行して ssh-agent サービスの状態を確認します。
+
+```powershell
+Get-Service ssh-agent | Select Name,DisplayName,Status,StartType
+```
+
+私の環境では Status が Stopped, StartType が Disabled になっていました。
+
+StartType が Disabled のままだとサービスを起動できないので、以下のコマンドで自動起動にします。
+
+```powershell
+Set-Service ssh-agent -StartupType Automatic
+```
+
+その後以下のコマンドを実行して ssh-agent サービスを起動します。
+
+```powershell
+Start-Service ssh-agent
+```
+
+再度
+
+```powershell
+Get-Service ssh-agent | Select Name,DisplayName,Status,StartType
+```
+
+を実行して Status が Running, StartType が Automatic になったことを確認します。
+
+### WSL2 で wsl-ssh-agent のセットアップ
+参考:
+* [rupor-github/wsl-ssh-agent: Helper to interface with Windows ssh-agent.exe service from Windows Subsystem for Linux (WSL)](https://github.com/rupor-github/wsl-ssh-agent) の [WSL 2 compatibility](https://github.com/rupor-github/wsl-ssh-agent#wsl-2-compatibility)
+* [KeePassとKeeAgentでWSL2用にssh-agentを動かす · hnakamur's blog](/blog/2020/05/29/run-ssh-agent-with-keepass-and-keeagent-for-wsl2/)
+
+手順:
+
+1. [Releases · rupor-github/wsl-ssh-agent](https://github.com/rupor-github/wsl-ssh-agent/releases) から最新版をダウンロードします。 2021-07-04 時点では v1.5.2 で `wsl-ssh-agent.zip` というファイル名でした。
+2. エクスプローラーでダウンロードした zip ファイルを開き `npiperelay.exe` を zip の外にコピーします。私は `C:\wsl-ssh-agent` というフォルダーを作ってそこにコピーすることにしました。
+3. WSL2 の Ubuntu-20.04 のシェルで以下のコマンドを実行し `socat` パッケージをインストールします。
+
+```sh
+sudo apt update && sudo apt install -y socat
+```
+
+4. [WSL 2 compatibility](https://github.com/rupor-github/wsl-ssh-agent#wsl-2-compatibility) に書かれている設定を `npiperelay.exe` のパスを自分の環境に応じて書き換えて `~/.bashrc` に追記します。
+
+```sh
+# Use ssh-agent through wwl-ssh-agent
+export SSH_AUTH_SOCK=$HOME/.ssh/agent.sock
+ss -a | grep -q $SSH_AUTH_SOCK
+if [ $? -ne 0 ]; then
+    rm -f $SSH_AUTH_SOCK
+    ( setsid socat UNIX-LISTEN:$SSH_AUTH_SOCK,fork EXEC:"/mnt/c/wsl-ssh-agent/npiperelay.exe -ei -s //./pipe/openssh-ssh-agent",nofork & ) >/dev/null 2>&1
+fi
+```
+
+5. WSL2 のターミナルを起動し直すか以下のコマンドを実行してログインシェルを再起動します。
+
+```sh
+exec $SHELL -l
+```
+
+### KeePassXC から ssh-agent への接続設定
+
+1. KeePassXC の [ツール]/[設定] メニューをクリック
+2. 左の「SSHエージェント」をクリック
+3. 「SSHエージェント統合を有効にする」と「Pagentの代わりにOpenSSH for Windowsを使用する」にチェックして「OK」ボタンを押す
+4. KeePassXC を一旦終了して再起動
+5. [ツール]/[設定]メニューをクリックし左の「SSHエージェント」をクリックして「SSHエージェント接続が動作中です！」と表示されていればOKです。
+
+鍵の追加はエントリー一覧上でSSH秘密鍵を添付してあるエントリー(パスワード欄にパスフレーズを設定しています)を選択して[エントリー]/[SSHエージェントに鍵を追加]メニューで行います。
+
+また `~/.ssh/config` のファイルを添付してあるエントリーからファイルを一旦Windowsのフォルダーに保存し、WSL2 のシェルを開いて WSL2 側に移動します。
+
+例えば Documents フォルダーに保存したとして WSL2 のシェルでは以下のようにします。
+
+```sh
+mkdir -m 700 ~/.ssh
+mv /mnt/c/Users/hnakamur/Documents/config ~/.ssh/config
+chmod 600 ~/.ssh/config
+```
+
+これで KeePassXC がロック中の状態では `ssh-add -l` で確認すると `The agent has no identities.` となり、アンロック中は指定の鍵が登録された状態になります。

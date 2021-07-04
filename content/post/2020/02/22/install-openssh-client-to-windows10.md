@@ -18,7 +18,7 @@ Windows Subsystem for Linux で ssh クライアントをしばらく使って�
 
 PowerShell を管理者権限で開き以下のコマンドで OpenSSH 機能の一覧をバージョンを確認します（ちなみに PowerShell Core だと帰ってきませんでした）。
 
-```
+```powershell
 Get-WindowsCapability -Online | ? Name -like 'OpenSSH*'
 ```
 
@@ -33,13 +33,13 @@ State : NotPresent
 
 以下のように実行し OpenSSH クライアントの機能をインストールします。
 
-```
+```powershell
 Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0
 ```
 
 ## ssh-agent サービスの状態確認
 
-```
+```powershell
 Get-Service ssh-agent | Select Name,DisplayName,Status,StartType
 ```
 
@@ -61,23 +61,23 @@ ssh-agent OpenSSH Authentication Agent Running Automatic
 
 自動起動にする
 
-```
+```powershell
 Set-Service ssh-agent -StartupType Automatic
 ```
 
 起動する
 
-```
-Set-Serice ssh-agent -Status Running -PassThru
+```powershell
+Set-Service ssh-agent -Status Running -PassThru
 ```
 あるいは
-```
+```powershell
 Start-Service ssh-agent
 ```
 
 ## 脱線: サービス一覧表示
 
-```
+```powershell
 Get-Service
 ```
 
@@ -85,7 +85,7 @@ Get-Service
 
 [How do I increase the column width in Powershell to avoid truncation?](https://social.technet.microsoft.com/Forums/windowsserver/en-US/eee5be42-f412-4661-9b30-3b43005aeca1/how-do-i-increase-the-column-width-in-powershell-to-avoid-truncation?forum=winserverpowershell) で紹介されていた `| Format-Table -Wrap -AutoSize` を使って
 
-```
+```powershell
 Get-Service | Format-Table -Wrap -AutoSize
 ```
 
@@ -93,7 +93,7 @@ Get-Service | Format-Table -Wrap -AutoSize
 
 また
 
-```
+```powershell
 Get-Service | Select Status,StartType,Name,DisplayName
 ```
 
@@ -104,7 +104,7 @@ Get-Service | Select Status,StartType,Name,DisplayName
 
 以下はユーザ権限の PowerShell で実行します。
 
-```
+```powershell
 ssh-add -l
 ```
 

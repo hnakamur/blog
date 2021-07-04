@@ -28,7 +28,7 @@ lastmod: 2020-08-23T00:34:00+09:00
 
 ## npiperelay.exe のセットアップ
 
-[Releases · rupor-github/wsl-ssh-agent](https://github.com/rupor-github/wsl-ssh-agent/releases/tag/v1.4.2) の最新リリース "WSL 2 workaround" の Assets の `wsl-ssh-agent.7z` をダウンロードします。
+[Releases · rupor-github/wsl-ssh-agent](https://github.com/rupor-github/wsl-ssh-agent/releases/tag/v1.4.2) の最新リリース "WSL 2 workaround" の Assets の `wsl-ssh-agent.7z` をダウンロードします(2021-07-04追記: [Releases · rupor-github/wsl-ssh-agent](https://github.com/rupor-github/wsl-ssh-agent/releases) にさらに新しいバージョンが出ています)。
 
 解凍のために [圧縮・解凍ソフト 7-Zip](https://sevenzip.osdn.jp/) をダウンロード、インストールします。
 
