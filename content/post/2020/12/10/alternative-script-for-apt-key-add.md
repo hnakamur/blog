@@ -1,7 +1,14 @@
 ---
 title: "Ubuntu 20.10 で apt-key add が deprecated になっていたので代替スクリプトを書いた"
 date: 2020-12-10T22:37:26+09:00
+lastmod: 2021-07-21T10:06:06+09:00
 ---
+## 2021-07-21 追記：このスクリプトは使わないでください
+
+[第675回　apt-keyはなぜ廃止予定となったのか：Ubuntu Weekly Recipe｜gihyo.jp … 技術評論社](https://gihyo.jp/admin/serial/01/ubuntu-recipe/0675)
+によると
+`/etc/apt/trusted.gpg.d/` にファイルを作るのはリスク管理として完全な対応ではなく、Debian Wiki では禁止(MUST NOT)との記載があるとのことです。
+
 ## はじめに
 
 Ubuntu 20.10 環境でサードパーティのレポジトリを追加しようと `apt-key add` を実行したところ deprecated と言われました。
