@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.84.1" />
+  <meta name="generator" content="Hugo 0.86.0" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -84,7 +84,7 @@
 <p>使用する際は
 <a href="https://github.com/openresty/lua-nginx-module#lua_shared_dict">lua_shared_dict</a> ディレクティブ
 で以下のように shared dict の名称とサイズを指定する必要があります。</p>
-<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">lua_shared_dict dogs 10m;
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">lua_shared_dict dogs 10m;
 </code></pre></div><p>しかし、このサイズをどれぐらいにしたらよいかわからず、適当に設定していました。</p>
 <p>そこでコードを読んで、おおよそのメモリ使用量の目安の計算について調査しました。
 また、概略の残り容量を把握するための仕組みを追加するプルリクエストを送ってマージされました。
@@ -104,11 +104,11 @@
 <p>また <code>ngx_http_lua_shdict_init_zone</code> 関数で slab allocator から2つメモリ割り当てを行っています。</p>
 <p>1つめは <code>sizeof(ngx_http_lua_shdict_shctx_t)</code> = 80バイトを割り当てるので128バイトのスロットの1エントリを消費します。</p>
 <p><a href="https://github.com/openresty/lua-nginx-module/blob/bf14723e4e7749c989134c029742185db1c78255/src/ngx_http_lua_shdict.c#L108">lua-nginx-module/ngx_http_lua_shdict.c#L108</a></p>
-<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">sh</span> <span class="o">=</span> <span class="n">ngx_slab_alloc</span><span class="p">(</span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">shpool</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">ngx_http_lua_shdict_shctx_t</span><span class="p">));</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">sh</span> <span class="o">=</span> <span class="n">ngx_slab_alloc</span><span class="p">(</span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">shpool</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">ngx_http_lua_shdict_shctx_t</span><span class="p">));</span>
 </code></pre></div><p>2つめは <code>sizeof(&quot; in lua_shared_dict zone \&quot;\&quot;&quot;) + shm_zone-&gt;shm.name.len</code> バイトの割り当てです。</p>
 <p><a href="https://github.com/openresty/lua-nginx-module/blob/bf14723e4e7749c989134c029742185db1c78255/src/ngx_http_lua_shdict.c#L120">lua-nginx-module/ngx_http_lua_shdict.c#L120</a></p>
-<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="n">len</span> <span class="o">=</span> <span class="k">sizeof</span><span class="p">(</span><span class="s">&#34; in lua_shared_dict zone </span><span class="se">\&#34;\&#34;</span><span class="s">&#34;</span><span class="p">)</span> <span class="o">+</span> <span class="n">shm_zone</span><span class="o">-&gt;</span><span class="n">shm</span><span class="p">.</span><span class="n">name</span><span class="p">.</span><span class="n">len</span><span class="p">;</span>
-</code></pre></div><div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">(gdb) print sizeof(&#34; in lua_shared_dict zone \&#34;\&#34;&#34;)
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="n">len</span> <span class="o">=</span> <span class="k">sizeof</span><span class="p">(</span><span class="s">&#34; in lua_shared_dict zone </span><span class="se">\&#34;\&#34;</span><span class="s">&#34;</span><span class="p">)</span> <span class="o">+</span> <span class="n">shm_zone</span><span class="o">-&gt;</span><span class="n">shm</span><span class="p">.</span><span class="n">name</span><span class="p">.</span><span class="n">len</span><span class="p">;</span>
+</code></pre></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">(gdb) print sizeof(&#34; in lua_shared_dict zone \&#34;\&#34;&#34;)
 $4 = 28
 </code></pre></div><p>shared dictの名前が5〜36バイトであれば33〜64バイト用のスロットのエントリを1つ消費します。
 名前が4バイト以下なら17〜32バイトのスロットになりますし、37〜100バイトなら65〜128バイトのスロットになります。</p>
@@ -119,10 +119,10 @@ $4 = 28
 <p>管理領域の合計は
 <code>sizeof(ngx_slab_pool_t) + 9 * (sizeof(ngx_slab_page_t) + sizeof(ngx_slab_stat_t))</code>
 で、以下の計算により 704 バイトです。</p>
-<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">&gt;&gt;&gt; 200 + 9 * (24 + 32)
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">&gt;&gt;&gt; 200 + 9 * (24 + 32)
 704
 </code></pre></div><p>この704バイトを除いた領域を4KiB単位のページに分割します。この例ではページ数は以下の計算により 2 です。</p>
-<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">&gt;&gt;&gt; (12 * 1024 - 704) // 4096
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">&gt;&gt;&gt; (12 * 1024 - 704) // 4096
 2
 </code></pre></div><p>しかし、上記の通り <code>ngx_http_lua_shdict_init_zone</code> で 64バイトと128バイトのスロットを1つずつ使っていますので、それぞれのスロットにページが割り当てられて、空きページ数は0となっています。</p>
 <p>ですので、この後これ以外のスロットに対応するメモリ割り当てを行おうとすると空きページが無いのでエラーになります。</p>
@@ -130,22 +130,22 @@ $4 = 28
 <p>以下のコードの通り、追加しようとするキーの長さ <code>key.len</code> と値の長さ <code>value.len</code> に
 <code>offsetof(ngx_rbtree_node_t, color)</code> と <code>offsetof(ngx_http_lua_shdict_node_t, data)</code> を加えたサイズのメモリ割り当てを行います。</p>
 <p><a href="https://github.com/openresty/lua-nginx-module/blob/97fbeb0bef1aa85e758210d58063376de8eaed31/src/ngx_http_lua_shdict.c#L1164-L1167">lua-nginx-module/ngx_http_lua_shdict.c#L1164-L1167</a></p>
-<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="n">n</span> <span class="o">=</span> <span class="n">offsetof</span><span class="p">(</span><span class="n">ngx_rbtree_node_t</span><span class="p">,</span> <span class="n">color</span><span class="p">)</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="n">n</span> <span class="o">=</span> <span class="n">offsetof</span><span class="p">(</span><span class="n">ngx_rbtree_node_t</span><span class="p">,</span> <span class="n">color</span><span class="p">)</span>
     <span class="o">+</span> <span class="n">offsetof</span><span class="p">(</span><span class="n">ngx_http_lua_shdict_node_t</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
     <span class="o">+</span> <span class="n">key</span><span class="p">.</span><span class="n">len</span>
     <span class="o">+</span> <span class="n">value</span><span class="p">.</span><span class="n">len</span><span class="p">;</span>
 </code></pre></div><p><code>offsetof(ngx_rbtree_node_t, color)</code> は32、 <code>offsetof(ngx_http_lua_shdict_node_t, data)</code> は36だったので、 68 + キーの長さ + 値の長さということになります。</p>
 <p>例えば、 <code>12k</code> のshared dictではキーの長さ4バイト、値の長さ57バイトのエントリを追加しようとすると 68 + 4 + 57 = 129バイトで256バイトのスロットにエントリ追加が必要になりますが、空きページはもう無いので</p>
 <p><a href="https://github.com/openresty/lua-nginx-module#ngxshareddictset">ngx.shared.DICT.set</a></p>
-<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="n">success</span><span class="p">,</span> <span class="n">err</span><span class="p">,</span> <span class="n">forcible</span> <span class="o">=</span> <span class="n">ngx</span><span class="p">.</span><span class="n">shared</span><span class="p">.</span><span class="nl">DICT</span><span class="p">:</span><span class="n">set</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">exptime</span><span class="o">?</span><span class="p">,</span> <span class="n">flags</span><span class="o">?</span><span class="p">)</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="n">success</span><span class="p">,</span> <span class="n">err</span><span class="p">,</span> <span class="n">forcible</span> <span class="o">=</span> <span class="n">ngx</span><span class="p">.</span><span class="n">shared</span><span class="p">.</span><span class="nl">DICT</span><span class="p">:</span><span class="n">set</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">exptime</span><span class="o">?</span><span class="p">,</span> <span class="n">flags</span><span class="o">?</span><span class="p">)</span>
 </code></pre></div><p>で <code>err</code> に <code>no memory</code> というエラーが返ってきます。</p>
 <p>一方、キーの長さが8バイト、値の長さが8バイトであれば、 68 + 8 + 8 = 84バイトなので128バイトのスロットを1つ消費します。128 - 68 = 60なのでキーと値のサイズ合計が60バイト以下であれば128バイトのスロットというこになります。</p>
 <p>128バイトのスロットでは4KiBの1ページあたりのエントリ数は</p>
-<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">&gt;&gt;&gt; 4096 // 128
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">&gt;&gt;&gt; 4096 // 128
 32
 </code></pre></div><p>です。ただし、128バイトのスロットの最初のページは初期化時に <code>sizeof(ngx_http_lua_shdict_shctx_t)</code> で1エントリ消費されているので、残りのエントリ数は31です。</p>
 <p>以下のような設定</p>
-<div class="highlight"><pre class="chroma"><code class="language-text" data-lang="text">lua_shared_dict cats 12k;
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">lua_shared_dict cats 12k;
 
 server {
     // ...
@@ -184,7 +184,7 @@ key=key00003, val=val00003
 <p><a href="https://github.com/openresty/lua-nginx-module/blob/97fbeb0bef1aa85e758210d58063376de8eaed31/src/ngx_http_lua_shdict.c#L2759-L2785">lua-nginx-module/ngx_http_lua_shdict.c#L2759-L2785</a></p>
 <div class="highlight"><div class="chroma">
 <table class="lntable"><tr><td class="lntd">
-<pre class="chroma"><code><span class="lnt">2413
+<pre tabindex="0" class="chroma"><code><span class="lnt">2413
 </span><span class="lnt">2414
 </span><span class="lnt">2415
 </span><span class="lnt">2416
@@ -213,7 +213,7 @@ key=key00003, val=val00003
 </span><span class="lnt">2439
 </span></code></pre></td>
 <td class="lntd">
-<pre class="chroma"><code class="language-c" data-lang="c"><span class="n">node</span> <span class="o">=</span> <span class="n">ngx_slab_alloc_locked</span><span class="p">(</span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">shpool</span><span class="p">,</span> <span class="n">n</span><span class="p">);</span>
+<pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="n">node</span> <span class="o">=</span> <span class="n">ngx_slab_alloc_locked</span><span class="p">(</span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">shpool</span><span class="p">,</span> <span class="n">n</span><span class="p">);</span>
 
 <span class="k">if</span> <span class="p">(</span><span class="n">node</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
 

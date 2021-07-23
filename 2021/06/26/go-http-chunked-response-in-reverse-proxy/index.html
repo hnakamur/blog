@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.84.1" />
+  <meta name="generator" content="Hugo 0.86.0" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -77,7 +77,7 @@
 <p>そもそもどうやって Go の net/http パッケージで chunked なレスポンスを返すかですが、 <a href="https://stackoverflow.com/a/30603654/1391518">StackOverflow の回答</a> にコードと telnet で受信したレスポンスのサンプルが紹介されていました。</p>
 <p><code>Content-Length</code> レスポンスヘッダーをつけないようにしつつ、リクエストハンドラーの <code>func ServeHTTP(w http.ResponseWriter, r *http.Request)</code> の <code>w</code> を <a href="https://golang.org/pkg/net/http/#Flusher">net/http.Flusher</a> インタフェースに type assertion して OK ならその Flush メソッドを呼ぶと chunked なレスポンスを返せます。</p>
 <p>自分でも試してみました。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kn">package</span> <span class="nx">main</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kn">package</span> <span class="nx">main</span>
 
 <span class="kn">import</span> <span class="p">(</span>
 	<span class="s">&#34;flag&#34;</span>
@@ -147,7 +147,7 @@ telnet&gt; Connection closed.
 <p>つまり、リクエストハンドラーの <code>func ServeHTTP(w http.ResponseWriter, r *http.Request)</code> の <code>w</code> は <code>*net/http.response</code> が渡されます。</p>
 <p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/server.go#L417-L485">http.response 構造体の定義</a>。</p>
 <p><a href="https://golang.org/pkg/net/http/httputil/#NewChunkedWriter">net/http/httputil/NewChunkedWriter</a> という公開APIはあるがそちらは使わず、非公開の chunkWriter 構造体を使っています。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// A response represents the server side of an HTTP response.
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// A response represents the server side of an HTTP response.
 </span><span class="c1"></span><span class="kd">type</span> <span class="nx">response</span> <span class="kd">struct</span> <span class="p">{</span>
 <span class="c1">// …(略)…
 </span><span class="c1"></span>	<span class="nx">w</span>  <span class="o">*</span><span class="nx">bufio</span><span class="p">.</span><span class="nx">Writer</span> <span class="c1">// buffers output in chunks to chunkWriter
@@ -155,7 +155,7 @@ telnet&gt; Connection closed.
 <span class="c1">// …(略)…
 </span><span class="c1"></span><span class="p">}</span>
 </code></pre></div><p><code>http.response</code> の w と cw は <a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/server.go#L956-L1058">conn の readRequest メソッド</a> 内で設定されます。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Read next request from connection.
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Read next request from connection.
 </span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">conn</span><span class="p">)</span> <span class="nf">readRequest</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span> <span class="p">(</span><span class="nx">w</span> <span class="o">*</span><span class="nx">response</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
 <span class="c1">// …(略)…
 </span><span class="c1"></span>	<span class="nx">w</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">response</span><span class="p">{</span>
@@ -168,7 +168,7 @@ telnet&gt; Connection closed.
 	<span class="k">return</span> <span class="nx">w</span><span class="p">,</span> <span class="kc">nil</span>
 <span class="p">}</span>
 </code></pre></div><p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/server.go#L1677-L1683">http.response の Flush メソッド</a>。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">w</span> <span class="o">*</span><span class="nx">response</span><span class="p">)</span> <span class="nf">Flush</span><span class="p">()</span> <span class="p">{</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">w</span> <span class="o">*</span><span class="nx">response</span><span class="p">)</span> <span class="nf">Flush</span><span class="p">()</span> <span class="p">{</span>
 	<span class="k">if</span> <span class="p">!</span><span class="nx">w</span><span class="p">.</span><span class="nx">wroteHeader</span> <span class="p">{</span>
 		<span class="nx">w</span><span class="p">.</span><span class="nf">WriteHeader</span><span class="p">(</span><span class="nx">StatusOK</span><span class="p">)</span>
 	<span class="p">}</span>
@@ -176,7 +176,7 @@ telnet&gt; Connection closed.
 	<span class="nx">w</span><span class="p">.</span><span class="nx">cw</span><span class="p">.</span><span class="nf">flush</span><span class="p">()</span>
 <span class="p">}</span>
 </code></pre></div><p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/server.go#L335-L361">chunkedWriter 構造体の定義</a>。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// chunkWriter writes to a response&#39;s conn buffer, and is the writer
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// chunkWriter writes to a response&#39;s conn buffer, and is the writer
 </span><span class="c1">// wrapped by the response.bufw buffered writer.
 </span><span class="c1">//
 </span><span class="c1">// chunkWriter also is responsible for finalizing the Header, including
@@ -211,7 +211,7 @@ telnet&gt; Connection closed.
 <li>リクエストプロトコルが HTTP/1.1 以上である</li>
 <li>Transfer-Encoding が存在しないか、存在するが値が identity ではない　</li>
 </ul>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// writeHeader finalizes the header sent to the client and writes it
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// writeHeader finalizes the header sent to the client and writes it
 </span><span class="c1">// to cw.res.conn.bufw.
 </span><span class="c1">//
 </span><span class="c1">// p is not written by writeHeader, but is the first chunk of the body
@@ -265,7 +265,7 @@ telnet&gt; Connection closed.
 </span></code></pre></div><p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/server.go#L368-L391">chunkWriter の Write メソッド</a>。</p>
 <p>cw.chunking が true の場合は内容を書き出す前に長さと CR+LF を出力します。
 さらに内容を書き出した際にエラーが起きていなければその後に CR+LF を出力します。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">cw</span> <span class="o">*</span><span class="nx">chunkWriter</span><span class="p">)</span> <span class="nf">Write</span><span class="p">(</span><span class="nx">p</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">cw</span> <span class="o">*</span><span class="nx">chunkWriter</span><span class="p">)</span> <span class="nf">Write</span><span class="p">(</span><span class="nx">p</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
 	<span class="k">if</span> <span class="p">!</span><span class="nx">cw</span><span class="p">.</span><span class="nx">wroteHeader</span> <span class="p">{</span>
 		<span class="nx">cw</span><span class="p">.</span><span class="nf">writeHeader</span><span class="p">(</span><span class="nx">p</span><span class="p">)</span>
 	<span class="p">}</span>
@@ -290,7 +290,7 @@ telnet&gt; Connection closed.
 	<span class="k">return</span>
 <span class="p">}</span>
 </code></pre></div><p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/server.go#L393-L398">chunkWriter の flush メソッド</a>。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">cw</span> <span class="o">*</span><span class="nx">chunkWriter</span><span class="p">)</span> <span class="nf">flush</span><span class="p">()</span> <span class="p">{</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">cw</span> <span class="o">*</span><span class="nx">chunkWriter</span><span class="p">)</span> <span class="nf">flush</span><span class="p">()</span> <span class="p">{</span>
 	<span class="k">if</span> <span class="p">!</span><span class="nx">cw</span><span class="p">.</span><span class="nx">wroteHeader</span> <span class="p">{</span>
 		<span class="nx">cw</span><span class="p">.</span><span class="nf">writeHeader</span><span class="p">(</span><span class="kc">nil</span><span class="p">)</span>
 	<span class="p">}</span>
@@ -298,7 +298,7 @@ telnet&gt; Connection closed.
 <span class="p">}</span>
 </code></pre></div><p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/server.go#L400-L415">chunkWriter の close メソッド</a>。</p>
 <p>chunked の終わりを示す 0+CR+LF を書いた後、あればトレーラーを書いて、最後に CR+LF を書いています。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">cw</span> <span class="o">*</span><span class="nx">chunkWriter</span><span class="p">)</span> <span class="nb">close</span><span class="p">()</span> <span class="p">{</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">cw</span> <span class="o">*</span><span class="nx">chunkWriter</span><span class="p">)</span> <span class="nb">close</span><span class="p">()</span> <span class="p">{</span>
 	<span class="k">if</span> <span class="p">!</span><span class="nx">cw</span><span class="p">.</span><span class="nx">wroteHeader</span> <span class="p">{</span>
 		<span class="nx">cw</span><span class="p">.</span><span class="nf">writeHeader</span><span class="p">(</span><span class="kc">nil</span><span class="p">)</span>
 	<span class="p">}</span>
@@ -316,7 +316,7 @@ telnet&gt; Connection closed.
 <span class="p">}</span>
 </code></pre></div><h2 id="reverseproxy-を経由した-chunked-出力">ReverseProxy を経由した chunked 出力</h2>
 <p><a href="https://golang.org/pkg/net/http/httputil/#NewSingleHostReverseProxy">httputil.NewSingleHostReverseProxy</a> を使ったリバースプロキシーのサンプルです。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kn">package</span> <span class="nx">main</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kn">package</span> <span class="nx">main</span>
 
 <span class="kn">import</span> <span class="p">(</span>
 	<span class="s">&#34;flag&#34;</span>
@@ -425,14 +425,14 @@ Chunk #3
 ^]
 telnet&gt; Connection closed.
 </code></pre><p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/httputil/reverseproxy.go#L212-L358">ReverseProxy の ServeHTTP メソッド</a> 内の以下の行</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go">	<span class="nx">err</span> <span class="p">=</span> <span class="nx">p</span><span class="p">.</span><span class="nf">copyResponse</span><span class="p">(</span><span class="nx">rw</span><span class="p">,</span> <span class="nx">res</span><span class="p">.</span><span class="nx">Body</span><span class="p">,</span> <span class="nx">p</span><span class="p">.</span><span class="nf">flushInterval</span><span class="p">(</span><span class="nx">res</span><span class="p">))</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go">	<span class="nx">err</span> <span class="p">=</span> <span class="nx">p</span><span class="p">.</span><span class="nf">copyResponse</span><span class="p">(</span><span class="nx">rw</span><span class="p">,</span> <span class="nx">res</span><span class="p">.</span><span class="nx">Body</span><span class="p">,</span> <span class="nx">p</span><span class="p">.</span><span class="nf">flushInterval</span><span class="p">(</span><span class="nx">res</span><span class="p">))</span>
 </code></pre></div><p>でオリジンのレスポンスボディをクライアントに返しているようです。</p>
 <p>ここで Go の標準ライブラリーのソースにデバッグログ出力を埋め込んで調査しました。
 これは <a href="https://kawaken.hateblo.jp/entry/2017/07/31/150015">umeda.go #2 で発表してきた - kawaken&rsquo;s blog</a> で教わったものです。公式ドキュメントに書かれているわけではないので、将来もできるかの保証はありませんが、ソースを書き換えて自分のアプリケーションをビルドするだけで良いので手軽で便利です。デバッグが終わったらソースを元に戻すのを忘れずに。私は以下のような感じで /usr/local/go 全体でインストールし直しています。</p>
 <pre><code>rm -rf /usr/local/go; tar xf ~/go1.16.5.linux-amd64.tar.gz -C /usr/local/
 </code></pre><p>またGoの標準ライブラリーのソースを Visual Studio Code で開くときは [File] / [Add Folder to Workspace &hellip;] メニューで /usr/local/go ではなく /usr/local/go/src を開くと [Go to Definition] なども動いて便利です。</p>
 <p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/httputil/reverseproxy.go#L413-L437">ReverseProxy の copyResponse メソッド</a> に以下のように 2 箇所ログ出力を入れてみました。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">ReverseProxy</span><span class="p">)</span> <span class="nf">copyResponse</span><span class="p">(</span><span class="nx">dst</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Writer</span><span class="p">,</span> <span class="nx">src</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Reader</span><span class="p">,</span> <span class="nx">flushInterval</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Duration</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">ReverseProxy</span><span class="p">)</span> <span class="nf">copyResponse</span><span class="p">(</span><span class="nx">dst</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Writer</span><span class="p">,</span> <span class="nx">src</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Reader</span><span class="p">,</span> <span class="nx">flushInterval</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Duration</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
 	<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;ReverseProxy.copyResponse, dst type=%T, flushInterval=%s&#34;</span><span class="p">,</span> <span class="nx">dst</span><span class="p">,</span> <span class="nx">flushInterval</span><span class="p">)</span>
 	<span class="k">if</span> <span class="nx">flushInterval</span> <span class="o">!=</span> <span class="mi">0</span> <span class="p">{</span>
 		<span class="k">if</span> <span class="nx">wf</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">dst</span><span class="p">.(</span><span class="nx">writeFlusher</span><span class="p">);</span> <span class="nx">ok</span> <span class="p">{</span>
@@ -464,12 +464,12 @@ telnet&gt; Connection closed.
 2021/06/26 10:56:12 ReverseProxy.copyResponse, dst is writeFlusher
 </code></pre><p>ということで ReverseProxy の copyResponse の引数の dst は <code>*http.response</code> 型ですが、中で <code>maxLatencyWriter</code> 構造体のインスタンスを作って dst を差し替えていることがわかります。</p>
 <p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/httputil/reverseproxy.go#L480-L483">writeFlusher</a> は以下のようなインターフェースです。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">writeFlusher</span> <span class="kd">interface</span> <span class="p">{</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">writeFlusher</span> <span class="kd">interface</span> <span class="p">{</span>
 	<span class="nx">io</span><span class="p">.</span><span class="nx">Writer</span>
 	<span class="nx">http</span><span class="p">.</span><span class="nx">Flusher</span>
 <span class="p">}</span>
 </code></pre></div><p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/httputil/reverseproxy.go#L485-L492">maxLatencyWriter</a> 構造体の定義。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">maxLatencyWriter</span> <span class="kd">struct</span> <span class="p">{</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">maxLatencyWriter</span> <span class="kd">struct</span> <span class="p">{</span>
 	<span class="nx">dst</span>     <span class="nx">writeFlusher</span>
 	<span class="nx">latency</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Duration</span> <span class="c1">// non-zero; negative means to flush immediately
 </span><span class="c1"></span>
@@ -479,7 +479,7 @@ telnet&gt; Connection closed.
 <span class="p">}</span>
 </code></pre></div><p>今回は上のログ出力でわかったように dst は <code>*http.response</code> 型の値で latency は -1 になっています。</p>
 <p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/httputil/reverseproxy.go#L494-L512">maxLatencyWriter の Write メソッド</a> にもログを入れました。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">m</span> <span class="o">*</span><span class="nx">maxLatencyWriter</span><span class="p">)</span> <span class="nf">Write</span><span class="p">(</span><span class="nx">p</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">m</span> <span class="o">*</span><span class="nx">maxLatencyWriter</span><span class="p">)</span> <span class="nf">Write</span><span class="p">(</span><span class="nx">p</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
 	<span class="nx">m</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
 	<span class="k">defer</span> <span class="nx">m</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
 	<span class="nx">n</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">m</span><span class="p">.</span><span class="nx">dst</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="nx">p</span><span class="p">)</span>
@@ -493,7 +493,7 @@ telnet&gt; Connection closed.
 <pre><code>2021/06/26 11:25:47 httputil.maxLatencyWriter.Write, n=20, err=&lt;nil&gt;, latency=-1, flushPending=true, dst type=*http.response
 </code></pre><pre><code>2021/06/26 11:25:47 httputil.maxLatencyWriter.Write, n=18, err=&lt;nil&gt;, latency=-1, flushPending=true, dst type=*http.response
 </code></pre><p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/httputil/reverseproxy.go#L439-L470">ReverseProxy の copyBuffer メソッド</a> にもログを入れました。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// copyBuffer returns any write errors or non-EOF read errors, and the amount
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// copyBuffer returns any write errors or non-EOF read errors, and the amount
 </span><span class="c1">// of bytes written.
 </span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">ReverseProxy</span><span class="p">)</span> <span class="nf">copyBuffer</span><span class="p">(</span><span class="nx">dst</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Writer</span><span class="p">,</span> <span class="nx">src</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Reader</span><span class="p">,</span> <span class="nx">buf</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">(</span><span class="kt">int64</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
 	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">buf</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
@@ -530,7 +530,7 @@ telnet&gt; Connection closed.
 <pre><code>2021/06/26 11:35:16 ReverseProxy.copyBuffer, dst type=*httputil.maxLatencyWriter, src type=*http.bodyEOFSignal, nr=20, nerr=&lt;nil&gt;
 </code></pre><pre><code>2021/06/26 11:35:16 ReverseProxy.copyBuffer, dst type=*httputil.maxLatencyWriter, src type=*http.bodyEOFSignal, nr=18, nerr=EOF
 </code></pre><p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/transport.go#L2731-L2749">bodyEOFSignal 構造体の定義</a>。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// bodyEOFSignal is used by the HTTP/1 transport when reading response
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// bodyEOFSignal is used by the HTTP/1 transport when reading response
 </span><span class="c1">// bodies to make sure we see the end of a response body before
 </span><span class="c1">// proceeding and reading on the connection again.
 </span><span class="c1">//
@@ -569,7 +569,7 @@ Chunk #3
 
 
 </code></pre><p>話を元に戻して bodyEOFSignal ですが <a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/transport.go#L2048-L2226">persistConn の readLoop メソッド</a> 内で resp.Body に設定されていました。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go">		<span class="nx">waitForBodyRead</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kt">bool</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go">		<span class="nx">waitForBodyRead</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kt">bool</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
 		<span class="nx">body</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">bodyEOFSignal</span><span class="p">{</span>
 			<span class="nx">body</span><span class="p">:</span> <span class="nx">resp</span><span class="p">.</span><span class="nx">Body</span><span class="p">,</span>
 			<span class="nx">earlyCloseFn</span><span class="p">:</span> <span class="kd">func</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
@@ -594,7 +594,7 @@ Chunk #3
 
 		<span class="nx">resp</span><span class="p">.</span><span class="nx">Body</span> <span class="p">=</span> <span class="nx">body</span>
 </code></pre></div><p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/transport.go#L2753-L2774">bodyEOFSignal の Read メソッド</a> を見てもチャンクをまとめてはいなさそうなので、この中で呼び出している <code>es.body.Read</code> のほうを見ることにします。またログを追加して es.body の型を調べます。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">es</span> <span class="o">*</span><span class="nx">bodyEOFSignal</span><span class="p">)</span> <span class="nf">Read</span><span class="p">(</span><span class="nx">p</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">es</span> <span class="o">*</span><span class="nx">bodyEOFSignal</span><span class="p">)</span> <span class="nf">Read</span><span class="p">(</span><span class="nx">p</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
 	<span class="nx">es</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
 	<span class="nx">closed</span><span class="p">,</span> <span class="nx">rerr</span> <span class="o">:=</span> <span class="nx">es</span><span class="p">.</span><span class="nx">closed</span><span class="p">,</span> <span class="nx">es</span><span class="p">.</span><span class="nx">rerr</span>
 	<span class="nx">es</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
@@ -619,7 +619,7 @@ Chunk #3
 <span class="p">}</span>
 </code></pre></div><pre><code>2021/06/26 13:38:31 bodyEOFSignal.Read, es.body type=*http.body
 </code></pre><p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/transfer.go#L805-L820">http.body 構造体の定義</a>。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// body turns a Reader into a ReadCloser.
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// body turns a Reader into a ReadCloser.
 </span><span class="c1">// Close ensures that the body has been fully read
 </span><span class="c1">// and then reads the trailer if necessary.
 </span><span class="c1"></span><span class="kd">type</span> <span class="nx">body</span> <span class="kd">struct</span> <span class="p">{</span>
@@ -636,7 +636,7 @@ Chunk #3
 </span><span class="c1"></span>	<span class="nx">onHitEOF</span>   <span class="kd">func</span><span class="p">()</span> <span class="c1">// if non-nil, func to call when EOF is Read
 </span><span class="c1"></span><span class="p">}</span>
 </code></pre></div><p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/transfer.go#L828-L835">http.body の Read メソッド</a>。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">body</span><span class="p">)</span> <span class="nf">Read</span><span class="p">(</span><span class="nx">p</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">body</span><span class="p">)</span> <span class="nf">Read</span><span class="p">(</span><span class="nx">p</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
 	<span class="nx">b</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
 	<span class="k">defer</span> <span class="nx">b</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
 	<span class="k">if</span> <span class="nx">b</span><span class="p">.</span><span class="nx">closed</span> <span class="p">{</span>
@@ -645,7 +645,7 @@ Chunk #3
 	<span class="k">return</span> <span class="nx">b</span><span class="p">.</span><span class="nf">readLocked</span><span class="p">(</span><span class="nx">p</span><span class="p">)</span>
 <span class="p">}</span>
 </code></pre></div><p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/transfer.go#L837-L884">http.body の readLocked メソッド</a>。またログを入れます。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Must hold b.mu.
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Must hold b.mu.
 </span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">body</span><span class="p">)</span> <span class="nf">readLocked</span><span class="p">(</span><span class="nx">p</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
 	<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;http.body.readLocked, src type=%T, sawEOF=%v&#34;</span><span class="p">,</span> <span class="nx">b</span><span class="p">.</span><span class="nx">src</span><span class="p">,</span> <span class="nx">b</span><span class="p">.</span><span class="nx">sawEOF</span><span class="p">)</span>
 	<span class="k">if</span> <span class="nx">b</span><span class="p">.</span><span class="nx">sawEOF</span> <span class="p">{</span>
@@ -698,7 +698,7 @@ Chunk #3
 <pre><code>2021/06/26 13:45:38 http.body.readLocked, src type=*internal.chunkedReader, sawEOF=false
 </code></pre><p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/transfer.go#L481-L597">net/http パッケージの readTransfer 関数</a> 内で tranferReader のインスタンス t を作っていて <code>t.Chunked</code> が true でボディーありの場合に <code>internal.NewChunkedReader</code> 関数で生成されて http.body 型の src フィールドに設定されています。</p>
 <p>関数の前のコメントに msg は <code>*Request</code> か <code>*Response</code> とあるようにこの関数はHTTPリクエストとレスポンスで共通となっています。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// msg is *Request or *Response.
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// msg is *Request or *Response.
 </span><span class="c1"></span><span class="kd">func</span> <span class="nf">readTransfer</span><span class="p">(</span><span class="nx">msg</span> <span class="kd">interface</span><span class="p">{},</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">bufio</span><span class="p">.</span><span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
 	<span class="nx">t</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">transferReader</span><span class="p">{</span><span class="nx">RequestMethod</span><span class="p">:</span> <span class="s">&#34;GET&#34;</span><span class="p">}</span>
 
@@ -785,7 +785,7 @@ Chunk #3
 	<span class="k">return</span> <span class="kc">nil</span>
 <span class="p">}</span>
 </code></pre></div><p><code>t.Chunked</code> は <a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/transfer.go#L621-L660">transferReader の parseTransferEncoding メソッド</a> 内でプロトコルが HTTP/1.1 以上かつ <code>Transfer-Encoding</code> ヘッダーが chunked のときに true に設定されています。またその際は <code>Content-Length</code> ヘッダーは消されています。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// parseTransferEncoding sets t.Chunked based on the Transfer-Encoding header.
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// parseTransferEncoding sets t.Chunked based on the Transfer-Encoding header.
 </span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">transferReader</span><span class="p">)</span> <span class="nf">parseTransferEncoding</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
 	<span class="nx">raw</span><span class="p">,</span> <span class="nx">present</span> <span class="o">:=</span> <span class="nx">t</span><span class="p">.</span><span class="nx">Header</span><span class="p">[</span><span class="s">&#34;Transfer-Encoding&#34;</span><span class="p">]</span>
 	<span class="k">if</span> <span class="p">!</span><span class="nx">present</span> <span class="p">{</span>
@@ -826,7 +826,7 @@ Chunk #3
 	<span class="k">return</span> <span class="kc">nil</span>
 <span class="p">}</span>
 </code></pre></div><p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/internal/chunked.go#L37-L43">net/http/internal.chunkedReader 構造体の定義</a>。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">chunkedReader</span> <span class="kd">struct</span> <span class="p">{</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">chunkedReader</span> <span class="kd">struct</span> <span class="p">{</span>
 	<span class="nx">r</span>        <span class="o">*</span><span class="nx">bufio</span><span class="p">.</span><span class="nx">Reader</span>
 	<span class="nx">n</span>        <span class="kt">uint64</span> <span class="c1">// unread bytes in chunk
 </span><span class="c1"></span>	<span class="nx">err</span>      <span class="kt">error</span>
@@ -834,7 +834,7 @@ Chunk #3
 	<span class="nx">checkEnd</span> <span class="kt">bool</span> <span class="c1">// whether need to check for \r\n chunk footer
 </span><span class="c1"></span><span class="p">}</span>
 </code></pre></div><p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/internal/chunked.go#L70-L115">net/http/internal.chunkedReader の Read メソッド</a> の最後に以下のようにログ出力を入れました。今回はスタックトレースも出してみました。今は呼び出し順を追って書いてるから不要ですが、気になる箇所がどこから呼ばれているかわかってない段階ではスタックトレースを出して調べるのは便利です（実は最初の方で気になるところにスタックトレース出力を入れてたのですが説明上は不要なので省略してました。使い方のメモということでここに入れておきます）。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">cr</span> <span class="o">*</span><span class="nx">chunkedReader</span><span class="p">)</span> <span class="nf">Read</span><span class="p">(</span><span class="nx">b</span> <span class="p">[]</span><span class="kt">uint8</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">cr</span> <span class="o">*</span><span class="nx">chunkedReader</span><span class="p">)</span> <span class="nf">Read</span><span class="p">(</span><span class="nx">b</span> <span class="p">[]</span><span class="kt">uint8</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
 	<span class="k">for</span> <span class="nx">cr</span><span class="p">.</span><span class="nx">err</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
 		<span class="k">if</span> <span class="nx">cr</span><span class="p">.</span><span class="nx">checkEnd</span> <span class="p">{</span>
 			<span class="k">if</span> <span class="nx">n</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="o">&amp;&amp;</span> <span class="nx">cr</span><span class="p">.</span><span class="nx">r</span><span class="p">.</span><span class="nf">Buffered</span><span class="p">()</span> <span class="p">&lt;</span> <span class="mi">2</span> <span class="p">{</span>
@@ -932,7 +932,7 @@ net/http.(*conn).serve(0xc0000a8a00, 0x74d700, 0xc0000802c0)
 created by net/http.(*Server).Serve
         /usr/local/go/src/net/http/server.go:3027 +0x39b
 </code></pre><p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/internal/chunked.go#L45-L59">net/http/internal.chunkedReader の beginChunk メソッド</a></p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">cr</span> <span class="o">*</span><span class="nx">chunkedReader</span><span class="p">)</span> <span class="nf">beginChunk</span><span class="p">()</span> <span class="p">{</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">cr</span> <span class="o">*</span><span class="nx">chunkedReader</span><span class="p">)</span> <span class="nf">beginChunk</span><span class="p">()</span> <span class="p">{</span>
 	<span class="c1">// chunk-size CRLF
 </span><span class="c1"></span>	<span class="kd">var</span> <span class="nx">line</span> <span class="p">[]</span><span class="kt">byte</span>
 	<span class="nx">line</span><span class="p">,</span> <span class="nx">cr</span><span class="p">.</span><span class="nx">err</span> <span class="p">=</span> <span class="nf">readChunkLine</span><span class="p">(</span><span class="nx">cr</span><span class="p">.</span><span class="nx">r</span><span class="p">)</span>
@@ -948,7 +948,7 @@ created by net/http.(*Server).Serve
 	<span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div><p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/internal/chunked.go#L117-L142">net/http/internal.chunkedReader の readChunkLine メソッド</a></p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Read a line of bytes (up to \n) from b.
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Read a line of bytes (up to \n) from b.
 </span><span class="c1">// Give up if the line exceeds maxLineLength.
 </span><span class="c1">// The returned bytes are owned by the bufio.Reader
 </span><span class="c1">// so they are only valid until the next bufio read.
@@ -975,7 +975,7 @@ created by net/http.(*Server).Serve
 	<span class="k">return</span> <span class="nx">p</span><span class="p">,</span> <span class="kc">nil</span>
 <span class="p">}</span>
 </code></pre></div><p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/internal/chunked.go#L61-L68">net/http/internal.chunkedReader の chunkHeaderAvailable メソッド</a></p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">cr</span> <span class="o">*</span><span class="nx">chunkedReader</span><span class="p">)</span> <span class="nf">chunkHeaderAvailable</span><span class="p">()</span> <span class="kt">bool</span> <span class="p">{</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">cr</span> <span class="o">*</span><span class="nx">chunkedReader</span><span class="p">)</span> <span class="nf">chunkHeaderAvailable</span><span class="p">()</span> <span class="kt">bool</span> <span class="p">{</span>
 	<span class="nx">n</span> <span class="o">:=</span> <span class="nx">cr</span><span class="p">.</span><span class="nx">r</span><span class="p">.</span><span class="nf">Buffered</span><span class="p">()</span>
 	<span class="k">if</span> <span class="nx">n</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
 		<span class="nx">peek</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">cr</span><span class="p">.</span><span class="nx">r</span><span class="p">.</span><span class="nf">Peek</span><span class="p">(</span><span class="nx">n</span><span class="p">)</span>
@@ -985,7 +985,7 @@ created by net/http.(*Server).Serve
 <span class="p">}</span>
 </code></pre></div><p><a href="https://golang.org/pkg/bufio/#Reader">bufio.Reader 構造体</a> の <a href="https://golang.org/pkg/bufio/#Reader.Buffered">Buffered メソッド</a> でバッファ内の残りバイト数を調べて 0 より大きい場合は <a href="https://golang.org/pkg/bufio/#Reader.Peek">Peek メソッド</a> で <code>'\n'</code> が含まれるかを調べています。</p>
 <p><a href="https://github.com/golang/go/blob/go1.16.5/src/net/http/internal/chunked.go#L70-L115">net/http/internal.chunkedReader の Read メソッド</a> にデバッグログ出力を大量に入れて再度試しました。</p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">cr</span> <span class="o">*</span><span class="nx">chunkedReader</span><span class="p">)</span> <span class="nf">Read</span><span class="p">(</span><span class="nx">b</span> <span class="p">[]</span><span class="kt">uint8</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">cr</span> <span class="o">*</span><span class="nx">chunkedReader</span><span class="p">)</span> <span class="nf">Read</span><span class="p">(</span><span class="nx">b</span> <span class="p">[]</span><span class="kt">uint8</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
 	<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;chunkedReader.Read start, len(b)=%d&#34;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nx">b</span><span class="p">))</span>
 	<span class="k">for</span> <span class="nx">cr</span><span class="p">.</span><span class="nx">err</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
 		<span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;chunkedReader.Read, came into for loop, cr.checkEnd=%v&#34;</span><span class="p">,</span> <span class="nx">cr</span><span class="p">.</span><span class="nx">checkEnd</span><span class="p">)</span>

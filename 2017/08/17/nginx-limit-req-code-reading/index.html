@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.84.1" />
+  <meta name="generator" content="Hugo 0.86.0" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -90,7 +90,7 @@
 <h3 id="rateとlimitの値を読み取る">rateとlimitの値を読み取る</h3>
 <p>設定からrateとlimitを読み取るコードは以下の部分です。内部的には秒間リクエスト数を1000倍して管理しています。</p>
 <p><a href="https://github.com/nginx/nginx/blob/release-1.13.4/src/http/modules/ngx_http_limit_req_module.c#L792-L828">ngx_http_limit_req_module.c#L792-L828</a></p>
-<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">if</span> <span class="p">(</span><span class="n">ngx_strncmp</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">data</span><span class="p">,</span> <span class="s">&#34;rate=&#34;</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="k">if</span> <span class="p">(</span><span class="n">ngx_strncmp</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">data</span><span class="p">,</span> <span class="s">&#34;rate=&#34;</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
 
     <span class="n">len</span> <span class="o">=</span> <span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">len</span><span class="p">;</span>
     <span class="n">p</span> <span class="o">=</span> <span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">data</span> <span class="o">+</span> <span class="n">len</span> <span class="o">-</span> <span class="mi">3</span><span class="p">;</span>
@@ -129,7 +129,7 @@ if (name.len == 0) {
 ctx-&gt;rate = rate * 1000 / scale;
 </code></pre>
 <p><a href="https://github.com/nginx/nginx/blob/release-1.13.4/src/http/modules/ngx_http_limit_req_module.c#L885-L937">ngx_http_limit_req_module.c#L885-L937</a></p>
-<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="k">if</span> <span class="p">(</span><span class="n">ngx_strncmp</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">data</span><span class="p">,</span> <span class="s">&#34;burst=&#34;</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="k">if</span> <span class="p">(</span><span class="n">ngx_strncmp</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">data</span><span class="p">,</span> <span class="s">&#34;burst=&#34;</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
 
     <span class="n">burst</span> <span class="o">=</span> <span class="n">ngx_atoi</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">data</span> <span class="o">+</span> <span class="mi">6</span><span class="p">,</span> <span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">len</span> <span class="o">-</span> <span class="mi">6</span><span class="p">);</span>
     <span class="k">if</span> <span class="p">(</span><span class="n">burst</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
@@ -186,7 +186,7 @@ limit-&gt;burst = burst * 1000;
 <h3 id="nginxのlimit_reqのleaky-bucket">nginxのlimit_reqのleaky bucket</h3>
 <p>nginxの実装は（おそらく軽く動かすために）ちょっと変わった方法をとっていて、タイマーで定期的に許容できる量を更新していくのではなく、以下のように前回のアクセスから今回のアクセスまでの時間にレートを掛けて引くという方式を取っています。</p>
 <p><a href="https://github.com/nginx/nginx/blob/release-1.13.4/src/http/modules/ngx_http_limit_req_module.c#L400-L412">ngx_http_limit_req_module.c#L400-L412</a></p>
-<div class="highlight"><pre class="chroma"><code class="language-c" data-lang="c"><span class="n">ms</span> <span class="o">=</span> <span class="p">(</span><span class="n">ngx_msec_int_t</span><span class="p">)</span> <span class="p">(</span><span class="n">now</span> <span class="o">-</span> <span class="n">lr</span><span class="o">-&gt;</span><span class="n">last</span><span class="p">);</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="n">ms</span> <span class="o">=</span> <span class="p">(</span><span class="n">ngx_msec_int_t</span><span class="p">)</span> <span class="p">(</span><span class="n">now</span> <span class="o">-</span> <span class="n">lr</span><span class="o">-&gt;</span><span class="n">last</span><span class="p">);</span>
 
 <span class="n">excess</span> <span class="o">=</span> <span class="n">lr</span><span class="o">-&gt;</span><span class="n">excess</span> <span class="o">-</span> <span class="n">ctx</span><span class="o">-&gt;</span><span class="n">rate</span> <span class="o">*</span> <span class="n">ngx_abs</span><span class="p">(</span><span class="n">ms</span><span class="p">)</span> <span class="o">/</span> <span class="mi">1000</span> <span class="o">+</span> <span class="mi">1000</span><span class="p">;</span>
 

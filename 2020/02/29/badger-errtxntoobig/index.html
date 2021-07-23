@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.84.1" />
+  <meta name="generator" content="Hugo 0.86.0" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -81,7 +81,7 @@
 <blockquote>
 <p>An ErrTxnTooBig will be reported in case the number of pending writes/deletes in the transaction exceeds a certain limit. In that case, it is best to commit the transaction and start a new transaction immediately. Here is an example (we are not checking for errors in some places for simplicity):</p>
 </blockquote>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">updates</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">string</span><span class="p">)</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="nx">updates</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">string</span><span class="p">)</span>
 <span class="nx">txn</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">NewTransaction</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span>
 <span class="k">for</span> <span class="nx">k</span><span class="p">,</span><span class="nx">v</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">updates</span> <span class="p">{</span>
   <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">txn</span><span class="p">.</span><span class="nf">Set</span><span class="p">([]</span><span class="nb">byte</span><span class="p">(</span><span class="nx">k</span><span class="p">),[]</span><span class="nb">byte</span><span class="p">(</span><span class="nx">v</span><span class="p">));</span> <span class="nx">err</span> <span class="o">==</span> <span class="nx">badger</span><span class="p">.</span><span class="nx">ErrTxnTooBig</span> <span class="p">{</span>
@@ -96,7 +96,7 @@
 <p>2 箇所ありました。</p>
 <p>その 1: <code>DB</code> の <code>sendToWriteCh</code> メソッド内。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/db.go#L735-L742">db.go#L735-L742</a></p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go">  <span class="kd">var</span> <span class="nx">count</span><span class="p">,</span> <span class="nx">size</span> <span class="kt">int64</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go">  <span class="kd">var</span> <span class="nx">count</span><span class="p">,</span> <span class="nx">size</span> <span class="kt">int64</span>
   <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">e</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">entries</span> <span class="p">{</span>
     <span class="nx">size</span> <span class="o">+=</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nf">estimateSize</span><span class="p">(</span><span class="nx">db</span><span class="p">.</span><span class="nx">opt</span><span class="p">.</span><span class="nx">ValueThreshold</span><span class="p">))</span>
     <span class="nx">count</span><span class="o">++</span>
@@ -106,7 +106,7 @@
   <span class="p">}</span>
 </code></pre></div><p>その 2: <code>Txn</code> の <code>checkSize</code> メソッド内。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/txn.go#L295-L304">txn.go#L295-L304</a></p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">txn</span> <span class="o">*</span><span class="nx">Txn</span><span class="p">)</span> <span class="nf">checkSize</span><span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">Entry</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">txn</span> <span class="o">*</span><span class="nx">Txn</span><span class="p">)</span> <span class="nf">checkSize</span><span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">Entry</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
   <span class="nx">count</span> <span class="o">:=</span> <span class="nx">txn</span><span class="p">.</span><span class="nx">count</span> <span class="o">+</span> <span class="mi">1</span>
   <span class="c1">// Extra bytes for the version in key.
 </span><span class="c1"></span>  <span class="nx">size</span> <span class="o">:=</span> <span class="nx">txn</span><span class="p">.</span><span class="nx">size</span> <span class="o">+</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nf">estimateSize</span><span class="p">(</span><span class="nx">txn</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">opt</span><span class="p">.</span><span class="nx">ValueThreshold</span><span class="p">))</span> <span class="o">+</span> <span class="mi">10</span>
@@ -119,21 +119,21 @@
 </code></pre></div><h2 id="dbopt-の-maxbatchcount-と-maxbatchsize"><code>db.opt</code> の <code>maxBatchCount</code> と <code>maxBatchSize</code></h2>
 <p><code>Options</code> 構造体（抜粋）
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/options.go#L95-L98">options.go#L95-L98</a></p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go">  <span class="c1">// 4. Flags for testing purposes
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go">  <span class="c1">// 4. Flags for testing purposes
 </span><span class="c1"></span>  <span class="c1">// ------------------------------
 </span><span class="c1"></span>  <span class="nx">maxBatchCount</span> <span class="kt">int64</span> <span class="c1">// max entries in batch
 </span><span class="c1"></span>  <span class="nx">maxBatchSize</span>  <span class="kt">int64</span> <span class="c1">// max batch size in bytes
 </span></code></pre></div><p>設定箇所は <code>Open</code> 関数内にありました。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/db.go#L195-L196">db.go#L195-L196</a></p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go">  <span class="nx">opt</span><span class="p">.</span><span class="nx">maxBatchSize</span> <span class="p">=</span> <span class="p">(</span><span class="mi">15</span> <span class="o">*</span> <span class="nx">opt</span><span class="p">.</span><span class="nx">MaxTableSize</span><span class="p">)</span> <span class="o">/</span> <span class="mi">100</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go">  <span class="nx">opt</span><span class="p">.</span><span class="nx">maxBatchSize</span> <span class="p">=</span> <span class="p">(</span><span class="mi">15</span> <span class="o">*</span> <span class="nx">opt</span><span class="p">.</span><span class="nx">MaxTableSize</span><span class="p">)</span> <span class="o">/</span> <span class="mi">100</span>
   <span class="nx">opt</span><span class="p">.</span><span class="nx">maxBatchCount</span> <span class="p">=</span> <span class="nx">opt</span><span class="p">.</span><span class="nx">maxBatchSize</span> <span class="o">/</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">skl</span><span class="p">.</span><span class="nx">MaxNodeSize</span><span class="p">)</span>
 </code></pre></div><p><code>skl.MaxNodeSize</code> は定数で Visual Studio Code によると 96 です。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/skl/skl.go#L49-L50">skl/skl.go#L49-L50</a></p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// MaxNodeSize is the memory footprint of a node of maximum height.
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// MaxNodeSize is the memory footprint of a node of maximum height.
 </span><span class="c1"></span><span class="kd">const</span> <span class="nx">MaxNodeSize</span> <span class="p">=</span> <span class="nb">int</span><span class="p">(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Sizeof</span><span class="p">(</span><span class="nx">node</span><span class="p">{}))</span>
 </code></pre></div><p><code>DefaultOptions</code> 関数内を見ると <code>MaxTableSize</code> のデフォルト値は 64MiB です。
 <a href="https://github.com/dgraph-io/badger/blob/617ed7c7db9d618b6511adfff5d22dcde2233049/options.go#L114">options.go#L114</a></p>
-<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go">    <span class="nx">MaxTableSize</span><span class="p">:</span>            <span class="mi">64</span> <span class="o">&lt;&lt;</span> <span class="mi">20</span><span class="p">,</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go">    <span class="nx">MaxTableSize</span><span class="p">:</span>            <span class="mi">64</span> <span class="o">&lt;&lt;</span> <span class="mi">20</span><span class="p">,</span>
 </code></pre></div><p>これから計算すると <code>opt.maxBatchSize</code> は 9.6MiB です。</p>
 <pre><code>&gt;&gt;&gt; 15 * 64 / 100.0
 9.6
