@@ -1,6 +1,7 @@
 ---
 title: "ThinkPad P14s AMD Gen 2 のセットアップ"
 date: 2021-07-04T13:30:00+09:00
+lastmod: 2021-07-23T09:28:00+09:00
 ---
 
 ## はじめに
@@ -350,6 +351,13 @@ wsl --set-default-version 2
 ```
 
 タスクバーの「Microsoft Store」を開き検索欄に「Ubuntu 20.04」と入力して「Ubuntu 20.04 LTS」を選択しインストールします。
+
+### WSL2 の Linux カーネルの更新を Windows Update で受け取る設定 (2021-07-23追記)
+
+[Windows 10ミニTips(592) 最新のLinuxカーネルがWindows Updateから降ってこない | マイナビニュース](https://news.mynavi.jp/article/win10tips-592/) を参考に設定します。保全のため以下にメモ。
+
+1. Windows キーを押し Update と入力して絞り込まれたメニューから「Windows Update の詳細オプション」を選択
+2. 「Windows の更新時に他の Microsoft 製品の更新プログラムを受け取る」スイッチをオンに切り替え
 
 ## Visual Studio Code インストール
 
