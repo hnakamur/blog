@@ -1,7 +1,7 @@
 ---
 title: "WSL2のUbuntuでsystemdとsnapdとLXDとdockerを動かしてみた"
 date: 2020-05-30T15:50:00+09:00
-lastmod: 2020-06-05T17:30:00+09:00
+lastmod: 2021-08-24T19:50:00+09:00
 ---
 
 ## はじめに
@@ -537,3 +537,9 @@ release="$(basename $(curl -s -o /dev/null -w '%{redirect_url}' https://github.c
 sudo curl -L "https://github.com/docker/compose/releases/download/$release/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
 sudo chmod +x /usr/local/bin/docker-compose
 ```
+
+## 2021-08-24 追記: 新しいレポジトリを見つけました
+
+[DamionGans/ubuntu-wsl2-systemd-script: Script to enable systemd support on current Ubuntu WSL2 images from the Windows store](https://github.com/DamionGans/ubuntu-wsl2-systemd-script) は今日見たらもう更新されないと書かれていました。
+そこで検索してみるとスクリプトの元々の作者の diddledani さんのレポジトリがありました。今後試したいと思います。
+[diddledani/one-script-wsl2-systemd: The one-script variant of the systemd hack for WSL2](https://github.com/diddledani/one-script-wsl2-systemd)
