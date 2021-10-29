@@ -1,6 +1,7 @@
 ---
 title: "OpenSSLのSSL_sendfileとパッチを当てたnginxでLinuxのkTLSを試してみた"
 date: 2020-04-29T17:51:58+09:00
+lastmod: 2020-10-29T21:25:00+09:00
 ---
 
 ## 試したきっかけ
@@ -26,7 +27,7 @@ Linux にも [Kernel TLS (kTLS)](https://www.kernel.org/doc/html/latest/networki
 これはドキュメントが先行していますが、実際は 3.0.0-alpha1 が 2020-04-23 に出たところです。 [OpenSSL 3.0 Alpha1 Release - OpenSSL Blog](https://www.openssl.org/blog/blog/2020/04/23/OpenSSL3.0Alpha1/) 。
 タグは打たれてないのですが [Prepare for release of 3.0 alpha 1 · openssl/openssl@05feb0a](https://github.com/openssl/openssl/commit/05feb0a0f1fecb6839888bb7590fb92be70d8d3c) のコミットが 3.0.0-alpha1 に対応します。
 
-[openssl/ssl/ssl_lib.c at master · openssl/openssl](https://github.com/openssl/openssl/blame/master/ssl/ssl_lib.c#L2030) を見ると `SSL_sendfile` は 13 か月前に追加されてから変更は入っていません。追加されたのは [ssl: Add SSL_sendfile · openssl/openssl@7c3a756](https://github.com/openssl/openssl/commit/7c3a7561b536264b282f604efc959edad18807d7) のコミットでこれは 2019-04-13 でした。
+[openssl/ssl/ssl_lib.c at 05feb0a · openssl/openssl](https://github.com/openssl/openssl/blame/05feb0a0f1fecb6839888bb7590fb92be70d8d3c/ssl/ssl_lib.c#L2022) を見ると `SSL_sendfile` は 13 か月前に追加されてから変更は入っていません。追加されたのは [ssl: Add SSL_sendfile · openssl/openssl@7c3a756](https://github.com/openssl/openssl/commit/7c3a7561b536264b282f604efc959edad18807d7) のコミットでこれは 2019-04-13 でした。
 
 上に貼ったパッチはこのコミット前後に作られていたんですね、早い。
 
@@ -81,9 +82,9 @@ sudo apt install -y docker.io
 
 ただそのまま実行しても kTLS が使われたのか確認できなかったので、試行錯誤中は気になるところに `printf` を入れまくって実行しました。
 
-その後 [OpenSSL Tracing API](https://www.openssl.org/docs/manmaster/man3/OSSL_TRACE.html) というのを見つけたので `printf` の代わりにこちらを使うようにして見ました。 [Add trace category for kTLS · openssl/openssl@09f7dd6](https://github.com/openssl/openssl/commit/09f7dd6a4ffe71277ae114a8aeec4f5fa47c8d9b)
+その後 [OpenSSL Tracing API](https://www.openssl.org/docs/manmaster/man3/OSSL_TRACE.html) というのを見つけたので `printf` の代わりにこちらを使うようにして見ました。 [Add trace category for kTLS · hnakamur/openssl@09f7dd6](https://github.com/hnakamur/openssl/commit/09f7dd6a4ffe71277ae114a8aeec4f5fa47c8d9b)
 
-また `test_ktls_sendfile` だけ実行する方法がわからなかったので `test/sslapitest.c` の他のテストをコメントアウトしました。 [Temporarily delete tests other than test_ktls_sendfile · openssl/openssl@63e6ece](https://github.com/openssl/openssl/commit/63e6ecec1279f1afdc4213d13340b7e42593c70c)
+また `test_ktls_sendfile` だけ実行する方法がわからなかったので `test/sslapitest.c` の他のテストをコメントアウトしました。 [Temporarily delete tests other than test_ktls_sendfile · hnakamur/openssl@63e6ece](https://github.com/hnakamur/openssl/commit/63e6ecec1279f1afdc4213d13340b7e42593c70c)
 
 この変更を加えた OpenSSL をビルドする手順を Dockerfile より抜粋します。
 `./config` の引数に `enable-ktls` と `enable-trace` を指定しています。
@@ -376,7 +377,7 @@ nginx.conf の `ssl_protocols` の設定を実行時に切り替えるために
 の方法を参考にしました。
 
 また OpenSSL Tracing API の出力を行うためには
-[setup_trace](https://github.com/openssl/openssl/blob/master/apps/openssl.c#L194-L229) の処理が必要なので、このコードをコピーして
+[setup_trace](https://github.com/openssl/openssl/blob/05feb0a0f1fecb6839888bb7590fb92be70d8d3c/apps/openssl.c#L194-L229) の処理が必要なので、このコードをコピーして
 [hnakamur/ngx_ssl_trace_module](https://github.com/hnakamur/ngx_ssl_trace_module)
 という nginx 用のモジュールを作成し、これを利用しました。
 
@@ -457,3 +458,7 @@ curl の出力の接続部分は以下の通りでした。
 コミットのタグを見ると Linux カーネル 5.1 以降で使えるようです。
 
 ということで OpenSSL の `SSL_sendfile` も対応してほしいところですね。
+
+### (2021-10-29 追記) 記事中のリンクを修正しました
+
+masterのコミットで行がずれてたり、自分のfork内のコミットへのリンクを間違って本家のリンクになってたりしたのを修正しました。
