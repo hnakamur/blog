@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.87.0" />
+  <meta name="generator" content="Hugo 0.88.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -105,20 +105,20 @@
 <h2 id="実験用コンテナの環境構築">実験用コンテナの環境構築</h2>
 <h3 id="コンテナの作成">コンテナの作成</h3>
 <p><a href="/blog/2016/08/12/update-lxd-dnsmasq-dhcp-hosts-config-with-sighup/">LXDのdnsmasqの固定IP設定をSIGHUPで更新する · hnakamur&rsquo;s blog at github</a> の手法を使って、2つのコンテナ用のIPアドレスを設定しておきます。</p>
-<pre><code>lxdhost:~$ cat /var/lib/lxd-bridge/dhcp-hosts 
+<pre tabindex="0"><code>lxdhost:~$ cat /var/lib/lxd-bridge/dhcp-hosts 
 pcmk-1,10.155.92.101
 pcmk-2,10.155.92.102
 </code></pre><p>また、仮想IPとして <code>10.155.92.100</code> を使用しますので、 <code>/var/lib/lxd-bridge/dnsmasq.lxdbr0.leases</code> で使われていないことを確認しておきます。</p>
-<pre><code>sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
+<pre tabindex="0"><code>sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
 </code></pre><p>で設定を dnsmasq に反映します。</p>
 <p>なお、  <a href="http://clusterlabs.org/doc/en-US/Pacemaker/1.1-pcs/html/Clusters_from_Scratch/ch02.html#_configure_network">2.1.3. Configure Network</a> の &ldquo;Important&rdquo; の囲み部分によるとDHCPはcorosyncと干渉するので、 <strong>クラスタのマシンはDHCPを決して使うべきではない</strong> そうです。この記事はあくまでPacemakerの使い方を把握するために試してみるだけなので気にしないことにしますが、実運用の際には DHCP を使わない構成にする必要があります。</p>
 <p>以下のコマンドでコンテナ <code>pcmk-1</code> と <code>pcmk-2</code> を作成します。</p>
-<pre><code>lxdhost:~$ lxc launch images:centos/7/amd64 pcmk-1
+<pre tabindex="0"><code>lxdhost:~$ lxc launch images:centos/7/amd64 pcmk-1
 lxdhost:~$ lxc launch images:centos/7/amd64 pcmk-2
 </code></pre><h3 id="コンテナ内の-etchosts-設定">コンテナ内の /etc/hosts 設定</h3>
 <p>端末を2つ開いて <code>lxc exec pcmk-1 bash</code> と <code>lxc exec pcmk-2 bash</code> を実行し、それぞれ環境構築していきます。</p>
 <p>まず、コンテナ作成直後の <code>pcmk-1</code> の <code>/etc/hosts</code> を確認すると以下のようになっていました。</p>
-<pre><code>127.0.0.1   localhost
+<pre tabindex="0"><code>127.0.0.1   localhost
 127.0.1.1   pcmk-1
 
 # The following lines are desirable for IPv6 capable hosts
@@ -128,16 +128,16 @@ ff00::0 ip6-mcastprefix
 ff02::1 ip6-allnodes
 ff02::2 ip6-allrouters
 </code></pre><p>当初 <code>pcmk-1</code> ではIPv4の部分を</p>
-<pre><code>127.0.0.1   localhost
+<pre tabindex="0"><code>127.0.0.1   localhost
 127.0.1.1   pcmk-1
 10.155.92.102 pcmk-2
 </code></pre><p>と変更し、 <code>pcmk-2</code> では</p>
-<pre><code>127.0.0.1   localhost
+<pre tabindex="0"><code>127.0.0.1   localhost
 127.0.1.1   pcmk-2
 10.155.92.101 pcmk-1
 </code></pre><p>と変更してみたのですが、Pacemakerがうまく動かなかったようです（要追試）。</p>
 <p><code>pcmk-1</code> と <code>pcmk-2</code> で <code>/etc/hosts</code> の IPv4 部分を以下のコマンドで変更したら、うまくいったので、とりあえずこれで試しました。</p>
-<pre><code># cat &gt; /etc/hosts &lt;&lt;'EOF'
+<pre tabindex="0"><code># cat &gt; /etc/hosts &lt;&lt;'EOF'
 127.0.0.1   localhost
 
 10.155.92.101   pcmk-1
@@ -152,24 +152,24 @@ ff02::2 ip6-allrouters
 EOF
 </code></pre><h3 id="pacemakerのインストール">Pacemakerのインストール</h3>
 <p><code>pcmk-1</code> と <code>pcmk-2</code> で以下のコマンドを実行します。</p>
-<pre><code># yum -y update
+<pre tabindex="0"><code># yum -y update
 # yum -y install pacemaker pcs psmisc policycoreutils-python which
 </code></pre><p>whichは仮想IPを使うための ocf:heartbeat:IPaddr2 のリソース用の resource agent スクリプト <code>/usr/lib/ocf/resource.d/heartbeat/IPaddr2</code> で必要となります。</p>
 <p><code>pcsd</code> サービスを起動し、OS起動時に自動起動するようにします。</p>
-<pre><code># systemctl start pcsd
+<pre tabindex="0"><code># systemctl start pcsd
 # systemctl enable pcsd
 </code></pre><h2 id="クラスタを作成して仮想ipの作成移動実験">クラスタを作成して仮想IPの作成・移動実験</h2>
 <h3 id="クラスタの作成と開始">クラスタの作成と開始</h3>
 <p><code>hacluster</code> のパスワードを設定します。ここでは <code>password</code> という値にしていますが適宜変更してください。</p>
-<pre><code># echo password | passwd --stdin hacluster
+<pre tabindex="0"><code># echo password | passwd --stdin hacluster
 </code></pre><p>ここから先は <code>pcmk-1</code> だけでコマンドを実行します。 <code>-p</code> の値は上で設定したパスワードに合わせてください。</p>
-<pre><code># pcs cluster auth pcmk-1 pcmk-2 -u hacluster -p password
+<pre tabindex="0"><code># pcs cluster auth pcmk-1 pcmk-2 -u hacluster -p password
 # pcs cluster setup --name mycluster pcmk-1 pcmk-2
 </code></pre><p>この時点で <code>/etc/corosync/corosync.conf</code> が作られます。</p>
 <p>以下のコマンドでクラスタを開始します。</p>
-<pre><code># pcs cluster start --all
+<pre tabindex="0"><code># pcs cluster start --all
 </code></pre><p>起動してすぐにステータスを確認すると Node の行が UNCLEAN (offline) になりました。</p>
-<pre><code>[root@pcmk-1 ~]# pcs status
+<pre tabindex="0"><code>[root@pcmk-1 ~]# pcs status
 Cluster name: mycluster
 WARNING: no stonith devices and stonith-enabled is not false
 Last updated: Thu Aug 11 15:55:17 2016          Last change: Thu Aug 11 15:55:16 2016 by hacluster via crmd on pcmk-1
@@ -192,7 +192,7 @@ Daemon Status:
   pacemaker: active/disabled
   pcsd: active/enabled
 </code></pre><p>しばらくしてから再度ステータスを確認すると pcmk-1 も pcmk-2 も Online になっていました。</p>
-<pre><code># pcs status
+<pre tabindex="0"><code># pcs status
 Cluster name: mycluster
 WARNING: no stonith devices and stonith-enabled is not false
 Last updated: Thu Aug 11 15:56:41 2016          Last change: Thu Aug 11 15:55:37 2016 by hacluster via crmd on pcmk-2
@@ -215,21 +215,21 @@ Daemon Status:
   pcsd: active/enabled
 </code></pre><h3 id="stonithを無効化">STONITHを無効化</h3>
 <p><a href="http://clusterlabs.org/doc/en-US/Pacemaker/1.1-pcs/html/Clusters_from_Scratch/ch05.html">Chapter 5. Create an Active/Passive Cluster</a>の手順でクラスタの設定エラーを確認します。</p>
-<pre><code># crm_verify -L -V
+<pre tabindex="0"><code># crm_verify -L -V
    error: unpack_resources:     Resource start-up disabled since no STONITH resources have been defined
    error: unpack_resources:     Either configure some or disable STONITH with the stonith-enabled option
    error: unpack_resources:     NOTE: Clusters with shared data need STONITH to ensure data integrity
 Errors found during check: config not valid
 </code></pre><p>ここでは簡単に Pacemaker を試すために STONITH を無効にします。無効にしたあと設定エラーを再度確認すると、今度はエラーが無くなりました。</p>
-<pre><code># pcs property set stonith-enabled=false
+<pre tabindex="0"><code># pcs property set stonith-enabled=false
 # crm_verify -L -V
 </code></pre><p>なお、 <a href="http://clusterlabs.org/doc/en-US/Pacemaker/1.1-pcs/html/Clusters_from_Scratch/ch05.html">Chapter 5. Create an Active/Passive Cluster</a> の最後の Warning にもある通り、 <strong>実運用では STONITH を無効にするのは全く不適切</strong> とのことなので、きちんと設定する必要があります。 STONITH についての説明は上記の Warning の囲み内からもリンクされている <a href="http://clusterlabs.org/doc/en-US/Pacemaker/1.1-pcs/html/Clusters_from_Scratch/ch08.html#_what_is_stonith">Chapter 8. Configure STONITH</a> を参照してください。</p>
 <h3 id="仮想ipアドレス用のリソース作成">仮想IPアドレス用のリソース作成</h3>
 <p><code>pcmk-1</code> で以下のコマンドを実行して、仮想IPアドレス <code>10.155.92.100</code> 用のリソースを作成します。</p>
-<pre><code># pcs resource create ClusterIP ocf:heartbeat:IPaddr2 \
+<pre tabindex="0"><code># pcs resource create ClusterIP ocf:heartbeat:IPaddr2 \
     ip=10.155.92.100 cidr_netmask=32 op monitor interval=30s
 </code></pre><p>数秒してから状態を確認してみます。</p>
-<pre><code># pcs status
+<pre tabindex="0"><code># pcs status
 Cluster name: mycluster
 Last updated: Thu Aug 11 16:04:50 2016          Last change: Thu Aug 11 16:04:47 2016 by root via cibadmin on pcmk-1
 Stack: corosync
@@ -250,14 +250,14 @@ Daemon Status:
   corosync: active/disabled
   pacemaker: active/disabled
   pcsd: active/enabled
-</code></pre><pre><code># pcs resource --full
+</code></pre><pre tabindex="0"><code># pcs resource --full
  Resource: ClusterIP (class=ocf provider=heartbeat type=IPaddr2)
   Attributes: ip=10.155.92.100 cidr_netmask=32 
   Operations: start interval=0s timeout=20s (ClusterIP-start-interval-0s)
               stop interval=0s timeout=20s (ClusterIP-stop-interval-0s)
               monitor interval=30s (ClusterIP-monitor-interval-30s)
 </code></pre><p><code>ip</code> コマンドを実行して、仮想IPアドレスが <code>pcmk-1</code> 側についており <code>pcmk-2</code> 側にはついていないことを確認します。</p>
-<pre><code>[root@pcmk-1 ~]# ip a s eth0
+<pre tabindex="0"><code>[root@pcmk-1 ~]# ip a s eth0
 120: eth0@if121: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt; mtu 1500 qdisc noqueue state UP qlen 1000
     link/ether 00:16:3e:e6:fb:ab brd ff:ff:ff:ff:ff:ff link-netnsid 0
     inet 10.155.92.101/24 brd 10.155.92.255 scope global dynamic eth0
@@ -266,7 +266,7 @@ Daemon Status:
        valid_lft forever preferred_lft forever
     inet6 fe80::216:3eff:fee6:fbab/64 scope link 
        valid_lft forever preferred_lft forever
-</code></pre><pre><code>[root@pcmk-2 ~]# ip a s eth0
+</code></pre><pre tabindex="0"><code>[root@pcmk-2 ~]# ip a s eth0
 122: eth0@if123: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt; mtu 1500 qdisc noqueue state UP qlen 1000
     link/ether 00:16:3e:4b:6d:b1 brd ff:ff:ff:ff:ff:ff link-netnsid 0
     inet 10.155.92.102/24 brd 10.155.92.255 scope global dynamic eth0
@@ -275,14 +275,14 @@ Daemon Status:
        valid_lft forever preferred_lft forever
 </code></pre><h3 id="pcmk-1-をクラスタから離脱させて仮想ipアドレスが-pcmk-2-に移動するか確認"><code>pcmk-1</code> をクラスタから離脱させて仮想IPアドレスが <code>pcmk-2</code> に移動するか確認</h3>
 <p>以下のコマンドで <code>pcmk-1</code> をクラスタから離脱させます。</p>
-<pre><code>[root@pcmk-1 ~]# pcs cluster stop pcmk-1
+<pre tabindex="0"><code>[root@pcmk-1 ~]# pcs cluster stop pcmk-1
 pcmk-1: Stopping Cluster (pacemaker)...
 pcmk-1: Stopping Cluster (corosync)...
 </code></pre><p><code>pcmk-1</code> で状態を確認すると以下のようになります。</p>
-<pre><code>[root@pcmk-1 ~]# pcs status
+<pre tabindex="0"><code>[root@pcmk-1 ~]# pcs status
 Error: cluster is not currently running on this node
 </code></pre><p><code>pcmk-2</code> で状態を確認すると以下のようになります。 <code>pcmk-1</code> は <code>OFFLINE</code> となっていますが、 <code>pcsd</code> は動いているので <code>PCSD Status</code> のほうは <code>Online</code> のままです。</p>
-<pre><code>[root@pcmk-2 ~]# pcs status
+<pre tabindex="0"><code>[root@pcmk-2 ~]# pcs status
 Cluster name: mycluster
 Last updated: Thu Aug 11 16:10:04 2016          Last change: Thu Aug 11 16:04:47 2016 by root via cibadmin on pcmk-1
 Stack: corosync
@@ -305,14 +305,14 @@ Daemon Status:
   pacemaker: active/disabled
   pcsd: active/enabled
 </code></pre><p><code>ip</code> コマンドを実行して、仮想IPアドレスが <code>pcmk-2</code> 側についており <code>pcmk-1</code> 側にはついていないことを確認します。</p>
-<pre><code>[root@pcmk-1 ~]# ip a s eth0
+<pre tabindex="0"><code>[root@pcmk-1 ~]# ip a s eth0
 120: eth0@if121: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt; mtu 1500 qdisc noqueue state UP qlen 1000
     link/ether 00:16:3e:e6:fb:ab brd ff:ff:ff:ff:ff:ff link-netnsid 0
     inet 10.155.92.101/24 brd 10.155.92.255 scope global dynamic eth0
        valid_lft 3024sec preferred_lft 3024sec
     inet6 fe80::216:3eff:fee6:fbab/64 scope link 
        valid_lft forever preferred_lft forever
-</code></pre><pre><code>[root@pcmk-2 ~]# ip a s eth0
+</code></pre><pre tabindex="0"><code>[root@pcmk-2 ~]# ip a s eth0
 122: eth0@if123: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt; mtu 1500 qdisc noqueue state UP qlen 1000
     link/ether 00:16:3e:4b:6d:b1 brd ff:ff:ff:ff:ff:ff link-netnsid 0
     inet 10.155.92.102/24 brd 10.155.92.255 scope global dynamic eth0
@@ -323,11 +323,11 @@ Daemon Status:
        valid_lft forever preferred_lft forever
 </code></pre><h3 id="pcmk-1-をクラスタに復帰させる"><code>pcmk-1</code> をクラスタに復帰させる</h3>
 <p>以下のコマンドで <code>pcmk-1</code> をクラスタに復帰させます。</p>
-<pre><code>[root@pcmk-1 ~]# pcs cluster start pcmk-1
+<pre tabindex="0"><code>[root@pcmk-1 ~]# pcs cluster start pcmk-1
 pcmk-1: Starting Cluster...
 </code></pre><p>状態を確認してみると、仮想IP は <code>pcmk-2</code> のほうについたままです。
 <a href="http://clusterlabs.org/doc/en-US/Pacemaker/1.1-pcs/html/Clusters_from_Scratch/_perform_a_failover.html">5.3. Perform a Failover</a> の最後の Note によると Pacemakerのより古いバージョンでは <code>pcmk-1</code> のほうに切り替わっていたそうですが、挙動が変更されたとのことです。</p>
-<pre><code>[root@pcmk-1 ~]# pcs status
+<pre tabindex="0"><code>[root@pcmk-1 ~]# pcs status
 Cluster name: mycluster
 Last updated: Thu Aug 11 16:12:35 2016          Last change: Thu Aug 11 16:04:47 2016 by root via cibadmin on pcmk-1
 Stack: corosync
@@ -349,16 +349,16 @@ Daemon Status:
   pacemaker: active/disabled
   pcsd: active/enabled
 </code></pre><p>以下のコマンドを実行して、仮想IPを <code>pcmk-1</code> のほうに移動します。</p>
-<pre><code>pcs cluster stop pcmk-2 &amp;&amp; pcs cluster start pcmk-2
+<pre tabindex="0"><code>pcs cluster stop pcmk-2 &amp;&amp; pcs cluster start pcmk-2
 </code></pre><h2 id="apacheのactivepassiveクラスタを作って仮想ipと連動させる">ApacheのActive/Passiveクラスタを作って仮想IPと連動させる</h2>
 <h3 id="リソースのスティッキネスのデフォルト値を設定">リソースのスティッキネスのデフォルト値を設定</h3>
 <p><a href="http://clusterlabs.org/doc/en-US/Pacemaker/1.1-pcs/html/Clusters_from_Scratch/_prevent_resources_from_moving_after_recovery.html">5.4. Prevent Resources from Moving after Recovery</a> を見て設定します。</p>
-<pre><code>[root@pcmk-1 ~]# pcs resource defaults resource-stickiness=100
+<pre tabindex="0"><code>[root@pcmk-1 ~]# pcs resource defaults resource-stickiness=100
 [root@pcmk-1 ~]# pcs resource defaults 
 resource-stickiness: 100
 </code></pre><h3 id="apache-のインストールと設定">Apache のインストールと設定</h3>
 <p><code>pcmk-1</code> と <code>pcmk-2</code> で以下のコマンドを実行します。</p>
-<pre><code># yum -y install httpd wget
+<pre tabindex="0"><code># yum -y install httpd wget
 # mkdir -p /var/www/html /var/log/httpd
 # cat &gt; /var/www/html/index.html &lt;&lt;EOF
 &lt;html&gt;
@@ -376,13 +376,13 @@ EOF
 公式のドキュメントでは、 <code>pcmk-2</code> で開始した後、制約を追加しただけでは <code>pcmk-1</code> に移動しないというデモをしていますが、ここでは <code>--disabled</code> つきでリソースを作成後、制約を追加してから有効化することで最初から <code>pcmk-1</code> で開始させています。</p>
 <p>また、制約を追加するごとに <code>crm_simulate -sL</code> を実行してリソースをどのノードに割り当てるかのスコアを確認しています。</p>
 <p>まず WebSite という名前のリソースを <code>disabled</code> 状態で作成します。</p>
-<pre><code># pcs resource create WebSite ocf:heartbeat:apache \
+<pre tabindex="0"><code># pcs resource create WebSite ocf:heartbeat:apache \
     configfile=/etc/httpd/conf/httpd.conf \
     statusurl=&quot;http://localhost/server-status&quot; \
     op monitor interval=3s on-fail=restart \
     --disabled
 </code></pre><p>WebSite リソースは ClusterIP リソースと同じノードで動かすという制約を追加します。</p>
-<pre><code># pcs constraint colocation add WebSite with ClusterIP INFINITY
+<pre tabindex="0"><code># pcs constraint colocation add WebSite with ClusterIP INFINITY
 # crm_simulate -sL
 
 Current cluster status:
@@ -399,9 +399,9 @@ native_color: WebSite allocation score on pcmk-2: -INFINITY
 
 Transition Summary:
 </code></pre><p>リソースの開始順序を ClusterIP、 WebSite にする制約を追加します。</p>
-<pre><code># pcs constraint order ClusterIP then WebSite
+<pre tabindex="0"><code># pcs constraint order ClusterIP then WebSite
 </code></pre><p>WebSite のリソースをなるべく <code>pcmk-1</code> 側で動かすようにする制約を追加します。 <code>250</code> という値はこの後の操作を一度試行錯誤してみて適当に選びましたが、希望通りの動作が実現できさえすれば違う値でも構いません。</p>
-<pre><code># pcs constraint location WebSite prefers pcmk-1=250
+<pre tabindex="0"><code># pcs constraint location WebSite prefers pcmk-1=250
 # crm_simulate -sL
 
 Current cluster status:
@@ -418,7 +418,7 @@ native_color: WebSite allocation score on pcmk-2: -INFINITY
 
 Transition Summary:
 </code></pre><p>希望する制約を一通り追加したので、 WebSite リソースを稼働開始します。</p>
-<pre><code># pcs resource enable WebSite
+<pre tabindex="0"><code># pcs resource enable WebSite
 # crm_simulate -sL
 
 Current cluster status:
@@ -437,11 +437,11 @@ Transition Summary:
 </code></pre><p><code>pcmk-1</code> と <code>pcmk-2</code> で <code>ps auxww | grep httpd</code> すると <code>pcmk-1</code> 側で Apache が稼働して <code>pcmk-2</code> 側では稼働していないことを確認できます。</p>
 <h3 id="手動で制約を調整して仮想ipとapacheを-pcmk-2-に移動する">手動で制約を調整して仮想IPとApacheを <code>pcmk-2</code> に移動する</h3>
 <p>以下のコマンドで制約を調整し、移動が完了するまでのスコアの変遷を確認します。 <code>500</code> という値は前項の最後の <code>pcmk-1</code> の ClusterIP のスコアを上回る値として選びました。</p>
-<pre><code># pcs constraint location WebSite prefers pcmk-2=500 \
+<pre tabindex="0"><code># pcs constraint location WebSite prefers pcmk-2=500 \
   &amp;&amp; for i in `seq 1 20`; do crm_simulate -sL; sleep 0.1; done
 </code></pre><p>出力結果のうち変化があったものだけを抜粋します。
 まず開始直後の状態。</p>
-<pre><code>Current cluster status:
+<pre tabindex="0"><code>Current cluster status:
 Online: [ pcmk-1 pcmk-2 ]
 
  ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-1
@@ -457,7 +457,7 @@ Transition Summary:
  * Move    ClusterIP    (Started pcmk-1 -&gt; pcmk-2)
  * Move    WebSite      (Started pcmk-1 -&gt; pcmk-2)
 </code></pre><p>WebSiteが停止した状態。</p>
-<pre><code>Current cluster status:
+<pre tabindex="0"><code>Current cluster status:
 Online: [ pcmk-1 pcmk-2 ]
 
  ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-1
@@ -473,7 +473,7 @@ Transition Summary:
  * Move    ClusterIP    (Started pcmk-1 -&gt; pcmk-2)
  * Start   WebSite      (pcmk-2)
 </code></pre><p>ClusterIPがpcmk-2に移った状態。</p>
-<pre><code>Current cluster status:
+<pre tabindex="0"><code>Current cluster status:
 Online: [ pcmk-1 pcmk-2 ]
 
  ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-2
@@ -488,7 +488,7 @@ native_color: WebSite allocation score on pcmk-2: 500
 Transition Summary:
  * Start   WebSite      (pcmk-2)
 </code></pre><p>WebSiteが <code>pcmk-2</code> で稼働開始した状態。</p>
-<pre><code>Current cluster status:
+<pre tabindex="0"><code>Current cluster status:
 Online: [ pcmk-1 pcmk-2 ]
 
  ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-2
@@ -504,7 +504,7 @@ Transition Summary:
 </code></pre><h3 id="手動で制約を調整して仮想ipとapacheを-pcmk-1-に戻す">手動で制約を調整して仮想IPとApacheを <code>pcmk-1</code> に戻す</h3>
 <p>次に <code>pcmk-2</code> から <code>pcmk-1</code> に戻してみます。
 以下のコマンドで制約のIDを確認します。</p>
-<pre><code>[root@pcmk-1 ~]# pcs constraint --full
+<pre tabindex="0"><code>[root@pcmk-1 ~]# pcs constraint --full
 Location Constraints:
   Resource: WebSite
     Enabled on: pcmk-1 (score:250) (id:location-WebSite-pcmk-1-250)
@@ -514,10 +514,10 @@ Ordering Constraints:
 Colocation Constraints:
   WebSite with ClusterIP (score:INFINITY) (id:colocation-WebSite-ClusterIP-INFINITY)
 </code></pre><p>以下のコマンドで <code>pcmk-2</code> 側の制約を削除し、 <code>pcmk-1</code> 側に戻るまでのスコアの動きを確認します。</p>
-<pre><code># pcs constraint remove location-WebSite-pcmk-2-500 \
+<pre tabindex="0"><code># pcs constraint remove location-WebSite-pcmk-2-500 \
   &amp;&amp; for i in `seq 1 20`; do crm_simulate -sL; sleep 0.1; done
 </code></pre><p>開始直後の状態。</p>
-<pre><code>Current cluster status:
+<pre tabindex="0"><code>Current cluster status:
 Online: [ pcmk-1 pcmk-2 ]
 
  ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-2
@@ -533,7 +533,7 @@ Transition Summary:
  * Move    ClusterIP    (Started pcmk-2 -&gt; pcmk-1)
  * Move    WebSite      (Started pcmk-2 -&gt; pcmk-1)
 </code></pre><p>WebSiteが停止した状態。</p>
-<pre><code>Current cluster status:
+<pre tabindex="0"><code>Current cluster status:
 Online: [ pcmk-1 pcmk-2 ]
 
  ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-2
@@ -549,7 +549,7 @@ Transition Summary:
  * Move    ClusterIP    (Started pcmk-2 -&gt; pcmk-1)
  * Start   WebSite      (pcmk-1)
 </code></pre><p>ClusterIPが <code>pcmk-1</code> に移動した状態。</p>
-<pre><code>Current cluster status:
+<pre tabindex="0"><code>Current cluster status:
 Online: [ pcmk-1 pcmk-2 ]
 
  ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-1
@@ -564,7 +564,7 @@ native_color: WebSite allocation score on pcmk-2: -INFINITY
 Transition Summary:
  * Start   WebSite      (pcmk-1)
 </code></pre><p>WebSiteが <code>pcmk-1</code> で稼働開始した状態。</p>
-<pre><code>Current cluster status:
+<pre tabindex="0"><code>Current cluster status:
 Online: [ pcmk-1 pcmk-2 ]
 
  ClusterIP      (ocf::heartbeat:IPaddr2):       Started pcmk-1
@@ -580,9 +580,9 @@ Transition Summary:
 </code></pre><h2 id="active側のコンテナに障害が発生してコンテナごと落ちるケースの模擬実験">Active側のコンテナに障害が発生してコンテナごと落ちるケースの模擬実験</h2>
 <h3 id="active側-pcmk-1-のコンテナを停止させたときの挙動を確認">Active側 <code>pcmk-1</code> のコンテナを停止させたときの挙動を確認</h3>
 <p>LXDホストで以下のコマンドを実行して <code>pcmk-1</code> を停止させます。</p>
-<pre><code>$ lxc stop -f pcmk-1
+<pre tabindex="0"><code>$ lxc stop -f pcmk-1
 </code></pre><p><code>pcmk-2</code> で <code>pcs status</code> を実行すると <code>pcmk-1</code> が OFFLINE になったことがわかりますが、 <code>PCSD Status:</code> の後を表示するところでブロックしたので Ctrl-C で止めました。</p>
-<pre><code>[root@pcmk-2 ~]# pcs status
+<pre tabindex="0"><code>[root@pcmk-2 ~]# pcs status
 Cluster name: mycluster
 Last updated: Fri Aug 12 13:13:37 2016          Last change: Fri Aug 12 09:34:39 2016 by root via cibadmin on pcmk-1
 Stack: corosync
@@ -602,15 +602,15 @@ PCSD Status:
 </code></pre><p><code>ip a s eth0</code> と <code>ps auxww | grep httpd</code> で仮想IPとApacheが <code>pcmk-2</code> で動いていることが確認できました。</p>
 <h3 id="pcmk-1-のコンテナを起動させた時の挙動を確認"><code>pcmk-1</code> のコンテナを起動させた時の挙動を確認</h3>
 <p>LXDホストで以下のコマンドを実行して <code>pcmk-1</code> を起動し、コンテナ内に入ります。</p>
-<pre><code>$ lxc satrt pcmk-1
+<pre tabindex="0"><code>$ lxc satrt pcmk-1
 $ lxc exec pcmk-1 bash
 </code></pre><p><code>pcmk-1</code> 側は <code>pcsd</code> は起動していますが、クラスタには所属していない状態です。</p>
 <p>理由は <a href="http://clusterlabs.org/doc/en-US/Pacemaker/1.1-pcs/html/Clusters_from_Scratch/ch04.html#_start_the_cluster">Chapter 4. Start and Verify Cluster</a> に説明があります。 <code>pcsd</code> は <code>systemctl enable</code> でOS起動時の自動起動を有効にしていますが <code>corosync</code> と <code>pacemaker</code> はしていないからです。</p>
 <p>実運用時に物理的な障害などで <code>pcmk-1</code> がクラスタから外れた場合、その後電源をいれて起動できたとしても、障害の原因を調査して、正常にサービスを稼働できるかを確認してからクラスタに復帰させたいので、この設定で良いと思います。</p>
-<pre><code>[root@pcmk-1 ~]# pcs status
+<pre tabindex="0"><code>[root@pcmk-1 ~]# pcs status
 Error: cluster is not currently running on this node
 </code></pre><p><code>pcmk-2</code> で <code>pcs status</code> は今度はブロックせずに完了します。</p>
-<pre><code>[root@pcmk-2 ~]# pcs status
+<pre tabindex="0"><code>[root@pcmk-2 ~]# pcs status
 Cluster name: mycluster
 Last updated: Fri Aug 12 13:18:22 2016          Last change: Fri Aug 12 09:34:39 2016 by root via cibadmin on pcmk-1
 Stack: corosync
@@ -634,7 +634,7 @@ Daemon Status:
   pacemaker: active/disabled
   pcsd: active/enabled
 </code></pre><p>以下のコマンドを実行して <code>pcmk-1</code> をクラスタに復帰させます。</p>
-<pre><code>[root@pcmk-1 ~]# pcs cluster start pcmk-1
+<pre tabindex="0"><code>[root@pcmk-1 ~]# pcs cluster start pcmk-1
 pcmk-1: Starting Cluster...
 </code></pre><p>しばらくして <code>pcs status</code> を確認すると <code>pcmk-1</code> がオンラインになり、 ClusterIP と WebSite リソースが <code>pcmk-1</code> に移動することが確認できました。</p>
 

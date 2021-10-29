@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.87.0" />
+  <meta name="generator" content="Hugo 0.88.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -167,9 +167,9 @@
 
 <span class="n">xml2.xmlInitParser</span><span class="p">()</span>
 </code></pre></div><p>という内容を <code>test.lua</code> というファイル名で保存し</p>
-<pre><code class="language-console" data-lang="console">luajit test.lua
+<pre tabindex="0"><code class="language-console" data-lang="console">luajit test.lua
 </code></pre><p>と実行すると</p>
-<pre><code class="language-console" data-lang="console">$ luajit test.lua
+<pre tabindex="0"><code class="language-console" data-lang="console">$ luajit test.lua
 luajit: test.lua:7: missing declaration for symbol 'xmlInitParser'
 stack traceback:
         [C]: in function '__index'
@@ -178,9 +178,9 @@ stack traceback:
 </code></pre><p>のようにエラーが出ます。</p>
 <p><code>dpkg -L libxml2-dev</code> でファイル一覧を確認し、使いたい関数の宣言を探します。
 以下は <code>ag</code> コマンドで <code>xmlInitParser</code> を検索する例です。</p>
-<pre><code class="language-console" data-lang="console">ag xmlInitParser /usr/include/libxml2/
+<pre tabindex="0"><code class="language-console" data-lang="console">ag xmlInitParser /usr/include/libxml2/
 </code></pre><p>すると</p>
-<pre><code>XMLPUBFUN void XMLCALL
+<pre tabindex="0"><code>XMLPUBFUN void XMLCALL
                 xmlInitParser           (void);
 </code></pre><p>という宣言が見つかりますので <code>#define</code> されているマクロを消して</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="n">ffi.cdef</span><span class="s">[[
@@ -196,7 +196,7 @@ stack traceback:
 <p>再度 luajit で実行すると今度はエラーなしで実行できました。</p>
 <p>引数や戻り値に <code>typedef</code> された型がある場合は、その宣言も探して <code>ffi.cdef</code> に追加していきます。</p>
 <p>型定義を検索する場合は</p>
-<pre><code>ag 'typedef.*型名' /usr/include/
+<pre tabindex="0"><code>ag 'typedef.*型名' /usr/include/
 </code></pre><p>などとまずは限定して検索して、もし見つからない場合は `'#define.*型名' も試し、それでもだめなら諦めて単に型名で検索して結果の中から頑張って探します。</p>
 <p>例えば以下のような例で <code>xmlSecPtrListId</code> を検索するときは <code>typedef.*xmlSecPtrListId</code> はヒットしないので単に <code>xmlSecPtrListId</code> で探して頑張ることになります。</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="k">typedef</span> <span class="k">const</span> <span class="k">struct</span> <span class="n">_xmlSecPtrListKlass</span> <span class="n">xmlSecPtrListKlass</span><span class="p">,</span>
@@ -219,7 +219,7 @@ stack traceback:
 <h3 id="ifdef-の定数定義がどうなっているか調べる"><code>#ifdef</code> の定数定義がどうなっているか調べる</h3>
 <h4 id="pkg-config-で定数定義されているか見てみる">pkg-config で定数定義されているか見てみる</h4>
 <p>例えば libxmlsec1 の <code>xmlSecSize</code> を以下のように検索して</p>
-<pre><code>ag '#define.*xmlSecSize' /usr/include/xmlsec1/
+<pre tabindex="0"><code>ag '#define.*xmlSecSize' /usr/include/xmlsec1/
 </code></pre><p>以下のように定義されているのがわかりました。</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="cp">#ifdef XMLSEC_NO_SIZE_T
 </span><span class="cp">#define xmlSecSize                              unsigned int
@@ -227,14 +227,14 @@ stack traceback:
 </span><span class="cp">#define xmlSecSize                              size_t
 </span><span class="cp">#endif </span><span class="cm">/* XMLSEC_NO_SIZE_T */</span><span class="cp">
 </span></code></pre></div><p>libxmlsec1-dev パッケージに pkgconfig のファイルが含まれるか調べます。</p>
-<pre><code class="language-console" data-lang="console">$ dpkg -L libxmlsec1-dev | grep pkgconfig/
+<pre tabindex="0"><code class="language-console" data-lang="console">$ dpkg -L libxmlsec1-dev | grep pkgconfig/
 /usr/lib/x86_64-linux-gnu/pkgconfig/xmlsec1-gcrypt.pc
 /usr/lib/x86_64-linux-gnu/pkgconfig/xmlsec1-gnutls.pc
 /usr/lib/x86_64-linux-gnu/pkgconfig/xmlsec1-nss.pc
 /usr/lib/x86_64-linux-gnu/pkgconfig/xmlsec1-openssl.pc
 /usr/lib/x86_64-linux-gnu/pkgconfig/xmlsec1.pc
 </code></pre><p>以下のようにして cflags を確認します。 <code>--libs</code> 引数には上記の <code>*.pc</code> ファイルのベース名を指定します。</p>
-<pre><code class="language-console" data-lang="console">$ pkg-config --cflags --libs xmlsec1
+<pre tabindex="0"><code class="language-console" data-lang="console">$ pkg-config --cflags --libs xmlsec1
 -D__XMLSEC_FUNCTION__=__func__ -DXMLSEC_NO_SIZE_T -DXMLSEC_NO_GOST=1 -DXMLSEC_NO_GOST2012=1 -DXMLSEC_NO_CRYPTO_DYNAMIC_LOADING=1 -DXMLSEC_CRYPTO_OPENSSL=1 -I/usr/include/xmlsec1 -I/usr/include/libxml2 -lxmlsec1-openssl -lxmlsec1 -lssl -lcrypto -lxslt -lxml2
 </code></pre><p><code>-DXMLSEC_NO_SIZE_T</code> が含まれていますので <code>XMLSEC_NO_SIZE_T</code> は定義されています。</p>
 <p>ということで <code>ffi.cdef</code> には以下のように書きます。ビルド時の設定によって変わることが後から確認できるように元の定義をコメントアウトして残すようにしてます。</p>
@@ -247,7 +247,7 @@ stack traceback:
 </span><span class="s">typedef unsigned int                            xmlSecSize;
 </span><span class="s">]]</span>
 </code></pre></div><p>pkgconfig の <code>*.pc</code> ファイル名の命名規則はパッケージによって違うので都度確認が必要です。例えば libxml2-dev の場合は以下のようになっていました。</p>
-<pre><code>$ dpkg -L libxml2-dev | grep pkgconfig/
+<pre tabindex="0"><code>$ dpkg -L libxml2-dev | grep pkgconfig/
 /usr/lib/x86_64-linux-gnu/pkgconfig/libxml-2.0.pc
 </code></pre><h4 id="deb-パッケージをビルドして生成された-configstatus-や-configh-を確認してみる">deb パッケージをビルドして生成された config.status や config.h を確認してみる</h4>
 <p>例えば libxmlsec1 の <code>struct _xmlSecKeyInfoCtx</code> は以下のような定義になっていました。</p>
@@ -262,32 +262,32 @@ stack traceback:
 </span></code></pre></div><p>上記の <code>pkgconfig --cflags</code> の出力には <code>XMLSEC_NO_XMLENC</code> を定義する設定は無いので未定義かもしれませんが、別の箇所で定義されているかもしれません。</p>
 <p>確認するために deb のソースパッケージを取得してビルドし、生成された config.status や config.h を確認してみました。</p>
 <p>作業ディレクトリを作成してそこに <code>cd</code> します。その後以下のコマンドで libxmlsec1 の deb ソースパッケージを取得します。</p>
-<pre><code class="language-console" data-lang="console">apt source libxmlsec1
+<pre tabindex="0"><code class="language-console" data-lang="console">apt source libxmlsec1
 </code></pre><p>以下のようにファイルが取得され、 xmlsec1-1.2.25/ ディレクトリに upstream の tarball xmlsec1_1.2.25.orig.tar.gz と debian/ のファイル群の xmlsec1_1.2.25-1build1.debian.tar.xz が展開されます。</p>
-<pre><code class="language-console" data-lang="console">~/libxmlsec1-work$ ls -F
+<pre tabindex="0"><code class="language-console" data-lang="console">~/libxmlsec1-work$ ls -F
 xmlsec1-1.2.25/                       xmlsec1_1.2.25-1build1.dsc
 xmlsec1_1.2.25-1build1.debian.tar.xz  xmlsec1_1.2.25.orig.tar.gz
 </code></pre><p>xmlsec1-1.2.25 ディレクトリに移動し</p>
-<pre><code class="language-console" data-lang="console">~/libxmlsec1-work$ cd xmlsec1-1.2.25/
+<pre tabindex="0"><code class="language-console" data-lang="console">~/libxmlsec1-work$ cd xmlsec1-1.2.25/
 ~/libxmlsec1-work/xmlsec1-1.2.25$
 </code></pre><p>以下のコマンドで libxmlsec1 パッケージのビルドに必要なパッケージをまとめてインストールするための deb パッケージを生成してインストールします。</p>
-<pre><code class="language-console" data-lang="console">$ sudo mk-build-deps -i
+<pre tabindex="0"><code class="language-console" data-lang="console">$ sudo mk-build-deps -i
 …(略)…
 dpkg-deb: building package 'xmlsec1-build-deps' in '../xmlsec1-build-deps_1.2.25-1build1_all.deb'.
 …(略)…
 Setting up xmlsec1-build-deps (1.2.25-1build1) ...
 </code></pre><p>deb パッケージをビルドするときにソースディレクトリに余分なファイルがあるとエラーになるので親ディレクトリに移動しておきます</p>
-<pre><code class="language-console" data-lang="console">$ mv xmlsec1-build-deps_1.2.25-1build1_all.deb ..
+<pre tabindex="0"><code class="language-console" data-lang="console">$ mv xmlsec1-build-deps_1.2.25-1build1_all.deb ..
 </code></pre><p>以下のコマンドで deb パッケージをビルドします。 <code>man dpkg-buildpackage</code> を見ても configure のみ行うオプションが見当たらないのでバイナリパッケージをビルドするオプション <code>-b</code> を指定します。またパッケージを配布するわけはなく署名は不要なので <code>--no-sign</code> も指定しています。</p>
-<pre><code class="language-console" data-lang="console">$ dpkg-buildpackage -b --no-sign
+<pre tabindex="0"><code class="language-console" data-lang="console">$ dpkg-buildpackage -b --no-sign
 </code></pre><p>ビルドが終わったら（あるいは出力を見て configure が終わったところで Ctrl-C で止めてもいいかもしれません）、先程インストールした依存パッケージの deb をアンインストールしておきます。</p>
-<pre><code class="language-console" data-lang="console">sudo dpkg -e ../xmlsec1-build-deps_1.2.25-1build1_all.deb
+<pre tabindex="0"><code class="language-console" data-lang="console">sudo dpkg -e ../xmlsec1-build-deps_1.2.25-1build1_all.deb
 </code></pre><p>以下のコマンドで configure で生成された config.h と config.status のパスを調べます。</p>
-<pre><code class="language-console" data-lang="console">$ find . -name config.h -or -name config.status
+<pre tabindex="0"><code class="language-console" data-lang="console">$ find . -name config.h -or -name config.status
 ./config.h
 ./config.status
 </code></pre><p>この中で <code>XMLSEC_NO_XMLENC</code> を検索してみると定義していないことが確認できました。</p>
-<pre><code class="language-console" data-lang="console">$ grep XMLSEC_NO_XMLENC $(find . -name config.h -or -name config.status)
+<pre tabindex="0"><code class="language-console" data-lang="console">$ grep XMLSEC_NO_XMLENC $(find . -name config.h -or -name config.status)
 ./config.status:S[&quot;XMLSEC_NO_XMLENC&quot;]=&quot;0&quot;
 ./config.status:S[&quot;XMLSEC_NO_XMLENC_FALSE&quot;]=&quot;&quot;
 ./config.status:S[&quot;XMLSEC_NO_XMLENC_TRUE&quot;]=&quot;#&quot;

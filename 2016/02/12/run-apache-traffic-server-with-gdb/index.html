@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.87.0" />
+  <meta name="generator" content="Hugo 0.88.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -88,39 +88,39 @@
 <h2 id="事前準備">事前準備</h2>
 <h3 id="debuginfo-パッケージのインストール">debuginfo パッケージのインストール</h3>
 <p>gdb でプログラムを実行するにはプログラムのパッケージと依存パッケージの debuginfo が必要です。これは、たぶん以下のコマンドでインストールできます。</p>
-<pre><code>sudo yum install -y yum-utils
+<pre tabindex="0"><code>sudo yum install -y yum-utils
 sudo debuginfo-install -y trafficserver
 </code></pre><h3 id="debuginfo-パッケージのインストールの試行錯誤メモ">debuginfo パッケージのインストールの試行錯誤メモ</h3>
 <p>この項は上のコマンドを知る前に試した手順のメモです。</p>
 <p>まずデバッグ情報のパッケージが必要だと思ったので、以下のコマンドでインストールしました。</p>
-<pre><code>sudo yum install -y trafficserver-debuginfo
+<pre tabindex="0"><code>sudo yum install -y trafficserver-debuginfo
 </code></pre><p>次に</p>
-<pre><code>systemctl start trafficserver
+<pre tabindex="0"><code>systemctl start trafficserver
 </code></pre><p>を実行して trafficserver のサービスを起動した状態で</p>
-<pre><code>ps auxww | grep traffic
+<pre tabindex="0"><code>ps auxww | grep traffic
 </code></pre><p>を実行して <code>traffic_server</code> のコマンドラインをメモします。</p>
-<pre><code>/usr/bin/traffic_server -M --bind_stdout /var/log/trafficserver/traffic.out --bind_stderr /var/log/trafficserver/traffic.out --httpport 80:fd=9
+<pre tabindex="0"><code>/usr/bin/traffic_server -M --bind_stdout /var/log/trafficserver/traffic.out --bind_stderr /var/log/trafficserver/traffic.out --httpport 80:fd=9
 </code></pre><p>となっていました。 <a href="https://docs.trafficserver.apache.org/en/latest/appendices/command-line/traffic_server.en.html">traffic_server — Apache Traffic Server 6.2.0 documentation</a> を見ると <code>-M</code> は <code>--remote_management</code> のショートオプションです。 <code>systemctl start trafficserver</code> でサービスを起動すると <code>traffic_cop</code> と <code>traffic_manager</code> 経由で <code>traffic_server</code> が起動するのですが、その場合に必要になるオプションのようです。 gdb で実行するときは <code>-M</code> は外します。</p>
-<pre><code>systemctl stop trafficserver
+<pre tabindex="0"><code>systemctl stop trafficserver
 </code></pre><p>でサービスを停止します。</p>
-<pre><code>gdb /usr/bin/traffic_server
+<pre tabindex="0"><code>gdb /usr/bin/traffic_server
 </code></pre><p>で gdb を起動します。</p>
-<pre><code>break HttpSM::set_next_state
+<pre tabindex="0"><code>break HttpSM::set_next_state
 </code></pre><p>などとブレークポイントを設定します。ブレークポイントは Apache Traffic Server のソースコードを読んで、自分が止めたい場所にお好みで設定します。</p>
 <p>gdb のプロンプトで以下のように入力して、 Apache Traffic Server を実行します。</p>
-<pre><code>run --bind_stdout /var/log/trafficserver/traffic.out --bind_stderr /var/log/trafficserver/traffic.out --httpport 80:fd=9
+<pre tabindex="0"><code>run --bind_stdout /var/log/trafficserver/traffic.out --bind_stderr /var/log/trafficserver/traffic.out --httpport 80:fd=9
 </code></pre><p>ところがdebuginfoが足りず、以下のようなエラーになってしまいました。</p>
-<pre><code>[Inferior 1 (process 17590) exited with code 01]
+<pre tabindex="0"><code>[Inferior 1 (process 17590) exited with code 01]
 Missing separate debuginfos, use: debuginfo-install glibc-2.17-106.el7_2.1.x86_64 hwloc-libs-1.7-5.el7.x86_64 keyutils-libs-1.5.8-3.el7.x86_64 krb5-libs-1.13.2-10.el7.x86_64 libcom_err-1.42.9-7.el7.x86_64 libgcc-4.8.5-4.el7.x86_64 libpciaccess-0.13.4-2.el7.x86_64 libselinux-2.2.2-6.el7.x86_64 libstdc++-4.8.5-4.el7.x86_64 libxml2-2.9.1-6.el7_2.2.x86_64 nss-softokn-freebl-3.16.2.3-13.el7_1.x86_64 numactl-libs-2.0.9-5.el7_1.x86_64 openssl-libs-1.0.1e-51.el7_2.2.x86_64 pcre-8.32-15.el7.x86_64 tcl-8.5.13-8.el7.x86_64 xz-libs-5.1.2-12alpha.el7.x86_64 zlib-1.2.7-15.el7.x86_64
 </code></pre><p><code>use:</code> の後をコピペして実行して途中で (y/n) で聞かれたら y を押すと、必要な debuginfo をイントール出来ました。</p>
 <p>調べてみると、最初から以下のコマンドを実行しておけば依存するライブラリの debuginfo もインストールできるようです。</p>
-<pre><code>sudo debuginfo-install -y trafficserver
+<pre tabindex="0"><code>sudo debuginfo-install -y trafficserver
 </code></pre><p>なお、 <code>debuginfo-install</code> コマンドは <code>yum-utils</code> パッケージに入っているので予めインストールしておきます。</p>
 <h2 id="実行例">実行例</h2>
 <p>まず、</p>
-<pre><code>gdb /usr/bin/traffic_server
+<pre tabindex="0"><code>gdb /usr/bin/traffic_server
 </code></pre><p>で gdb を起動し <code>HttpSM::set_next_state</code> にブレークポイントを設定して traffic_server を実行しました。</p>
-<pre><code>[root@localhost ~]# gdb /usr/bin/traffic_server
+<pre tabindex="0"><code>[root@localhost ~]# gdb /usr/bin/traffic_server
 GNU gdb (GDB) Red Hat Enterprise Linux 7.6.1-80.el7
 Copyright (C) 2013 Free Software Foundation, Inc.
 License GPLv3+: GNU GPL version 3 or later &lt;http://gnu.org/licenses/gpl.html&gt;
@@ -156,10 +156,10 @@ traffic_server: using root directory '/usr'
 [New Thread 0x7fffea859700 (LWP 19943)]
 [New Thread 0x7fffea657700 (LWP 19944)]
 </code></pre><p>ここで別の端末で</p>
-<pre><code>curl -sv http://192.168.33.131/
+<pre tabindex="0"><code>curl -sv http://192.168.33.131/
 </code></pre><p>を実行しました。</p>
 <p><code>HttpSM</code> というクラス名は <code>Http State Machine</code> の略と思われます。 HTTP を処理する状態遷移マシンになっています。以下のセッションでは HttpSM クラスの t_state メンバ変数の next_action を表示して、状態の遷移を確認してみました。</p>
-<pre><code>Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
+<pre tabindex="0"><code>Breakpoint 1, HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940
 6940    {
 (gdb) where
 #0  HttpSM::set_next_state (this=0x7fffea0d0080) at HttpSM.cc:6940

@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.87.0" />
+  <meta name="generator" content="Hugo 0.88.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -90,7 +90,7 @@
 <p>rpmでインストールされるサービス起動スクリプトだと <code>traffic_cop</code> →　<code>traffic_manger</code> →　<code>traffic_sever</code> という呼び出し関係になるので、こ <code>traffic_server</code>   に <code>-conf_dir</code> オプションを渡すことは出来なさそうです。</p>
 <h2 id="ts_rootという環境変数を発見">TS_ROOTという環境変数を発見</h2>
 <p><a href="https://github.com/apache/trafficserver/blob/6.1.1/lib/ts/Layout.cc#L146-L187">lib/ts/Layout.cc</a> で <code>TS_ROOT</code> という環境変数を参照しているのを見つけました。</p>
-<pre><code>Layout::Layout(const char *_prefix)
+<pre tabindex="0"><code>Layout::Layout(const char *_prefix)
 {
   if (_prefix) {
     prefix = ats_strdup(_prefix);
@@ -134,7 +134,7 @@
 }
 </code></pre><p><a href="https://github.com/apache/trafficserver/blob/6.1.1/lib/ts/Layout.cc#L51-L70">layout_relative関数の定義</a> と <a href="https://github.com/apache/trafficserver/blob/d6906e2a59858005d09018994262562b03ca24e9/lib/ts/ink_file.cc#L132-L323">ink_filepath_merge関数の定義</a> を見ると、 layout_relative の第2引数が <code>/</code> で始まっていると第2引数がそのまま使われ、 <code>/</code> で始まっていないと第1引数と第2引数を必要に応じて <code>/</code> を挟んで連結した値になることがわかりました。</p>
 <p><code>TS_BUILD_SYSCONFDIR</code> などは<a href="https://github.com/apache/trafficserver/blob/6.1.1/lib/ts/ink_config.h.in#L110-L125">trafficserver/ink_config.h.in</a> で定義されていました。</p>
-<pre><code>/* Various &quot;build&quot; defines */
+<pre tabindex="0"><code>/* Various &quot;build&quot; defines */
 #define TS_BUILD_PREFIX &quot;@prefix@&quot;
 #define TS_BUILD_EXEC_PREFIX &quot;@rel_exec_prefix@&quot;
 #define TS_BUILD_BINDIR &quot;@rel_bindir@&quot;
@@ -151,7 +151,7 @@
 #define TS_BUILD_CACHEDIR &quot;@rel_cachedir@&quot;
 #define TS_BUILD_INFODIR &quot;@rel_infodir@&quot;
 </code></pre><p><code>rel_*</code> という値は <code>configure</code> 実行時にbuild/common.m4の <a href="https://github.com/apache/trafficserver/blob/5a0952b01d01ef927a65fc44bac5f68c345747aa/build/common.m4#L252-L263">TS_SUBST_LAYOUT_PATH</a> で設定されるようです。</p>
-<pre><code>dnl
+<pre tabindex="0"><code>dnl
 dnl TS_SUBST_LAYOUT_PATH
 dnl Export (via TS_SUBST) the various path-related variables that
 dnl trafficserver will use while generating scripts and
@@ -164,7 +164,7 @@ AC_DEFUN([TS_SUBST_LAYOUT_PATH], [
   TS_SUBST($1)
 ])
 </code></pre><p>ここから呼ばれる <a href="https://github.com/apache/trafficserver/blob/5a0952b01d01ef927a65fc44bac5f68c345747aa/build/common.m4#L223-L241">TS_PATH_RELATIVE</a> で実際の値が作られます。</p>
-<pre><code>dnl
+<pre tabindex="0"><code>dnl
 dnl Removes the value of $3 from the string in $2, strips of any leading
 dnl slashes, and returns the value in $1.
 dnl
@@ -186,9 +186,9 @@ fi
 </code></pre><p>ということで、例えば <code>sysconfdir</code> の値が <code>prefix</code> の値で始まっていれば <code>rel_sysconfdir</code> は <code>prefix</code> からの相対パスになり、そうでなければ <code>sysconfdir</code> そのままになるということがわかりました。</p>
 <h2 id="configureオプションの指定方法">configureオプションの指定方法</h2>
 <p>上記を踏まえて、私が作成した <a href="https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec">/trafficserver.spec</a> では <a href="https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec#L1">1行目</a>で</p>
-<pre><code>%define _prefix /opt/trafficserver
+<pre tabindex="0"><code>%define _prefix /opt/trafficserver
 </code></pre><p>と設定し、 <a href="https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec#L85-L94">85〜94行目</a> で以下のような configure オプションを指定しています。</p>
-<pre><code>%configure \
+<pre tabindex="0"><code>%configure \
   --enable-layout=opt \
   --sysconfdir=%{_prefix}%{_sysconfdir} \
   --localstatedir=%{_prefix}%{_localstatedir} \
@@ -231,7 +231,7 @@ fi
 <h2 id="コマンド実行時の環境変数指定">コマンド実行時の環境変数指定</h2>
 <p>コマンドを実行するときはPATHを通すかフルパスで指定するだけではなく、 TS_ROOT 環境変数も指定する必要があります。</p>
 <p>例えば、1段目のキャッシュを全クリアするときは <a href="https://docs.trafficserver.apache.org/en/6.1.x/admin-guide/storage/index.en.html#clearing-the-cache">Clearing the Cache</a> の説明では <code>traffic_server -Cclear</code> ですが、このrpmの場合は</p>
-<pre><code>TS_ROOT=/opt/trafficserver-first /opt/trafficserver-first/bin/traffic_server -Cclear
+<pre tabindex="0"><code>TS_ROOT=/opt/trafficserver-first /opt/trafficserver-first/bin/traffic_server -Cclear
 </code></pre><p>と実行する必要があります。</p>
 
 </div>

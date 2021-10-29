@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.87.0" />
+  <meta name="generator" content="Hugo 0.88.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -80,20 +80,20 @@
 <h2 id="authorized_keys-をホームディレクトリの外に置く手もある">authorized_keys をホームディレクトリの外に置く手もある</h2>
 <p><a href="http://askubuntu.com/questions/254776/ubuntu-server-ssh-after-reboot-permission-denied-publickey/254787#254787">Ubuntu server ssh after reboot: Permission denied (publickey) - Ask Ubuntu</a>によると <code>/etc/ssh/sshd_config</code> で <code>AuthorizedKeysFile</code> の設定を変える手もあるようです。</p>
 <p>変更前の状態は</p>
-<pre><code>#AuthorizedKeysFile     %h/.ssh/authorized_keys
+<pre tabindex="0"><code>#AuthorizedKeysFile     %h/.ssh/authorized_keys
 </code></pre><p>とデフォルト値がコメントアウトされて書かれていました。</p>
 <p><a href="http://manpages.ubuntu.com/manpages/precise/en/man5/sshd_config.5.html">Ubuntu Manpage: sshd_config — OpenSSH SSH daemon configuration file</a>によると <code>%h</code> はホームディレクトリに展開されます。ユーザ名に展開される <code>%u</code> というのもあるそうです。</p>
 <p>ここでは <code>/etc/%u/.ssh/authorized_keys</code> に変更するのを試してみました。
 先に自分のユーザID <code>hnakamur</code> 用のディレクトリを作って所有者を変更します。</p>
-<pre><code>sudo mkdir -p /etc/hnakamur/.ssh
+<pre tabindex="0"><code>sudo mkdir -p /etc/hnakamur/.ssh
 sudo chmod -R 700 /etc/hnakamur
 sudo chown -R hnakamur: /etc/hnakamur
-</code></pre><pre><code>cp ~/.ssh/authorized_keys /etc/hnakamur/.ssh/authorized_keys
+</code></pre><pre tabindex="0"><code>cp ~/.ssh/authorized_keys /etc/hnakamur/.ssh/authorized_keys
 </code></pre><p>その後 <code>sudo vi /etc/ssh/sshd_config</code> を実行し以下の行を追加します。</p>
-<pre><code>AuthorizedKeysFile /etc/%u/.ssh/authorized_keys
+<pre tabindex="0"><code>AuthorizedKeysFile /etc/%u/.ssh/authorized_keys
 </code></pre><p>これでOSを再起動後、コンソールでログインしない状態でもsshで鍵認証でログンできることを確認しました。</p>
 <p>ただし、ログインは出来ましたが、暗号化の解除は手動で行う必要がありました。作ったはずの <code>~/.bash_profile</code> が無いので気付きました。ホームディレクトリの中身は以下のようになっていました。</p>
-<pre><code>hnakamur@express:~$ ls -la
+<pre tabindex="0"><code>hnakamur@express:~$ ls -la
 合計 8
 dr-x------ 2 hnakamur hnakamur 4096  5月  2 01:31 .
 drwxr-xr-x 4 root     root     4096  5月  2 01:31 ..
@@ -102,7 +102,7 @@ lrwxrwxrwx 1 hnakamur hnakamur   34  5月  2 01:31 .ecryptfs -&gt; /home/.ecrypt
 lrwxrwxrwx 1 hnakamur hnakamur   56  5月  2 01:31 Access-Your-Private-Data.desktop -&gt; /usr/share/ecryptfs-utils/ecryptfs-mount-private.desktop
 lrwxrwxrwx 1 hnakamur hnakamur   52  5月  2 01:31 README.txt -&gt; /usr/share/ecryptfs-utils/ecryptfs-mount-private.txt
 </code></pre><p><code>README.txt</code> を見てみました。</p>
-<pre><code>hnakamur@express:~$ cat README.txt
+<pre tabindex="0"><code>hnakamur@express:~$ cat README.txt
 THIS DIRECTORY HAS BEEN UNMOUNTED TO PROTECT YOUR DATA.
 
 From the graphical desktop, click on:
@@ -113,7 +113,7 @@ or
 From the command line, run:
  ecryptfs-mount-private
 </code></pre><p><code>ecryptfs-mount-private</code> を実行してログインパスワードを入力し <code>cd /home/hnakamur</code> でホームディレクトリに入り直すと、復号化された内容が見えるようになりました。</p>
-<pre><code>hnakamur@express:~$ ecryptfs-mount-private
+<pre tabindex="0"><code>hnakamur@express:~$ ecryptfs-mount-private
 Enter your login passphrase:
 Inserted auth tok with sig [d094f2376006dce9] into the user session keyring
 
@@ -157,16 +157,16 @@ drwxr-xr-x 5 hnakamur hnakamur 4096  5月  2 08:47 gocode
 <li><a href="https://help.ubuntu.com/community/EncryptedHome">EncryptedHome - Community Help Wiki</a></li>
 </ul>
 <p>バックアップ用のディレクトリを作って、所有者を変えます。</p>
-<pre><code>sudo mkdir /home/hnakamur.backup
+<pre tabindex="0"><code>sudo mkdir /home/hnakamur.backup
 sudo chown hnakamur:hnakamur /home/hnakamur.backup
 </code></pre><p><code>tar</code> でバックアップして <code>.encryptfs</code> ディレクトリは消します。シンボリックリンクもそのままコピーしたいので <code>tar</code> を使っています。</p>
-<pre><code>(cd /home/hnakamur; tar cf - .) | (cd /home/hnakamur.backup; tar xf -)
+<pre tabindex="0"><code>(cd /home/hnakamur; tar cf - .) | (cd /home/hnakamur.backup; tar xf -)
 rm -rf /home/hnakamur.backup/.ecryptfs
 </code></pre><p>ホームディレクトリを暗号化するためのパッケージをアンインストールしました。</p>
-<pre><code>sudo apt-get remove ecryptfs-utils libecryptfs0
+<pre tabindex="0"><code>sudo apt-get remove ecryptfs-utils libecryptfs0
 </code></pre><p>上記は手順ミスです。先に別の管理者ユーザを作って元のユーザ <code>hnakamur</code> はログアウトし、別の管理ユーザで作業すべきでした。</p>
 <p><code>df -h</code> で確認すると <code>hnakamur</code> ユーザのホームディレクトリがマウントされたままになっていました。</p>
-<pre><code>root@express:~# df -h
+<pre tabindex="0"><code>root@express:~# df -h
 Filesystem                    Size  Used Avail Use% Mounted on
 udev                          7.8G     0  7.8G   0% /dev
 tmpfs                         1.6G  8.8M  1.6G   1% /run
@@ -178,24 +178,24 @@ tmpfs                         7.8G     0  7.8G   0% /sys/fs/cgroup
 tmpfs                         100K     0  100K   0% /run/lxcfs/controllers
 /home/hnakamur/.Private       131G  2.1G  122G   2% /home/hnakamur
 </code></pre><p>この後、別のユーザを作りました。セカンダリグループに <code>sudo</code> を指定して <code>sudo</code> で <code>root</code> になれるようにします。</p>
-<pre><code>sudo useradd -m -G sudo -s /bin/bash hnakamur2
+<pre tabindex="0"><code>sudo useradd -m -G sudo -s /bin/bash hnakamur2
 sudo mkdir -p /etc/hnakamur2/.ssh
 sudo chmod -R 700 /etc/hnakamur2
 sudo cp /etc/hnakamur/.ssh/authorized_keys /etc/hnakamur2/.ssh/
 sudo chown -R hnakamur2: /etc/hnakamur2
 </code></pre><p>パスワードが空だとsshログイン出来ないので、パスワードを設定します。</p>
-<pre><code>root@express:~# passwd hnakamur2
+<pre tabindex="0"><code>root@express:~# passwd hnakamur2
 新しい UNIX パスワードを入力してください:
 新しい UNIX パスワードを再入力してください:
 passwd: パスワードは正しく更新されました
 </code></pre><p>これで <code>hnakamur2</code> ユーザの作成が終わったので、Macからsshで hnakamur2 ユーザにログインします。</p>
-<pre><code>ssh hnakamur2@express
+<pre tabindex="0"><code>ssh hnakamur2@express
 </code></pre><p><code>root</code> ユーザになって作業します。</p>
-<pre><code>sudo -i
+<pre tabindex="0"><code>sudo -i
 umount /home/hnakamur
 </code></pre><p><code>df -h</code> を実行してマウントが解除されたことを確認しました。
 <code>/home/hnakamur</code> の中身を確認すると以下のようになっていました。</p>
-<pre><code>root@express:~# ll -a /home/hnakamur
+<pre tabindex="0"><code>root@express:~# ll -a /home/hnakamur
 合計 8
 dr-x------ 2 hnakamur hnakamur 4096  5月  2 01:31 ./
 drwxr-xr-x 7 root     root     4096  5月  2 14:42 ../
@@ -204,10 +204,10 @@ lrwxrwxrwx 1 hnakamur hnakamur   34  5月  2 01:31 .ecryptfs -&gt; /home/.ecrypt
 lrwxrwxrwx 1 hnakamur hnakamur   56  5月  2 01:31 Access-Your-Private-Data.desktop -&gt; /usr/share/ecryptfs-utils/ecryptfs-mount-private.desktop
 lrwxrwxrwx 1 hnakamur hnakamur   52  5月  2 01:31 README.txt -&gt; /usr/share/ecryptfs-utils/ecryptfs-mount-private.txt
 </code></pre><p><code>hnakamur</code> のホームディレクトリを消して、バックアップした内容に戻します。</p>
-<pre><code>rm -rf /home/hnakamur
+<pre tabindex="0"><code>rm -rf /home/hnakamur
 mv /home/hnakamur.backup/ /home/hnakamur
 </code></pre><p>戻した中身を確認します。</p>
-<pre><code>root@express:~# ll -a /home/hnakamur/
+<pre tabindex="0"><code>root@express:~# ll -a /home/hnakamur/
 合計 56
 drwx------ 6 hnakamur hnakamur 4096  5月  2 13:04 ./
 drwxr-xr-x 6 root     root     4096  5月  2 14:53 ../
@@ -225,30 +225,30 @@ drwx------ 2 hnakamur hnakamur 4096  5月  2 01:38 .ssh/
 drwxr-xr-x 2 hnakamur hnakamur 4096  5月  2 03:13 docs/
 drwxr-xr-x 5 hnakamur hnakamur 4096  5月  2 08:47 gocode/
 </code></pre><p><code>.Private</code> も不要なので消します。</p>
-<pre><code>rm /home/hnakamur/.Private
+<pre tabindex="0"><code>rm /home/hnakamur/.Private
 </code></pre><p>これで Mac から元のユーザ <code>hnakamur</code> でsshログイン可能になります。
 念のため <code>hnakamur2</code> はログインしたままにしておいて、ターミナルの別端末でログインしました。</p>
-<pre><code>ssh hnakamur@express
+<pre tabindex="0"><code>ssh hnakamur@express
 </code></pre><p><code>/etc/ssh/sshd_config</code> の <code>AuthorizedKeysFile</code> の設定も元に戻すことにします。
 <code>sudo vi /etc/ssh/sshd_config</code> を実行し以下の行を削除します。</p>
-<pre><code>AuthorizedKeysFile /etc/%u/.ssh/authorized_keys
+<pre tabindex="0"><code>AuthorizedKeysFile /etc/%u/.ssh/authorized_keys
 </code></pre><p>以下のコマンドで <code>sshd</code> を再起動します。</p>
-<pre><code>sudo systemctl restart sshd
+<pre tabindex="0"><code>sudo systemctl restart sshd
 </code></pre><p><code>/etc/hnakamur</code> 以下に置いた <code>hnakamur</code> ユーザの鍵もディレクトリごと消します。</p>
-<pre><code>sudo rm -r /etc/hnakamur
+<pre tabindex="0"><code>sudo rm -r /etc/hnakamur
 </code></pre><p>Mac のターミナルの別端末から <code>hnakamur</code> ユーザでsshログインできることと、sudoでrootになれることを確認しました。</p>
 <p><code>hnakamur2</code> ユーザのほうはログアウトして、 <code>hnakamur</code> ユーザでログインした端末で <code>hnakamur2</code> ユーザを削除します。メールスプールのディレクトリが無いというメッセージが出ますが問題ありません。</p>
-<pre><code>root@express:~# sudo userdel -r hnakamur2
+<pre tabindex="0"><code>root@express:~# sudo userdel -r hnakamur2
 userdel: hnakamur2 のメールスプール (/var/mail/hnakamur2) がありません
 root@express:~# echo $?
 0
 </code></pre><p><code>/etc/hnakamur2</code> 以下に置いた <code>hnakamur2</code> ユーザの鍵もディレクトリごと消します。</p>
-<pre><code>sudo rm -r /etc/hnakamur2
+<pre tabindex="0"><code>sudo rm -r /etc/hnakamur2
 </code></pre><p>その後</p>
-<pre><code>sudo shutdown -r now
+<pre tabindex="0"><code>sudo shutdown -r now
 </code></pre><p>で再起動して、コンソールでLVM暗号化のパスフレーズを入力して起動し、コンソールでログインすることなしに、ssh鍵認証でログインできることを確認しました。</p>
 <p>余談ですが、ちょっと不思議なのは、今まで構築したLinux環境ではsshで繋いで <code>sudo shutdown -h now</code> や <code>sudo shutdown -r now</code> を実行すると接続が切れていたのが、今回の環境ではプロンプトに戻らないまま残ってしまうということです。Ctrl-Cを入力すると <code>Host is down</code> と表示されていました。</p>
-<pre><code>root@express:~# shutdown -r now
+<pre tabindex="0"><code>root@express:~# shutdown -r now
 packet_write_poll: Connection to 192.168.0.201: Host is down
 </code></pre><h2 id="まとめ">まとめ</h2>
 <p>今回のサーバのユーザは自分1人なのでホームディレクトリの暗号化は不要と判断し、解除しました。</p>

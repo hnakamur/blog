@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.87.0" />
+  <meta name="generator" content="Hugo 0.88.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -88,11 +88,11 @@
 </ul>
 <h2 id="minikubeからmacのディスクをnfsマウントする">minikubeからmacのディスクをNFSマウントする</h2>
 <p><a href="https://github.com/kubernetes/minikube/issues/2#issuecomment-233629375">Support mounting host directories into pods · Issue #2 · kubernetes/minikube</a>のコメントに従って以下のコマンドをmacで実行しました。</p>
-<pre><code>echo &quot;/Users -network 192.168.99.0 -mask 255.255.255.0 -alldirs -maproot=root:wheel&quot; | sudo tee -a /etc/exports
+<pre tabindex="0"><code>echo &quot;/Users -network 192.168.99.0 -mask 255.255.255.0 -alldirs -maproot=root:wheel&quot; | sudo tee -a /etc/exports
 sudo nfsd restart
 </code></pre><p>IPアドレスは <code>minikube ip</code> の結果に合わせて調整します。私の環境では 192.168.99.100 だったので、それにあわせて <code>-network</code> は 192.168.99.0、 <code>-mask</code> は 255.255.255.0 としています。</p>
 <p>以下の手順で、手動で一度マウントしてみました。 <code>minikube start</code> は既に起動済みなら不要です。</p>
-<pre><code>minikube start
+<pre tabindex="0"><code>minikube start
 minikube ssh -- sudo umount /Users
 minikube ssh -- sudo /usr/local/etc/init.d/nfs-client start
 minikube ssh -- sudo mount 192.168.99.1:/Users /Users -o rw,async,noatime,rsize=32768,wsize=32768,proto=tcp
@@ -108,7 +108,7 @@ minikube ssh -- sudo mount 192.168.99.1:/Users /Users -o rw,async,noatime,rsize=
 <p>persistent-volume-nfs.ymlのspec.nfs.pathに対応するディレクトリはmacで <code>mkdir -p /Users/hnakamur/kube-data</code> で作成しておきます。spec.nfs.serverはminikubeから見たmacのIPアドレスを指定します。</p>
 <p>spec.persistentVolumeReclaimPolicyは<a href="https://github.com/TheNewNormal/kube-solo-osx/blob/252b46b4837efc41e7c85c7c3171518e23520866/examples/pv/nfs-pv-mount-on-pod.md">kube-solo-osx/nfs-pv-mount-on-pod.md at 252b46b4837efc41e7c85c7c3171518e23520866 · TheNewNormal/kube-solo-osx</a>ではRetainedとなっていたのですが、動かしてみるとエラーメッセージが出たのでそこに書いてあった選択肢の1つのRetainに変えました。</p>
 <p>persistemt volumeとpersistent volume claimについては<a href="http://kubernetes.io/docs/user-guide/persistent-volumes/">Persistent Volumes - Kubernetes</a>に説明があります。</p>
-<pre><code>$ cat persistent-volume-nfs.yml
+<pre tabindex="0"><code>$ cat persistent-volume-nfs.yml
 kind: PersistentVolume
 apiVersion: v1
 metadata:
@@ -125,7 +125,7 @@ spec:
     # TODO: modify path and server appropriately
     path: /Users/hnakamur/kube-data
     server: 192.168.99.1
-</code></pre><pre><code>$ cat persistent-volume-claim.yml
+</code></pre><pre tabindex="0"><code>$ cat persistent-volume-claim.yml
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
@@ -137,7 +137,7 @@ spec:
     requests:
       storage: 15Gi
 </code></pre><p>Deploymentsについては<a href="http://kubernetes.io/docs/user-guide/deployments/">Deployments - Kubernetes</a>を参照してください。</p>
-<pre><code>$ cat nginx-deployment.yml
+<pre tabindex="0"><code>$ cat nginx-deployment.yml
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -162,7 +162,7 @@ spec:
           persistentVolumeClaim:
             claimName: my-pvc
 </code></pre><p>Servicesについては<a href="http://kubernetes.io/docs/user-guide/services/#type-nodeport">Services - Kubernetes</a>を参照してください。</p>
-<pre><code>$ cat nginx-service.yml
+<pre tabindex="0"><code>$ cat nginx-service.yml
 kind: Service
 apiVersion: v1
 metadata:
@@ -177,26 +177,26 @@ spec:
     app: nginx
 </code></pre><h2 id="サービス作成と公開">サービス作成と公開</h2>
 <p>上記の設定ファイルを用意しておけば、サービス作成と公開は以下のように実行するだけです。</p>
-<pre><code>kubectl create -f persistent-volume-nfs.yml
+<pre tabindex="0"><code>kubectl create -f persistent-volume-nfs.yml
 kubectl create -f persistent-volume-claim.yml
 kubectl create -f nginx-deployment.yml
 kubectl create -f nginx-service.yml
 </code></pre><p>mac上で以下のコマンドでnginxで表示するHTMLファイルを作成します。HTMLファイルと言いつつ手抜きで単なるテキストです。</p>
-<pre><code>echo 'Hello Kubernetes NFS volume!' &gt; ~/kube-data/index.html
+<pre tabindex="0"><code>echo 'Hello Kubernetes NFS volume!' &gt; ~/kube-data/index.html
 </code></pre><h2 id="macからcurlでサービスのnginxにアクセスしてみる">macからcurlでサービスのnginxにアクセスしてみる</h2>
 <p>ノードのIPとポートを取得して環境変数に設定。</p>
-<pre><code>$ export NODE_IP=$(minikube ip)
+<pre tabindex="0"><code>$ export NODE_IP=$(minikube ip)
 $ echo NODE_IP=$NODE_IP
 NODE_IP=192.168.99.100
 $ export NODE_PORT=$(kubectl get services/nginx -o go-template='{{(index .spec.ports 0).nodePort}}')
 $ echo NODE_PORT=$NODE_PORT
 NODE_PORT=32252
 </code></pre><p>curlでアクセスすると、上記で作成したファイルの内容が表示されることを確認できました。</p>
-<pre><code>$ curl $NODE_IP:$NODE_PORT
+<pre tabindex="0"><code>$ curl $NODE_IP:$NODE_PORT
 Hello Kubernetes NFS volume!
 </code></pre><h2 id="サービス公開停止と削除">サービス公開停止と削除</h2>
 <p>作成時とは逆の順番に <code>kubectl delete -f</code> で設定ファイルを指定して削除すればOKでした。</p>
-<pre><code>kubectl delete -f nginx-service.yml
+<pre tabindex="0"><code>kubectl delete -f nginx-service.yml
 kubectl delete -f nginx-deployment.yml
 kubectl delete -f persistent-volume-claim.yml
 kubectl delete -f persistent-volume-nfs.yml

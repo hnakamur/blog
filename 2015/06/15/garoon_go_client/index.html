@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.87.0" />
+  <meta name="generator" content="Hugo 0.88.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -83,7 +83,7 @@
 <p>Garoon APIはSOAPなので、リクエストやレスポンスはXMLになります。</p>
 <p>リクエストを送るところは<a href="http://qiita.com/yamasaki-masahide/items/03dfa6cd70ff20607b58">Cybozu ガルーン API を golang で叩いてみる - Qiita</a>を見たのですが、<a href="http://qiita.com/ono_matope/items/70080cc33b75152c5c2a">Goのencoding/xmlを使いこなす - Qiita</a>を参考にMarshalXMLを実装する方式にしてみました。</p>
 <p><a href="http://golang.org/pkg/encoding/xml/#Marshaler">xml.Marshaler</a>の <code>MarshalXML(e *Encoder, start StartElement) error</code> は <code>start</code> をエンコードするのが本来の使い方だとは思うのですが、下記の例のように <code>CabinetGetFolderInfo</code> といったリクエスト本体を渡すと <code>soap:Envelope</code> でラップしてエンコードしてくれる方が使うときに楽なので、 <code>MarshalXML</code> 内でデータ構造を組み立ててエンコードするようにしてみました。</p>
-<pre><code>&lt;soap:Envelope xmlns:soap=&quot;http://www.w3.org/2003/05/soap-envelope&quot;&gt;
+<pre tabindex="0"><code>&lt;soap:Envelope xmlns:soap=&quot;http://www.w3.org/2003/05/soap-envelope&quot;&gt;
   &lt;soap:Header&gt;
     &lt;Action&gt;CabinetGetFolderInfo&lt;/Action&gt;
     &lt;Security&gt;
@@ -106,7 +106,7 @@
 &lt;/soap:Envelope&gt;
 </code></pre><p><code>soap:Envelope</code> でラップした構造を作るところは、</p>
 <p><a href="https://github.com/hnakamur/garoonclient/blob/d8aceb8ae09c6094dd65a1623fc99ca89a1ccebd/request.go#L44-L62">https://github.com/hnakamur/garoonclient/blob/d8aceb8ae09c6094dd65a1623fc99ca89a1ccebd/request.go#L44-L62</a></p>
-<pre><code>
+<pre tabindex="0"><code>
 func buildRequestStruct(h RequestHeader, apiName string, parameters interface{}) envelope {
 	return envelope{
 		Xmlns: &quot;http://www.w3.org/2003/05/soap-envelope&quot;,
@@ -128,7 +128,7 @@ func buildRequestStruct(h RequestHeader, apiName string, parameters interface{})
 }
 </code></pre><p>で共通処理として実装し、各API用のリクエストの構造体では</p>
 <p><a href="https://github.com/hnakamur/garoonclient/blob/d8aceb8ae09c6094dd65a1623fc99ca89a1ccebd/cabinet.go#L16-L26">https://github.com/hnakamur/garoonclient/blob/d8aceb8ae09c6094dd65a1623fc99ca89a1ccebd/cabinet.go#L16-L26</a></p>
-<pre><code>type CabinetGetFolderInfoRequest struct {
+<pre tabindex="0"><code>type CabinetGetFolderInfoRequest struct {
 	Header RequestHeader
 }
 
@@ -145,7 +145,7 @@ func (r CabinetGetFolderInfoRequest) MarshalXML(e *xml.Encoder, start xml.StartE
 <p>レスポンスのパースは<a href="http://qiita.com/yamasaki-masahide/items/f20a2ca4700e00777303">Cybozu ガルーン API のレスポンスのXMLを golang でパースする - Qiita</a>を見たのですが、<a href="http://blog.davidsingleton.org/parsing-huge-xml-files-with-go/">Parsing huge XML files with Go - david singleton</a>の方法のほうが楽なのでこちらを参考にしました。</p>
 <p>共通のユーテリティ関数としては
 <a href="https://github.com/hnakamur/garoonclient/blob/d8aceb8ae09c6094dd65a1623fc99ca89a1ccebd/response.go">https://github.com/hnakamur/garoonclient/blob/d8aceb8ae09c6094dd65a1623fc99ca89a1ccebd/response.go</a></p>
-<pre><code>var ResponseTagNotFoundError = errors.New(&quot;response tag not found&quot;)
+<pre tabindex="0"><code>var ResponseTagNotFoundError = errors.New(&quot;response tag not found&quot;)
 
 func parseResponse(r io.Reader, localName string, v interface{}) error {
 	decoder := xml.NewDecoder(r)
@@ -165,7 +165,7 @@ func parseResponse(r io.Reader, localName string, v interface{}) error {
 }
 </code></pre><p>のように定義して、</p>
 <p><a href="https://github.com/hnakamur/garoonclient/blob/d8aceb8ae09c6094dd65a1623fc99ca89a1ccebd/cabinet.go#L115-L127">https://github.com/hnakamur/garoonclient/blob/d8aceb8ae09c6094dd65a1623fc99ca89a1ccebd/cabinet.go#L115-L127</a></p>
-<pre><code>func parseCabinetGetFolderInfoResponse(r io.Reader) (*CabinetGetFolderInfoResponse, error) {
+<pre tabindex="0"><code>func parseCabinetGetFolderInfoResponse(r io.Reader) (*CabinetGetFolderInfoResponse, error) {
 	exclude := NewExclude(func(b byte) bool {
 		return b == 0x08 || b == 0x0B
 	})
@@ -183,7 +183,7 @@ func parseResponse(r io.Reader, localName string, v interface{}) error {
 <p>あと、レスポンスのXMLをそのまま<a href="http://golang.org/pkg/encoding/xml/#Decoder">xml.Decoder</a>に渡すとUTF-8の不正なバイト列といったエラーが出ました。U+0008やU+000Bというデータが入っていたので、これを除去するようにしました。</p>
 <p>日本語の文字コード変換用のライブラリ<a href="https://godoc.org/golang.org/x/text/encoding/japanese">golang.org/x/text/encoding/japanese</a>で使っているインターフェース<a href="https://godoc.org/golang.org/x/text/transform#Transformer">golang.org/x/text/transform/Transformer</a>に合わせて実装しました。</p>
 <p><a href="https://github.com/hnakamur/garoonclient/blob/d8aceb8ae09c6094dd65a1623fc99ca89a1ccebd/cabinet.go#L28-L50">https://github.com/hnakamur/garoonclient/blob/d8aceb8ae09c6094dd65a1623fc99ca89a1ccebd/cabinet.go#L28-L50</a></p>
-<pre><code>type exclude struct {
+<pre tabindex="0"><code>type exclude struct {
 	transform.NopResetter
 	excluder func(byte) bool
 }

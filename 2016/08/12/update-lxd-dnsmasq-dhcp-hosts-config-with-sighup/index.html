@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.87.0" />
+  <meta name="generator" content="Hugo 0.88.1" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -86,19 +86,19 @@
 <p>ですが、実際に試してみると <code>--dhcp-hostsdir</code> のほうは SIGHUP を送ると <code>duplicate dhcp-host IP address</code> というエラーになってしまったので (下記のハマりメモ参照)、 <code>--dhcp-hostsfile</code> のほうを使うことにしました。</p>
 <h2 id="lxd-bridgeのdnsmasqで--dhcp-hostsfile-を使う設定">lxd-bridgeのdnsmasqで&ndash;dhcp-hostsfile を使う設定</h2>
 <p><code>/var/lib/lxd-bridge/dhcp-hosts</code> というファイルを作って、そこを見るように切り替えてみます。</p>
-<pre><code>sudo touch /var/lib/lxd-bridge/dhcp-hosts
+<pre tabindex="0"><code>sudo touch /var/lib/lxd-bridge/dhcp-hosts
 echo 'dhcp-hostsfile=/var/lib/lxd-bridge/dhcp-hosts' | sudo tee /etc/dnsmasq.conf &gt; /dev/null
 sudo systemctl restart lxd-bridge
 </code></pre><h2 id="ipアドレスを指定して新規コンテナを作成する">IPアドレスを指定して新規コンテナを作成する</h2>
 <p>例えば <code>web01</code> というコンテナを <code>10.155.92.201</code> というアドレスで作成したい場合は以下のようにします。 <a href="http://manpages.ubuntu.com/manpages/xenial/en/man8/dnsmasq.8.html">Ubuntu Manpage: dnsmasq - A lightweight DHCP and caching DNS server.</a> によると <code>--dhcp-range</code> で指定した範囲の外でも良いが <code>--dhcp-range</code> と同じサブネットである必要があるとのことです。 <code>ps auxww | grep dnsmasq</code> で見たところ <code>/etc/default/lxd-bridge</code> の <code>LXD_IPV4_DHCP_RANGE</code> の値が <code>--dhcp-range</code> に使われています。</p>
-<pre><code>echo web01,10.155.92.201 | sudo tee /var/lib/lxd-bridge/dhcp-hosts &gt; /dev/null
+<pre tabindex="0"><code>echo web01,10.155.92.201 | sudo tee /var/lib/lxd-bridge/dhcp-hosts &gt; /dev/null
 sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
 lxc launch images:centos/7/amd64 web01
 </code></pre><p>数秒してから <code>lxc list</code> を実行すると指定したアドレスになっていることが確認できます。</p>
 <p>なお、この例では dhcp-hosts 内のエントリが web01 の1つだけなので echo と tee で作成・更新していますが、実際の利用時には複数エントリがあるので既存のエントリを残しつつエントリを追加・更新する必要がありますのでご注意ください。</p>
 <h2 id="既存のコンテナのipアドレスを変更する">既存のコンテナのIPアドレスを変更する</h2>
 <p>上記で作成した <code>web01</code> というコンテナのアドレスを <code>10.155.92.202</code> に変更してみます。変更にはコンテナの再起動が必要になります。</p>
-<pre><code>echo web01,10.155.92.202 | sudo tee /var/lib/lxd-bridge/dhcp-hosts &gt; /dev/null
+<pre tabindex="0"><code>echo web01,10.155.92.202 | sudo tee /var/lib/lxd-bridge/dhcp-hosts &gt; /dev/null
 sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
 lxc restart -f web01
 </code></pre><p>数秒してから <code>lxc list</code> を実行すると指定したアドレスになっていることが確認できます。</p>
@@ -106,53 +106,53 @@ lxc restart -f web01
 <h2 id="コンテナを削除後同じipアドレスを他のコンテナで使う">コンテナを削除後、同じIPアドレスを他のコンテナで使う</h2>
 <p>一方、コンテナを削除しても使っていたIPアドレスはまだ貸出中になっています。</p>
 <p>上記の状態の後</p>
-<pre><code>lxc delete -f web01
+<pre tabindex="0"><code>lxc delete -f web01
 : | sudo tee /var/lib/lxd-bridge/dhcp-hosts
 sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
 </code></pre><p>としても <code>/var/lib/lxd-bridge/dnsmasq.lxdbr0.leases</code> には</p>
-<pre><code>1470963716 00:16:3e:45:a6:d1 10.155.92.202 web01 *
+<pre tabindex="0"><code>1470963716 00:16:3e:45:a6:d1 10.155.92.202 web01 *
 </code></pre><p>のようなエントリが残っています。
 このアドレスを他のコンテナで使うためには一旦解放する必要があります。</p>
-<pre><code>sudo dhcp_release lxdbr0 10.155.92.202 00:16:3e:45:a6:d1
+<pre tabindex="0"><code>sudo dhcp_release lxdbr0 10.155.92.202 00:16:3e:45:a6:d1
 </code></pre><p>のように実行するか、あるいは <a href="/blog/2016/08/11/release-all-unused-addresses-of-lxd-bridge/">LXDのDHCPで使っていないIPアドレスを一括で解放するスクリプトを書いた · hnakamur&rsquo;s blog at github</a> で書いたスクリプトを実行して解放します。以下では後者のスクリプトを <code>~/bin/lxd-bridge-release-all-unused-addresses.sh</code> に保存してあるものとして説明します。</p>
 <p>IPアドレスを解放した後で</p>
-<pre><code>echo web02,10.155.92.202 | sudo tee /var/lib/lxd-bridge/dhcp-hosts &gt; /dev/null
+<pre tabindex="0"><code>echo web02,10.155.92.202 | sudo tee /var/lib/lxd-bridge/dhcp-hosts &gt; /dev/null
 sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
 lxc launch images:centos/7/amd64 web02
 </code></pre><p>のように実行すれば、IPアドレスを <code>10.155.92.202</code> にして <code>web02</code> というコンテナを作成・起動できました。</p>
 <h2 id="--dhcp-hostsdirのハマりメモ">&ndash;dhcp-hostsdirのハマりメモ</h2>
 <h3 id="lxd-bridgeのdnsmasqで--dhcp-hostsdir-を使う設定">lxd-bridgeのdnsmasqで&ndash;dhcp-hostsdir を使う設定</h3>
 <p><code>/var/lib/lxd-bridge/dhcp-hosts</code> というディレクトリを作って、そこを見るように切り替えてみます。</p>
-<pre><code>[ -f /var/lib/lxd-bridge/dhcp-hosts ] &amp;&amp; sudo rm /var/lib/lxd-bridge/dhcp-hosts
+<pre tabindex="0"><code>[ -f /var/lib/lxd-bridge/dhcp-hosts ] &amp;&amp; sudo rm /var/lib/lxd-bridge/dhcp-hosts
 sudo mkdir -p /var/lib/lxd-bridge/dhcp-hosts
 echo 'dhcp-hostsdir=/var/lib/lxd-bridge/dhcp-hosts' | sudo tee /etc/dnsmasq.conf &gt; /dev/null
 sudo systemctl restart lxd-bridge
 </code></pre><h3 id="ipアドレスを指定して新規コンテナを作成する-1">IPアドレスを指定して新規コンテナを作成する</h3>
 <p>例えば <code>web01</code> というコンテナを <code>10.155.92.201</code> というアドレスで作成したい場合は以下のようにします。</p>
-<pre><code>echo web01,10.155.92.201 | sudo tee /var/lib/lxd-bridge/dhcp-hosts/web01 &gt; /dev/null
+<pre tabindex="0"><code>echo web01,10.155.92.201 | sudo tee /var/lib/lxd-bridge/dhcp-hosts/web01 &gt; /dev/null
 lxc launch images:centos/7/amd64 web01
 </code></pre><p>数秒してから <code>lxc list</code> を実行すると指定したアドレスになっていることが確認できます。</p>
 <p>と、ここまでは良かったのですが、</p>
-<pre><code>journalctl -f
+<pre tabindex="0"><code>journalctl -f
 </code></pre><p>でログを見ておいて、別端末で</p>
-<pre><code>sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
+<pre tabindex="0"><code>sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
 </code></pre><p>と実行すると</p>
-<pre><code>Aug 12 08:39:56 lxdhostname dnsmasq-dhcp[2455]: read /var/lib/lxd-bridge/dhcp-hosts/web01
+<pre tabindex="0"><code>Aug 12 08:39:56 lxdhostname dnsmasq-dhcp[2455]: read /var/lib/lxd-bridge/dhcp-hosts/web01
 Aug 12 08:39:56 lxdhostname dnsmasq[2455]: duplicate dhcp-host IP address 10.155.92.201 at line 1 of /var/lib/lxd-bridge/dhcp-hosts/web01
 </code></pre><p>のようなエラーが出てしまいました。 <code>duplicate dhcp-host IP address</code> から後ろは赤字で表示されました。</p>
 <h3 id="コンテナを削除後同じipアドレスを他のコンテナで使いたいが失敗">コンテナを削除後、同じIPアドレスを他のコンテナで使いたいが失敗</h3>
 <p>以下では <a href="/blog/2016/08/11/release-all-unused-addresses-of-lxd-bridge/">LXDのDHCPで使っていないIPアドレスを一括で解放するスクリプトを書いた · hnakamur&rsquo;s blog at github</a> のスクリプトを <code>~/bin/lxd-bridge-release-all-unused-addresses.sh</code> に保存してあるものとして説明します。</p>
 <p>上記の状態の後、 <code>journalctl -f</code> を引き続き別端末で実行しておいて</p>
-<pre><code>lxc delete -f web01
+<pre tabindex="0"><code>lxc delete -f web01
 sudo rm /var/lib/lxd-bridge/dhcp-hosts/web01
 sudo kill -HUP `cat /var/run/lxd-bridge/dnsmasq.pid`
 ~/bin/lxd-bridge-release-all-unused-addresses.sh
 echo web02,10.155.92.201 | sudo tee /var/lib/lxd-bridge/dhcp-hosts/web02 &gt; /dev/null
 </code></pre><p>と実行すると</p>
-<pre><code>Aug 12 08:44:13 lxdhostname dnsmasq-dhcp[2455]: read /var/lib/lxd-bridge/dhcp-hosts/web02
+<pre tabindex="0"><code>Aug 12 08:44:13 lxdhostname dnsmasq-dhcp[2455]: read /var/lib/lxd-bridge/dhcp-hosts/web02
 Aug 12 08:44:13 lxdhostname dnsmasq[2455]: duplicate dhcp-host IP address 10.155.92.201 at line 1 of /var/lib/lxd-bridge/dhcp-hosts/web02
 </code></pre><p>と先程と同様のエラーが出ました。ここから</p>
-<pre><code>lxc launch images:centos/7/amd64 web02
+<pre tabindex="0"><code>lxc launch images:centos/7/amd64 web02
 </code></pre><p>と実行しても、指定した <code>10.155.92.201</code> とは異なるアドレスになってしまいました。</p>
 <p>ということで <code>--dhcp-hostsdir=&lt;path&gt;</code> は正しい使い方がわからなかったので、諦めて <code>--dhcp-hostsfile=&lt;path&gt;</code> のほうを使うことにしました。</p>
 
