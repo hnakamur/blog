@@ -4,6 +4,10 @@ date: 2020-04-29T17:51:58+09:00
 lastmod: 2020-10-29T21:25:00+09:00
 ---
 
+## 2021-10-31 追記
+
+再度検証してみたので [Linuxのkernel TLSでnginxのSSL_sendfileを試してみた · hnakamur's blog](/blog/2021/10/31/tried-linux-kernel-tls-nginx-sendfile/) のほうをご参照ください。
+
 ## 試したきっかけ
 
 [Can a Rust web server beat nginx in serving static files? : rust](https://www.reddit.com/r/rust/comments/a82w9b/can_a_rust_web_server_beat_nginx_in_serving/#ec7ul6t) に以下のようなコメントがありました。
