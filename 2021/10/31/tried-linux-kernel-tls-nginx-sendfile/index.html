@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.88.1" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Linuxのkernel TLSでnginxのSSL_sendfileを試してみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-53263855-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-53263855-1');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2021. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Linuxのkernel TLSでnginxのSSL_sendfileを試してみた</h1>
+  <time datetime=2021-10-31T01:10:06&#43;0900 class="post-date">2021-10-31</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#検証環境">検証環境</a></li>
+    <li><a href="#openssl-の-ktls_sendfile-のテスト実行">OpenSSL の ktls_sendfile のテスト実行</a></li>
+    <li><a href="#openssl-の-s_server-と-curl-での検証">OpenSSL の s_server と curl での検証</a></li>
+    <li><a href="#nginx-と-curl-での検証">nginx と curl での検証</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="/blog/2020/04/29/tried-ssl_sendfile-with-openssl-and-nginx/">OpenSSLのSSL_sendfileとパッチを当てたnginxでLinuxのkTLSを試してみた · hnakamur&rsquo;s blog</a> を書いてから1年半経って状況が変わっていたので再度試してみました。</p>
+<p>9日前に <a href="https://github.com/nginx/nginx/commit/1fc61b7b1ff182e86078200a59d3c523419c7b3b">SSL: SSL_sendfile() support with kernel TLS. · nginx/nginx@1fc61b7</a> で Linux の kernel TLS を使って sendfile するコードが nginx に入っていました。</p>
+<p>コミットメッセージによると enable-tls オプションを有効にした OpenSSL 3.0 が必要とのことです。</p>
+<h2 id="検証環境">検証環境</h2>
+<pre tabindex="0"><code>$ cat /etc/os-release | grep ^VERSION=
+VERSION=&quot;20.04.3 LTS (Focal Fossa)&quot;
+$ uname -r
+5.11.0-38-generic
+$ uname -m
+x86_64
+</code></pre><p>Docker を使った検証手順を <a href="https://github.com/hnakamur/ktls_sendfile_experiment">https://github.com/hnakamur/ktls_sendfile_experiment</a> に置きました。
+以下の手順でビルドします。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash">git clone https://github.com/hnakamur/ktls_sendfile_experiment
+<span class="nb">cd</span> ktls_sendfile_experiment
+docker build -t tks_sendfile .
+</code></pre></div><p>手順の詳細は <a href="https://github.com/hnakamur/ktls_sendfile_experiment/blob/f99569f9b7a3230df5c5e773813afc7e86e619e1/Dockerfile">Dockerfile</a> を参照してください。</p>
+<p>OpenSSL はこの記事を書いた時の最新のコミット
+<a href="https://github.com/openssl/openssl/commit/a87c3247ca641f2593391bf44d47e3dccc7f8d73">Remove redundant RAND_get0_private() call · openssl/openssl@a87c324</a>
+にデバッグログを追加した
+<a href="https://github.com/hnakamur/openssl/commit/4194d733bb52a76940aa96b25a5ea062c2d05951">Use fprintf for debug log · hnakamur/openssl@4194d73</a> のコミットを使用しています。</p>
+<p>nginx も同様に最新のコミット
+<a href="https://github.com/nginx/nginx/commit/3253b346fb8b067d68a79ae72e08a376f234b0b3">Core: removed unnecessary restriction in hash initialization. · nginx/nginx@3253b34</a>
+にデバッグログを追加した
+<a href="https://github.com/hnakamur/nginx/commit/2499956347b088e7f4f6ee761b86a705eb68417e">Add debug log for BIO_get_ktls_send · hnakamur/nginx@2499956</a> のコミットを使用しています。</p>
+<h2 id="openssl-の-ktls_sendfile-のテスト実行">OpenSSL の ktls_sendfile のテスト実行</h2>
+<p>以下のコマンドで実行できます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash">docker run --rm -it ktls_sendfile test_sslapi.sh
+</code></pre></div><p>デバッグログ出力の抜粋を以下に示します。</p>
+<pre tabindex="0"><code>DEBUG_KTLS: after create_ssl_objects2, serverssl=0x563af62a1740, clientssl=0x563af62a3500, clientssl-&gt;options=0x120000
+DEBUG_KTLS: SSL_set_options(serverssl, SSL_OP_ENABLE_KTLS) OK, serverssl-&gt;options=0x120108, SSL_OP_ENABLE_KTLS=0x8, serverssl=0x563af62a1740.
+DEBUG_KTLS: Skip ktls for s=0x563af62a3500 because compressed or ktls disabled, s-&gt;compress=(nil), s-&gt;options=0x120000, disabled=1.
+DEBUG_KTLS: s=0x563af62a3500 after s-&gt;statem.enc_write_state = ENC_WRITE_STATE_VALID.
+DEBUG_KTLS: calling BIO_set_ktls s=0x563af62a1740, which=0x21, SSL3_CC_WRITE=0x2, which &amp; SSL3_CC_WRITE=0x0
+DEBUG_KTLS: s=0x563af62a1740 BIO_set_ktls(bio, &amp;crypto_info, which &amp; SSL3_CC_WRITE) returned true, which=0x21, SSL3_CC_WRITE=0x2, which &amp; SSL3_CC_WRITE=0x0
+DEBUG_KTLS: s=0x563af62a1740 after s-&gt;statem.enc_write_state = ENC_WRITE_STATE_VALID.
+DEBUG_KTLS: calling BIO_set_ktls s=0x563af62a1740, which=0x22, SSL3_CC_WRITE=0x2, which &amp; SSL3_CC_WRITE=0x2
+DEBUG_KTLS: s=0x563af62a1740 BIO_set_ktls(bio, &amp;crypto_info, which &amp; SSL3_CC_WRITE) returned true, which=0x22, SSL3_CC_WRITE=0x2, which &amp; SSL3_CC_WRITE=0x2
+DEBUG_KTLS: s=0x563af62a1740 after s-&gt;statem.enc_write_state = ENC_WRITE_STATE_VALID.
+DEBUG_KTLS: Skip ktls for s=0x563af62a3500 because compressed or ktls disabled, s-&gt;compress=(nil), s-&gt;options=0x120000, disabled=1.
+DEBUG_KTLS: s=0x563af62a3500 after s-&gt;statem.enc_write_state = ENC_WRITE_STATE_VALID.
+DEBUG_KTLS: ktls_sendfile ret=16384, s=0x563af62a1740, wfd=5, fd=3, offset=0, size=16384, flags=0
+DEBUG_KTLS: ktls_sendfile ret=16384, s=0x563af62a1740, wfd=5, fd=3, offset=16384, size=16384, flags=0
+DEBUG_KTLS: ktls_sendfile ret=16384, s=0x563af62a1740, wfd=5, fd=3, offset=32768, size=16384, flags=0
+DEBUG_KTLS: ktls_sendfile ret=16384, s=0x563af62a1740, wfd=5, fd=3, offset=49152, size=16384, flags=0
+</code></pre><p><a href="https://github.com/openssl/openssl/blob/a87c3247ca641f2593391bf44d47e3dccc7f8d73/test/sslapitest.c#L1276">execute_test_ktls_sendfile</a> 関数内で
+<a href="https://github.com/openssl/openssl/blob/a87c3247ca641f2593391bf44d47e3dccc7f8d73/test/sslapitest.c#L1322-L1323">create_ssl_objects2 関数を呼び出して</a> <code>serverssl</code> と <code>clientssl</code> を作成しています。</p>
+<p>その後 <a href="https://github.com/openssl/openssl/blob/a87c3247ca641f2593391bf44d47e3dccc7f8d73/test/sslapitest.c#L1326">SSL_set_options(serverssl, SSL_OP_ENABLE_KTLS)</a> を実行して <code>serverssl</code> で KTLS を有効にしています。</p>
+<p><a href="https://github.com/openssl/openssl/blob/a87c3247ca641f2593391bf44d47e3dccc7f8d73/ssl/t1_enc.c#L186">tls1_change_cipher_state</a> 関数内で
+<a href="https://github.com/openssl/openssl/blob/a87c3247ca641f2593391bf44d47e3dccc7f8d73/ssl/t1_enc.c#L437">if (s-&gt;compress || (s-&gt;options &amp; SSL_OP_ENABLE_KTLS) == 0)</a>
+という条件判定がありますがで <code>clientssl</code> のほうは KTLS を有効にしていないのでその下の <code>goto skip_ktls;</code> で
+<a href="https://github.com/openssl/openssl/blob/a87c3247ca641f2593391bf44d47e3dccc7f8d73/ssl/t1_enc.c#L507">skip_tls:</a> ラベルに飛びます。</p>
+<p>serverssl のほうは
+<a href="https://github.com/openssl/openssl/blob/a87c3247ca641f2593391bf44d47e3dccc7f8d73/ssl/t1_enc.c#L501">BIO_set_ktls</a> を呼び出しています。</p>
+<p>その後
+<a href="https://github.com/openssl/openssl/blob/a87c3247ca641f2593391bf44d47e3dccc7f8d73/ssl/ssl_lib.c#L2049">SSL_sendfile 関数</a> 内で
+<a href="https://github.com/openssl/openssl/blob/a87c3247ca641f2593391bf44d47e3dccc7f8d73/ssl/ssl_lib.c#L2096">ret = ktls_sendfile(SSL_get_wfd(s), fd, offset, size, flags);</a> として <code>ktls_sendfile</code> 関数を呼んでいます。</p>
+<p><code>ktls_sendfile</code> は Linux 用の実装が <a href="https://github.com/openssl/openssl/blob/a87c3247ca641f2593391bf44d47e3dccc7f8d73/include/internal/ktls.h#L332-L335">include/internal/ktls.h#L332-L335</a>、FreeBSD用の実装が <a href="https://github.com/openssl/openssl/blob/a87c3247ca641f2593391bf44d47e3dccc7f8d73/include/internal/ktls.h#L188-L198">include/internal/ktls.h#L188-L198</a> にあります。
+どちらもほぼ OS の sendfile を呼んでいるだけです。 Linux と FreeBSD でインタフェースを合わせるためにラップしているということのようです。 Linux のほうは frags 引数が無視されるとコメントに書いてありました。</p>
+<h2 id="openssl-の-s_server-と-curl-での検証">OpenSSL の s_server と curl での検証</h2>
+<p>以下のコマンドで <code>openssl s_server</code> を起動します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash">docker run --rm -it ktls_sendfile run_s_server.sh
+</code></pre></div><p><a href="https://github.com/hnakamur/ktls_sendfile_experiment/blob/f99569f9b7a3230df5c5e773813afc7e86e619e1/run_s_server.sh">run_s_server.sh</a>
+では</p>
+<pre tabindex="0"><code>openssl s_server -WWW -cert /work/example.com.crt -key /work/example.com.key -accept 443 -ktls -sendfile
+</code></pre><p>のように起動しています。</p>
+<p>別の端末を開いて以下のように curl を実行します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash">docker <span class="nb">exec</span> -it <span class="k">$(</span>docker ps -q<span class="k">)</span> curl -sSkv -o /dev/null https://localhost/index.html
+</code></pre></div><p><code>openssl s_server</code> 側の出力は以下のようになり <code>ktls_sendfile</code> が呼ばれていることがわかります。</p>
+<pre tabindex="0"><code>Using default temp DH parameters
+ACCEPT
+FILE:index.html
+DEBUG_KTLS: ktls_sendfile ret=615, s=0x56490fd4b870, wfd=4, fd=5, offset=0, size=615, flags=0
+KTLS SENDFILE 'index.html' OK
+</code></pre><p>curl の出力には以下の行があり、 TLSv1.3 で接続したことがわかります。</p>
+<pre tabindex="0"><code>* SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384
+</code></pre><h2 id="nginx-と-curl-での検証">nginx と curl での検証</h2>
+<p>以下のコマンドで nginx を起動します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash">docker run --rm -it ktls_sendfile
+</code></pre></div><p>nginx のコマンドラインは
+<a href="https://github.com/hnakamur/ktls_sendfile_experiment/blob/f99569f9b7a3230df5c5e773813afc7e86e619e1/Dockerfile">Dockerfile</a> 内の <a href="https://github.com/hnakamur/ktls_sendfile_experiment/blob/f99569f9b7a3230df5c5e773813afc7e86e619e1/Dockerfile#L32">CMD の行</a> で指定していて、シェルからの実行形式だと</p>
+<pre tabindex="0"><code>/usr/local/nginx/sbin/nginx -g 'daemon off;'
+</code></pre><p>です。</p>
+<p>別の端末を開いて以下のように curl を実行します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash">docker <span class="nb">exec</span> -it <span class="k">$(</span>docker ps -q<span class="k">)</span> curl -sSkv -o /dev/null https://localhost
+</code></pre></div><p>nginx の標準エラー出力の抜粋を以下に示します。
+nginx と OpenSSL に追加したデバッグログで nginx 側の <code>BIO_get_ktls_send</code> 関数呼び出しで OpenSSL 側では <code>ktls_sendfile</code> が呼ばれていることが確認できました。</p>
+<pre tabindex="0"><code>2021/10/30 17:07:06 [notice] 7#0: *1 ngx_ssl_handshake: calling BIO_get_ktls_send() while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2021/10/30 17:07:06 [notice] 7#0: *1 ngx_ssl_handshake: BIO_get_ktls_send(): 1 while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+DEBUG_KTLS: ktls_sendfile ret=615, s=0x55ef95f596c0, wfd=3, fd=10, offset=0, size=615, flags=0
+</code></pre><p>また curl の出力には以下の行があり TLSv1.3 で接続したことがわかります。</p>
+<pre tabindex="0"><code>* SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384
+</code></pre>
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-53263855-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
