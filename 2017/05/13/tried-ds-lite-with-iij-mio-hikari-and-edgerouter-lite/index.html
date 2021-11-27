@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.88.1" />
+  <meta name="generator" content="Hugo 0.89.4" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -144,8 +144,8 @@ RT-500KIのIPv4 PPPoEとIPv6ファイアウォール機能を無効に変更し�
 </ul>
 <p>以下のコマンドを実行しデフォルトのパスワード <code>ubnt</code> でログインします。
 ThinkPadではBash on Windowsを使っています。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">ssh ubnt@192.168.1.1
-</code></pre><h3 id="管理者ユーザの作成">管理者ユーザの作成</h3>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">ssh ubnt@192.168.1.1
+</span></code></pre></div><h3 id="管理者ユーザの作成">管理者ユーザの作成</h3>
 <p>EdgeOS User Guideにはデフォルトの <code>ubnt</code> ユーザとは別にユーザを作るのが望ましいようなことが書いてあったので作って <code>ubnt</code> は消すことにします。また ssh は鍵認証だけに変更します。</p>
 <ul>
 <li><a href="https://orebibou.com/2015/01/vyattavyos%E3%81%A7%E3%83%A6%E3%83%BC%E3%82%B6%E3%81%AE%E4%BD%9C%E6%88%90%E3%83%BB%E5%A4%89%E6%9B%B4%E3%83%BB%E5%89%8A%E9%99%A4%E3%82%92%E8%A1%8C%E3%81%86/">Vyatta/VyOSでユーザの作成・パスワード変更・ユーザの削除を行う | 俺的備忘録 〜なんかいろいろ〜</a></li>
@@ -158,16 +158,16 @@ set system login user admin1 authentication-password admin1pass
 </code></pre></div><p>補足1: <code>level</code> の指定はしなくてもデフォルトで <code>admin</code> になるようです。以下に書いたように <code>sudo</code> で確認しました。</p>
 <p>補足2: ついでにユーザが消した時の挙動を試してみたのですが、EdgeRouter Lite v1.9.1.1では再起動しなくても上の記事のように設定が一部残るということはなくなっていました。</p>
 <p>一方で、再度同じ名前のユーザ名を作ると、以下のようにホームディレクトリが既にあるという警告が出ました。ということでユーザを削除したときはホームディレクトリも消しておくほうがセキュリティ上は良さそうです。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">ubnt@ubnt# commit
-[ system login ]
-useradd: warning: the home directory already exists.
-Not copying any file from skel directory into it.
-</code></pre><p>ubntユーザのほうはsshをログアウトして新しいユーザとパスワードでログイン出来ることを確認します。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">$ ssh admin1@192.168.1.1
-</code></pre><p><code>sudo</code> で管理者になれるか確認します。パスワード不要で <code>root</code> ユーザになれました。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">admin1@ubnt:~$ sudo whoami
-root
-</code></pre><h3 id="公開鍵認証の設定">公開鍵認証の設定</h3>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">ubnt@ubnt# commit
+</span><span class="go">[ system login ]
+</span><span class="go">useradd: warning: the home directory already exists.
+</span><span class="go">Not copying any file from skel directory into it.
+</span></code></pre></div><p>ubntユーザのほうはsshをログアウトして新しいユーザとパスワードでログイン出来ることを確認します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="gp">$ </span>ssh admin1@192.168.1.1
+</code></pre></div><p><code>sudo</code> で管理者になれるか確認します。パスワード不要で <code>root</code> ユーザになれました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">admin1@ubnt:~$ sudo whoami
+</span><span class="go">root
+</span></code></pre></div><h3 id="公開鍵認証の設定">公開鍵認証の設定</h3>
 <p>毎回パスワードを入力するのは面倒なのでssh-agentを使うようにするため、公開鍵でログインできるようにします。</p>
 <ul>
 <li><a href="https://misc.mat2uken.net/blog/2013/06/03/vyatta_ssh_use_public_key.html">VyattaのSSHサーバで公開鍵でログインする — どこか遠くでのんびり怠惰に暮らしたい</a></li>
@@ -176,23 +176,23 @@ root
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">set system login user admin1 authentication public-keys admin1@some-host type ssh-rsa
 set system login user admin1 authentication public-keys admin1@some-host key ssh公開鍵の本体部分(先頭のssh-rsaと末尾のuser@some-hostのようなコメントを除いた部分)
 </code></pre></div><p>一度sshを抜けて、ssh-agentを動かして鍵を追加した状態で再度sshログインし、パスワードを聞かれずにログインできることを確認します。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">$ ssh admin1@192.168.1.1
-</code></pre><h3 id="パスワード認証を無効にして公開鍵認証のみに限定">パスワード認証を無効にして公開鍵認証のみに限定</h3>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="gp">$ </span>ssh admin1@192.168.1.1
+</code></pre></div><h3 id="パスワード認証を無効にして公開鍵認証のみに限定">パスワード認証を無効にして公開鍵認証のみに限定</h3>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">set service ssh disable-password-authentication
 </code></pre></div><p>一旦sshを抜けて <code>ubnt</code> ユーザで接続を試みるとエラーになることを確認します。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">$ ssh ubnt@192.168.1.1
-Welcome to EdgeOS
-
-By logging in, accessing, or using the Ubiquiti product, you
-acknowledge that you have read and understood the Ubiquiti
-License Agreement (available in the Web UI at, by default,
-http://192.168.1.1) and agree to be bound by its terms.
-
-Permission denied (publickey).
-</code></pre><h3 id="初期ユーザ-ubnt-を削除">初期ユーザ ubnt を削除</h3>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="gp">$ </span>ssh ubnt@192.168.1.1
+<span class="go">Welcome to EdgeOS
+</span><span class="go"></span><span class="err">
+</span><span class="err"></span><span class="go">By logging in, accessing, or using the Ubiquiti product, you
+</span><span class="go">acknowledge that you have read and understood the Ubiquiti
+</span><span class="go">License Agreement (available in the Web UI at, by default,
+</span><span class="go">http://192.168.1.1) and agree to be bound by its terms.
+</span><span class="go"></span><span class="err">
+</span><span class="err"></span><span class="go">Permission denied (publickey).
+</span></code></pre></div><h3 id="初期ユーザ-ubnt-を削除">初期ユーザ ubnt を削除</h3>
 <p>再度 <code>admin1</code> ユーザでsshでログインします。以降はこのユーザで作業します。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">$ ssh admin1@192.168.1.1
-</code></pre><p>.. code-block:: text</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="gp">$ </span>ssh admin1@192.168.1.1
+</code></pre></div><p>.. code-block:: text</p>
 <pre><code>delete system login user ubnt
 </code></pre>
 <h3 id="eth1とeth2にlan用のアドレスを設定">eth1とeth2にLAN用のアドレスを設定</h3>
@@ -224,8 +224,8 @@ eth0からケーブルを外してThinkPadで有線EthernetアダプタのTCP/IP
 </ul>
 <p>詳細は省略しますが、別途コマンドプロンプトを起動していて、ケーブルを抜き差ししたときは <code>ipconfig /all</code> コマンドを実行してEthernetアダプタに付与されたIPv4およびIPv6アドレスを確認しています。正しいアドレスがつかないときは、ケーブルを抜いて暫く待ってから挿すとか、挿した後しばらく待ってみます。</p>
 <p>eth1のアドレスを指定してsshでログインできることを確認します。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">$ ssh admin1@192.168.2.1
-</code></pre><h3 id="eth0をrt-500kiに繋いでdhcpでipv4のアドレスをもらう">eth0をRT-500KIに繋いでDHCPでIPv4のアドレスをもらう</h3>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="gp">$ </span>ssh admin1@192.168.2.1
+</code></pre></div><h3 id="eth0をrt-500kiに繋いでdhcpでipv4のアドレスをもらう">eth0をRT-500KIに繋いでDHCPでIPv4のアドレスをもらう</h3>
 <p>eth0の静的IPv4アドレスの設定を消してDHCPクライアントを起動します。</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">delete interfaces ethernet eth0 address
 set interfaces ethernet eth0 address dhcp
@@ -290,19 +290,19 @@ set service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 start 192
 <p>確認するため</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">delete interfaces ethernet eth0 ipv6
 </code></pre></div><p>で設定を一旦消した後、操作モードで</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">admin1@ubnt:~$ ip del eth0のIPv6アドレス/64 dev eth 0
-</code></pre><p>でIPv6アドレスを消してから、再度設定を入れてみました。ちゃんと計っていませんが10～15分で <code>2409:</code> で始まるIPv6アドレスが付与されたようです。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">admin1@ubnt:~$ ip del eth0のIPv6アドレス/64 dev eth 0
+</span></code></pre></div><p>でIPv6アドレスを消してから、再度設定を入れてみました。ちゃんと計っていませんが10～15分で <code>2409:</code> で始まるIPv6アドレスが付与されたようです。</p>
 <p>操作モードで <code>ping6</code> コマンドで <code>www.iij.ad.jp</code> にアクセスしてみると通りました。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">admin1@ubnt:~$ ping6 www.iij.ad.jp
-PING www.iij.ad.jp(www.iij.ad.jp) 56 data bytes
-64 bytes from www.iij.ad.jp: icmp_seq=1 ttl=52 time=15.4 ms
-64 bytes from www.iij.ad.jp: icmp_seq=2 ttl=52 time=14.0 ms
-64 bytes from www.iij.ad.jp: icmp_seq=3 ttl=52 time=14.1 ms
-^C
---- www.iij.ad.jp ping statistics ---
-3 packets transmitted, 3 received, 0% packet loss, time 2003ms
-rtt min/avg/max/mdev = 14.039/14.546/15.492/0.683 ms
-</code></pre><p>試しにThinkPadからも <code>ping6 www.iij.ad.jp</code> を実行してみたら、数秒固まった後、通るようになりました。あれおかしいな、まだ通らないはずと思ったのですがtimeを見ると124~127 msと1桁多い時間がかかっていました。ThinkPadのWi-Fiを無効にしてから再度試すと今度は通らなくなりました。話がややこしくなるのでWi-Fiなど関係のない通信は切っておいたほうが良さそうです。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">admin1@ubnt:~$ ping6 www.iij.ad.jp
+</span><span class="go">PING www.iij.ad.jp(www.iij.ad.jp) 56 data bytes
+</span><span class="go">64 bytes from www.iij.ad.jp: icmp_seq=1 ttl=52 time=15.4 ms
+</span><span class="go">64 bytes from www.iij.ad.jp: icmp_seq=2 ttl=52 time=14.0 ms
+</span><span class="go">64 bytes from www.iij.ad.jp: icmp_seq=3 ttl=52 time=14.1 ms
+</span><span class="go">^C
+</span><span class="go">--- www.iij.ad.jp ping statistics ---
+</span><span class="go">3 packets transmitted, 3 received, 0% packet loss, time 2003ms
+</span><span class="go">rtt min/avg/max/mdev = 14.039/14.546/15.492/0.683 ms
+</span></code></pre></div><p>試しにThinkPadからも <code>ping6 www.iij.ad.jp</code> を実行してみたら、数秒固まった後、通るようになりました。あれおかしいな、まだ通らないはずと思ったのですがtimeを見ると124~127 msと1桁多い時間がかかっていました。ThinkPadのWi-Fiを無効にしてから再度試すと今度は通らなくなりました。話がややこしくなるのでWi-Fiなど関係のない通信は切っておいたほうが良さそうです。</p>
 <h3 id="dhcpv6-pdでeth1とeth2にipv6アドレスを付与">DHCPv6-PDでeth1とeth2にIPv6アドレスを付与</h3>
 <p>以下の設定を追加してDHCPv6-PDというのでeth1とeth2にIPv6アドレスを付与します。</p>
 <p>DHCPv6-PDは初耳だったのでググって見つけた

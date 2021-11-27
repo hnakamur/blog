@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.88.1" />
+  <meta name="generator" content="Hugo 0.89.4" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -85,13 +85,13 @@ Ubuntu 18.04のPXEブートサーバをセットアップしたメモです。</
 を参考にしましたが、preseedは今回は使わないようにしました。</p>
 <h2 id="tftpサーバのインストールと起動">tftpサーバのインストールと起動</h2>
 <p><code>tftpd-hpa</code> パッケージをインストール。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">sudo apt install tftpd-hpa
-</code></pre><p>うろ覚えですが、インストールして状態確認すると、起動して自動起動も有効になっていたと思います。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">systemctl status tftpd-hpa
-</code></pre><h2 id="dhcpサーバのインストールと起動">dhcpサーバのインストールと起動</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">sudo apt install tftpd-hpa
+</span></code></pre></div><p>うろ覚えですが、インストールして状態確認すると、起動して自動起動も有効になっていたと思います。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">systemctl status tftpd-hpa
+</span></code></pre></div><h2 id="dhcpサーバのインストールと起動">dhcpサーバのインストールと起動</h2>
 <p><code>isc-dhcp-server</code> パッケージをインストール。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">sudo apt install isc-dhcp-server
-</code></pre><p>設定ファイル <code>/etc/dhcp/dhcpd.conf</code> に自分の環境に応じた設定を追記。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">sudo apt install isc-dhcp-server
+</span></code></pre></div><p>設定ファイル <code>/etc/dhcp/dhcpd.conf</code> に自分の環境に応じた設定を追記。
 <code>hardware ethernet</code> の後のMACアドレス <code>xx:xx:xx:xx:xx:xx</code> は実際の値に置き換えてください。
 PXEブートのときにコンソールに表示されていたのでそれを見ながら設定しました。
 事前に設定するならBIOSで確認すれば良さそうです。</p>
@@ -106,20 +106,20 @@ host ubuntu-18.04-pxeboot {
   fixed-address 192.168.3.2;
 }
 </code></pre></div><p>コマンドで追記にするなら以下の2つのどちらかで。後者のほうがクォートが不要というメリットがあります。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">sudo sh -c 'cat &lt;&lt;EOF &gt;&gt; /etc/dhcp/dhcpd.conf
-subnet 192.168.3.0 netmask 255.255.255.0 {
-  option domain-name-servers 192.168.2.1;
-  option routers 192.168.3.1;
-  filename &quot;pxelinux.0&quot;;
-}
-
-host ubuntu-18.04-pxeboot {
-  hardware ethernet xx:xx:xx:xx:xx:xx;
-  fixed-address 192.168.3.2;
-}
-EOF
-'
-</code></pre><p>.. code-block:: console</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">sudo sh -c &#39;cat &lt;&lt;EOF &gt;&gt; /etc/dhcp/dhcpd.conf
+</span><span class="go">subnet 192.168.3.0 netmask 255.255.255.0 {
+</span><span class="go">  option domain-name-servers 192.168.2.1;
+</span><span class="go">  option routers 192.168.3.1;
+</span><span class="go">  filename &#34;pxelinux.0&#34;;
+</span><span class="go">}
+</span><span class="go"></span><span class="err">
+</span><span class="err"></span><span class="go">host ubuntu-18.04-pxeboot {
+</span><span class="go">  hardware ethernet xx:xx:xx:xx:xx:xx;
+</span><span class="go">  fixed-address 192.168.3.2;
+</span><span class="go">}
+</span><span class="go">EOF
+</span><span class="go">&#39;
+</span></code></pre></div><p>.. code-block:: console</p>
 <pre><code>sudo cat &lt;&lt;EOF | sudo tee -a /etc/dhcp/dhcpd.conf &gt; /dev/null
 subnet 192.168.3.0 netmask 255.255.255.0 {
   option domain-name-servers 192.168.2.1;
@@ -134,13 +134,13 @@ host ubuntu-18.04-pxeboot {
 EOF
 </code></pre>
 <p>こちらもうろ覚えですが、起動と自動起動有効化はすでにされていたと思うので、再起動して設定変更を反映しました。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">sudo systemctl restart isc-dhcp-server
-</code></pre><h2 id="ubuntu-1804のネットブートイメージの取得と設置">Ubuntu 18.04のネットブートイメージの取得と設置</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">sudo systemctl restart isc-dhcp-server
+</span></code></pre></div><h2 id="ubuntu-1804のネットブートイメージの取得と設置">Ubuntu 18.04のネットブートイメージの取得と設置</h2>
 <p>参考にした記事ではpreseedを使うためにネットブートイメージのtarballを取得・展開した後、小分けにコピーしていましたが、preseed無しなら単にtarballをtfptd-hpaの公開ディレクトリ <code>/var/lib/tftpboot</code> に展開して所有者を <code>tftp</code> にするだけでOKでした。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">curl -LO http://archive.ubuntu.com/ubuntu/dists/bionic/main/installer-amd64/current/images/netboot/netboot.tar.gz
-sudo tar xf netboot.tar.gz -C /var/lib/tftpboot
-sudo chown -R tftp:tftp /var/lib/tftpboot
-</code></pre>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">curl -LO http://archive.ubuntu.com/ubuntu/dists/bionic/main/installer-amd64/current/images/netboot/netboot.tar.gz
+</span><span class="go">sudo tar xf netboot.tar.gz -C /var/lib/tftpboot
+</span><span class="go">sudo chown -R tftp:tftp /var/lib/tftpboot
+</span></code></pre></div>
 </div>
 
 

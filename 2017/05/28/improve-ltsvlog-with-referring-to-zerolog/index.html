@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.88.1" />
+  <meta name="generator" content="Hugo 0.89.4" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -121,30 +121,30 @@ zerologの仕組みを調べ、自作のLTSVログ出力ライブラリ
 というのもありました。
 改善前後の比較という意味でbenchcmpのほうが名前がわかりやすいと思ってしばらくそちらを使っていました。が、今改めてドキュメントを見比べてみると、ベンチマークを複数回実行して比較するにはbenchstatのほうが良さそうです。</p>
 <p>benchstatは以下のコマンドでインストールします。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">go get -u golang.org/x/perf/cmd/benchstat/...
-</code></pre><p>ベンチマークを書いたら改善前の状態で一旦ベンチマークを取ります。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">go test -count=10 -run=NONE -bench . -benchmem -cpuprofile=cpu-old.prof | tee old.log
-</code></pre><p>コードを改善したら再度ベンチマークを取ります。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">go test -count=10 -run=NONE -bench . -benchmem -cpuprofile=cpu-new.prof | tee new.log
-</code></pre><p>benchstatを実行して改善度合いを確認します。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">hnakamur@express:~/go/src/github.com/hnakamur/ltsvlog$ benchstat old.log new.log
-name            old time/op    new time/op    delta
-Info-2            1.90µs ± 1%    1.60µs ± 1%     -16.00%  (p=0.000 n=9+10)
-ErrWithStack-2    13.9µs ± 1%    18.3µs ± 4%     +31.11%  (p=0.000 n=9+9)
-
-name            old alloc/op   new alloc/op   delta
-Info-2             32.0B ± 0%      0.0B         -100.00%  (p=0.000 n=10+10)
-ErrWithStack-2     80.0B ± 0%   8260.0B ± 0%  +10225.00%  (p=0.000 n=10+7)
-
-name            old allocs/op  new allocs/op  delta
-Info-2              2.00 ± 0%      0.00         -100.00%  (p=0.000 n=10+10)
-ErrWithStack-2      4.00 ± 0%      3.00 ± 0%     -25.00%  (p=0.000 n=10+10)
-</code></pre><p>またgo-torchでフレームグラフのsvgファイルを出力してブラウザなどで表示し、ベンチマークで実行しているコードのどの部分が主に時間がかかっているかを確認します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">go get -u golang.org/x/perf/cmd/benchstat/...
+</span></code></pre></div><p>ベンチマークを書いたら改善前の状態で一旦ベンチマークを取ります。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">go test -count=10 -run=NONE -bench . -benchmem -cpuprofile=cpu-old.prof | tee old.log
+</span></code></pre></div><p>コードを改善したら再度ベンチマークを取ります。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">go test -count=10 -run=NONE -bench . -benchmem -cpuprofile=cpu-new.prof | tee new.log
+</span></code></pre></div><p>benchstatを実行して改善度合いを確認します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">hnakamur@express:~/go/src/github.com/hnakamur/ltsvlog$ benchstat old.log new.log
+</span><span class="go">name            old time/op    new time/op    delta
+</span><span class="go">Info-2            1.90µs ± 1%    1.60µs ± 1%     -16.00%  (p=0.000 n=9+10)
+</span><span class="go">ErrWithStack-2    13.9µs ± 1%    18.3µs ± 4%     +31.11%  (p=0.000 n=9+9)
+</span><span class="go"></span><span class="err">
+</span><span class="err"></span><span class="go">name            old alloc/op   new alloc/op   delta
+</span><span class="go">Info-2             32.0B ± 0%      0.0B         -100.00%  (p=0.000 n=10+10)
+</span><span class="go">ErrWithStack-2     80.0B ± 0%   8260.0B ± 0%  +10225.00%  (p=0.000 n=10+7)
+</span><span class="go"></span><span class="err">
+</span><span class="err"></span><span class="go">name            old allocs/op  new allocs/op  delta
+</span><span class="go">Info-2              2.00 ± 0%      0.00         -100.00%  (p=0.000 n=10+10)
+</span><span class="go">ErrWithStack-2      4.00 ± 0%      3.00 ± 0%     -25.00%  (p=0.000 n=10+10)
+</span></code></pre></div><p>またgo-torchでフレームグラフのsvgファイルを出力してブラウザなどで表示し、ベンチマークで実行しているコードのどの部分が主に時間がかかっているかを確認します。</p>
 <p>go-torchは</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">go get -u github.com/uber/go-torch/...
-</code></pre><p>でインストールして</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">go-torch -f torch-new.svg cpu-new.prof 
-</code></pre><p>で実行します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">go get -u github.com/uber/go-torch/...
+</span></code></pre></div><p>でインストールして</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">go-torch -f torch-new.svg cpu-new.prof 
+</span></code></pre></div><p>で実行します。</p>
 <h2 id="ltsvlogのapiの設計メモ">ltsvlogのAPIの設計メモ</h2>
 <h3 id="infoとdebugはeventのlogメソッドでログ出力">InfoとDebugはEventのLogメソッドでログ出力</h3>
 <p>zerologはEventのMsgかMsgfメソッドを呼び出すとメッセージを追加したうえでログ出力するというAPIになっています。私はメッセージの位置をもっと前にしたいのでログ出力にはLogという専用のメソッドを追加することにしました。</p>

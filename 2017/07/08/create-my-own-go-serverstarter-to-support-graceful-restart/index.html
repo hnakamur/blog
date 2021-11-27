@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.88.1" />
+  <meta name="generator" content="Hugo 0.89.4" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -93,11 +93,11 @@
 ありがとうございます！</p>
 <p>今回自分好みの構成にするためにサーバ起動のGoライブラリを自作してみたのでメモです。</p>
 <p>検証環境は以下の通りです。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">$ go version
-go version go1.9beta2 linux/amd64
-$ grep ^VERSION= /etc/os-release
-VERSION=&quot;16.04.2 LTS (Xenial Xerus)&quot;
-</code></pre><h2 id="使ってみた既存のライブラリ">使ってみた既存のライブラリ</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="gp">$ </span>go version
+<span class="go">go version go1.9beta2 linux/amd64
+</span><span class="go"></span><span class="gp">$ </span>grep ^VERSION<span class="o">=</span> /etc/os-release
+<span class="go">VERSION=&#34;16.04.2 LTS (Xenial Xerus)&#34;
+</span></code></pre></div><h2 id="使ってみた既存のライブラリ">使ってみた既存のライブラリ</h2>
 <h3 id="githubcomlestrratgo-server-starter">github.com/lestrrat/go-server-starter</h3>
 <p><code>github.com/lestrrat/go-server-starter</code> パッケージは Perl の `Server::Starter - a superdaemon for hot-deploying server programs - metacpan.org](<a href="https://metacpan.org/pod/Server::Starter">https://metacpan.org/pod/Server::Starter</a>) と互換性があり、 drop-in replacement として使えることを目的として開発されています。</p>
 <p><code>github.com/lestrrat/go-server-starter</code> パッケージでは
@@ -131,13 +131,13 @@ VERSION=&quot;16.04.2 LTS (Xenial Xerus)&quot;
 <a href="https://godoc.org/github.com/facebookgo/grace/gracehttp#Serve">func Serve(servers &hellip;*http.Server) error</a> を使うように改変するだけです。</p>
 <p>このように手軽に使えるのが魅力です。</p>
 <p>プロセス構成は普段は自分のサーバプロセスが単体で存在するようになっています。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">自分のサーバプロセス
-</code></pre><p><code>SIGUSR2</code> を受け取ると新しいサーバプロセスを子プロセスとして起動します。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">旧サーバプロセス
- \_ 新サーバプロセス
-</code></pre><p>新サーバプロセスは起動すると <code>SIGTERM</code> を親である旧サーバプロセスに送り、旧サーバプロセスはそれを受け取って終了します。その結果新サーバプロセスだけが残ります。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">新サーバプロセス
-</code></pre><p>つまり元のプロセスIDとは異なるプロセスIDを持つプロセスだけが残ることになります。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">自分のサーバプロセス
+</span></code></pre></div><p><code>SIGUSR2</code> を受け取ると新しいサーバプロセスを子プロセスとして起動します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">旧サーバプロセス
+</span><span class="go"> \_ 新サーバプロセス
+</span></code></pre></div><p>新サーバプロセスは起動すると <code>SIGTERM</code> を親である旧サーバプロセスに送り、旧サーバプロセスはそれを受け取って終了します。その結果新サーバプロセスだけが残ります。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">新サーバプロセス
+</span></code></pre></div><p>つまり元のプロセスIDとは異なるプロセスIDを持つプロセスだけが残ることになります。
 この方式だと <a href="http://cr.yp.to/daemontools.html">daemontools</a> や
 Pythonの <a href="http://supervisord.org/">Supervisor</a> から使えなくて困りそうです。</p>
 <p>ただ、私個人は <a href="https://www.freedesktop.org/wiki/Software/systemd/">systemd</a> から使えれば困らないので、この点は特に気にしていませんでした。</p>
@@ -151,16 +151,16 @@ Pythonの <a href="http://supervisord.org/">Supervisor</a> から使えなくて
 <p><a href="https://github.com/hnakamur/serverstarter">github.com/hnakamur/serverstarter</a> で公開しています。</p>
 <h3 id="プロセス構成">プロセス構成</h3>
 <p>プロセス構成は以下のようになっています。サーバプログラムを起動した直後はマスタープロセスだけがある状態ですが、マスタープロセスはポートのリッスンを行った後ワーカープロセスを起動します。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">マスタープロセス
- \_ ワーカープロセス
-</code></pre><p>マスタープロセスが <code>SIGHUP</code> を受け取ると新しいワーカープロセスを起動します。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">マスタープロセス
- \_ 旧ワーカープロセス
- \_ 新ワーカープロセス
-</code></pre><p>その後、マスタープロセスが旧ワーカープロセスに <code>SIGTERM</code> を送ると旧ワーカープロセスが自分を終了します。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">マスタープロセス
- \_ 新ワーカープロセス
-</code></pre><h3 id="シンプルなコード例">シンプルなコード例</h3>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">マスタープロセス
+</span><span class="go"> \_ ワーカープロセス
+</span></code></pre></div><p>マスタープロセスが <code>SIGHUP</code> を受け取ると新しいワーカープロセスを起動します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">マスタープロセス
+</span><span class="go"> \_ 旧ワーカープロセス
+</span><span class="go"> \_ 新ワーカープロセス
+</span></code></pre></div><p>その後、マスタープロセスが旧ワーカープロセスに <code>SIGTERM</code> を送ると旧ワーカープロセスが自分を終了します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">マスタープロセス
+</span><span class="go"> \_ 新ワーカープロセス
+</span></code></pre></div><h3 id="シンプルなコード例">シンプルなコード例</h3>
 <p>このライブラリを使うには自分のサーバプログラムに組み込んで以下のような構成にします。</p>
 <div class="highlight"><div class="chroma">
 <table class="lntable"><tr><td class="lntd">
@@ -316,15 +316,15 @@ Pythonの <a href="http://supervisord.org/">Supervisor</a> から使えなくて
 <p>実際試してみた結果、HTTP/1.1とHTTP/2のポートの両方をリッスンした状態で毎秒グレースフルリスタートをかけつつ、HTTP/1.1、HTTP/2のどちらのポートにベンチマーククライアントでアクセスをかけても取りこぼしは起きませんでした。</p>
 <p>また、毎秒グレースフルリスタートをかけた状態で、元とは違う内容のレスポンスを返すようにサーバのコードを書き換えて <code>go build -race</code> で実行ファイルを置き換える試験もしてみましたが、この場合も取りこぼし無しで置き換えが出来ました。</p>
 <p>またその際以下のコマンドでマスタープロセスとワーカープロセスのプロセスIDも見てみました。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">watch -n 0.1 &quot;ps alwwf | grep -E '(^F|[.]/graceserver)'&quot;
-</code></pre><p>以下に出力例を示します。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">Every 0.1s: ps alwwf | grep -E '(^F|[.]/graceserver)'       Sat Jul  8 23:38:53 2017
-
-F   UID   PID  PPID PRI  NI    VSZ   RSS WCHAN  STAT TTY        TIME COMMAND
-0  1000 31459 17608  20   0 387856 29556 futex_ Sl+  pts/14     0:00  \_ ./graceserver -http=:9090 -https=:9443 -sleep=2s
-0  1000  6646 31459  20   0 403468 32900 futex_ Sl+  pts/14     0:00      \_ ./graceserver -http=:9090 -https=:9443 -sleep=2s
-0  1000  6720 31459  20   0 190296 29608 futex_ Sl+  pts/14     0:00      \_ ./graceserver -http=:9090 -https=:9443 -sleep=2s
-</code></pre><p>グレースフルリスタートの度にワーカープロセスは新しく作られてプロセスIDが変わっていきますが、マスタープロセスのプロセスIDは同じままであることも確認できました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">watch -n 0.1 &#34;ps alwwf | grep -E &#39;(^F|[.]/graceserver)&#39;&#34;
+</span></code></pre></div><p>以下に出力例を示します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">Every 0.1s: ps alwwf | grep -E &#39;(^F|[.]/graceserver)&#39;       Sat Jul  8 23:38:53 2017
+</span><span class="go"></span><span class="err">
+</span><span class="err"></span><span class="go">F   UID   PID  PPID PRI  NI    VSZ   RSS WCHAN  STAT TTY        TIME COMMAND
+</span><span class="go">0  1000 31459 17608  20   0 387856 29556 futex_ Sl+  pts/14     0:00  \_ ./graceserver -http=:9090 -https=:9443 -sleep=2s
+</span><span class="go">0  1000  6646 31459  20   0 403468 32900 futex_ Sl+  pts/14     0:00      \_ ./graceserver -http=:9090 -https=:9443 -sleep=2s
+</span><span class="go">0  1000  6720 31459  20   0 190296 29608 futex_ Sl+  pts/14     0:00      \_ ./graceserver -http=:9090 -https=:9443 -sleep=2s
+</span></code></pre></div><p>グレースフルリスタートの度にワーカープロセスは新しく作られてプロセスIDが変わっていきますが、マスタープロセスのプロセスIDは同じままであることも確認できました。</p>
 <h2 id="おわりに">おわりに</h2>
 <p>例によって雰囲気で書いてみただけなので、タイミングによってちゃんと動かないなどの落とし穴が残っている可能性はありますが、とりあえず希望通りの動きにはなっています。
 また、 <code>go build -race</code> つきでビルドして動作確認しましたが datarace は報告されていないので、その点もとりあえずは大丈夫そうです。</p>

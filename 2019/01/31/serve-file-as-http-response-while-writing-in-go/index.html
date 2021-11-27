@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.88.1" />
+  <meta name="generator" content="Hugo 0.89.4" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -289,8 +289,8 @@ Readerが最初にWriterにsubscribeするとバッファサイズ1のchannelを
     <span class="k">return</span> <span class="nx">s</span><span class="p">.</span><span class="nf">ListenAndServe</span><span class="p">()</span>
 <span class="p">}</span>
 </code></pre></div><p>このサンプルを <a href="https://raw.githubusercontent.com/go-delve/delve/master/assets/delve_horizontal.png">delve</a> というデバッガで動かします。使い方は <a href="https://qiita.com/minamijoyo/items/4da68467c1c5d94c8cd7">Golangのデバッガdelveの使い方 - Qiita</a> がわかりやすかったです。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">dlv debug
-</code></pre><p>で起動して SendFile 関数にブレークポイントを設定し、別の端末で curl でリクエストを打ちました。で止まったところでスタックトレースを表示すると以下のようになりました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">dlv debug
+</span></code></pre></div><p>で起動して SendFile 関数にブレークポイントを設定し、別の端末で curl でリクエストを打ちました。で止まったところでスタックトレースを表示すると以下のようになりました。</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-txt" data-lang="txt">(dlv) b SendFile
 Breakpoint 2 set at 0x4a67b8 for internal/poll.SendFile() /usr/local/go/src/internal/poll/sendfile_linux.go:14
 (dlv) c
@@ -542,59 +542,59 @@ created by net/http.(*Server).Serve
 <p>使用例としてテストコードから以下に抜粋します。</p>
 <p><a href="https://github.com/hnakamur/readwhilewrite/blob/68a26aa56e8f0f07a5c5301494128ccfc37b365c/send_file_http_test.go#L17-L71">send_file_http_test.go#L17-L71</a></p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="nx">ts</span> <span class="o">:=</span> <span class="nx">httptest</span><span class="p">.</span><span class="nf">NewServer</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nf">HandlerFunc</span><span class="p">(</span><span class="kd">func</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
-</code></pre></div><pre><code>       file, err := ioutil.TempFile(&quot;&quot;, &quot;test&quot;)
-       if err != nil {
-           httpError(w, http.StatusInternalServerError)
-           return
-       }
-       filename := file.Name()
-       defer os.Remove(filename)
+</code></pre></div><pre><code>	   file, err := ioutil.TempFile(&quot;&quot;, &quot;test&quot;)
+	   if err != nil {
+		   httpError(w, http.StatusInternalServerError)
+		   return
+	   }
+	   filename := file.Name()
+	   defer os.Remove(filename)
 
-       w2 := readwhilewrite.NewWriter(file)
+	   w2 := readwhilewrite.NewWriter(file)
 
-       rerrC := make(chan error, 1)
-       go func() {
-           defer close(rerrC)
+	   rerrC := make(chan error, 1)
+	   go func() {
+		   defer close(rerrC)
 
-           f, err := os.Open(filename)
-           if err != nil {
-               rerrC &lt;- err
-               return
-           }
-           defer f.Close()
+		   f, err := os.Open(filename)
+		   if err != nil {
+			   rerrC &lt;- err
+			   return
+		   }
+		   defer f.Close()
 
-           w.Header().Set(&quot;Content-Type&quot;, &quot;text/plain&quot;)
-           w.Header().Set(&quot;Content-Length&quot;, &quot;81920&quot;)
+		   w.Header().Set(&quot;Content-Type&quot;, &quot;text/plain&quot;)
+		   w.Header().Set(&quot;Content-Length&quot;, &quot;81920&quot;)
 
-           _, err = readwhilewrite.SendFileHTTP(r.Context(), w, f, w2)
-           if err != nil {
-               rerrC &lt;- err
-               return
-           }
-       }()
+		   _, err = readwhilewrite.SendFileHTTP(r.Context(), w, f, w2)
+		   if err != nil {
+			   rerrC &lt;- err
+			   return
+		   }
+	   }()
 
-       rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	   rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-       buf := make([]byte, 4096)
-       hexBuf := make([]byte, len(buf)*2)
-       var n int64
-       var n0 int
-       for i := 0; i &lt; 10; i++ {
-           rnd.Read(buf)
-           hex.Encode(hexBuf, buf)
-           n0, err = w2.Write(hexBuf)
-           if err != nil {
-               httpError(w, http.StatusInternalServerError)
-               return
-           }
-           n += int64(n0)
-       }
-       w2.Close()
+	   buf := make([]byte, 4096)
+	   hexBuf := make([]byte, len(buf)*2)
+	   var n int64
+	   var n0 int
+	   for i := 0; i &lt; 10; i++ {
+		   rnd.Read(buf)
+		   hex.Encode(hexBuf, buf)
+		   n0, err = w2.Write(hexBuf)
+		   if err != nil {
+			   httpError(w, http.StatusInternalServerError)
+			   return
+		   }
+		   n += int64(n0)
+	   }
+	   w2.Close()
 
-       rerr := &lt;-rerrC
-       if rerr != nil {
-           t.Fatal(err)
-       }
+	   rerr := &lt;-rerrC
+	   if rerr != nil {
+		   t.Fatal(err)
+	   }
    }))
 </code></pre>
 <ul>

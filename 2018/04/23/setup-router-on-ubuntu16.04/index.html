@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.88.1" />
+  <meta name="generator" content="Hugo 0.89.4" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -100,34 +100,34 @@ iface enp2s0 inet static
 iface enp2s0 inet6 auto
 </code></pre></div><h2 id="ipフォワードはすでに有効でした">IPフォワードはすでに有効でした</h2>
 <p><code>/etc/sysctl.conf</code> では <code>net.ipv4.ip_forward</code> の設定はコメントアウトされていました。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">$ grep net.ipv4.ip_forward /etc/sysctl.conf
-#net.ipv4.ip_forward=1
-</code></pre><p>ですが設定自体は有効になっていました。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">$ sysctl net.ipv4.ip_forward
-net.ipv4.ip_forward = 1
-</code></pre><p>以前に <a href="https://linuxcontainers.org/lxd/getting-started-cli/#snap-package-archlinux-debian-fedora-opensuse-and-ubuntu">Linux Containers - LXD - Getting started - command line</a> の手順でsnapパッケージでLXDをインストールしていたので、そのときに自動で設定されたのかどこかで設定したのかもしれません。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="gp">$ </span>grep net.ipv4.ip_forward /etc/sysctl.conf
+<span class="gp">#</span>net.ipv4.ip_forward<span class="o">=</span><span class="m">1</span>
+</code></pre></div><p>ですが設定自体は有効になっていました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="gp">$ </span>sysctl net.ipv4.ip_forward
+<span class="go">net.ipv4.ip_forward = 1
+</span></code></pre></div><p>以前に <a href="https://linuxcontainers.org/lxd/getting-started-cli/#snap-package-archlinux-debian-fedora-opensuse-and-ubuntu">Linux Containers - LXD - Getting started - command line</a> の手順でsnapパッケージでLXDをインストールしていたので、そのときに自動で設定されたのかどこかで設定したのかもしれません。</p>
 <h2 id="ipマスカレードの設定">IPマスカレードの設定</h2>
 <p><code>sudo iptables-save</code> で現状を確認するとlxd用の設定は <code>-m comment --comment</code> で設定にコメントが
 ついていたので、真似してコメント付きで設定してみました。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">sudo /sbin/iptables -t nat -A POSTROUTING -s 192.168.3.0/255.255.255.0 \
-  -m comment --comment &quot;Route back from outer network to enp2s0&quot; -j MASQUERADE
-</code></pre><p>実行したら <code>sudo iptables-save</code> で結果を確認します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">sudo /sbin/iptables -t nat -A POSTROUTING -s 192.168.3.0/255.255.255.0 \
+</span><span class="go">  -m comment --comment &#34;Route back from outer network to enp2s0&#34; -j MASQUERADE
+</span></code></pre></div><p>実行したら <code>sudo iptables-save</code> で結果を確認します。</p>
 <p>設定を間違えていたなどで削除する場合は、追加時の <code>-A</code> オプションを <code>-D</code> に変えて
 以下のようにします。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">sudo /sbin/iptables -t nat -D POSTROUTING -s 192.168.3.0/255.255.255.0 \
-  -m comment --comment &quot;Route back from outer network to enp2s0&quot; -j MASQUERADE
-</code></pre><h2 id="iptables-persistentのインストールと設定保存">iptables-persistentのインストールと設定保存</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">sudo /sbin/iptables -t nat -D POSTROUTING -s 192.168.3.0/255.255.255.0 \
+</span><span class="go">  -m comment --comment &#34;Route back from outer network to enp2s0&#34; -j MASQUERADE
+</span></code></pre></div><h2 id="iptables-persistentのインストールと設定保存">iptables-persistentのインストールと設定保存</h2>
 <p>iptablesのルールを保存しておいて起動時に読み込むために iptables-persistent というパッケージが用意されているのでそれをインストールします。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">sudo apt install iptables-persistent
-</code></pre><p><code>dpkg -L iptables-persistent</code> でファイルリストを確認すると以下の2つのファイルが含まれていました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">sudo apt install iptables-persistent
+</span></code></pre></div><p><code>dpkg -L iptables-persistent</code> でファイルリストを確認すると以下の2つのファイルが含まれていました。</p>
 <ul>
 <li>/usr/share/netfilter-persistent/plugins.d/15-ip4tables</li>
 <li>/usr/share/netfilter-persistent/plugins.d/25-ip6tables</li>
 </ul>
 <p>中身を確認するとシェルスクリプトになっていて、それぞれ <code>/etc/iptables/rules.v4</code> , <code>/etc/iptables/rues.v6</code> を読み込むようになっていました。</p>
 <p>以下のコマンドで IPv4 の設定を保存しました。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">sudo iptables-save -c | sudo tee /etc/iptables/rules.v4
-</code></pre>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">sudo iptables-save -c | sudo tee /etc/iptables/rules.v4
+</span></code></pre></div>
 </div>
 
 

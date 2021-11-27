@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.88.1" />
+  <meta name="generator" content="Hugo 0.89.4" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -78,10 +78,10 @@
 <p><a href="/blog/2019/08/15/lxd-container-templates/">LXDでコンテナの初期化に使われるテンプレート</a> に書いたように CentOS 7 コンテナは cloud-init 非対応ですので、 Ubuntu 用のプロファイルを作成して、そこにロケールとタイムゾーンの設定を入れることにします。</p>
 <p><code>default</code> プロファイルは</p>
 <p>まず以下のコマンドで Ubuntu 用のプロファイルを作成します。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">lxc profile create ubuntu
-</code></pre><p>次に今作成したプロファイルを編集します。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">lxc profile edit ubuntu
-</code></pre><p><code>config:</code> と <code>description:</code> の部分を以下のように書き換えます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">lxc profile create ubuntu
+</span></code></pre></div><p>次に今作成したプロファイルを編集します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">lxc profile edit ubuntu
+</span></code></pre></div><p><code>config:</code> と <code>description:</code> の部分を以下のように書き換えます。</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="nt">config</span><span class="p">:</span><span class="w">
 </span><span class="w">  </span><span class="nt">environment.LANG</span><span class="p">:</span><span class="w"> </span><span class="l">en_US.UTF-8</span><span class="w">
 </span><span class="w">  </span><span class="nt">user.user-data</span><span class="p">:</span><span class="w"> </span><span class="p">|</span><span class="sd">
@@ -92,25 +92,25 @@
 </span></code></pre></div><h1 id="ubuntu-コンテナの作成と起動">Ubuntu コンテナの作成と起動</h1>
 <p><code>default</code> プロファイルと上記で作成した <code>ubuntu</code> プロファイルを使用して
 <code>c1</code> という Ubuntu 18.04 LTS のコンテナを作成・起動するには以下のようにします。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">lxc launch -p default -p ubuntu ubuntu:18.04 c1
-</code></pre><h2 id="タイムゾーンの確認">タイムゾーンの確認</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">lxc launch -p default -p ubuntu ubuntu:18.04 c1
+</span></code></pre></div><h2 id="タイムゾーンの確認">タイムゾーンの確認</h2>
 <p>私の環境だと cloud-init が完了するまで 10 秒程度かかるため、 起動直後に <code>/etc/timezone</code> の中身を確認し、 <code>date</code> コマンドを実行すると UTC になっています。
 10 秒ほどしてから再度実行するとタイムゾーンとロケールが指定通りになっていました。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">$ lxc exec c1 -- sh -c 'cat /etc/timezone; date'
-Etc/UTC
-Thu Aug 15 03:00:12 UTC 2019
-$ lxc exec c1 -- sh -c 'cat /etc/timezone; date'
-Asia/Tokyo
-Thu Aug 15 12:00:21 JST 2019
-</code></pre><p>cloud-init の初期化が完了すると <code>/run/cloud-init/result.json</code> というファイルが作られるので、以下のようにすれば完了を待つことができます。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">$ lxc launch -p default -p ubuntu ubuntu:18.04 c2 \
-  &amp;&amp; lxc exec c2 -- sh -c 'while ! [ -f /run/cloud-init/result.json ]; do sleep 1; done' \
-  &amp;&amp; lxc exec c2 -- sh -c 'cat /etc/timezone; date'
-Creating c2
-Starting c2
-Asia/Tokyo
-Thu Aug 15 12:06:42 JST 2019
-</code></pre><p>シェルスクリプトで自動化するときにこの手が使えます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="gp">$ </span>lxc <span class="nb">exec</span> c1 -- sh -c <span class="s1">&#39;cat /etc/timezone; date&#39;</span>
+<span class="go">Etc/UTC
+</span><span class="go">Thu Aug 15 03:00:12 UTC 2019
+</span><span class="go"></span><span class="gp">$ </span>lxc <span class="nb">exec</span> c1 -- sh -c <span class="s1">&#39;cat /etc/timezone; date&#39;</span>
+<span class="go">Asia/Tokyo
+</span><span class="go">Thu Aug 15 12:00:21 JST 2019
+</span></code></pre></div><p>cloud-init の初期化が完了すると <code>/run/cloud-init/result.json</code> というファイルが作られるので、以下のようにすれば完了を待つことができます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="gp">$ </span>lxc launch -p default -p ubuntu ubuntu:18.04 c2 <span class="se">\
+</span><span class="se"></span><span class="go">  &amp;&amp; lxc exec c2 -- sh -c &#39;while ! [ -f /run/cloud-init/result.json ]; do sleep 1; done&#39; \
+</span><span class="go">  &amp;&amp; lxc exec c2 -- sh -c &#39;cat /etc/timezone; date&#39;
+</span><span class="go">Creating c2
+</span><span class="go">Starting c2
+</span><span class="go">Asia/Tokyo
+</span><span class="go">Thu Aug 15 12:06:42 JST 2019
+</span></code></pre></div><p>シェルスクリプトで自動化するときにこの手が使えます。</p>
 <p>とは言っても、 Ubuntu コンテナの場合は cloud-init の <a href="https://cloudinit.readthedocs.io/en/latest/topics/modules.html">Modules</a> でパッケージのインストールやコマンドの実行を行うことができます。</p>
 <p>パッケージのインストールやコマンド実行は <a href="https://blog.simos.info/how-to-preconfigure-lxd-containers-with-cloud-init/">How to preconfigure LXD containers with cloud-init – Mi blog lah!</a> にあるように profile の config に以下のように設定すればできるそうです。</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="nt">config</span><span class="p">:</span><span class="w">
@@ -126,20 +126,20 @@ Thu Aug 15 12:06:42 JST 2019
 </span></code></pre></div><p>これらの処理を cloud-init で行ってそれの完了を待つには、上記の通り <code>/run/cloud-init/result.json</code> というファイルが作られるのを待てば OK です。</p>
 <h2 id="ロケールの確認">ロケールの確認</h2>
 <p>システムのロケールは指定通り <code>ja_JP.UTF-8</code> になっています。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">$ lxc exec c2 -- localectl
-   System Locale: LANG=ja_JP.UTF-8
-       VC Keymap: n/a
-      X11 Layout: us
-       X11 Model: pc105
-</code></pre><p><code>LANG</code> 環境変数は指定通り <code>en_US.UTF-8</code> になっているので <code>ls -l</code> の日付は英語で出力されます。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">$ lxc exec c2 -- sh -c 'echo $LANG'
-en_US.UTF-8
-$ lxc exec c2 -- ls -ld /
-drwxr-xr-x 22 root root 4096 Aug 14 01:34 /
-</code></pre><p><code>LANG</code> 環境変数を <code>ja_JP.UTF-8</code> にすれば日本語で出力されます。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">$ lxc exec c2 -- sh -c 'LANG=ja_JP.UTF-8 ls -ld /'
-drwxr-xr-x 22 root root 4096  8月 14 01:34 /
-</code></pre><h1 id="default-プロファイルを書き換えるのもありかも">default プロファイルを書き換えるのもありかも</h1>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="gp">$ </span>lxc <span class="nb">exec</span> c2 -- localectl
+<span class="go">   System Locale: LANG=ja_JP.UTF-8
+</span><span class="go">       VC Keymap: n/a
+</span><span class="go">      X11 Layout: us
+</span><span class="go">       X11 Model: pc105
+</span></code></pre></div><p><code>LANG</code> 環境変数は指定通り <code>en_US.UTF-8</code> になっているので <code>ls -l</code> の日付は英語で出力されます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="gp">$ </span>lxc <span class="nb">exec</span> c2 -- sh -c <span class="s1">&#39;echo $LANG&#39;</span>
+<span class="go">en_US.UTF-8
+</span><span class="go"></span><span class="gp">$ </span>lxc <span class="nb">exec</span> c2 -- ls -ld /
+<span class="go">drwxr-xr-x 22 root root 4096 Aug 14 01:34 /
+</span></code></pre></div><p><code>LANG</code> 環境変数を <code>ja_JP.UTF-8</code> にすれば日本語で出力されます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="gp">$ </span>lxc <span class="nb">exec</span> c2 -- sh -c <span class="s1">&#39;LANG=ja_JP.UTF-8 ls -ld /&#39;</span>
+<span class="go">drwxr-xr-x 22 root root 4096  8月 14 01:34 /
+</span></code></pre></div><h1 id="default-プロファイルを書き換えるのもありかも">default プロファイルを書き換えるのもありかも</h1>
 <p>私が作るのはほぼ Ubuntu コンテナで、たまに CentOS 7 という感じなので <code>default</code> プロファイルを書き換えるのもありかもと思いました。</p>
 <p><code>lxc profile show default</code> で <code>default</code> プロファイルの内容を確認すると以下のようになっていました。</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="nt">config</span><span class="p">:</span><span class="w">
@@ -159,13 +159,13 @@ drwxr-xr-x 22 root root 4096  8月 14 01:34 /
 </span><span class="w"></span>- <span class="l">/1.0/containers/c2</span><span class="w">
 </span><span class="w"></span>- <span class="l">…(略)…</span><span class="w">
 </span></code></pre></div><p>これをコピーして <code>centos</code> 用のプロファイルを作ります。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">$ lxc profile copy default centos
-</code></pre><p>で <code>lxc profile edit default</code> を実行して上記のように Ubuntu 用の設定を追加します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="gp">$ </span>lxc profile copy default centos
+</code></pre></div><p>で <code>lxc profile edit default</code> を実行して上記のように Ubuntu 用の設定を追加します。</p>
 <p>すると Ubuntu のコンテナの作成・起動は以下のコマンドになり</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">$ lxc launch ubuntu:18.04 ubuntu1
-</code></pre><p>CentOS 7 のコンテナの作成・起動は以下のコマンドになります。</p>
-<pre tabindex="0"><code class="language-console" data-lang="console">$ lxc launch -p centos images:centos/7 cent1
-</code></pre><p>プロファイルの <code>devices:</code> の設定が <code>default</code> と <code>centos</code> のプロファイルの2箇所に重複することになるので、変更の際は両方変える必要があるのが欠点です。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="gp">$ </span>lxc launch ubuntu:18.04 ubuntu1
+</code></pre></div><p>CentOS 7 のコンテナの作成・起動は以下のコマンドになります。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="gp">$ </span>lxc launch -p centos images:centos/7 cent1
+</code></pre></div><p>プロファイルの <code>devices:</code> の設定が <code>default</code> と <code>centos</code> のプロファイルの2箇所に重複することになるので、変更の際は両方変える必要があるのが欠点です。</p>
 <p>が、普段のコンテナ作成・起動はこちらのほうが楽で良さそうです。</p>
 
 </div>
