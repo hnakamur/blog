@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.89.4" />
+  <meta name="generator" content="Hugo 0.96.0" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -58,7 +58,7 @@
     </nav>
 
     <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
-    <p>&copy; 2021. All rights reserved. </p>
+    <p>&copy; 2022. All rights reserved. </p>
   </div>
 </aside>
 
@@ -82,35 +82,35 @@
 <p><a href="/blog/2017/05/13/tried-ds-lite-with-iij-mio-hikari-and-edgerouter-lite/">IIJmioひかりとEdgeRouter-LiteでDS-Liteを試してみた</a> の後、多少調整して一旦自分の希望通りの動きで落ち着いた状態になっていましたが、ブログに書いておかないと忘れそうなのでメモです。</p>
 <h2 id="ipv6の静的アドレスとルーティング設定">IPv6の静的アドレスとルーティング設定</h2>
 <p><a href="http://qiita.com/haccht/items/17ed2bed628d2fd17bea">Edgerouter Lite-3でDS-Lite - Qiita</a> では</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">set interfaces ethernet eth0 ipv6 address autoconf
-</code></pre></div><p>という設定でルータのWAN側のIPv6アドレスをホームゲートウェイからもらってルーティングも自動設定するようになっていました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">set interfaces ethernet eth0 ipv6 address autoconf
+</span></span></code></pre></div><p>という設定でルータのWAN側のIPv6アドレスをホームゲートウェイからもらってルーティングも自動設定するようになっていました。</p>
 <p>これは楽な反面、ルータ起動後10分程度しないとIPv6アドレスがつかないので、その間はIPv4 PPPoEにしないとインターネットに繋がりません。 ルータの再起動は約2分半かかるので、そこからさらに約10分かかるというのは中々辛い感じでした。</p>
 <p>が、会社の同僚に教えてもらいつつ試行錯誤したところ、以下のように静的にアドレスとルートを設定すればOKでした。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">delete interfaces ethernet eth0 ipv6 address autoconf
-set interfaces ethernet eth0 address 192.168.1.2/24
-set interfaces ethernet eth0 address &#39;**:**:**:**:**:**:**:**/64&#39;
-set protocols static route6 &#39;::/0&#39; next-hop &#39;fe80::***:****:****:****&#39; interface eth0
-</code></pre></div><p><code>set interfaces ethernet eth0 address</code> を2つ指定し、1つはIPv4アドレスでもう1つはIPv6アドレスにします。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">delete interfaces ethernet eth0 ipv6 address autoconf
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 address 192.168.1.2/24
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 address &#39;**:**:**:**:**:**:**:**/64&#39;
+</span></span><span class="line"><span class="cl">set protocols static route6 &#39;::/0&#39; next-hop &#39;fe80::***:****:****:****&#39; interface eth0
+</span></span></code></pre></div><p><code>set interfaces ethernet eth0 address</code> を2つ指定し、1つはIPv4アドレスでもう1つはIPv6アドレスにします。</p>
 <p>また <code>set protocols static route6 '::/0' next-hop</code> でホームゲートウェイのリンクローカルアドレスを指定します。</p>
 <p>この2つのアドレスは autoconf で付与されたアドレスをメモっておいて、設定しました。</p>
 <p>ルータのIPv6アドレスはホームゲートウェイの管理画面の「トップページ ＞ 情報 ＞ DHCPv6サーバ払い出し状況」のMACアドレスがルータのeth0になっている行（といってもこの1行しか表示されてないです）のIPv6プレフィックスの値で /60 を /64 に変えたものになっていました。</p>
 <p>静的ルートに指定するホームゲートウェイのリンクローカルアドレスは
 <code>fe80::</code> の後にホームゲートウェイの管理画面の「トップページ ＞ 情報 ＞ DHCPv6サーバ払い出し状況」の「配布情報」の「DNSサーバアドレス」の16ビットグループの下位4個分をくっつけたアドレスになっていました。</p>
 <p>ルータで <code>ip -6 route</code> を実行すると最後の行に以下のように出力されてデフォルトゲートウェイにホームゲートウェイが設定できていることが確認できました。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="gp">$ </span>ip -6 route
-<span class="go">…(略)…
-</span><span class="go">default via fe80::***:****:****:**** dev eth0  proto zebra  metric 1024
-</span></code></pre></div><p>autoconfのときはprotoの値がra (router advertisement)となっていました。zebraというのはどういうものなのかは未調査です。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> ip -6 route
+</span></span><span class="line"><span class="cl"><span class="go">…(略)…
+</span></span></span><span class="line"><span class="cl"><span class="go">default via fe80::***:****:****:**** dev eth0  proto zebra  metric 1024
+</span></span></span></code></pre></div><p>autoconfのときはprotoの値がra (router advertisement)となっていました。zebraというのはどういうものなのかは未調査です。</p>
 <p>この設定により、ルータ再起動後すぐにIPv6で通信できるようになり快適になりました。</p>
 <h2 id="lan内のipv4の静的ルーティング設定">LAN内のIPv4の静的ルーティング設定</h2>
 <p>この設定を入れる前はeth1につないだThinkPadからホームゲートウェイに通信できなくて、ホームゲートウェイの設定を確認・変更するときはLANケーブルでThinkPadをホームゲートウェイにいちいち繋いでいました。</p>
 <p>が、ルータとホームゲートウェイで以下のようにIPv4の静的ルーティング設定を行うことで解決しました。</p>
 <p>ルータには以下の設定を追加しました。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">set protocols static table 1 interface-route 0.0.0.0/0 next-hop-interface pppoe0
-set protocols static table 1 interface-route 192.168.1.0/24 next-hop-interface eth0
-set protocols static table 2 interface-route 0.0.0.0/0 next-hop-interface v6tun0
-set protocols static table 2 interface-route 192.168.1.0/24 next-hop-interface eth0
-</code></pre></div><p>ホームゲートウェイでは「トップページ ＞ 詳細設定 ＞ LAN側静的ルーティング設定」で「宛先IPアドレス/マスク長」を <code>192.168.0.0/16</code> 、「ゲートウェイ」を <code>192.168.1.2</code> とルータのeth0のIPv4に設定しました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">set protocols static table 1 interface-route 0.0.0.0/0 next-hop-interface pppoe0
+</span></span><span class="line"><span class="cl">set protocols static table 1 interface-route 192.168.1.0/24 next-hop-interface eth0
+</span></span><span class="line"><span class="cl">set protocols static table 2 interface-route 0.0.0.0/0 next-hop-interface v6tun0
+</span></span><span class="line"><span class="cl">set protocols static table 2 interface-route 192.168.1.0/24 next-hop-interface eth0
+</span></span></code></pre></div><p>ホームゲートウェイでは「トップページ ＞ 詳細設定 ＞ LAN側静的ルーティング設定」で「宛先IPアドレス/マスク長」を <code>192.168.0.0/16</code> 、「ゲートウェイ」を <code>192.168.1.2</code> とルータのeth0のIPv4に設定しました。</p>
 <p>宛先のネットワークは 192.168.1.0～192.168.3.255 の範囲で十分なのですが、今後VLANとかで増やすかもしれないので上記の設定にしておきました。</p>
 <h2 id="自宅サーバに複数のipv4アドレスを設定してipv4-pppoeとipv6-ipoeを併用">自宅サーバに複数のIPv4アドレスを設定してIPv4 PPPoEとIPv6 IPoEを併用</h2>
 <p>インターネットから自宅サーバにはIPv4 PPPoE経由で繋いで、自宅サーバ発の通信はIPv6 IPoEにするのもできました。</p>
@@ -121,251 +121,251 @@ set protocols static table 2 interface-route 192.168.1.0/24 next-hop-interface e
 <p>自宅サーバではブリッジを使っているので</p>
 <p><a href="https://askubuntu.com/questions/45086/how-to-add-an-ip-alias-on-a-bridged-interface/45098#45098">networking - How to add an IP alias on a bridged interface? - Ask Ubuntu</a></p>
 <p>を参考に <code>/etc/network/interfaces</code> に以下のように設定しました。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">auto br0
-iface br0 inet static
-	address 192.168.2.201
-	netmask 255.255.255.0
-	gateway 192.168.2.1
-	dns-nameservers 10.155.92.1
-	dns-nameservers 192.168.2.1
-	bridge_ports enp0s25
-	up /sbin/ip a add 192.168.2.202/24 dev br0
-	down /sbin/ip a del 192.168.2.202/24 dev br0
-</code></pre></div><p>10.155.92.1 はLXDのdnsmasqです。 Policy Based Routingで192.168.2.201はIPv6 IPoE、192.168.2.202はIPv4 PPPoEを使うようにしています。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">auto br0
+</span></span><span class="line"><span class="cl">iface br0 inet static
+</span></span><span class="line"><span class="cl">	address 192.168.2.201
+</span></span><span class="line"><span class="cl">	netmask 255.255.255.0
+</span></span><span class="line"><span class="cl">	gateway 192.168.2.1
+</span></span><span class="line"><span class="cl">	dns-nameservers 10.155.92.1
+</span></span><span class="line"><span class="cl">	dns-nameservers 192.168.2.1
+</span></span><span class="line"><span class="cl">	bridge_ports enp0s25
+</span></span><span class="line"><span class="cl">	up /sbin/ip a add 192.168.2.202/24 dev br0
+</span></span><span class="line"><span class="cl">	down /sbin/ip a del 192.168.2.202/24 dev br0
+</span></span></code></pre></div><p>10.155.92.1 はLXDのdnsmasqです。 Policy Based Routingで192.168.2.201はIPv6 IPoE、192.168.2.202はIPv4 PPPoEを使うようにしています。</p>
 <h2 id="edgerouter-liteの設定まとめ">EdgeRouter Liteの設定まとめ</h2>
 <p>ID、パスワード、MACアドレス、IPv6アドレスなどを伏せた現在の設定を載せておきます。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">set firewall all-ping enable
-set firewall broadcast-ping disable
-set firewall ipv6-name WANv6_IN default-action drop
-set firewall ipv6-name WANv6_IN description &#39;WAN to LAN&#39;
-set firewall ipv6-name WANv6_IN enable-default-log
-set firewall ipv6-name WANv6_IN rule 10 action accept
-set firewall ipv6-name WANv6_IN rule 10 description &#39;Allow established/related&#39;
-set firewall ipv6-name WANv6_IN rule 10 state established enable
-set firewall ipv6-name WANv6_IN rule 10 state related enable
-set firewall ipv6-name WANv6_IN rule 20 action drop
-set firewall ipv6-name WANv6_IN rule 20 description &#39;Drop invalid state&#39;
-set firewall ipv6-name WANv6_IN rule 20 state invalid enable
-set firewall ipv6-name WANv6_IN rule 30 action accept
-set firewall ipv6-name WANv6_IN rule 30 description &#39;Allow IPv6 ICMP&#39;
-set firewall ipv6-name WANv6_IN rule 30 protocol ipv6-icmp
-set firewall ipv6-name WANv6_LOCAL default-action drop
-set firewall ipv6-name WANv6_LOCAL description &#39;WAN to Router&#39;
-set firewall ipv6-name WANv6_LOCAL enable-default-log
-set firewall ipv6-name WANv6_LOCAL rule 10 action accept
-set firewall ipv6-name WANv6_LOCAL rule 10 description &#39;Allow established/related&#39;
-set firewall ipv6-name WANv6_LOCAL rule 10 state established enable
-set firewall ipv6-name WANv6_LOCAL rule 10 state related enable
-set firewall ipv6-name WANv6_LOCAL rule 20 action drop
-set firewall ipv6-name WANv6_LOCAL rule 20 description &#39;Drop invalid state&#39;
-set firewall ipv6-name WANv6_LOCAL rule 20 state invalid enable
-set firewall ipv6-name WANv6_LOCAL rule 30 action accept
-set firewall ipv6-name WANv6_LOCAL rule 30 description &#39;Allow IPv6 ICMP&#39;
-set firewall ipv6-name WANv6_LOCAL rule 30 protocol ipv6-icmp
-set firewall ipv6-name WANv6_LOCAL rule 40 action accept
-set firewall ipv6-name WANv6_LOCAL rule 40 description &#39;Allow DHCPv6&#39;
-set firewall ipv6-name WANv6_LOCAL rule 40 destination port 546
-set firewall ipv6-name WANv6_LOCAL rule 40 protocol udp
-set firewall ipv6-name WANv6_LOCAL rule 40 source port 547
-set firewall ipv6-name WANv6_LOCAL rule 50 action accept
-set firewall ipv6-name WANv6_LOCAL rule 50 description &#39;Allow DS-Lite&#39;
-set firewall ipv6-name WANv6_LOCAL rule 50 protocol ipip
-set firewall ipv6-receive-redirects disable
-set firewall ipv6-src-route disable
-set firewall ip-src-route disable
-set firewall log-martians enable
-set firewall modify LAN_PBR rule 10 action modify
-set firewall modify LAN_PBR rule 10 description &#39;Traffic from DMZ&#39;
-set firewall modify LAN_PBR rule 10 modify table 1
-set firewall modify LAN_PBR rule 10 source address 192.168.2.202-192.168.2.254
-set firewall modify LAN_PBR rule 20 action modify
-set firewall modify LAN_PBR rule 20 description &#39;Traffic from LAN&#39;
-set firewall modify LAN_PBR rule 20 modify table 2
-set firewall modify LAN_PBR rule 20 source address 192.168.2.0/24
-set firewall name WAN_IN default-action drop
-set firewall name WAN_IN description &#39;WAN to LAN&#39;
-set firewall name WAN_IN rule 10 action accept
-set firewall name WAN_IN rule 10 description &#39;Allow established/related&#39;
-set firewall name WAN_IN rule 10 state established enable
-set firewall name WAN_IN rule 10 state related enable
-set firewall name WAN_IN rule 20 action drop
-set firewall name WAN_IN rule 20 description &#39;Drop invalid state&#39;
-set firewall name WAN_IN rule 20 state invalid enable
-set firewall name WAN_LOCAL default-action drop
-set firewall name WAN_LOCAL description &#39;WAN to Router&#39;
-set firewall name WAN_LOCAL rule 10 action accept
-set firewall name WAN_LOCAL rule 10 description &#39;Allow established/related&#39;
-set firewall name WAN_LOCAL rule 10 state established enable
-set firewall name WAN_LOCAL rule 10 state related enable
-set firewall name WAN_LOCAL rule 20 action drop
-set firewall name WAN_LOCAL rule 20 description &#39;Drop invalid state&#39;
-set firewall name WAN_LOCAL rule 20 state invalid enable
-set firewall options mss-clamp interface-type pppoe
-set firewall options mss-clamp mss 1414
-set firewall receive-redirects disable
-set firewall send-redirects enable
-set firewall source-validation disable
-set firewall syn-cookies enable
-set interfaces ethernet eth0 address 192.168.1.2/24
-set interfaces ethernet eth0 address &#39;**:**:**:**:**:**:**:**/64&#39;
-set interfaces ethernet eth0 description WAN
-set interfaces ethernet eth0 dhcpv6-pd pd 0 interface eth1 host-address &#39;::1&#39;
-set interfaces ethernet eth0 dhcpv6-pd pd 0 interface eth1 prefix-id &#39;:1&#39;
-set interfaces ethernet eth0 dhcpv6-pd pd 0 interface eth1 service slaac
-set interfaces ethernet eth0 dhcpv6-pd pd 0 interface eth2 host-address &#39;::1&#39;
-set interfaces ethernet eth0 dhcpv6-pd pd 0 interface eth2 prefix-id &#39;:2&#39;
-set interfaces ethernet eth0 dhcpv6-pd pd 0 interface eth2 service slaac
-set interfaces ethernet eth0 dhcpv6-pd pd 0 prefix-length /60
-set interfaces ethernet eth0 dhcpv6-pd rapid-commit enable
-set interfaces ethernet eth0 duplex auto
-set interfaces ethernet eth0 firewall in ipv6-name WANv6_IN
-set interfaces ethernet eth0 firewall in name WAN_IN
-set interfaces ethernet eth0 firewall local ipv6-name WANv6_LOCAL
-set interfaces ethernet eth0 firewall local name WAN_LOCAL
-set interfaces ethernet eth0 ipv6 dup-addr-detect-transmits 1
-set interfaces ethernet eth0 ipv6 router-advert cur-hop-limit 64
-set interfaces ethernet eth0 ipv6 router-advert link-mtu 0
-set interfaces ethernet eth0 ipv6 router-advert managed-flag true
-set interfaces ethernet eth0 ipv6 router-advert max-interval 600
-set interfaces ethernet eth0 ipv6 router-advert other-config-flag true
-set interfaces ethernet eth0 ipv6 router-advert reachable-time 0
-set interfaces ethernet eth0 ipv6 router-advert retrans-timer 0
-set interfaces ethernet eth0 ipv6 router-advert send-advert true
-set interfaces ethernet eth0 pppoe 0 default-route auto
-set interfaces ethernet eth0 pppoe 0 description &#39;PPPoE IPv4&#39;
-set interfaces ethernet eth0 pppoe 0 firewall in name WAN_IN
-set interfaces ethernet eth0 pppoe 0 firewall local name WAN_LOCAL
-set interfaces ethernet eth0 pppoe 0 mtu 1454
-set interfaces ethernet eth0 pppoe 0 name-server auto
-set interfaces ethernet eth0 pppoe 0 password **********
-set interfaces ethernet eth0 pppoe 0 user-id **********@***.**.**
-set interfaces ethernet eth0 speed auto
-set interfaces ethernet eth1 address 192.168.2.1/24
-set interfaces ethernet eth1 description LAN1
-set interfaces ethernet eth1 duplex auto
-set interfaces ethernet eth1 firewall in modify LAN_PBR
-set interfaces ethernet eth1 speed auto
-set interfaces ethernet eth2 address 192.168.3.1/24
-set interfaces ethernet eth2 description LAN2
-set interfaces ethernet eth2 duplex auto
-set interfaces ethernet eth2 speed auto
-set interfaces ipv6-tunnel v6tun0 encapsulation ipip6
-set interfaces ipv6-tunnel v6tun0 firewall in name WAN_IN
-set interfaces ipv6-tunnel v6tun0 ****:***:***:****:****:****:****:****
-set interfaces ipv6-tunnel v6tun0 mtu 1500
-set interfaces ipv6-tunnel v6tun0 multicast disable
-set interfaces ipv6-tunnel v6tun0 remote-ip &#39;2404:8e01::feed:100&#39;
-set interfaces ipv6-tunnel v6tun0 ttl 64
-set interfaces loopback lo
-set port-forward auto-firewall enable
-set port-forward hairpin-nat enable
-set port-forward lan-interface eth1
-set port-forward rule 1 forward-to address 192.168.2.202
-set port-forward rule 1 forward-to port 22
-set port-forward rule 1 original-port 22
-set port-forward rule 1 protocol tcp_udp
-set port-forward rule 2 forward-to address 192.168.2.202
-set port-forward rule 2 forward-to port 80
-set port-forward rule 2 original-port 80
-set port-forward rule 2 protocol tcp_udp
-set port-forward rule 3 forward-to address 192.168.2.202
-set port-forward rule 3 forward-to port 443
-set port-forward rule 3 original-port 443
-set port-forward rule 3 protocol tcp_udp
-set port-forward wan-interface pppoe0
-set protocols static interface-route 0.0.0.0/0 next-hop-interface v6tun0
-set protocols static route6 &#39;::/0&#39; next-hop &#39;fe80::***:****:****:****&#39; interface eth0
-set protocols static table 1 interface-route 0.0.0.0/0 next-hop-interface pppoe0
-set protocols static table 1 interface-route 192.168.1.0/24 next-hop-interface eth0
-set protocols static table 2 interface-route 0.0.0.0/0 next-hop-interface v6tun0
-set protocols static table 2 interface-route 192.168.1.0/24 next-hop-interface eth0
-set service dhcp-server disabled false
-set service dhcp-server hostfile-update disable
-set service dhcp-server shared-network-name LAN1 authoritative disable
-set service dhcp-server shared-network-name LAN1 subnet 192.168.2.0/24 default-router 192.168.2.1
-set service dhcp-server shared-network-name LAN1 subnet 192.168.2.0/24 dns-server 192.168.2.1
-set service dhcp-server shared-network-name LAN1 subnet 192.168.2.0/24 lease 86400
-set service dhcp-server shared-network-name LAN1 subnet 192.168.2.0/24 start 192.168.2.2 stop 192.168.2.99
-set service dhcp-server shared-network-name LAN2 authoritative disable
-set service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 default-router 192.168.3.1
-set service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 dns-server 192.168.3.1
-set service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 lease 86400
-set service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 start 192.168.3.2 stop 192.168.3.99
-set service dhcp-server use-dnsmasq disable
-set service dns dynamic interface pppoe0 service noip host-name *****.****.***
-set service dns dynamic interface pppoe0 service noip login ********@*****.***
-set service dns dynamic interface pppoe0 service noip password **********
-set service dns forwarding cache-size 150
-set service dns forwarding listen-on eth1
-set service dns forwarding listen-on eth2
-set service dns forwarding listen-on eth0
-set service dns forwarding name-server 192.168.1.1
-set service gui http-port 80
-set service gui https-port 443
-set service gui older-ciphers enable
-set service nat rule 5010 description &#39;masquerade for WAN&#39;
-set service nat rule 5010 outbound-interface pppoe0
-set service nat rule 5010 type masquerade
-set service ssh disable-password-authentication
-set service ssh port 22
-set service ssh protocol-version v2
-set system host-name ubnt
-set system login user ***** authentication encrypted-password *********************
-set system login user ***** plaintext-password &#39;&#39;
-set system login user ***** authentication public-keys **** key ********************
-set system login user ***** authentication public-keys **** type ssh-rsa
-set system login user ***** level admin
-set system ntp server 0.ubnt.pool.ntp.org
-set system ntp server 1.ubnt.pool.ntp.org
-set system ntp server 2.ubnt.pool.ntp.org
-set system ntp server 3.ubnt.pool.ntp.org
-set system offload hwnat disable
-set system offload ipv4 forwarding enable
-set system offload ipv6 forwarding enable
-set system syslog global facility all level notice
-set system syslog global facility protocols level debug
-set system time-zone Asia/Tokyo
-</code></pre></div><p>これはルータで <code>show configuration commands &gt; config.commands</code> でファイルに保存したものを以下のスクリプトで加工したものです。このスクリプトは汎用ではないですが、私の設定の機密情報を伏せるように加工するようになっています。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">#!/bin/sh
-sed -e &#34;
-/mac-address/s/..:..:..:..:..:../**:**:**:**:**:**/
-/address &#39;.*:.*&#39;/s/&#39;.*:.*\(\/[^&#39;]*\)&#39;/&#39;**:**:**:**:**:**:**:**\1&#39;/
-/^set interfaces ethernet eth0 pppoe 0 password/s/password .*/password **********/
-/^set interfaces ethernet eth0 pppoe 0 user-id/s/user-id .*/user-id **********@***.**.**/
-/^set interfaces ipv6-tunnel v6tun0 local-ip/s/local-ip .*/****:***:***:****:****:****:****:****/
-/^set service dns dynamic interface pppoe0 service noip host-name/s/host-name .*/host-name *****.****.***/
-/^set service dns dynamic interface pppoe0 service noip login/s/login .*/login ********@*****.***/
-/^set service dns dynamic interface pppoe0 service noip password/s/password .*/password **********/
-/^set system login user [^ ]* authentication encrypted-password/s/user .*/user ***** authentication encrypted-password *********************/
-/^set system login user [^ ]* authentication plaintext-password/s/user .*/user ***** plaintext-password &#39;&#39;/
-/^set system login user [^ ]* authentication public-keys [^ ]* key/s/user .*/user ***** authentication public-keys **** key ********************/
-/^set system login user [^ ]* authentication public-keys [^ ]* type/s/user .* type \(.*\)/user ***** authentication public-keys **** type \1/
-/^set system login user [^ ]* level/s/user .* level \(.*\)/user ***** level \1/
-/set protocols static route6 &#39;::\/0&#39; next-hop/s/next-hop &#39;[^&#39;]*&#39;/next-hop &#39;fe80::***:****:****:****&#39;/
-&#34;
-</code></pre></div><h2 id="thinkpadでpppoeを使うときの切り替え方法">ThinkPadでPPPoEを使うときの切り替え方法</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">set firewall all-ping enable
+</span></span><span class="line"><span class="cl">set firewall broadcast-ping disable
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_IN default-action drop
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_IN description &#39;WAN to LAN&#39;
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_IN enable-default-log
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_IN rule 10 action accept
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_IN rule 10 description &#39;Allow established/related&#39;
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_IN rule 10 state established enable
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_IN rule 10 state related enable
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_IN rule 20 action drop
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_IN rule 20 description &#39;Drop invalid state&#39;
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_IN rule 20 state invalid enable
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_IN rule 30 action accept
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_IN rule 30 description &#39;Allow IPv6 ICMP&#39;
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_IN rule 30 protocol ipv6-icmp
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL default-action drop
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL description &#39;WAN to Router&#39;
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL enable-default-log
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL rule 10 action accept
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL rule 10 description &#39;Allow established/related&#39;
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL rule 10 state established enable
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL rule 10 state related enable
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL rule 20 action drop
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL rule 20 description &#39;Drop invalid state&#39;
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL rule 20 state invalid enable
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL rule 30 action accept
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL rule 30 description &#39;Allow IPv6 ICMP&#39;
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL rule 30 protocol ipv6-icmp
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL rule 40 action accept
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL rule 40 description &#39;Allow DHCPv6&#39;
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL rule 40 destination port 546
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL rule 40 protocol udp
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL rule 40 source port 547
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL rule 50 action accept
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL rule 50 description &#39;Allow DS-Lite&#39;
+</span></span><span class="line"><span class="cl">set firewall ipv6-name WANv6_LOCAL rule 50 protocol ipip
+</span></span><span class="line"><span class="cl">set firewall ipv6-receive-redirects disable
+</span></span><span class="line"><span class="cl">set firewall ipv6-src-route disable
+</span></span><span class="line"><span class="cl">set firewall ip-src-route disable
+</span></span><span class="line"><span class="cl">set firewall log-martians enable
+</span></span><span class="line"><span class="cl">set firewall modify LAN_PBR rule 10 action modify
+</span></span><span class="line"><span class="cl">set firewall modify LAN_PBR rule 10 description &#39;Traffic from DMZ&#39;
+</span></span><span class="line"><span class="cl">set firewall modify LAN_PBR rule 10 modify table 1
+</span></span><span class="line"><span class="cl">set firewall modify LAN_PBR rule 10 source address 192.168.2.202-192.168.2.254
+</span></span><span class="line"><span class="cl">set firewall modify LAN_PBR rule 20 action modify
+</span></span><span class="line"><span class="cl">set firewall modify LAN_PBR rule 20 description &#39;Traffic from LAN&#39;
+</span></span><span class="line"><span class="cl">set firewall modify LAN_PBR rule 20 modify table 2
+</span></span><span class="line"><span class="cl">set firewall modify LAN_PBR rule 20 source address 192.168.2.0/24
+</span></span><span class="line"><span class="cl">set firewall name WAN_IN default-action drop
+</span></span><span class="line"><span class="cl">set firewall name WAN_IN description &#39;WAN to LAN&#39;
+</span></span><span class="line"><span class="cl">set firewall name WAN_IN rule 10 action accept
+</span></span><span class="line"><span class="cl">set firewall name WAN_IN rule 10 description &#39;Allow established/related&#39;
+</span></span><span class="line"><span class="cl">set firewall name WAN_IN rule 10 state established enable
+</span></span><span class="line"><span class="cl">set firewall name WAN_IN rule 10 state related enable
+</span></span><span class="line"><span class="cl">set firewall name WAN_IN rule 20 action drop
+</span></span><span class="line"><span class="cl">set firewall name WAN_IN rule 20 description &#39;Drop invalid state&#39;
+</span></span><span class="line"><span class="cl">set firewall name WAN_IN rule 20 state invalid enable
+</span></span><span class="line"><span class="cl">set firewall name WAN_LOCAL default-action drop
+</span></span><span class="line"><span class="cl">set firewall name WAN_LOCAL description &#39;WAN to Router&#39;
+</span></span><span class="line"><span class="cl">set firewall name WAN_LOCAL rule 10 action accept
+</span></span><span class="line"><span class="cl">set firewall name WAN_LOCAL rule 10 description &#39;Allow established/related&#39;
+</span></span><span class="line"><span class="cl">set firewall name WAN_LOCAL rule 10 state established enable
+</span></span><span class="line"><span class="cl">set firewall name WAN_LOCAL rule 10 state related enable
+</span></span><span class="line"><span class="cl">set firewall name WAN_LOCAL rule 20 action drop
+</span></span><span class="line"><span class="cl">set firewall name WAN_LOCAL rule 20 description &#39;Drop invalid state&#39;
+</span></span><span class="line"><span class="cl">set firewall name WAN_LOCAL rule 20 state invalid enable
+</span></span><span class="line"><span class="cl">set firewall options mss-clamp interface-type pppoe
+</span></span><span class="line"><span class="cl">set firewall options mss-clamp mss 1414
+</span></span><span class="line"><span class="cl">set firewall receive-redirects disable
+</span></span><span class="line"><span class="cl">set firewall send-redirects enable
+</span></span><span class="line"><span class="cl">set firewall source-validation disable
+</span></span><span class="line"><span class="cl">set firewall syn-cookies enable
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 address 192.168.1.2/24
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 address &#39;**:**:**:**:**:**:**:**/64&#39;
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 description WAN
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 dhcpv6-pd pd 0 interface eth1 host-address &#39;::1&#39;
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 dhcpv6-pd pd 0 interface eth1 prefix-id &#39;:1&#39;
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 dhcpv6-pd pd 0 interface eth1 service slaac
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 dhcpv6-pd pd 0 interface eth2 host-address &#39;::1&#39;
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 dhcpv6-pd pd 0 interface eth2 prefix-id &#39;:2&#39;
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 dhcpv6-pd pd 0 interface eth2 service slaac
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 dhcpv6-pd pd 0 prefix-length /60
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 dhcpv6-pd rapid-commit enable
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 duplex auto
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 firewall in ipv6-name WANv6_IN
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 firewall in name WAN_IN
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 firewall local ipv6-name WANv6_LOCAL
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 firewall local name WAN_LOCAL
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 ipv6 dup-addr-detect-transmits 1
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 ipv6 router-advert cur-hop-limit 64
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 ipv6 router-advert link-mtu 0
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 ipv6 router-advert managed-flag true
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 ipv6 router-advert max-interval 600
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 ipv6 router-advert other-config-flag true
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 ipv6 router-advert reachable-time 0
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 ipv6 router-advert retrans-timer 0
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 ipv6 router-advert send-advert true
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 pppoe 0 default-route auto
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 pppoe 0 description &#39;PPPoE IPv4&#39;
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 pppoe 0 firewall in name WAN_IN
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 pppoe 0 firewall local name WAN_LOCAL
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 pppoe 0 mtu 1454
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 pppoe 0 name-server auto
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 pppoe 0 password **********
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 pppoe 0 user-id **********@***.**.**
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth0 speed auto
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth1 address 192.168.2.1/24
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth1 description LAN1
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth1 duplex auto
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth1 firewall in modify LAN_PBR
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth1 speed auto
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth2 address 192.168.3.1/24
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth2 description LAN2
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth2 duplex auto
+</span></span><span class="line"><span class="cl">set interfaces ethernet eth2 speed auto
+</span></span><span class="line"><span class="cl">set interfaces ipv6-tunnel v6tun0 encapsulation ipip6
+</span></span><span class="line"><span class="cl">set interfaces ipv6-tunnel v6tun0 firewall in name WAN_IN
+</span></span><span class="line"><span class="cl">set interfaces ipv6-tunnel v6tun0 ****:***:***:****:****:****:****:****
+</span></span><span class="line"><span class="cl">set interfaces ipv6-tunnel v6tun0 mtu 1500
+</span></span><span class="line"><span class="cl">set interfaces ipv6-tunnel v6tun0 multicast disable
+</span></span><span class="line"><span class="cl">set interfaces ipv6-tunnel v6tun0 remote-ip &#39;2404:8e01::feed:100&#39;
+</span></span><span class="line"><span class="cl">set interfaces ipv6-tunnel v6tun0 ttl 64
+</span></span><span class="line"><span class="cl">set interfaces loopback lo
+</span></span><span class="line"><span class="cl">set port-forward auto-firewall enable
+</span></span><span class="line"><span class="cl">set port-forward hairpin-nat enable
+</span></span><span class="line"><span class="cl">set port-forward lan-interface eth1
+</span></span><span class="line"><span class="cl">set port-forward rule 1 forward-to address 192.168.2.202
+</span></span><span class="line"><span class="cl">set port-forward rule 1 forward-to port 22
+</span></span><span class="line"><span class="cl">set port-forward rule 1 original-port 22
+</span></span><span class="line"><span class="cl">set port-forward rule 1 protocol tcp_udp
+</span></span><span class="line"><span class="cl">set port-forward rule 2 forward-to address 192.168.2.202
+</span></span><span class="line"><span class="cl">set port-forward rule 2 forward-to port 80
+</span></span><span class="line"><span class="cl">set port-forward rule 2 original-port 80
+</span></span><span class="line"><span class="cl">set port-forward rule 2 protocol tcp_udp
+</span></span><span class="line"><span class="cl">set port-forward rule 3 forward-to address 192.168.2.202
+</span></span><span class="line"><span class="cl">set port-forward rule 3 forward-to port 443
+</span></span><span class="line"><span class="cl">set port-forward rule 3 original-port 443
+</span></span><span class="line"><span class="cl">set port-forward rule 3 protocol tcp_udp
+</span></span><span class="line"><span class="cl">set port-forward wan-interface pppoe0
+</span></span><span class="line"><span class="cl">set protocols static interface-route 0.0.0.0/0 next-hop-interface v6tun0
+</span></span><span class="line"><span class="cl">set protocols static route6 &#39;::/0&#39; next-hop &#39;fe80::***:****:****:****&#39; interface eth0
+</span></span><span class="line"><span class="cl">set protocols static table 1 interface-route 0.0.0.0/0 next-hop-interface pppoe0
+</span></span><span class="line"><span class="cl">set protocols static table 1 interface-route 192.168.1.0/24 next-hop-interface eth0
+</span></span><span class="line"><span class="cl">set protocols static table 2 interface-route 0.0.0.0/0 next-hop-interface v6tun0
+</span></span><span class="line"><span class="cl">set protocols static table 2 interface-route 192.168.1.0/24 next-hop-interface eth0
+</span></span><span class="line"><span class="cl">set service dhcp-server disabled false
+</span></span><span class="line"><span class="cl">set service dhcp-server hostfile-update disable
+</span></span><span class="line"><span class="cl">set service dhcp-server shared-network-name LAN1 authoritative disable
+</span></span><span class="line"><span class="cl">set service dhcp-server shared-network-name LAN1 subnet 192.168.2.0/24 default-router 192.168.2.1
+</span></span><span class="line"><span class="cl">set service dhcp-server shared-network-name LAN1 subnet 192.168.2.0/24 dns-server 192.168.2.1
+</span></span><span class="line"><span class="cl">set service dhcp-server shared-network-name LAN1 subnet 192.168.2.0/24 lease 86400
+</span></span><span class="line"><span class="cl">set service dhcp-server shared-network-name LAN1 subnet 192.168.2.0/24 start 192.168.2.2 stop 192.168.2.99
+</span></span><span class="line"><span class="cl">set service dhcp-server shared-network-name LAN2 authoritative disable
+</span></span><span class="line"><span class="cl">set service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 default-router 192.168.3.1
+</span></span><span class="line"><span class="cl">set service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 dns-server 192.168.3.1
+</span></span><span class="line"><span class="cl">set service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 lease 86400
+</span></span><span class="line"><span class="cl">set service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 start 192.168.3.2 stop 192.168.3.99
+</span></span><span class="line"><span class="cl">set service dhcp-server use-dnsmasq disable
+</span></span><span class="line"><span class="cl">set service dns dynamic interface pppoe0 service noip host-name *****.****.***
+</span></span><span class="line"><span class="cl">set service dns dynamic interface pppoe0 service noip login ********@*****.***
+</span></span><span class="line"><span class="cl">set service dns dynamic interface pppoe0 service noip password **********
+</span></span><span class="line"><span class="cl">set service dns forwarding cache-size 150
+</span></span><span class="line"><span class="cl">set service dns forwarding listen-on eth1
+</span></span><span class="line"><span class="cl">set service dns forwarding listen-on eth2
+</span></span><span class="line"><span class="cl">set service dns forwarding listen-on eth0
+</span></span><span class="line"><span class="cl">set service dns forwarding name-server 192.168.1.1
+</span></span><span class="line"><span class="cl">set service gui http-port 80
+</span></span><span class="line"><span class="cl">set service gui https-port 443
+</span></span><span class="line"><span class="cl">set service gui older-ciphers enable
+</span></span><span class="line"><span class="cl">set service nat rule 5010 description &#39;masquerade for WAN&#39;
+</span></span><span class="line"><span class="cl">set service nat rule 5010 outbound-interface pppoe0
+</span></span><span class="line"><span class="cl">set service nat rule 5010 type masquerade
+</span></span><span class="line"><span class="cl">set service ssh disable-password-authentication
+</span></span><span class="line"><span class="cl">set service ssh port 22
+</span></span><span class="line"><span class="cl">set service ssh protocol-version v2
+</span></span><span class="line"><span class="cl">set system host-name ubnt
+</span></span><span class="line"><span class="cl">set system login user ***** authentication encrypted-password *********************
+</span></span><span class="line"><span class="cl">set system login user ***** plaintext-password &#39;&#39;
+</span></span><span class="line"><span class="cl">set system login user ***** authentication public-keys **** key ********************
+</span></span><span class="line"><span class="cl">set system login user ***** authentication public-keys **** type ssh-rsa
+</span></span><span class="line"><span class="cl">set system login user ***** level admin
+</span></span><span class="line"><span class="cl">set system ntp server 0.ubnt.pool.ntp.org
+</span></span><span class="line"><span class="cl">set system ntp server 1.ubnt.pool.ntp.org
+</span></span><span class="line"><span class="cl">set system ntp server 2.ubnt.pool.ntp.org
+</span></span><span class="line"><span class="cl">set system ntp server 3.ubnt.pool.ntp.org
+</span></span><span class="line"><span class="cl">set system offload hwnat disable
+</span></span><span class="line"><span class="cl">set system offload ipv4 forwarding enable
+</span></span><span class="line"><span class="cl">set system offload ipv6 forwarding enable
+</span></span><span class="line"><span class="cl">set system syslog global facility all level notice
+</span></span><span class="line"><span class="cl">set system syslog global facility protocols level debug
+</span></span><span class="line"><span class="cl">set system time-zone Asia/Tokyo
+</span></span></code></pre></div><p>これはルータで <code>show configuration commands &gt; config.commands</code> でファイルに保存したものを以下のスクリプトで加工したものです。このスクリプトは汎用ではないですが、私の設定の機密情報を伏せるように加工するようになっています。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">#!/bin/sh
+</span></span><span class="line"><span class="cl">sed -e &#34;
+</span></span><span class="line"><span class="cl">/mac-address/s/..:..:..:..:..:../**:**:**:**:**:**/
+</span></span><span class="line"><span class="cl">/address &#39;.*:.*&#39;/s/&#39;.*:.*\(\/[^&#39;]*\)&#39;/&#39;**:**:**:**:**:**:**:**\1&#39;/
+</span></span><span class="line"><span class="cl">/^set interfaces ethernet eth0 pppoe 0 password/s/password .*/password **********/
+</span></span><span class="line"><span class="cl">/^set interfaces ethernet eth0 pppoe 0 user-id/s/user-id .*/user-id **********@***.**.**/
+</span></span><span class="line"><span class="cl">/^set interfaces ipv6-tunnel v6tun0 local-ip/s/local-ip .*/****:***:***:****:****:****:****:****/
+</span></span><span class="line"><span class="cl">/^set service dns dynamic interface pppoe0 service noip host-name/s/host-name .*/host-name *****.****.***/
+</span></span><span class="line"><span class="cl">/^set service dns dynamic interface pppoe0 service noip login/s/login .*/login ********@*****.***/
+</span></span><span class="line"><span class="cl">/^set service dns dynamic interface pppoe0 service noip password/s/password .*/password **********/
+</span></span><span class="line"><span class="cl">/^set system login user [^ ]* authentication encrypted-password/s/user .*/user ***** authentication encrypted-password *********************/
+</span></span><span class="line"><span class="cl">/^set system login user [^ ]* authentication plaintext-password/s/user .*/user ***** plaintext-password &#39;&#39;/
+</span></span><span class="line"><span class="cl">/^set system login user [^ ]* authentication public-keys [^ ]* key/s/user .*/user ***** authentication public-keys **** key ********************/
+</span></span><span class="line"><span class="cl">/^set system login user [^ ]* authentication public-keys [^ ]* type/s/user .* type \(.*\)/user ***** authentication public-keys **** type \1/
+</span></span><span class="line"><span class="cl">/^set system login user [^ ]* level/s/user .* level \(.*\)/user ***** level \1/
+</span></span><span class="line"><span class="cl">/set protocols static route6 &#39;::\/0&#39; next-hop/s/next-hop &#39;[^&#39;]*&#39;/next-hop &#39;fe80::***:****:****:****&#39;/
+</span></span><span class="line"><span class="cl">&#34;
+</span></span></code></pre></div><h2 id="thinkpadでpppoeを使うときの切り替え方法">ThinkPadでPPPoEを使うときの切り替え方法</h2>
 <p>192.168.2.202以降のアドレスにすればPPPoEを使うようになっているので、コントロールパネルのイーサネットの「アダプターのオプションを設定する」からWiFiのTCP/IPv4のプロパティで固定IPで192.168.2.203などを指定すれば切り替わります。</p>
 <h2 id="thinkpadでpppoeを使うときの切り替え方法ボツ案">ThinkPadでPPPoEを使うときの切り替え方法（ボツ案）</h2>
 <p>上記の案になる前にはDHCPでThinkPadのMACアドレスに対して固定のIPv4アドレスを設定して切り替えるというのを考えて試していました。</p>
 <p>まずルータに以下の設定を固定で入れておきます。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">set service dhcp-server shared-network-name LAN1 subnet 192.168.2.0/24 static-mapping 10 ip-address 192.168.2.203
-set service dhcp-server shared-network-name LAN1 subnet 192.168.2.0/24 static-mapping 10 mac-address **:**:**:**:**:**
-</code></pre></div><p><a href="https://help.ubnt.com/hc/en-us/articles/204976394-EdgeRouter-How-can-I-use-scripts-to-change-the-configuration-">EdgeRouter - How can I use scripts to change the configuration? – Ubiquiti Networks Support and Help Center</a> にルータのコマンドをシェルスクリプトから実行する方法が載っていたのでこれを使って以下のような切り替えスクリプトを書いてみました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">set service dhcp-server shared-network-name LAN1 subnet 192.168.2.0/24 static-mapping 10 ip-address 192.168.2.203
+</span></span><span class="line"><span class="cl">set service dhcp-server shared-network-name LAN1 subnet 192.168.2.0/24 static-mapping 10 mac-address **:**:**:**:**:**
+</span></span></code></pre></div><p><a href="https://help.ubnt.com/hc/en-us/articles/204976394-EdgeRouter-How-can-I-use-scripts-to-change-the-configuration-">EdgeRouter - How can I use scripts to change the configuration? – Ubiquiti Networks Support and Help Center</a> にルータのコマンドをシェルスクリプトから実行する方法が載っていたのでこれを使って以下のような切り替えスクリプトを書いてみました。</p>
 <p><code>ipoe.sh</code></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">#!/bin/vbash
-source /opt/vyatta/etc/functions/script-template
-configure
-set service dhcp-server shared-network-name LAN1 subnet 192.168.2.0/24 static-mapping 10 disable
-commit
-exit
-</code></pre></div><p><code>pppoe.sh</code></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">#!/bin/vbash
-source /opt/vyatta/etc/functions/script-template
-configure
-delete service dhcp-server shared-network-name LAN1 subnet 192.168.2.0/24 static-mapping 10 disable
-commit
-exit
-</code></pre></div><p>ルータにsshしてこれらのスクリプトを実行してDHCPでアドレスを固定するか動的にするか切り替えて、その後ThinkPadではコマンドプロンプトで <code>ipconfig /release &amp;&amp; ipcnfig /renew</code> でIPv4アドレスを解放・更新して切り替えます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">#!/bin/vbash
+</span></span><span class="line"><span class="cl">source /opt/vyatta/etc/functions/script-template
+</span></span><span class="line"><span class="cl">configure
+</span></span><span class="line"><span class="cl">set service dhcp-server shared-network-name LAN1 subnet 192.168.2.0/24 static-mapping 10 disable
+</span></span><span class="line"><span class="cl">commit
+</span></span><span class="line"><span class="cl">exit
+</span></span></code></pre></div><p><code>pppoe.sh</code></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">#!/bin/vbash
+</span></span><span class="line"><span class="cl">source /opt/vyatta/etc/functions/script-template
+</span></span><span class="line"><span class="cl">configure
+</span></span><span class="line"><span class="cl">delete service dhcp-server shared-network-name LAN1 subnet 192.168.2.0/24 static-mapping 10 disable
+</span></span><span class="line"><span class="cl">commit
+</span></span><span class="line"><span class="cl">exit
+</span></span></code></pre></div><p>ルータにsshしてこれらのスクリプトを実行してDHCPでアドレスを固定するか動的にするか切り替えて、その後ThinkPadではコマンドプロンプトで <code>ipconfig /release &amp;&amp; ipcnfig /renew</code> でIPv4アドレスを解放・更新して切り替えます。</p>
 <p>これで動きはしたのですが、手数を考えると上に書いたように単にThinkPad側で固定IPを指定するほうが楽だと思いました。</p>
 <h2 id="おわりに">おわりに</h2>
 <p>一旦満足良く設定になりました。今後はインターネットから自宅サーバにIPv6で接続できるようにしたいです。IPv6のファイアウォールをかけるのをルータでこれもPolicy Based Routingで書けば良さそうな気がしますが、今後考えて試してみようと思います。</p>

@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.89.4" />
+  <meta name="generator" content="Hugo 0.96.0" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -58,7 +58,7 @@
     </nav>
 
     <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
-    <p>&copy; 2021. All rights reserved. </p>
+    <p>&copy; 2022. All rights reserved. </p>
   </div>
 </aside>
 
@@ -87,36 +87,36 @@
 を利用させていただいています。</p>
 <p>一方、carbonapiではfacebookgo/graceを利用しています。コードはこれだけ。簡単ですね。</p>
 <p><a href="https://github.com/go-graphite/carbonapi/blob/1ac234b878f90ba657f6ed332452bd808e7ccb6c/main.go#L1181-L1184">main.go#L1181-L1184</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="nx">err</span> <span class="p">=</span> <span class="nx">gracehttp</span><span class="p">.</span><span class="nf">Serve</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">http</span><span class="p">.</span><span class="nx">Server</span><span class="p">{</span>
-    <span class="nx">Addr</span><span class="p">:</span>    <span class="nx">Config</span><span class="p">.</span><span class="nx">Listen</span><span class="p">,</span>
-    <span class="nx">Handler</span><span class="p">:</span> <span class="nx">handler</span><span class="p">,</span>
-<span class="p">})</span>
-</code></pre></div><h2 id="systemdならpidfileを書くだけでok">systemdならPIDFileを書くだけでOK</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">err</span> <span class="p">=</span> <span class="nx">gracehttp</span><span class="p">.</span><span class="nf">Serve</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">http</span><span class="p">.</span><span class="nx">Server</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Addr</span><span class="p">:</span>    <span class="nx">Config</span><span class="p">.</span><span class="nx">Listen</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Handler</span><span class="p">:</span> <span class="nx">handler</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl"><span class="p">})</span>
+</span></span></code></pre></div><h2 id="systemdならpidfileを書くだけでok">systemdならPIDFileを書くだけでOK</h2>
 <p><a href="https://www.freedesktop.org/software/systemd/man/systemd.service.html#PIDFile=">systemd.service</a> の <code>PIDFile</code> の説明を読むと <code>Type=forking</code> の場合には <code>PIDFile</code> を設定するのがお勧めとあります。</p>
 <p><code>Type=simle</code> でも機能するのかなと思って試してみるとうまく行きました！</p>
 <p>実際のservice定義ファイルは
 <a href="https://github.com/hnakamur/carbonapi-rpm/blob/84659a13ce235f33a9c699f93cfe6d2864850b9e/SOURCES/carbonapi.service">carbonapi-rpm/carbonapi.service</a>
 です。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">[Unit]
-Description=carbonapi server
-Documentation=https://github.com/go-graphite/carbonapi
-Wants=network-online.target go-carbon.service
-After=network-online.target go-carbon.service
-
-[Service]
-User=carbon
-Group=carbon
-Type=simple
-Restart=on-failure
-EnvironmentFile=/etc/sysconfig/carbonapi
-ExecStart=/usr/sbin/carbonapi -z $ZIPPER_URL -pid /var/run/carbonapi/carbonapi.pid -graphite $GRAPHITEADDR -p $PORT -i $INTERVAL -cpus $CPUS -cache $CACHE_TYPE -memsize $MEMSIZE -l $CONCURRENCY_LIMIT -idleconns $IDLECONNS -logdir $LOGDIR
-ExecReload=/bin/pkill -USR2 --pidfile /var/run/carbonapi/carbonapi.pid
-PIDFile=/var/run/carbonapi/carbonapi.pid
-LimitNOFILE=65536
-
-[Install]
-WantedBy=multi-user.target
-</code></pre></div><p>これで <code>systemctl reload carbonapi</code> でグレースフルリスタートがかかります。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">[Unit]
+</span></span><span class="line"><span class="cl">Description=carbonapi server
+</span></span><span class="line"><span class="cl">Documentation=https://github.com/go-graphite/carbonapi
+</span></span><span class="line"><span class="cl">Wants=network-online.target go-carbon.service
+</span></span><span class="line"><span class="cl">After=network-online.target go-carbon.service
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">[Service]
+</span></span><span class="line"><span class="cl">User=carbon
+</span></span><span class="line"><span class="cl">Group=carbon
+</span></span><span class="line"><span class="cl">Type=simple
+</span></span><span class="line"><span class="cl">Restart=on-failure
+</span></span><span class="line"><span class="cl">EnvironmentFile=/etc/sysconfig/carbonapi
+</span></span><span class="line"><span class="cl">ExecStart=/usr/sbin/carbonapi -z $ZIPPER_URL -pid /var/run/carbonapi/carbonapi.pid -graphite $GRAPHITEADDR -p $PORT -i $INTERVAL -cpus $CPUS -cache $CACHE_TYPE -memsize $MEMSIZE -l $CONCURRENCY_LIMIT -idleconns $IDLECONNS -logdir $LOGDIR
+</span></span><span class="line"><span class="cl">ExecReload=/bin/pkill -USR2 --pidfile /var/run/carbonapi/carbonapi.pid
+</span></span><span class="line"><span class="cl">PIDFile=/var/run/carbonapi/carbonapi.pid
+</span></span><span class="line"><span class="cl">LimitNOFILE=65536
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">[Install]
+</span></span><span class="line"><span class="cl">WantedBy=multi-user.target
+</span></span></code></pre></div><p>これで <code>systemctl reload carbonapi</code> でグレースフルリスタートがかかります。
 その後 <code>systemctl status carbonapi</code> で確認するとacitveになっていて、表示されているpidも <code>/var/run/carbonapi/carbonapi.pid</code> の内容に一致していました。</p>
 <p>横でリクエストを打ち続けて取りこぼしがないかとかはまだ試していません。</p>
 <p>なお、上のservice定義ファイルでは <code>EnvironmentFile</code> を使っているので

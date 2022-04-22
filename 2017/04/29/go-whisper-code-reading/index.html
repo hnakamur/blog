@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.89.4" />
+  <meta name="generator" content="Hugo 0.96.0" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -58,7 +58,7 @@
     </nav>
 
     <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
-    <p>&copy; 2021. All rights reserved. </p>
+    <p>&copy; 2022. All rights reserved. </p>
   </div>
 </aside>
 
@@ -152,70 +152,70 @@
 </span><span class="lnt">322
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="cm">/*
-</span><span class="cm">  Open an existing Whisper database and read it&#39;s header
-</span><span class="cm">*/</span>
-<span class="kd">func</span> <span class="nf">Open</span><span class="p">(</span><span class="nx">path</span> <span class="kt">string</span><span class="p">)</span> <span class="p">(</span><span class="nx">whisper</span> <span class="o">*</span><span class="nx">Whisper</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
-    <span class="nx">file</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">os</span><span class="p">.</span><span class="nf">OpenFile</span><span class="p">(</span><span class="nx">path</span><span class="p">,</span> <span class="nx">os</span><span class="p">.</span><span class="nx">O_RDWR</span><span class="p">,</span> <span class="mo">0666</span><span class="p">)</span>
-    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-        <span class="k">return</span>
-    <span class="p">}</span>
-
-    <span class="k">defer</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
-        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-            <span class="nx">whisper</span> <span class="p">=</span> <span class="kc">nil</span>
-            <span class="nx">file</span><span class="p">.</span><span class="nf">Close</span><span class="p">()</span>
-        <span class="p">}</span>
-    <span class="p">}()</span>
-
-    <span class="nx">whisper</span> <span class="p">=</span> <span class="nb">new</span><span class="p">(</span><span class="nx">Whisper</span><span class="p">)</span>
-    <span class="nx">whisper</span><span class="p">.</span><span class="nx">file</span> <span class="p">=</span> <span class="nx">file</span>
-
-    <span class="nx">offset</span> <span class="o">:=</span> <span class="mi">0</span>
-
-    <span class="c1">// read the metadata
-</span><span class="c1"></span>    <span class="nx">b</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">MetadataSize</span><span class="p">)</span>
-    <span class="nx">readed</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">file</span><span class="p">.</span><span class="nf">Read</span><span class="p">(</span><span class="nx">b</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-        <span class="nx">err</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Unable to read header: %s&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">.</span><span class="nf">Error</span><span class="p">())</span>
-        <span class="k">return</span>
-    <span class="p">}</span>
-    <span class="k">if</span> <span class="nx">readed</span> <span class="o">!=</span> <span class="nx">MetadataSize</span> <span class="p">{</span>
-        <span class="nx">err</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Unable to read header: EOF&#34;</span><span class="p">)</span>
-        <span class="k">return</span>
-    <span class="p">}</span>
-
-    <span class="nx">a</span> <span class="o">:=</span> <span class="nf">unpackInt</span><span class="p">(</span><span class="nx">b</span><span class="p">[</span><span class="nx">offset</span> <span class="p">:</span> <span class="nx">offset</span><span class="o">+</span><span class="nx">IntSize</span><span class="p">])</span>
-    <span class="k">if</span> <span class="nx">a</span> <span class="p">&gt;</span> <span class="mi">1024</span> <span class="p">{</span> <span class="c1">// support very old format. File starts with lastUpdate and has only average aggregation method
-</span><span class="c1"></span>        <span class="nx">whisper</span><span class="p">.</span><span class="nx">aggregationMethod</span> <span class="p">=</span> <span class="nx">Average</span>
-    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
-        <span class="nx">whisper</span><span class="p">.</span><span class="nx">aggregationMethod</span> <span class="p">=</span> <span class="nf">AggregationMethod</span><span class="p">(</span><span class="nx">a</span><span class="p">)</span>
-    <span class="p">}</span>
-    <span class="nx">offset</span> <span class="o">+=</span> <span class="nx">IntSize</span>
-    <span class="nx">whisper</span><span class="p">.</span><span class="nx">maxRetention</span> <span class="p">=</span> <span class="nf">unpackInt</span><span class="p">(</span><span class="nx">b</span><span class="p">[</span><span class="nx">offset</span> <span class="p">:</span> <span class="nx">offset</span><span class="o">+</span><span class="nx">IntSize</span><span class="p">])</span>
-    <span class="nx">offset</span> <span class="o">+=</span> <span class="nx">IntSize</span>
-    <span class="nx">whisper</span><span class="p">.</span><span class="nx">xFilesFactor</span> <span class="p">=</span> <span class="nf">unpackFloat32</span><span class="p">(</span><span class="nx">b</span><span class="p">[</span><span class="nx">offset</span> <span class="p">:</span> <span class="nx">offset</span><span class="o">+</span><span class="nx">FloatSize</span><span class="p">])</span>
-    <span class="nx">offset</span> <span class="o">+=</span> <span class="nx">FloatSize</span>
-    <span class="nx">archiveCount</span> <span class="o">:=</span> <span class="nf">unpackInt</span><span class="p">(</span><span class="nx">b</span><span class="p">[</span><span class="nx">offset</span> <span class="p">:</span> <span class="nx">offset</span><span class="o">+</span><span class="nx">IntSize</span><span class="p">])</span>
-    <span class="nx">offset</span> <span class="o">+=</span> <span class="nx">IntSize</span>
-
-    <span class="c1">// read the archive info
-</span><span class="c1"></span>    <span class="nx">b</span> <span class="p">=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">ArchiveInfoSize</span><span class="p">)</span>
-
-    <span class="nx">whisper</span><span class="p">.</span><span class="nx">archives</span> <span class="p">=</span> <span class="nb">make</span><span class="p">([]</span><span class="o">*</span><span class="nx">archiveInfo</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-    <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nx">archiveCount</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
-        <span class="nx">readed</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">file</span><span class="p">.</span><span class="nf">Read</span><span class="p">(</span><span class="nx">b</span><span class="p">)</span>
-        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">||</span> <span class="nx">readed</span> <span class="o">!=</span> <span class="nx">ArchiveInfoSize</span> <span class="p">{</span>
-            <span class="nx">err</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Unable to read archive %d metadata&#34;</span><span class="p">,</span> <span class="nx">i</span><span class="p">)</span>
-            <span class="k">return</span>
-        <span class="p">}</span>
-        <span class="nx">whisper</span><span class="p">.</span><span class="nx">archives</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">whisper</span><span class="p">.</span><span class="nx">archives</span><span class="p">,</span> <span class="nf">unpackArchiveInfo</span><span class="p">(</span><span class="nx">b</span><span class="p">))</span>
-    <span class="p">}</span>
-
-    <span class="k">return</span> <span class="nx">whisper</span><span class="p">,</span> <span class="kc">nil</span>
-<span class="p">}</span>
-</code></pre></td></tr></table>
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">  Open an existing Whisper database and read it&#39;s header
+</span></span></span><span class="line"><span class="cl"><span class="cm">*/</span>
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">Open</span><span class="p">(</span><span class="nx">path</span> <span class="kt">string</span><span class="p">)</span> <span class="p">(</span><span class="nx">whisper</span> <span class="o">*</span><span class="nx">Whisper</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">file</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">os</span><span class="p">.</span><span class="nf">OpenFile</span><span class="p">(</span><span class="nx">path</span><span class="p">,</span> <span class="nx">os</span><span class="p">.</span><span class="nx">O_RDWR</span><span class="p">,</span> <span class="mo">0666</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">defer</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">whisper</span> <span class="p">=</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">file</span><span class="p">.</span><span class="nf">Close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nx">whisper</span> <span class="p">=</span> <span class="nb">new</span><span class="p">(</span><span class="nx">Whisper</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">whisper</span><span class="p">.</span><span class="nx">file</span> <span class="p">=</span> <span class="nx">file</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nx">offset</span> <span class="o">:=</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// read the metadata
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">b</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">MetadataSize</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">readed</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">file</span><span class="p">.</span><span class="nf">Read</span><span class="p">(</span><span class="nx">b</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">err</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Unable to read header: %s&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">.</span><span class="nf">Error</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">readed</span> <span class="o">!=</span> <span class="nx">MetadataSize</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">err</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Unable to read header: EOF&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nx">a</span> <span class="o">:=</span> <span class="nf">unpackInt</span><span class="p">(</span><span class="nx">b</span><span class="p">[</span><span class="nx">offset</span> <span class="p">:</span> <span class="nx">offset</span><span class="o">+</span><span class="nx">IntSize</span><span class="p">])</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">a</span> <span class="p">&gt;</span> <span class="mi">1024</span> <span class="p">{</span> <span class="c1">// support very old format. File starts with lastUpdate and has only average aggregation method
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="nx">whisper</span><span class="p">.</span><span class="nx">aggregationMethod</span> <span class="p">=</span> <span class="nx">Average</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">whisper</span><span class="p">.</span><span class="nx">aggregationMethod</span> <span class="p">=</span> <span class="nf">AggregationMethod</span><span class="p">(</span><span class="nx">a</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">offset</span> <span class="o">+=</span> <span class="nx">IntSize</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">whisper</span><span class="p">.</span><span class="nx">maxRetention</span> <span class="p">=</span> <span class="nf">unpackInt</span><span class="p">(</span><span class="nx">b</span><span class="p">[</span><span class="nx">offset</span> <span class="p">:</span> <span class="nx">offset</span><span class="o">+</span><span class="nx">IntSize</span><span class="p">])</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">offset</span> <span class="o">+=</span> <span class="nx">IntSize</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">whisper</span><span class="p">.</span><span class="nx">xFilesFactor</span> <span class="p">=</span> <span class="nf">unpackFloat32</span><span class="p">(</span><span class="nx">b</span><span class="p">[</span><span class="nx">offset</span> <span class="p">:</span> <span class="nx">offset</span><span class="o">+</span><span class="nx">FloatSize</span><span class="p">])</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">offset</span> <span class="o">+=</span> <span class="nx">FloatSize</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">archiveCount</span> <span class="o">:=</span> <span class="nf">unpackInt</span><span class="p">(</span><span class="nx">b</span><span class="p">[</span><span class="nx">offset</span> <span class="p">:</span> <span class="nx">offset</span><span class="o">+</span><span class="nx">IntSize</span><span class="p">])</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">offset</span> <span class="o">+=</span> <span class="nx">IntSize</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// read the archive info
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">b</span> <span class="p">=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">ArchiveInfoSize</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nx">whisper</span><span class="p">.</span><span class="nx">archives</span> <span class="p">=</span> <span class="nb">make</span><span class="p">([]</span><span class="o">*</span><span class="nx">archiveInfo</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nx">archiveCount</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">readed</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">file</span><span class="p">.</span><span class="nf">Read</span><span class="p">(</span><span class="nx">b</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">||</span> <span class="nx">readed</span> <span class="o">!=</span> <span class="nx">ArchiveInfoSize</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">err</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Unable to read archive %d metadata&#34;</span><span class="p">,</span> <span class="nx">i</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">whisper</span><span class="p">.</span><span class="nx">archives</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">whisper</span><span class="p">.</span><span class="nx">archives</span><span class="p">,</span> <span class="nf">unpackArchiveInfo</span><span class="p">(</span><span class="nx">b</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">whisper</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
 </div>
 </div><h2 id="whisper構造体">Whisper構造体</h2>
 <p><code>Whisper</code> 構造体の定義です。</p>
@@ -236,19 +236,19 @@
 </span><span class="lnt">139
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="cm">/*
-</span><span class="cm">    Represents a Whisper database file.
-</span><span class="cm">*/</span>
-<span class="kd">type</span> <span class="nx">Whisper</span> <span class="kd">struct</span> <span class="p">{</span>
-    <span class="nx">file</span> <span class="o">*</span><span class="nx">os</span><span class="p">.</span><span class="nx">File</span>
-
-    <span class="c1">// Metadata
-</span><span class="c1"></span>    <span class="nx">aggregationMethod</span> <span class="nx">AggregationMethod</span>
-    <span class="nx">maxRetention</span>      <span class="kt">int</span>
-    <span class="nx">xFilesFactor</span>      <span class="kt">float32</span>
-    <span class="nx">archives</span>          <span class="p">[]</span><span class="o">*</span><span class="nx">archiveInfo</span>
-<span class="p">}</span>
-</code></pre></td></tr></table>
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">    Represents a Whisper database file.
+</span></span></span><span class="line"><span class="cl"><span class="cm">*/</span>
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Whisper</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">file</span> <span class="o">*</span><span class="nx">os</span><span class="p">.</span><span class="nx">File</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// Metadata
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">aggregationMethod</span> <span class="nx">AggregationMethod</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">maxRetention</span>      <span class="kt">int</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">xFilesFactor</span>      <span class="kt">float32</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">archives</span>          <span class="p">[]</span><span class="o">*</span><span class="nx">archiveInfo</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
 </div>
 </div><p><code>AggregationMethod</code> の型と定数の定義です。</p>
 <p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L37-L45">whisper.go#L37-L45</a></p>
@@ -265,16 +265,16 @@
 </span><span class="lnt">45
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">AggregationMethod</span> <span class="kt">int</span>
-
-<span class="kd">const</span> <span class="p">(</span>
-    <span class="nx">Average</span> <span class="nx">AggregationMethod</span> <span class="p">=</span> <span class="kc">iota</span> <span class="o">+</span> <span class="mi">1</span>
-    <span class="nx">Sum</span>
-    <span class="nx">Last</span>
-    <span class="nx">Max</span>
-    <span class="nx">Min</span>
-<span class="p">)</span>
-</code></pre></td></tr></table>
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">AggregationMethod</span> <span class="kt">int</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">const</span> <span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Average</span> <span class="nx">AggregationMethod</span> <span class="p">=</span> <span class="kc">iota</span> <span class="o">+</span> <span class="mi">1</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Sum</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Last</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Max</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Min</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
 </div>
 </div><p><code>archiveInfo</code> 構造体の定義です。</p>
 <p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L840-L849">go-whisper/whisper.go#L840-L849</a></p>
@@ -291,16 +291,16 @@
 </span><span class="lnt">848
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="cm">/*
-</span><span class="cm">  Describes a time series in a file.
-</span><span class="cm">  The only addition this type has over a Retention is the offset at which it exists within the
-</span><span class="cm">  whisper file.
-</span><span class="cm">*/</span>
-<span class="kd">type</span> <span class="nx">archiveInfo</span> <span class="kd">struct</span> <span class="p">{</span>
-    <span class="nx">Retention</span>
-    <span class="nx">offset</span> <span class="kt">int</span>
-<span class="p">}</span>
-</code></pre></td></tr></table>
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">  Describes a time series in a file.
+</span></span></span><span class="line"><span class="cl"><span class="cm">  The only addition this type has over a Retention is the offset at which it exists within the
+</span></span></span><span class="line"><span class="cl"><span class="cm">  whisper file.
+</span></span></span><span class="line"><span class="cl"><span class="cm">*/</span>
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">archiveInfo</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Retention</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">offset</span> <span class="kt">int</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
 </div>
 </div><p><code>Retention</code> 構造体の定義です。</p>
 <p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L790-L799">whisper.go#L790-L799</a></p>
@@ -317,16 +317,16 @@
 </span><span class="lnt">798
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="cm">/*
-</span><span class="cm">  A retention level.
-</span><span class="cm">  Retention levels describe a given archive in the database. How detailed it is and how far back
-</span><span class="cm">  it records.
-</span><span class="cm">*/</span>
-<span class="kd">type</span> <span class="nx">Retention</span> <span class="kd">struct</span> <span class="p">{</span>
-    <span class="nx">secondsPerPoint</span> <span class="kt">int</span>
-    <span class="nx">numberOfPoints</span>  <span class="kt">int</span>
-<span class="p">}</span>
-</code></pre></td></tr></table>
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">  A retention level.
+</span></span></span><span class="line"><span class="cl"><span class="cm">  Retention levels describe a given archive in the database. How detailed it is and how far back
+</span></span></span><span class="line"><span class="cl"><span class="cm">  it records.
+</span></span></span><span class="line"><span class="cl"><span class="cm">*/</span>
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Retention</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">secondsPerPoint</span> <span class="kt">int</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">numberOfPoints</span>  <span class="kt">int</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
 </div>
 </div><h2 id="updatemanyメソッド">UpdateManyメソッド</h2>
 <p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L464-L496">whisper.go#L464-L496</a></p>
@@ -367,40 +367,40 @@
 </span><span class="lnt">496
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">whisper</span> <span class="o">*</span><span class="nx">Whisper</span><span class="p">)</span> <span class="nf">UpdateMany</span><span class="p">(</span><span class="nx">points</span> <span class="p">[]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">)</span> <span class="p">(</span><span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
-    <span class="c1">// recover panics and return as error
-</span><span class="c1"></span>    <span class="k">defer</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
-        <span class="k">if</span> <span class="nx">e</span> <span class="o">:=</span> <span class="nb">recover</span><span class="p">();</span> <span class="nx">e</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-            <span class="nx">err</span> <span class="p">=</span> <span class="nx">errors</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="nx">e</span><span class="p">.(</span><span class="kt">string</span><span class="p">))</span>
-        <span class="p">}</span>
-    <span class="p">}()</span>
-
-    <span class="c1">// sort the points, newest first
-</span><span class="c1"></span>    <span class="nf">reversePoints</span><span class="p">(</span><span class="nx">points</span><span class="p">)</span>
-    <span class="nx">sort</span><span class="p">.</span><span class="nf">Stable</span><span class="p">(</span><span class="nx">timeSeriesPointsNewestFirst</span><span class="p">{</span><span class="nx">points</span><span class="p">})</span>
-
-    <span class="nx">now</span> <span class="o">:=</span> <span class="nb">int</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">().</span><span class="nf">Unix</span><span class="p">())</span> <span class="c1">// TODO: danger of 2030 something overflow
-</span><span class="c1"></span>
-    <span class="kd">var</span> <span class="nx">currentPoints</span> <span class="p">[]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span>
-    <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">archive</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">whisper</span><span class="p">.</span><span class="nx">archives</span> <span class="p">{</span>
-        <span class="nx">currentPoints</span><span class="p">,</span> <span class="nx">points</span> <span class="p">=</span> <span class="nf">extractPoints</span><span class="p">(</span><span class="nx">points</span><span class="p">,</span> <span class="nx">now</span><span class="p">,</span> <span class="nx">archive</span><span class="p">.</span><span class="nf">MaxRetention</span><span class="p">())</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">currentPoints</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
-            <span class="k">continue</span>
-        <span class="p">}</span>
-        <span class="c1">// reverse currentPoints
-</span><span class="c1"></span>        <span class="nf">reversePoints</span><span class="p">(</span><span class="nx">currentPoints</span><span class="p">)</span>
-        <span class="nx">err</span> <span class="p">=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">archiveUpdateMany</span><span class="p">(</span><span class="nx">archive</span><span class="p">,</span> <span class="nx">currentPoints</span><span class="p">)</span>
-        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-            <span class="k">return</span>
-        <span class="p">}</span>
-
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">points</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span> <span class="c1">// nothing left to do
-</span><span class="c1"></span>            <span class="k">break</span>
-        <span class="p">}</span>
-    <span class="p">}</span>
-    <span class="k">return</span>
-<span class="p">}</span>
-</code></pre></td></tr></table>
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">whisper</span> <span class="o">*</span><span class="nx">Whisper</span><span class="p">)</span> <span class="nf">UpdateMany</span><span class="p">(</span><span class="nx">points</span> <span class="p">[]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">)</span> <span class="p">(</span><span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// recover panics and return as error
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">defer</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">e</span> <span class="o">:=</span> <span class="nb">recover</span><span class="p">();</span> <span class="nx">e</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">err</span> <span class="p">=</span> <span class="nx">errors</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="nx">e</span><span class="p">.(</span><span class="kt">string</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// sort the points, newest first
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nf">reversePoints</span><span class="p">(</span><span class="nx">points</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">sort</span><span class="p">.</span><span class="nf">Stable</span><span class="p">(</span><span class="nx">timeSeriesPointsNewestFirst</span><span class="p">{</span><span class="nx">points</span><span class="p">})</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nx">now</span> <span class="o">:=</span> <span class="nb">int</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">().</span><span class="nf">Unix</span><span class="p">())</span> <span class="c1">// TODO: danger of 2030 something overflow
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl">    <span class="kd">var</span> <span class="nx">currentPoints</span> <span class="p">[]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">archive</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">whisper</span><span class="p">.</span><span class="nx">archives</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">currentPoints</span><span class="p">,</span> <span class="nx">points</span> <span class="p">=</span> <span class="nf">extractPoints</span><span class="p">(</span><span class="nx">points</span><span class="p">,</span> <span class="nx">now</span><span class="p">,</span> <span class="nx">archive</span><span class="p">.</span><span class="nf">MaxRetention</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">currentPoints</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">continue</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// reverse currentPoints
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="nf">reversePoints</span><span class="p">(</span><span class="nx">currentPoints</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">err</span> <span class="p">=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">archiveUpdateMany</span><span class="p">(</span><span class="nx">archive</span><span class="p">,</span> <span class="nx">currentPoints</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">points</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span> <span class="c1">// nothing left to do
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>            <span class="k">break</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
 </div>
 </div><p><code>TimeSeriesPoint</code> 構造体の定義です。</p>
 <p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L907-L910">whisper.go#L907-L910</a></p>
@@ -412,11 +412,11 @@
 </span><span class="lnt">910
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">TimeSeriesPoint</span> <span class="kd">struct</span> <span class="p">{</span>
-    <span class="nx">Time</span>  <span class="kt">int</span>
-    <span class="nx">Value</span> <span class="kt">float64</span>
-<span class="p">}</span>
-</code></pre></td></tr></table>
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">TimeSeriesPoint</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Time</span>  <span class="kt">int</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Value</span> <span class="kt">float64</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
 </div>
 </div><p><code>reversePoints</code> 関数の実装です。渡されたスライスのバックストアを上書きして逆順にしています。</p>
 <p><a href="https://github.com/golang/go/wiki/SliceTricks#reversing">SliceTricks · golang/go Wiki</a>
@@ -436,15 +436,15 @@
 </span><span class="lnt">462
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">reversePoints</span><span class="p">(</span><span class="nx">points</span> <span class="p">[]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">)</span> <span class="p">{</span>
-    <span class="nx">size</span> <span class="o">:=</span> <span class="nb">len</span><span class="p">(</span><span class="nx">points</span><span class="p">)</span>
-    <span class="nx">end</span> <span class="o">:=</span> <span class="nx">size</span> <span class="o">/</span> <span class="mi">2</span>
-
-    <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nx">end</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
-        <span class="nx">points</span><span class="p">[</span><span class="nx">i</span><span class="p">],</span> <span class="nx">points</span><span class="p">[</span><span class="nx">size</span><span class="o">-</span><span class="nx">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="p">=</span> <span class="nx">points</span><span class="p">[</span><span class="nx">size</span><span class="o">-</span><span class="nx">i</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="nx">points</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span>
-    <span class="p">}</span>
-<span class="p">}</span>
-</code></pre></td></tr></table>
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">reversePoints</span><span class="p">(</span><span class="nx">points</span> <span class="p">[]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">size</span> <span class="o">:=</span> <span class="nb">len</span><span class="p">(</span><span class="nx">points</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">end</span> <span class="o">:=</span> <span class="nx">size</span> <span class="o">/</span> <span class="mi">2</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nx">end</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">points</span><span class="p">[</span><span class="nx">i</span><span class="p">],</span> <span class="nx">points</span><span class="p">[</span><span class="nx">size</span><span class="o">-</span><span class="nx">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="p">=</span> <span class="nx">points</span><span class="p">[</span><span class="nx">size</span><span class="o">-</span><span class="nx">i</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="nx">points</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
 </div>
 </div><p><code>timeSeriesPointsNewestFirst</code> は名前の通りポイントを時刻の新しい順に並べるための構造体です。</p>
 <p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L912-L928">whisper.go#L912-L928</a></p>
@@ -469,24 +469,24 @@
 </span><span class="lnt">928
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">timeSeriesPoints</span> <span class="p">[]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span>
-
-<span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="nx">timeSeriesPoints</span><span class="p">)</span> <span class="nf">Len</span><span class="p">()</span> <span class="kt">int</span> <span class="p">{</span>
-    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="nx">p</span><span class="p">)</span>
-<span class="p">}</span>
-
-<span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="nx">timeSeriesPoints</span><span class="p">)</span> <span class="nf">Swap</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span> <span class="nx">j</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
-    <span class="nx">p</span><span class="p">[</span><span class="nx">i</span><span class="p">],</span> <span class="nx">p</span><span class="p">[</span><span class="nx">j</span><span class="p">]</span> <span class="p">=</span> <span class="nx">p</span><span class="p">[</span><span class="nx">j</span><span class="p">],</span> <span class="nx">p</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span>
-<span class="p">}</span>
-
-<span class="kd">type</span> <span class="nx">timeSeriesPointsNewestFirst</span> <span class="kd">struct</span> <span class="p">{</span>
-    <span class="nx">timeSeriesPoints</span>
-<span class="p">}</span>
-
-<span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="nx">timeSeriesPointsNewestFirst</span><span class="p">)</span> <span class="nf">Less</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span> <span class="nx">j</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">bool</span> <span class="p">{</span>
-    <span class="k">return</span> <span class="nx">p</span><span class="p">.</span><span class="nx">timeSeriesPoints</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nx">Time</span> <span class="p">&gt;</span> <span class="nx">p</span><span class="p">.</span><span class="nx">timeSeriesPoints</span><span class="p">[</span><span class="nx">j</span><span class="p">].</span><span class="nx">Time</span>
-<span class="p">}</span>
-</code></pre></td></tr></table>
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">timeSeriesPoints</span> <span class="p">[]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="nx">timeSeriesPoints</span><span class="p">)</span> <span class="nf">Len</span><span class="p">()</span> <span class="kt">int</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="nx">p</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="nx">timeSeriesPoints</span><span class="p">)</span> <span class="nf">Swap</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span> <span class="nx">j</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">p</span><span class="p">[</span><span class="nx">i</span><span class="p">],</span> <span class="nx">p</span><span class="p">[</span><span class="nx">j</span><span class="p">]</span> <span class="p">=</span> <span class="nx">p</span><span class="p">[</span><span class="nx">j</span><span class="p">],</span> <span class="nx">p</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">timeSeriesPointsNewestFirst</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">timeSeriesPoints</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="nx">timeSeriesPointsNewestFirst</span><span class="p">)</span> <span class="nf">Less</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span> <span class="nx">j</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">bool</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">p</span><span class="p">.</span><span class="nx">timeSeriesPoints</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nx">Time</span> <span class="p">&gt;</span> <span class="nx">p</span><span class="p">.</span><span class="nx">timeSeriesPoints</span><span class="p">[</span><span class="nx">j</span><span class="p">].</span><span class="nx">Time</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
 </div>
 </div><p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L552-L564">whisper.go#L552-L564</a></p>
 <div class="highlight"><div class="chroma">
@@ -506,20 +506,20 @@
 </span><span class="lnt">564
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">extractPoints</span><span class="p">(</span><span class="nx">points</span> <span class="p">[]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">,</span> <span class="nx">now</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">maxRetention</span> <span class="kt">int</span><span class="p">)</span> <span class="p">(</span><span class="nx">currentPoints</span> <span class="p">[]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">,</span> <span class="nx">remainingPoints</span> <span class="p">[]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">)</span> <span class="p">{</span>
-    <span class="nx">maxAge</span> <span class="o">:=</span> <span class="nx">now</span> <span class="o">-</span> <span class="nx">maxRetention</span>
-    <span class="k">for</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">point</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">points</span> <span class="p">{</span>
-        <span class="k">if</span> <span class="nx">point</span><span class="p">.</span><span class="nx">Time</span> <span class="p">&lt;</span> <span class="nx">maxAge</span> <span class="p">{</span>
-            <span class="k">if</span> <span class="nx">i</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
-                <span class="k">return</span> <span class="nx">points</span><span class="p">[:</span><span class="nx">i</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="nx">points</span><span class="p">[</span><span class="nx">i</span><span class="o">-</span><span class="mi">1</span><span class="p">:]</span>
-            <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
-                <span class="k">return</span> <span class="p">[]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">{},</span> <span class="nx">points</span>
-            <span class="p">}</span>
-        <span class="p">}</span>
-    <span class="p">}</span>
-    <span class="k">return</span> <span class="nx">points</span><span class="p">,</span> <span class="nx">remainingPoints</span>
-<span class="p">}</span>
-</code></pre></td></tr></table>
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">extractPoints</span><span class="p">(</span><span class="nx">points</span> <span class="p">[]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">,</span> <span class="nx">now</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">maxRetention</span> <span class="kt">int</span><span class="p">)</span> <span class="p">(</span><span class="nx">currentPoints</span> <span class="p">[]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">,</span> <span class="nx">remainingPoints</span> <span class="p">[]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">maxAge</span> <span class="o">:=</span> <span class="nx">now</span> <span class="o">-</span> <span class="nx">maxRetention</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">point</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">points</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">point</span><span class="p">.</span><span class="nx">Time</span> <span class="p">&lt;</span> <span class="nx">maxAge</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="nx">i</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span> <span class="nx">points</span><span class="p">[:</span><span class="nx">i</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="nx">points</span><span class="p">[</span><span class="nx">i</span><span class="o">-</span><span class="mi">1</span><span class="p">:]</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span> <span class="p">[]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">{},</span> <span class="nx">points</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">points</span><span class="p">,</span> <span class="nx">remainingPoints</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
 </div>
 </div><p><code>Whisper</code> の <code>archiveUpdateMany</code> メソッドの実装です。</p>
 <p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L498-L550">whisper.go#L498-L550</a></p>
@@ -580,60 +580,60 @@
 </span><span class="lnt">550
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">whisper</span> <span class="o">*</span><span class="nx">Whisper</span><span class="p">)</span> <span class="nf">archiveUpdateMany</span><span class="p">(</span><span class="nx">archive</span> <span class="o">*</span><span class="nx">archiveInfo</span><span class="p">,</span> <span class="nx">points</span> <span class="p">[]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
-    <span class="nx">alignedPoints</span> <span class="o">:=</span> <span class="nf">alignPoints</span><span class="p">(</span><span class="nx">archive</span><span class="p">,</span> <span class="nx">points</span><span class="p">)</span>
-    <span class="nx">intervals</span><span class="p">,</span> <span class="nx">packedBlocks</span> <span class="o">:=</span> <span class="nf">packSequences</span><span class="p">(</span><span class="nx">archive</span><span class="p">,</span> <span class="nx">alignedPoints</span><span class="p">)</span>
-
-    <span class="nx">baseInterval</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">getBaseInterval</span><span class="p">(</span><span class="nx">archive</span><span class="p">)</span>
-    <span class="k">if</span> <span class="nx">baseInterval</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
-        <span class="nx">baseInterval</span> <span class="p">=</span> <span class="nx">intervals</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-    <span class="p">}</span>
-
-    <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">intervals</span> <span class="p">{</span>
-        <span class="nx">myOffset</span> <span class="o">:=</span> <span class="nx">archive</span><span class="p">.</span><span class="nf">PointOffset</span><span class="p">(</span><span class="nx">baseInterval</span><span class="p">,</span> <span class="nx">intervals</span><span class="p">[</span><span class="nx">i</span><span class="p">])</span>
-        <span class="nx">bytesBeyond</span> <span class="o">:=</span> <span class="nb">int</span><span class="p">(</span><span class="nx">myOffset</span><span class="o">-</span><span class="nx">archive</span><span class="p">.</span><span class="nf">End</span><span class="p">())</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">[</span><span class="nx">i</span><span class="p">])</span>
-        <span class="k">if</span> <span class="nx">bytesBeyond</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
-            <span class="nx">pos</span> <span class="o">:=</span> <span class="nb">len</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">[</span><span class="nx">i</span><span class="p">])</span> <span class="o">-</span> <span class="nx">bytesBeyond</span>
-            <span class="nx">err</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">fileWriteAt</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">[</span><span class="nx">i</span><span class="p">][:</span><span class="nx">pos</span><span class="p">],</span> <span class="nx">myOffset</span><span class="p">)</span>
-            <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-                <span class="k">return</span> <span class="nx">err</span>
-            <span class="p">}</span>
-            <span class="nx">err</span> <span class="p">=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">fileWriteAt</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">[</span><span class="nx">i</span><span class="p">][</span><span class="nx">pos</span><span class="p">:],</span> <span class="nx">archive</span><span class="p">.</span><span class="nf">Offset</span><span class="p">())</span>
-            <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-                <span class="k">return</span> <span class="nx">err</span>
-            <span class="p">}</span>
-        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
-            <span class="nx">err</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">fileWriteAt</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">[</span><span class="nx">i</span><span class="p">],</span> <span class="nx">myOffset</span><span class="p">)</span>
-            <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-                <span class="k">return</span> <span class="nx">err</span>
-            <span class="p">}</span>
-        <span class="p">}</span>
-    <span class="p">}</span>
-
-    <span class="nx">higher</span> <span class="o">:=</span> <span class="nx">archive</span>
-    <span class="nx">lowerArchives</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">lowerArchives</span><span class="p">(</span><span class="nx">archive</span><span class="p">)</span>
-
-    <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">lower</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">lowerArchives</span> <span class="p">{</span>
-        <span class="nx">seen</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">int</span><span class="p">]</span><span class="kt">bool</span><span class="p">)</span>
-        <span class="nx">propagateFurther</span> <span class="o">:=</span> <span class="kc">false</span>
-        <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">point</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">alignedPoints</span> <span class="p">{</span>
-            <span class="nx">interval</span> <span class="o">:=</span> <span class="nx">point</span><span class="p">.</span><span class="nx">interval</span> <span class="o">-</span> <span class="nf">mod</span><span class="p">(</span><span class="nx">point</span><span class="p">.</span><span class="nx">interval</span><span class="p">,</span> <span class="nx">lower</span><span class="p">.</span><span class="nx">secondsPerPoint</span><span class="p">)</span>
-            <span class="k">if</span> <span class="p">!</span><span class="nx">seen</span><span class="p">[</span><span class="nx">interval</span><span class="p">]</span> <span class="p">{</span>
-                <span class="k">if</span> <span class="nx">propagated</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">propagate</span><span class="p">(</span><span class="nx">interval</span><span class="p">,</span> <span class="nx">higher</span><span class="p">,</span> <span class="nx">lower</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-                    <span class="nb">panic</span><span class="p">(</span><span class="s">&#34;Failed to propagate&#34;</span><span class="p">)</span>
-                <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="nx">propagated</span> <span class="p">{</span>
-                    <span class="nx">propagateFurther</span> <span class="p">=</span> <span class="kc">true</span>
-                <span class="p">}</span>
-            <span class="p">}</span>
-        <span class="p">}</span>
-        <span class="k">if</span> <span class="p">!</span><span class="nx">propagateFurther</span> <span class="p">{</span>
-            <span class="k">break</span>
-        <span class="p">}</span>
-        <span class="nx">higher</span> <span class="p">=</span> <span class="nx">lower</span>
-    <span class="p">}</span>
-    <span class="k">return</span> <span class="kc">nil</span>
-<span class="p">}</span>
-</code></pre></td></tr></table>
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">whisper</span> <span class="o">*</span><span class="nx">Whisper</span><span class="p">)</span> <span class="nf">archiveUpdateMany</span><span class="p">(</span><span class="nx">archive</span> <span class="o">*</span><span class="nx">archiveInfo</span><span class="p">,</span> <span class="nx">points</span> <span class="p">[]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">alignedPoints</span> <span class="o">:=</span> <span class="nf">alignPoints</span><span class="p">(</span><span class="nx">archive</span><span class="p">,</span> <span class="nx">points</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">intervals</span><span class="p">,</span> <span class="nx">packedBlocks</span> <span class="o">:=</span> <span class="nf">packSequences</span><span class="p">(</span><span class="nx">archive</span><span class="p">,</span> <span class="nx">alignedPoints</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nx">baseInterval</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">getBaseInterval</span><span class="p">(</span><span class="nx">archive</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">baseInterval</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">baseInterval</span> <span class="p">=</span> <span class="nx">intervals</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">intervals</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">myOffset</span> <span class="o">:=</span> <span class="nx">archive</span><span class="p">.</span><span class="nf">PointOffset</span><span class="p">(</span><span class="nx">baseInterval</span><span class="p">,</span> <span class="nx">intervals</span><span class="p">[</span><span class="nx">i</span><span class="p">])</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">bytesBeyond</span> <span class="o">:=</span> <span class="nb">int</span><span class="p">(</span><span class="nx">myOffset</span><span class="o">-</span><span class="nx">archive</span><span class="p">.</span><span class="nf">End</span><span class="p">())</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">[</span><span class="nx">i</span><span class="p">])</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">bytesBeyond</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">pos</span> <span class="o">:=</span> <span class="nb">len</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">[</span><span class="nx">i</span><span class="p">])</span> <span class="o">-</span> <span class="nx">bytesBeyond</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">err</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">fileWriteAt</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">[</span><span class="nx">i</span><span class="p">][:</span><span class="nx">pos</span><span class="p">],</span> <span class="nx">myOffset</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">err</span> <span class="p">=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">fileWriteAt</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">[</span><span class="nx">i</span><span class="p">][</span><span class="nx">pos</span><span class="p">:],</span> <span class="nx">archive</span><span class="p">.</span><span class="nf">Offset</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">err</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">fileWriteAt</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">[</span><span class="nx">i</span><span class="p">],</span> <span class="nx">myOffset</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nx">higher</span> <span class="o">:=</span> <span class="nx">archive</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">lowerArchives</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">lowerArchives</span><span class="p">(</span><span class="nx">archive</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">lower</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">lowerArchives</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">seen</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">int</span><span class="p">]</span><span class="kt">bool</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">propagateFurther</span> <span class="o">:=</span> <span class="kc">false</span>
+</span></span><span class="line"><span class="cl">        <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">point</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">alignedPoints</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">interval</span> <span class="o">:=</span> <span class="nx">point</span><span class="p">.</span><span class="nx">interval</span> <span class="o">-</span> <span class="nf">mod</span><span class="p">(</span><span class="nx">point</span><span class="p">.</span><span class="nx">interval</span><span class="p">,</span> <span class="nx">lower</span><span class="p">.</span><span class="nx">secondsPerPoint</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">!</span><span class="nx">seen</span><span class="p">[</span><span class="nx">interval</span><span class="p">]</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">if</span> <span class="nx">propagated</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">propagate</span><span class="p">(</span><span class="nx">interval</span><span class="p">,</span> <span class="nx">higher</span><span class="p">,</span> <span class="nx">lower</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                    <span class="nb">panic</span><span class="p">(</span><span class="s">&#34;Failed to propagate&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="nx">propagated</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                    <span class="nx">propagateFurther</span> <span class="p">=</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl">                <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">!</span><span class="nx">propagateFurther</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">break</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">higher</span> <span class="p">=</span> <span class="nx">lower</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
 </div>
 </div><p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L566-L579">whisper.go#L566-L579</a></p>
 <div class="highlight"><div class="chroma">
@@ -654,21 +654,21 @@
 </span><span class="lnt">579
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">alignPoints</span><span class="p">(</span><span class="nx">archive</span> <span class="o">*</span><span class="nx">archiveInfo</span><span class="p">,</span> <span class="nx">points</span> <span class="p">[]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">)</span> <span class="p">[]</span><span class="nx">dataPoint</span> <span class="p">{</span>
-    <span class="nx">alignedPoints</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="nx">dataPoint</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nx">points</span><span class="p">))</span>
-    <span class="nx">positions</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">int</span><span class="p">]</span><span class="kt">int</span><span class="p">)</span>
-    <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">point</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">points</span> <span class="p">{</span>
-        <span class="nx">dPoint</span> <span class="o">:=</span> <span class="nx">dataPoint</span><span class="p">{</span><span class="nx">point</span><span class="p">.</span><span class="nx">Time</span> <span class="o">-</span> <span class="nf">mod</span><span class="p">(</span><span class="nx">point</span><span class="p">.</span><span class="nx">Time</span><span class="p">,</span> <span class="nx">archive</span><span class="p">.</span><span class="nx">secondsPerPoint</span><span class="p">),</span> <span class="nx">point</span><span class="p">.</span><span class="nx">Value</span><span class="p">}</span>
-        <span class="k">if</span> <span class="nx">p</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">positions</span><span class="p">[</span><span class="nx">dPoint</span><span class="p">.</span><span class="nx">interval</span><span class="p">];</span> <span class="nx">ok</span> <span class="p">{</span>
-            <span class="nx">alignedPoints</span><span class="p">[</span><span class="nx">p</span><span class="p">]</span> <span class="p">=</span> <span class="nx">dPoint</span>
-        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
-            <span class="nx">alignedPoints</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">alignedPoints</span><span class="p">,</span> <span class="nx">dPoint</span><span class="p">)</span>
-            <span class="nx">positions</span><span class="p">[</span><span class="nx">dPoint</span><span class="p">.</span><span class="nx">interval</span><span class="p">]</span> <span class="p">=</span> <span class="nb">len</span><span class="p">(</span><span class="nx">alignedPoints</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
-        <span class="p">}</span>
-    <span class="p">}</span>
-    <span class="k">return</span> <span class="nx">alignedPoints</span>
-<span class="p">}</span>
-</code></pre></td></tr></table>
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">alignPoints</span><span class="p">(</span><span class="nx">archive</span> <span class="o">*</span><span class="nx">archiveInfo</span><span class="p">,</span> <span class="nx">points</span> <span class="p">[]</span><span class="o">*</span><span class="nx">TimeSeriesPoint</span><span class="p">)</span> <span class="p">[]</span><span class="nx">dataPoint</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">alignedPoints</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="nx">dataPoint</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nx">points</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">positions</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">int</span><span class="p">]</span><span class="kt">int</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">point</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">points</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">dPoint</span> <span class="o">:=</span> <span class="nx">dataPoint</span><span class="p">{</span><span class="nx">point</span><span class="p">.</span><span class="nx">Time</span> <span class="o">-</span> <span class="nf">mod</span><span class="p">(</span><span class="nx">point</span><span class="p">.</span><span class="nx">Time</span><span class="p">,</span> <span class="nx">archive</span><span class="p">.</span><span class="nx">secondsPerPoint</span><span class="p">),</span> <span class="nx">point</span><span class="p">.</span><span class="nx">Value</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">p</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">positions</span><span class="p">[</span><span class="nx">dPoint</span><span class="p">.</span><span class="nx">interval</span><span class="p">];</span> <span class="nx">ok</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">alignedPoints</span><span class="p">[</span><span class="nx">p</span><span class="p">]</span> <span class="p">=</span> <span class="nx">dPoint</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">alignedPoints</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">alignedPoints</span><span class="p">,</span> <span class="nx">dPoint</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">positions</span><span class="p">[</span><span class="nx">dPoint</span><span class="p">.</span><span class="nx">interval</span><span class="p">]</span> <span class="p">=</span> <span class="nb">len</span><span class="p">(</span><span class="nx">alignedPoints</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">alignedPoints</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
 </div>
 </div><p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L930-L933">whisper.go#L930-L933</a></p>
 <div class="highlight"><div class="chroma">
@@ -679,11 +679,11 @@
 </span><span class="lnt">933
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">dataPoint</span> <span class="kd">struct</span> <span class="p">{</span>
-    <span class="nx">interval</span> <span class="kt">int</span>
-    <span class="nx">value</span>    <span class="kt">float64</span>
-<span class="p">}</span>
-</code></pre></td></tr></table>
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">dataPoint</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">interval</span> <span class="kt">int</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">value</span>    <span class="kt">float64</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
 </div>
 </div><p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L1021-L1027">whisper.go#L1021-L1027</a></p>
 <div class="highlight"><div class="chroma">
@@ -697,14 +697,14 @@
 </span><span class="lnt">1027
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="cm">/*
-</span><span class="cm">    Implementation of modulo that works like Python
-</span><span class="cm">    Thanks @timmow for this
-</span><span class="cm">*/</span>
-<span class="kd">func</span> <span class="nf">mod</span><span class="p">(</span><span class="nx">a</span><span class="p">,</span> <span class="nx">b</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">int</span> <span class="p">{</span>
-    <span class="k">return</span> <span class="nx">a</span> <span class="o">-</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span> <span class="nb">int</span><span class="p">(</span><span class="nx">math</span><span class="p">.</span><span class="nf">Floor</span><span class="p">(</span><span class="nb">float64</span><span class="p">(</span><span class="nx">a</span><span class="p">)</span><span class="o">/</span><span class="nb">float64</span><span class="p">(</span><span class="nx">b</span><span class="p">))))</span>
-<span class="p">}</span>
-</code></pre></td></tr></table>
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">    Implementation of modulo that works like Python
+</span></span></span><span class="line"><span class="cl"><span class="cm">    Thanks @timmow for this
+</span></span></span><span class="line"><span class="cl"><span class="cm">*/</span>
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">mod</span><span class="p">(</span><span class="nx">a</span><span class="p">,</span> <span class="nx">b</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">int</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">a</span> <span class="o">-</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span> <span class="nb">int</span><span class="p">(</span><span class="nx">math</span><span class="p">.</span><span class="nf">Floor</span><span class="p">(</span><span class="nb">float64</span><span class="p">(</span><span class="nx">a</span><span class="p">)</span><span class="o">/</span><span class="nb">float64</span><span class="p">(</span><span class="nx">b</span><span class="p">))))</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
 </div>
 </div><p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L581-L593">whisper.go#L581-L593</a></p>
 <div class="highlight"><div class="chroma">
@@ -724,20 +724,20 @@
 </span><span class="lnt">593
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">packSequences</span><span class="p">(</span><span class="nx">archive</span> <span class="o">*</span><span class="nx">archiveInfo</span><span class="p">,</span> <span class="nx">points</span> <span class="p">[]</span><span class="nx">dataPoint</span><span class="p">)</span> <span class="p">(</span><span class="nx">intervals</span> <span class="p">[]</span><span class="kt">int</span><span class="p">,</span> <span class="nx">packedBlocks</span> <span class="p">[][]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">{</span>
-    <span class="nx">intervals</span> <span class="p">=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">int</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-    <span class="nx">packedBlocks</span> <span class="p">=</span> <span class="nb">make</span><span class="p">([][]</span><span class="kt">byte</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-    <span class="k">for</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">point</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">points</span> <span class="p">{</span>
-        <span class="k">if</span> <span class="nx">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="o">||</span> <span class="nx">point</span><span class="p">.</span><span class="nx">interval</span> <span class="o">!=</span> <span class="nx">intervals</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">intervals</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="nx">archive</span><span class="p">.</span><span class="nx">secondsPerPoint</span> <span class="p">{</span>
-            <span class="nx">intervals</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">intervals</span><span class="p">,</span> <span class="nx">point</span><span class="p">.</span><span class="nx">interval</span><span class="p">)</span>
-            <span class="nx">packedBlocks</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">,</span> <span class="nx">point</span><span class="p">.</span><span class="nf">Bytes</span><span class="p">())</span>
-        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
-            <span class="nx">packedBlocks</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="nx">point</span><span class="p">.</span><span class="nf">Bytes</span><span class="p">()</span><span class="o">...</span><span class="p">)</span>
-        <span class="p">}</span>
-    <span class="p">}</span>
-    <span class="k">return</span>
-<span class="p">}</span>
-</code></pre></td></tr></table>
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">packSequences</span><span class="p">(</span><span class="nx">archive</span> <span class="o">*</span><span class="nx">archiveInfo</span><span class="p">,</span> <span class="nx">points</span> <span class="p">[]</span><span class="nx">dataPoint</span><span class="p">)</span> <span class="p">(</span><span class="nx">intervals</span> <span class="p">[]</span><span class="kt">int</span><span class="p">,</span> <span class="nx">packedBlocks</span> <span class="p">[][]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">intervals</span> <span class="p">=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">int</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">packedBlocks</span> <span class="p">=</span> <span class="nb">make</span><span class="p">([][]</span><span class="kt">byte</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">point</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">points</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="o">||</span> <span class="nx">point</span><span class="p">.</span><span class="nx">interval</span> <span class="o">!=</span> <span class="nx">intervals</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">intervals</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="nx">archive</span><span class="p">.</span><span class="nx">secondsPerPoint</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">intervals</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">intervals</span><span class="p">,</span> <span class="nx">point</span><span class="p">.</span><span class="nx">interval</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">packedBlocks</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">,</span> <span class="nx">point</span><span class="p">.</span><span class="nf">Bytes</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">packedBlocks</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">packedBlocks</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="nx">point</span><span class="p">.</span><span class="nf">Bytes</span><span class="p">()</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
 </div>
 </div><p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L935-L940">whisper.go#L935-L940</a></p>
 <div class="highlight"><div class="chroma">
@@ -750,13 +750,13 @@
 </span><span class="lnt">940
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">point</span> <span class="o">*</span><span class="nx">dataPoint</span><span class="p">)</span> <span class="nf">Bytes</span><span class="p">()</span> <span class="p">[]</span><span class="kt">byte</span> <span class="p">{</span>
-    <span class="nx">b</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">PointSize</span><span class="p">)</span>
-    <span class="nf">packInt</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="nx">point</span><span class="p">.</span><span class="nx">interval</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-    <span class="nf">packFloat64</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="nx">point</span><span class="p">.</span><span class="nx">value</span><span class="p">,</span> <span class="nx">IntSize</span><span class="p">)</span>
-    <span class="k">return</span> <span class="nx">b</span>
-<span class="p">}</span>
-</code></pre></td></tr></table>
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">point</span> <span class="o">*</span><span class="nx">dataPoint</span><span class="p">)</span> <span class="nf">Bytes</span><span class="p">()</span> <span class="p">[]</span><span class="kt">byte</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">b</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">PointSize</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">packInt</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="nx">point</span><span class="p">.</span><span class="nx">interval</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">packFloat64</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="nx">point</span><span class="p">.</span><span class="nx">value</span><span class="p">,</span> <span class="nx">IntSize</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">b</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
 </div>
 </div><p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L141-L145">whisper.go#L141-L145</a></p>
 <div class="highlight"><div class="chroma">
@@ -768,12 +768,12 @@
 </span><span class="lnt">145
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Wrappers for whisper.file operations
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">whisper</span> <span class="o">*</span><span class="nx">Whisper</span><span class="p">)</span> <span class="nf">fileWriteAt</span><span class="p">(</span><span class="nx">b</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">off</span> <span class="kt">int64</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
-    <span class="nx">_</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nx">file</span><span class="p">.</span><span class="nf">WriteAt</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="nx">off</span><span class="p">)</span>
-    <span class="k">return</span> <span class="nx">err</span>
-<span class="p">}</span>
-</code></pre></td></tr></table>
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Wrappers for whisper.file operations
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">whisper</span> <span class="o">*</span><span class="nx">Whisper</span><span class="p">)</span> <span class="nf">fileWriteAt</span><span class="p">(</span><span class="nx">b</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">off</span> <span class="kt">int64</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">_</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nx">file</span><span class="p">.</span><span class="nf">WriteAt</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="nx">off</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
 </div>
 </div><p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L616-L623">whisper.go#L616-L623</a></p>
 <div class="highlight"><div class="chroma">
@@ -788,15 +788,15 @@
 </span><span class="lnt">623
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">whisper</span> <span class="o">*</span><span class="nx">Whisper</span><span class="p">)</span> <span class="nf">lowerArchives</span><span class="p">(</span><span class="nx">archive</span> <span class="o">*</span><span class="nx">archiveInfo</span><span class="p">)</span> <span class="p">(</span><span class="nx">lowerArchives</span> <span class="p">[]</span><span class="o">*</span><span class="nx">archiveInfo</span><span class="p">)</span> <span class="p">{</span>
-    <span class="k">for</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">lower</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">whisper</span><span class="p">.</span><span class="nx">archives</span> <span class="p">{</span>
-        <span class="k">if</span> <span class="nx">lower</span><span class="p">.</span><span class="nx">secondsPerPoint</span> <span class="p">&gt;</span> <span class="nx">archive</span><span class="p">.</span><span class="nx">secondsPerPoint</span> <span class="p">{</span>
-            <span class="k">return</span> <span class="nx">whisper</span><span class="p">.</span><span class="nx">archives</span><span class="p">[</span><span class="nx">i</span><span class="p">:]</span>
-        <span class="p">}</span>
-    <span class="p">}</span>
-    <span class="k">return</span>
-<span class="p">}</span>
-</code></pre></td></tr></table>
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">whisper</span> <span class="o">*</span><span class="nx">Whisper</span><span class="p">)</span> <span class="nf">lowerArchives</span><span class="p">(</span><span class="nx">archive</span> <span class="o">*</span><span class="nx">archiveInfo</span><span class="p">)</span> <span class="p">(</span><span class="nx">lowerArchives</span> <span class="p">[]</span><span class="o">*</span><span class="nx">archiveInfo</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">lower</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">whisper</span><span class="p">.</span><span class="nx">archives</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">lower</span><span class="p">.</span><span class="nx">secondsPerPoint</span> <span class="p">&gt;</span> <span class="nx">archive</span><span class="p">.</span><span class="nx">secondsPerPoint</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="nx">whisper</span><span class="p">.</span><span class="nx">archives</span><span class="p">[</span><span class="nx">i</span><span class="p">:]</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
 </div>
 </div><p><a href="https://github.com/lomik/go-whisper/blob/6de93631b9853148a7e1a659f7805a89451368bf/whisper.go#L670-L692">whisper.go#L670-L692</a></p>
 <div class="highlight"><div class="chroma">
@@ -826,30 +826,30 @@
 </span><span class="lnt">692
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">whisper</span> <span class="o">*</span><span class="nx">Whisper</span><span class="p">)</span> <span class="nf">readSeries</span><span class="p">(</span><span class="nx">start</span><span class="p">,</span> <span class="nx">end</span> <span class="kt">int64</span><span class="p">,</span> <span class="nx">archive</span> <span class="o">*</span><span class="nx">archiveInfo</span><span class="p">)</span> <span class="p">([]</span><span class="nx">dataPoint</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
-    <span class="kd">var</span> <span class="nx">b</span> <span class="p">[]</span><span class="kt">byte</span>
-    <span class="k">if</span> <span class="nx">start</span> <span class="p">&lt;</span> <span class="nx">end</span> <span class="p">{</span>
-        <span class="nx">b</span> <span class="p">=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">end</span><span class="o">-</span><span class="nx">start</span><span class="p">)</span>
-        <span class="nx">err</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">fileReadAt</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="nx">start</span><span class="p">)</span>
-        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-            <span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
-        <span class="p">}</span>
-    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
-        <span class="nx">b</span> <span class="p">=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">archive</span><span class="p">.</span><span class="nf">End</span><span class="p">()</span><span class="o">-</span><span class="nx">start</span><span class="p">)</span>
-        <span class="nx">err</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">fileReadAt</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="nx">start</span><span class="p">)</span>
-        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-            <span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
-        <span class="p">}</span>
-        <span class="nx">b2</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">end</span><span class="o">-</span><span class="nx">archive</span><span class="p">.</span><span class="nf">Offset</span><span class="p">())</span>
-        <span class="nx">err</span> <span class="p">=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">fileReadAt</span><span class="p">(</span><span class="nx">b2</span><span class="p">,</span> <span class="nx">archive</span><span class="p">.</span><span class="nf">Offset</span><span class="p">())</span>
-        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-            <span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
-        <span class="p">}</span>
-        <span class="nx">b</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="nx">b2</span><span class="o">...</span><span class="p">)</span>
-    <span class="p">}</span>
-    <span class="k">return</span> <span class="nf">unpackDataPoints</span><span class="p">(</span><span class="nx">b</span><span class="p">),</span> <span class="kc">nil</span>
-<span class="p">}</span>
-</code></pre></td></tr></table>
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">whisper</span> <span class="o">*</span><span class="nx">Whisper</span><span class="p">)</span> <span class="nf">readSeries</span><span class="p">(</span><span class="nx">start</span><span class="p">,</span> <span class="nx">end</span> <span class="kt">int64</span><span class="p">,</span> <span class="nx">archive</span> <span class="o">*</span><span class="nx">archiveInfo</span><span class="p">)</span> <span class="p">([]</span><span class="nx">dataPoint</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">var</span> <span class="nx">b</span> <span class="p">[]</span><span class="kt">byte</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">start</span> <span class="p">&lt;</span> <span class="nx">end</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">b</span> <span class="p">=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">end</span><span class="o">-</span><span class="nx">start</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">err</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">fileReadAt</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="nx">start</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">b</span> <span class="p">=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">archive</span><span class="p">.</span><span class="nf">End</span><span class="p">()</span><span class="o">-</span><span class="nx">start</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">err</span> <span class="o">:=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">fileReadAt</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="nx">start</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">b2</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">end</span><span class="o">-</span><span class="nx">archive</span><span class="p">.</span><span class="nf">Offset</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">err</span> <span class="p">=</span> <span class="nx">whisper</span><span class="p">.</span><span class="nf">fileReadAt</span><span class="p">(</span><span class="nx">b2</span><span class="p">,</span> <span class="nx">archive</span><span class="p">.</span><span class="nf">Offset</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">b</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="nx">b2</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nf">unpackDataPoints</span><span class="p">(</span><span class="nx">b</span><span class="p">),</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
 </div>
 </div>
 </div>

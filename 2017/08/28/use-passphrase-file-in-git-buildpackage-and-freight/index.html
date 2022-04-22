@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.89.4" />
+  <meta name="generator" content="Hugo 0.96.0" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -58,7 +58,7 @@
     </nav>
 
     <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
-    <p>&copy; 2021. All rights reserved. </p>
+    <p>&copy; 2022. All rights reserved. </p>
   </div>
 </aside>
 
@@ -90,16 +90,16 @@
 <code>gpg: gpg-agent is not available in this session</code> というメッセージと共に
 <code>Enter passphrase:</code> というプロンプトが出るので、当初はgpg-agentを使えば良いのではないかと思いました。</p>
 <p>gpg-agent を使うには gnupg-agent パッケージをインストールするのが簡単ですが、これはgpg 2.x系となっています。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="gp">$ </span>dpkg -l <span class="p">|</span> grep gnupg
-<span class="go">ii  gnupg                                1.4.20-1ubuntu3.1                          amd64        GNU privacy guard - a free PGP replacement
-</span><span class="go">ii  gnupg-agent                          2.1.11-6ubuntu2                            amd64        GNU privacy guard - cryptographic agent
-</span><span class="go">ii  gnupg2                               2.1.11-6ubuntu2                            amd64        GNU privacy guard - a free PGP replacement (new v2.x)
-</span></code></pre></div><p>gbp-buildpackage から呼び出される debsign の <code>-p</code> オプションで署名の際に使うgpgのプログラムを変更できます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> dpkg -l <span class="p">|</span> grep gnupg
+</span></span><span class="line"><span class="cl"><span class="go">ii  gnupg                                1.4.20-1ubuntu3.1                          amd64        GNU privacy guard - a free PGP replacement
+</span></span></span><span class="line"><span class="cl"><span class="go">ii  gnupg-agent                          2.1.11-6ubuntu2                            amd64        GNU privacy guard - cryptographic agent
+</span></span></span><span class="line"><span class="cl"><span class="go">ii  gnupg2                               2.1.11-6ubuntu2                            amd64        GNU privacy guard - a free PGP replacement (new v2.x)
+</span></span></span></code></pre></div><p>gbp-buildpackage から呼び出される debsign の <code>-p</code> オプションで署名の際に使うgpgのプログラムを変更できます。</p>
 <p><a href="http://manpages.ubuntu.com/manpages/xenial/en/man1/debsign.1.html">Ubuntu Manpage: debsign - sign a Debian .changes and .dsc file pair using GPG</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">-pprogname
-       When  debsign  needs to execute GPG to sign it will run progname
-       (searching the PATH if necessary), instead of gpg.
-</code></pre></div><p><code>-pgpg2</code> のように指定することで署名の際に gpg2 を使うことが出来ます。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">-pprogname
+</span></span><span class="line"><span class="cl">       When  debsign  needs to execute GPG to sign it will run progname
+</span></span><span class="line"><span class="cl">       (searching the PATH if necessary), instead of gpg.
+</span></span></code></pre></div><p><code>-pgpg2</code> のように指定することで署名の際に gpg2 を使うことが出来ます。
 <code>-p</code> の後にスペースを開けてはいけないことと、 <code>&quot;-pgpg2 foo&quot;</code> のように空白を含んだコマンドラインを
 指定はできないので要注意です。</p>
 <p>gpg2 を使うように指定すると gpg-agent が自動的に起動されてCUIのダイアログが開いてパスフレーズを入力すれば
@@ -109,9 +109,9 @@
 <p>自宅サーバでdebパッケージをビルドしている場合はファイルから読めたほうが楽なので別の手を探して見つけました。</p>
 <p>まず <code>/home/hnakamur/.gpg-passphrase</code> というファイルを作ってそこにパスフレーズを書いておきます。自宅サーバで他にユーザはいないですが、一応パーミションは <code>400</code> にしました。</p>
 <p>で次に、以下のスクリプトを <code>/home/hnakamur/bin/gpg-passphrase</code> というファイル名で作成し実行パーミションを付与します。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">#!/bin/sh
-exec &lt;/home/hnakamur/.gpg-passphrase /usr/bin/gpg --batch --passphrase-fd 0 --no-use-agent &#34;$@&#34;
-</code></pre></div><p>ファイルからのリダイレクトは
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">#!/bin/sh
+</span></span><span class="line"><span class="cl">exec &lt;/home/hnakamur/.gpg-passphrase /usr/bin/gpg --batch --passphrase-fd 0 --no-use-agent &#34;$@&#34;
+</span></span></code></pre></div><p>ファイルからのリダイレクトは
 <code>exec /usr/bin/gpg --batch --passphrase-fd 0 --no-use-agent &quot;$@&quot; &lt; /home/hnakamur/.gpg-passphrase</code>
 と書くのが普通ですが、上記のように手前にも書けるというのをどこかで見たので忘れないようにこの書き方にしてみました。</p>
 <p>また、gpg の <code>--passphrase</code> オプションを使って
@@ -124,17 +124,17 @@ exec &lt;/home/hnakamur/.gpg-passphrase /usr/bin/gpg --batch --passphrase-fd 0 -
 <p>あとは <code>gbp buildpackage</code> の際に <code>-p/home/hnakamur/bin/gpg-passphrase</code> を指定すればOKです。</p>
 <h2 id="freightのキャッシュ更新時にファイルからパスフレーズを入力">freightのキャッシュ更新時にファイルからパスフレーズを入力</h2>
 <p><code>man freight-cache</code> すると</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">-p passphrase file, --passphrase-file=passphrase file
-       Use an alternate file containing the GPG key passphrase. This file should obviously be protected  and
-       only readable by the user running Freight.
-</code></pre></div><p>のように説明があります。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">-p passphrase file, --passphrase-file=passphrase file
+</span></span><span class="line"><span class="cl">       Use an alternate file containing the GPG key passphrase. This file should obviously be protected  and
+</span></span><span class="line"><span class="cl">       only readable by the user running Freight.
+</span></span></code></pre></div><p>のように説明があります。</p>
 <p>ということで、 <code>freight cache -p /home/hnakamur/.gpg-passphrase</code> でOKです。</p>
 <p>sudo つきで実行すると以下のような警告が出ますが、所有者と実行者が違うので仕方ないと気にしないことにします。
 あるいは root ユーザで自分のgpgキーを読み込むようにしたほうが良いのかもしれません。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">hnakamur@express:/var/www/html/my-debs$ sudo freight cache -p /home/hnakamur/.gpg-passphrase
-</span><span class="go">gpg: WARNING: unsafe ownership on configuration file `/home/hnakamur/.gnupg/gpg.conf&#39;
-</span><span class="go">gpg: WARNING: unsafe ownership on configuration file `/home/hnakamur/.gnupg/gpg.conf&#39;
-</span></code></pre></div>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">hnakamur@express:/var/www/html/my-debs$ sudo freight cache -p /home/hnakamur/.gpg-passphrase
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg: WARNING: unsafe ownership on configuration file `/home/hnakamur/.gnupg/gpg.conf&#39;
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg: WARNING: unsafe ownership on configuration file `/home/hnakamur/.gnupg/gpg.conf&#39;
+</span></span></span></code></pre></div>
 </div>
 
 

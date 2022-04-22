@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.89.4" />
+  <meta name="generator" content="Hugo 0.96.0" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -58,7 +58,7 @@
     </nav>
 
     <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
-    <p>&copy; 2021. All rights reserved. </p>
+    <p>&copy; 2022. All rights reserved. </p>
   </div>
 </aside>
 
@@ -98,12 +98,12 @@ CockroachDBにデバッグ用のコマンドが用意されていたので、そ
 <pre tabindex="0"><code>type Timestamp struct {
     // Holds a wall time, typically a unix epoch time
     // expressed in nanoseconds.
-    WallTime int64 `protobuf:&quot;varint,1,opt,name=wall_time,json=wallTime&quot; json:&quot;wall_time&quot;`
+    WallTime int64 `protobuf:&#34;varint,1,opt,name=wall_time,json=wallTime&#34; json:&#34;wall_time&#34;`
     // The logical component captures causality for events whose wall
     // times are equal. It is effectively bounded by (maximum clock
     // skew)/(minimal ns between events) and nearly impossible to
     // overflow.
-    Logical int32 `protobuf:&quot;varint,2,opt,name=logical&quot; json:&quot;logical&quot;`
+    Logical int32 `protobuf:&#34;varint,2,opt,name=logical&#34; json:&#34;logical&#34;`
 }
 </code></pre><p><a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine">engine - GoDoc</a> にEngineインタフェースの上にMVCC (Multi-Version Concurrency Control) システムが提供されていて、それがCockroachDBが分散トランザクションをサポートするための基礎になっていると書かれています。</p>
 <p>その下の <a href="https://godoc.org/github.com/cockroachdb/cockroach/storage/engine#hdr-Notes_on_MVCC_architecture">Notes on MVCC architecture</a> にMVCCアーキテクチャについて詳細な説明があります。じっくり読んだほうが良いと思いますが、一旦飛ばして先に進みます。</p>
@@ -139,19 +139,19 @@ CockroachDBにデバッグ用のコマンドが用意されていたので、そ
 0 result(s)
 root@roach1:~# cockroach debug kv put --host 192.168.0.13 foo bar
 root@roach1:~# cockroach debug kv get --host 192.168.0.13 foo
-&quot;bar&quot;
+&#34;bar&#34;
 root@roach1:~# cockroach debug kv scan --host 192.168.0.13
-&quot;foo&quot;   &quot;bar&quot;
+&#34;foo&#34;   &#34;bar&#34;
 1 result(s)
 </code></pre><p>上記で設定した値がコンテナroach2でも取得できました。</p>
 <pre tabindex="0"><code>root@roach2:~# cockroach debug kv scan --host 192.168.0.14
-&quot;foo&quot;   &quot;bar&quot;
+&#34;foo&#34;   &#34;bar&#34;
 1 result(s)
 </code></pre><p>コンテナroach2からroach1上の値を変更も出来ます。</p>
-<pre tabindex="0"><code>root@roach2:~# cockroach debug kv put --host 192.168.0.13 foo 'Hello, key value store in CockroachDB'
+<pre tabindex="0"><code>root@roach2:~# cockroach debug kv put --host 192.168.0.13 foo &#39;Hello, key value store in CockroachDB&#39;
 </code></pre><p>コンテナroach1上の値一覧を取得して更新されていることを確認しました。</p>
 <pre tabindex="0"><code>root@roach1:~# cockroach debug kv scan --host 192.168.0.13
-&quot;foo&quot;   &quot;Hello, key value store in CockroachDB&quot;
+&#34;foo&#34;   &#34;Hello, key value store in CockroachDB&#34;
 1 result(s)
 </code></pre><h3 id="debug-keys-コマンドを試してみた">debug keys コマンドを試してみた</h3>
 <p>debug keysコマンドで、キー・バリュー・ストアの内部構造をダンプして見ることが出来ます。このコマンドはサーバを停止した状態でデータのディレクトリを指定して実行するようになっています。</p>
@@ -183,24 +183,24 @@ Global Flags:
       --verbosity value                log level for V logs
       --vmodule value                  comma-separated list of pattern=N settings for file-filtered logging
 
-Failed running &quot;debug&quot;
+Failed running &#34;debug&#34;
 </code></pre><p>そこでコンテナroach2のサーバを停止してみます。</p>
 <pre tabindex="0"><code>root@roach2:~# cockroach quit --host 192.168.0.14
 </code></pre><p>サーバを停止したらキーの一覧を表示してみます。以下の例では <code>foo</code> の前後5行を表示しています。
 fooという文字列の後にタイムスタンプがついているのがわかります。</p>
 <pre tabindex="0"><code>root@roach2:~# cockroach debug keys ./cockroach-data | grep -A 5 -B 5 foo
-&quot;/System/\&quot;update-cluster\&quot;/1466351519.447511853,0&quot;
-&quot;/System/\&quot;update-cluster\&quot;/1466265107.436191749,0&quot;
-&quot;/System/\&quot;update-cluster\&quot;/1466265097.406397710,0&quot;
-&quot;/System/\&quot;update-cluster\&quot;/1466178687.396782782,0&quot;
-&quot;/System/\&quot;update-cluster\&quot;/1466178677.619687555,85&quot;
-&quot;\&quot;foo\&quot;/1467234744.564568969,0&quot;
-&quot;\&quot;foo\&quot;/1467221373.376922221,0&quot;
-&quot;/Table/2/1/0/\&quot;bank\&quot;/3/1/1466178749.722011447,0&quot;
-&quot;/Table/2/1/0/\&quot;system\&quot;/3/1/1466178677.367397368,0&quot;
-&quot;/Table/2/1/1/\&quot;descriptor\&quot;/3/1/1466178677.367397368,0&quot;
-&quot;/Table/2/1/1/\&quot;eventlog\&quot;/3/1/1466178677.367397368,0&quot;
-&quot;/Table/2/1/1/\&quot;lease\&quot;/3/1/1466178677.367397368,0&quot;
+&#34;/System/\&#34;update-cluster\&#34;/1466351519.447511853,0&#34;
+&#34;/System/\&#34;update-cluster\&#34;/1466265107.436191749,0&#34;
+&#34;/System/\&#34;update-cluster\&#34;/1466265097.406397710,0&#34;
+&#34;/System/\&#34;update-cluster\&#34;/1466178687.396782782,0&#34;
+&#34;/System/\&#34;update-cluster\&#34;/1466178677.619687555,85&#34;
+&#34;\&#34;foo\&#34;/1467234744.564568969,0&#34;
+&#34;\&#34;foo\&#34;/1467221373.376922221,0&#34;
+&#34;/Table/2/1/0/\&#34;bank\&#34;/3/1/1466178749.722011447,0&#34;
+&#34;/Table/2/1/0/\&#34;system\&#34;/3/1/1466178677.367397368,0&#34;
+&#34;/Table/2/1/1/\&#34;descriptor\&#34;/3/1/1466178677.367397368,0&#34;
+&#34;/Table/2/1/1/\&#34;eventlog\&#34;/3/1/1466178677.367397368,0&#34;
+&#34;/Table/2/1/1/\&#34;lease\&#34;/3/1/1466178677.367397368,0&#34;
 </code></pre><p><code>--values</code> オプションも追加すると、キーだけではなく値も表示されます。</p>
 <pre tabindex="0"><code>cockroach debug keys --values cockroach-data/ | less
 </code></pre><p>を実行して、 <code>foo</code> のキーに対応する部分を見てみると以下のようになっていました。横に長過ぎるので折り返して表示しています。</p>

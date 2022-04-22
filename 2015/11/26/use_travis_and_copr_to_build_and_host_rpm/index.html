@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.89.4" />
+  <meta name="generator" content="Hugo 0.96.0" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -58,7 +58,7 @@
     </nav>
 
     <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
-    <p>&copy; 2021. All rights reserved. </p>
+    <p>&copy; 2022. All rights reserved. </p>
   </div>
 </aside>
 
@@ -144,7 +144,7 @@ install:
 
 script:
   - case $TRAVIS_BRANCH in master) project=nodejs5;; LTS) project=nodejs;; esac
-  - docker run hnakamur/nodejsrpm &quot;$COPR_LOGIN&quot; &quot;$COPR_USERNAME&quot; &quot;$COPR_TOKEN&quot; &quot;$project&quot;
+  - docker run hnakamur/nodejsrpm &#34;$COPR_LOGIN&#34; &#34;$COPR_USERNAME&#34; &#34;$COPR_TOKEN&#34; &#34;$project&#34;
 </code></pre><p><a href="https://github.com/hnakamur/nodejs-rpm">hnakamur/nodejs-rpm</a>では、mainブランチでNode.jsのv5.x (Stable)、LTSブランチでNode.jsのv4.x (LTS)のspecファイルを保持しています。</p>
 <p>coprは上記の通り1つのプロジェクトで複数バージョンは保持できないので、 <a href="https://copr.fedoraproject.org/coprs/hnakamur/nodejs5/">hnakamur/nodejs5 Copr</a> と <a href="https://copr.fedoraproject.org/coprs/hnakamur/nodejs/">hnakamur/nodejs Copr</a> の2つのプロジェクトを作ることにしました。</p>
 <p><a href="https://docs.travis-ci.com/user/environment-variables/#Default-Environment-Variables">Environment Variables - Travis CI</a>によると <code>TRAVIS_BRANCH</code> 環境変数でgitのブランチが取得できます。ブランチ名に応じてプロジェクト名を切り替え、 <code>docker run</code> で呼び出すスクリプトの引数に渡しています。</p>
@@ -172,12 +172,12 @@ token = ${copr_token}
 copr_url = https://copr.fedoraproject.org
 EOF
 
-status=`curl -s -o /dev/null -w &quot;%{http_code}&quot; https://copr.fedoraproject.org/api/coprs/${copr_username}/${project_name}/detail/`
-if [ $status = &quot;404&quot; ]; then
-  copr-cli create --chroot epel-7-x86_64 --description 'node.js repository' ${project_name}
+status=`curl -s -o /dev/null -w &#34;%{http_code}&#34; https://copr.fedoraproject.org/api/coprs/${copr_username}/${project_name}/detail/`
+if [ $status = &#34;404&#34; ]; then
+  copr-cli create --chroot epel-7-x86_64 --description &#39;node.js repository&#39; ${project_name}
 fi
-version=`awk '$1==&quot;Version:&quot; {print $2}' ${spec_file}`
-release=$(rpm --eval `awk '$1==&quot;Release:&quot; {print $2}' ${spec_file}`)
+version=`awk &#39;$1==&#34;Version:&#34; {print $2}&#39; ${spec_file}`
+release=$(rpm --eval `awk &#39;$1==&#34;Release:&#34; {print $2}&#39; ${spec_file}`)
 srpm_file=/root/rpmbuild/SRPMS/nodejs-${version}-${release}.src.rpm
 copr-cli build --nowait ${project_name} ${srpm_file}
 
@@ -203,12 +203,12 @@ RUN yum -y install epel-release \
 ADD nodejs.spec /root/rpmbuild/SPECS/
 ADD node-js.*patch /root/rpmbuild/SOURCES/
 
-RUN version=`awk '$1==&quot;Version:&quot; {print $2}' /root/rpmbuild/SPECS/nodejs.spec` \
+RUN version=`awk &#39;$1==&#34;Version:&#34; {print $2}&#39; /root/rpmbuild/SPECS/nodejs.spec` \
  &amp;&amp; curl -sL -o /root/rpmbuild/SOURCES/node-v${version}.tar.xz https://nodejs.org/dist/v${version}/node-v${version}.tar.xz \
  &amp;&amp; rpmbuild -bs /root/rpmbuild/SPECS/nodejs.spec
 
 ADD copr-build.sh /root/
-ENTRYPOINT [&quot;/bin/bash&quot;, &quot;/root/copr-build.sh&quot;]
+ENTRYPOINT [&#34;/bin/bash&#34;, &#34;/root/copr-build.sh&#34;]
 </code></pre><p>copr-cliはCentOS 7だとepelから <code>yum install</code> でインストール可能なのですが、バージョンが古いため <code>copr-cli build</code> でsrpmファイルのパスを指定してアップロードする機能が無いようです。サイトにアップロードしておいてURLを指定することは可能なのですが、それだと面倒なので <code>pip</code> を使って最新版の <code>copr-cli</code> をインストールしています。</p>
 <p>長く運用するサーバならrpmでインストールされるパスと同じパスにpipでインストールしてしまうのは良くないかもしれませんが、ビルド終了したら破棄するコンテナなので気にせず上書きインストールとしています。</p>
 <h2 id="rpmを使う手順">rpmを使う手順</h2>

@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.89.4" />
+  <meta name="generator" content="Hugo 0.96.0" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -58,7 +58,7 @@
     </nav>
 
     <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
-    <p>&copy; 2021. All rights reserved. </p>
+    <p>&copy; 2022. All rights reserved. </p>
   </div>
 </aside>
 
@@ -80,48 +80,48 @@
 <p><a href="https://multipass.run/docs/troubleshooting-networking-on-macos">Troubleshooting networking on macOS | Multipass documentation</a> の &ldquo;Potential workaround for VPN conflicts&rdquo; に書いてありました。</p>
 <h2 id="globalprotect-のネットワークインターフェース名を-ifconfig-で確認">GlobalProtect のネットワークインターフェース名を ifconfig で確認</h2>
 <p>GlobalProtect でVPNに接続した状態で、以下のコマンドを実行して GlobalProtect のネットワークインターフェース名を確認します。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">ifconfig
-</span></code></pre></div><p>私の環境では <code>gpd0</code> でした。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">ifconfig
+</span></span></span></code></pre></div><p>私の環境では <code>gpd0</code> でした。
 また WiFi のインターフェース名は <code>en0</code> で、 Hypervisor.framework のブリッジのインターフェース名は <code>bridge100</code> でした。</p>
 <h2 id="pfconf-を編集して反映">pf.conf を編集して反映</h2>
 <p><code>man pf.conf</code> すると <code>pf.conf</code> は <code>packet filter configuration file</code> とのことです。 <a href="https://en.wikipedia.org/wiki/PF_%28firewall%29">PF (firewall) - Wikipedia</a> も参照。</p>
 <p><code>/etc/pf.conf</code> は変更前はコメントを除くと以下のようになっていました。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">scrub-anchor &#34;com.apple/*&#34;
-nat-anchor &#34;com.apple/*&#34;
-rdr-anchor &#34;com.apple/*&#34;
-dummynet-anchor &#34;com.apple/*&#34;
-anchor &#34;com.apple/*&#34;
-load anchor &#34;com.apple&#34; from &#34;/etc/pf.anchors/com.apple&#34;
-</code></pre></div><p>これを以下のコマンドを実行し</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">sudo vim /etc/pf.conf
-</span></code></pre></div><p>以下のように編集しました。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text">scrub-anchor &#34;com.apple/*&#34;
-nat-anchor &#34;com.apple/*&#34;
-table &lt;privbutvm&gt; const { 10/8, 172.16/12, 192.168/16, !192.168.254/24, !192.168.255/24 }
-table &lt;myglobal&gt; const { 0/0, !10/8, !172.16/12, !192.168/16 }
-nat on gpd0 from bridge100:network to &lt;privbutvm&gt; -&gt; (gpd0)
-nat on en0 from bridge100:network to &lt;myglobal&gt; -&gt; (en0)
-rdr-anchor &#34;com.apple/*&#34;
-dummynet-anchor &#34;com.apple/*&#34;
-anchor &#34;com.apple/*&#34;
-load anchor &#34;com.apple&#34; from &#34;/etc/pf.anchors/com.apple&#34;
-</code></pre></div><p><code>192.168.254/24</code> と <code>192.168.255/24</code> は <a href="/blog/2020/05/25/change-macos-hypervisor.framework-vm-subnet-ip-address/">macOSでHypervisor.frameworkのVMのサブネットIPアドレスを変える · hnakamur&rsquo;s blog</a> に書いたようにVMとLXDコンテナーのネットワークです。これを除いたプライベートアドレスは GlobalProtect に、グローバルアドレスは WiFi に向けてそれぞれNATを設定しました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">scrub-anchor &#34;com.apple/*&#34;
+</span></span><span class="line"><span class="cl">nat-anchor &#34;com.apple/*&#34;
+</span></span><span class="line"><span class="cl">rdr-anchor &#34;com.apple/*&#34;
+</span></span><span class="line"><span class="cl">dummynet-anchor &#34;com.apple/*&#34;
+</span></span><span class="line"><span class="cl">anchor &#34;com.apple/*&#34;
+</span></span><span class="line"><span class="cl">load anchor &#34;com.apple&#34; from &#34;/etc/pf.anchors/com.apple&#34;
+</span></span></code></pre></div><p>これを以下のコマンドを実行し</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo vim /etc/pf.conf
+</span></span></span></code></pre></div><p>以下のように編集しました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">scrub-anchor &#34;com.apple/*&#34;
+</span></span><span class="line"><span class="cl">nat-anchor &#34;com.apple/*&#34;
+</span></span><span class="line"><span class="cl">table &lt;privbutvm&gt; const { 10/8, 172.16/12, 192.168/16, !192.168.254/24, !192.168.255/24 }
+</span></span><span class="line"><span class="cl">table &lt;myglobal&gt; const { 0/0, !10/8, !172.16/12, !192.168/16 }
+</span></span><span class="line"><span class="cl">nat on gpd0 from bridge100:network to &lt;privbutvm&gt; -&gt; (gpd0)
+</span></span><span class="line"><span class="cl">nat on en0 from bridge100:network to &lt;myglobal&gt; -&gt; (en0)
+</span></span><span class="line"><span class="cl">rdr-anchor &#34;com.apple/*&#34;
+</span></span><span class="line"><span class="cl">dummynet-anchor &#34;com.apple/*&#34;
+</span></span><span class="line"><span class="cl">anchor &#34;com.apple/*&#34;
+</span></span><span class="line"><span class="cl">load anchor &#34;com.apple&#34; from &#34;/etc/pf.anchors/com.apple&#34;
+</span></span></code></pre></div><p><code>192.168.254/24</code> と <code>192.168.255/24</code> は <a href="/blog/2020/05/25/change-macos-hypervisor.framework-vm-subnet-ip-address/">macOSでHypervisor.frameworkのVMのサブネットIPアドレスを変える · hnakamur&rsquo;s blog</a> に書いたようにVMとLXDコンテナーのネットワークです。これを除いたプライベートアドレスは GlobalProtect に、グローバルアドレスは WiFi に向けてそれぞれNATを設定しました。</p>
 <p>以下のコマンドで反映します。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">sudo pfctl -f /etc/pf.conf
-</span></code></pre></div><p>実行すると以下のようなメッセージが出ました。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="gp">% </span>sudo pfctl -f /etc/pf.conf
-<span class="go">pfctl: Use of -f option, could result in flushing of rules
-</span><span class="go">present in the main ruleset added by the system at startup.
-</span><span class="go">See /etc/pf.conf for further details.
-</span><span class="go">No ALTQ support in kernel
-</span><span class="go">ALTQ related functions disabled
-</span></code></pre></div><h2 id="macosでtcpdumpを実行しつつ-vmやlxdコンテナから-ping-で動作確認">macOSでtcpdumpを実行しつつ VMやLXDコンテナから ping で動作確認</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo pfctl -f /etc/pf.conf
+</span></span></span></code></pre></div><p>実行すると以下のようなメッセージが出ました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">%</span> sudo pfctl -f /etc/pf.conf
+</span></span><span class="line"><span class="cl"><span class="go">pfctl: Use of -f option, could result in flushing of rules
+</span></span></span><span class="line"><span class="cl"><span class="go">present in the main ruleset added by the system at startup.
+</span></span></span><span class="line"><span class="cl"><span class="go">See /etc/pf.conf for further details.
+</span></span></span><span class="line"><span class="cl"><span class="go">No ALTQ support in kernel
+</span></span></span><span class="line"><span class="cl"><span class="go">ALTQ related functions disabled
+</span></span></span></code></pre></div><h2 id="macosでtcpdumpを実行しつつ-vmやlxdコンテナから-ping-で動作確認">macOSでtcpdumpを実行しつつ VMやLXDコンテナから ping で動作確認</h2>
 <p>macOS 側で以下のように tcpdump を実行しておきます。
 <code>-k A</code> を指定しておくとインターフェース名も出力されるので便利です。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">sudo tcpdump -n -k A -vvv -i any icmp
-</span></code></pre></div><p>対象のインターフェースを限定したいが複数指定したい場合は <code>man tcpdump</code> に書いてある pktap を使ってこの後に複数のインターフェースを指定できます。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">sudo tcpdump -n -k A -vvv -i pktap,bridge100,gpd0,en0 icmp
-</span></code></pre></div><p>LXDコンテナ内からグローバルアドレスに ping を打ったときの出力は以下のような感じでした。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo tcpdump -n -k A -vvv -i any icmp
+</span></span></span></code></pre></div><p>対象のインターフェースを限定したいが複数指定したい場合は <code>man tcpdump</code> に書いてある pktap を使ってこの後に複数のインターフェースを指定できます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo tcpdump -n -k A -vvv -i pktap,bridge100,gpd0,en0 icmp
+</span></span></span></code></pre></div><p>LXDコンテナ内からグローバルアドレスに ping を打ったときの出力は以下のような感じでした。
 <code>ping 8.8.8.8</code> で試しました。 <code>192.168.2.207</code> は <code>en0</code> についている IP アドレスです。</p>
 <pre tabindex="0"><code>15:28:09.233218 (en7, svc BE, in) IP (tos 0x0, ttl 64, id 39934, offset 0, flags [DF], proto ICMP (1), length 84)
     192.168.254.2 &gt; 8.8.8.8: ICMP echo request, id 9752, seq 1, length 64
@@ -157,12 +157,12 @@ load anchor &#34;com.apple&#34; from &#34;/etc/pf.anchors/com.apple&#34;
 <h2 id="ついでにルーティングの表示追加削除コマンドをメモ">ついでにルーティングの表示・追加・削除コマンドをメモ</h2>
 <p><a href="https://multipass.run/docs/troubleshooting-networking-on-macos">Troubleshooting networking on macOS | Multipass documentation</a> を見て最初はルーティングも変更してみたので、ついでにメモ。</p>
 <p>ルーティング表示</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">netstat -rn
-</span></code></pre></div><p>ルーティング追加（ターゲットは <code>-interface bridge100</code> のような指定方法もある。また <code>-static</code> というオプションもある）。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">sudo route add -net 192.168.255.0/24 192.168.64.2
-</span></code></pre></div><p>ルーティング削除</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">sudo route delete -net 192.168.255.0/24
-</span></code></pre></div>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">netstat -rn
+</span></span></span></code></pre></div><p>ルーティング追加（ターゲットは <code>-interface bridge100</code> のような指定方法もある。また <code>-static</code> というオプションもある）。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo route add -net 192.168.255.0/24 192.168.64.2
+</span></span></span></code></pre></div><p>ルーティング削除</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo route delete -net 192.168.255.0/24
+</span></span></span></code></pre></div>
 </div>
 
 

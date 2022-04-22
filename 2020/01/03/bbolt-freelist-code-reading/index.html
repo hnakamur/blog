@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.89.4" />
+  <meta name="generator" content="Hugo 0.96.0" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -58,7 +58,7 @@
     </nav>
 
     <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
-    <p>&copy; 2021. All rights reserved. </p>
+    <p>&copy; 2022. All rights reserved. </p>
   </div>
 </aside>
 
@@ -93,123 +93,123 @@
 </nav>
   <h2 id="freelist-型と関連する型"><code>freelist</code> 型と関連する型</h2>
 <p><a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/freelist.go#L9-L36">freelist.go#L9-L36</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// txPending holds a list of pgids and corresponding allocation txns
-</span><span class="c1">// that are pending to be freed.
-</span><span class="c1"></span><span class="kd">type</span> <span class="nx">txPending</span> <span class="kd">struct</span> <span class="p">{</span>
-  <span class="nx">ids</span>              <span class="p">[]</span><span class="nx">pgid</span>
-  <span class="nx">alloctx</span>          <span class="p">[]</span><span class="nx">txid</span> <span class="c1">// txids allocating the ids
-</span><span class="c1"></span>  <span class="nx">lastReleaseBegin</span> <span class="nx">txid</span>   <span class="c1">// beginning txid of last matching releaseRange
-</span><span class="c1"></span><span class="p">}</span>
-
-<span class="c1">// pidSet holds the set of starting pgids which have the same span size
-</span><span class="c1"></span><span class="kd">type</span> <span class="nx">pidSet</span> <span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="kd">struct</span><span class="p">{}</span>
-
-<span class="c1">// freelist represents a list of all pages that are available for allocation.
-</span><span class="c1">// It also tracks pages that have been freed but are still in use by open transactions.
-</span><span class="c1"></span><span class="kd">type</span> <span class="nx">freelist</span> <span class="kd">struct</span> <span class="p">{</span>
-  <span class="nx">freelistType</span>   <span class="nx">FreelistType</span>                <span class="c1">// freelist type
-</span><span class="c1"></span>  <span class="nx">ids</span>            <span class="p">[]</span><span class="nx">pgid</span>                      <span class="c1">// all free and available free page ids.
-</span><span class="c1"></span>  <span class="nx">allocs</span>         <span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="nx">txid</span>               <span class="c1">// mapping of txid that allocated a pgid.
-</span><span class="c1"></span>  <span class="nx">pending</span>        <span class="kd">map</span><span class="p">[</span><span class="nx">txid</span><span class="p">]</span><span class="o">*</span><span class="nx">txPending</span>         <span class="c1">// mapping of soon-to-be free page ids by tx.
-</span><span class="c1"></span>  <span class="nx">cache</span>          <span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="kt">bool</span>               <span class="c1">// fast lookup of all free and pending page ids.
-</span><span class="c1"></span>  <span class="nx">freemaps</span>       <span class="kd">map</span><span class="p">[</span><span class="kt">uint64</span><span class="p">]</span><span class="nx">pidSet</span>           <span class="c1">// key is the size of continuous pages(span), value is a set which contains the starting pgids of same size
-</span><span class="c1"></span>  <span class="nx">forwardMap</span>     <span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="kt">uint64</span>             <span class="c1">// key is start pgid, value is its span size
-</span><span class="c1"></span>  <span class="nx">backwardMap</span>    <span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="kt">uint64</span>             <span class="c1">// key is end pgid, value is its span size
-</span><span class="c1"></span>  <span class="nx">allocate</span>       <span class="kd">func</span><span class="p">(</span><span class="nx">txid</span> <span class="nx">txid</span><span class="p">,</span> <span class="nx">n</span> <span class="kt">int</span><span class="p">)</span> <span class="nx">pgid</span> <span class="c1">// the freelist allocate func
-</span><span class="c1"></span>  <span class="nx">free_count</span>     <span class="kd">func</span><span class="p">()</span> <span class="kt">int</span>                  <span class="c1">// the function which gives you free page number
-</span><span class="c1"></span>  <span class="nx">mergeSpans</span>     <span class="kd">func</span><span class="p">(</span><span class="nx">ids</span> <span class="nx">pgids</span><span class="p">)</span>             <span class="c1">// the mergeSpan func
-</span><span class="c1"></span>  <span class="nx">getFreePageIDs</span> <span class="kd">func</span><span class="p">()</span> <span class="p">[]</span><span class="nx">pgid</span>               <span class="c1">// get free pgids func
-</span><span class="c1"></span>  <span class="nx">readIDs</span>        <span class="kd">func</span><span class="p">(</span><span class="nx">pgids</span> <span class="p">[]</span><span class="nx">pgid</span><span class="p">)</span>          <span class="c1">// readIDs func reads list of pages and init the freelist
-</span><span class="c1"></span><span class="p">}</span>
-</code></pre></div><p><code>FreelistType</code> 型
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// txPending holds a list of pgids and corresponding allocation txns
+</span></span></span><span class="line"><span class="cl"><span class="c1">// that are pending to be freed.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">txPending</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">ids</span>              <span class="p">[]</span><span class="nx">pgid</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">alloctx</span>          <span class="p">[]</span><span class="nx">txid</span> <span class="c1">// txids allocating the ids
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">lastReleaseBegin</span> <span class="nx">txid</span>   <span class="c1">// beginning txid of last matching releaseRange
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// pidSet holds the set of starting pgids which have the same span size
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">pidSet</span> <span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="kd">struct</span><span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// freelist represents a list of all pages that are available for allocation.
+</span></span></span><span class="line"><span class="cl"><span class="c1">// It also tracks pages that have been freed but are still in use by open transactions.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">freelist</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">freelistType</span>   <span class="nx">FreelistType</span>                <span class="c1">// freelist type
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">ids</span>            <span class="p">[]</span><span class="nx">pgid</span>                      <span class="c1">// all free and available free page ids.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">allocs</span>         <span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="nx">txid</span>               <span class="c1">// mapping of txid that allocated a pgid.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">pending</span>        <span class="kd">map</span><span class="p">[</span><span class="nx">txid</span><span class="p">]</span><span class="o">*</span><span class="nx">txPending</span>         <span class="c1">// mapping of soon-to-be free page ids by tx.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">cache</span>          <span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="kt">bool</span>               <span class="c1">// fast lookup of all free and pending page ids.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">freemaps</span>       <span class="kd">map</span><span class="p">[</span><span class="kt">uint64</span><span class="p">]</span><span class="nx">pidSet</span>           <span class="c1">// key is the size of continuous pages(span), value is a set which contains the starting pgids of same size
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">forwardMap</span>     <span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="kt">uint64</span>             <span class="c1">// key is start pgid, value is its span size
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">backwardMap</span>    <span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="kt">uint64</span>             <span class="c1">// key is end pgid, value is its span size
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">allocate</span>       <span class="kd">func</span><span class="p">(</span><span class="nx">txid</span> <span class="nx">txid</span><span class="p">,</span> <span class="nx">n</span> <span class="kt">int</span><span class="p">)</span> <span class="nx">pgid</span> <span class="c1">// the freelist allocate func
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">free_count</span>     <span class="kd">func</span><span class="p">()</span> <span class="kt">int</span>                  <span class="c1">// the function which gives you free page number
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">mergeSpans</span>     <span class="kd">func</span><span class="p">(</span><span class="nx">ids</span> <span class="nx">pgids</span><span class="p">)</span>             <span class="c1">// the mergeSpan func
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">getFreePageIDs</span> <span class="kd">func</span><span class="p">()</span> <span class="p">[]</span><span class="nx">pgid</span>               <span class="c1">// get free pgids func
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">readIDs</span>        <span class="kd">func</span><span class="p">(</span><span class="nx">pgids</span> <span class="p">[]</span><span class="nx">pgid</span><span class="p">)</span>          <span class="c1">// readIDs func reads list of pages and init the freelist
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></div><p><code>FreelistType</code> 型
 <a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/db.go#L46-L54">db.go#L46-L54</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// FreelistType is the type of the freelist backend
-</span><span class="c1"></span><span class="kd">type</span> <span class="nx">FreelistType</span> <span class="kt">string</span>
-
-<span class="kd">const</span> <span class="p">(</span>
-  <span class="c1">// FreelistArrayType indicates backend freelist type is array
-</span><span class="c1"></span>  <span class="nx">FreelistArrayType</span> <span class="p">=</span> <span class="nf">FreelistType</span><span class="p">(</span><span class="s">&#34;array&#34;</span><span class="p">)</span>
-  <span class="c1">// FreelistMapType indicates backend freelist type is hashmap
-</span><span class="c1"></span>  <span class="nx">FreelistMapType</span> <span class="p">=</span> <span class="nf">FreelistType</span><span class="p">(</span><span class="s">&#34;hashmap&#34;</span><span class="p">)</span>
-<span class="p">)</span>
-</code></pre></div><p><code>newFreelist</code> 関数
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// FreelistType is the type of the freelist backend
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">FreelistType</span> <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">const</span> <span class="p">(</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// FreelistArrayType indicates backend freelist type is array
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">FreelistArrayType</span> <span class="p">=</span> <span class="nf">FreelistType</span><span class="p">(</span><span class="s">&#34;array&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// FreelistMapType indicates backend freelist type is hashmap
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">FreelistMapType</span> <span class="p">=</span> <span class="nf">FreelistType</span><span class="p">(</span><span class="s">&#34;hashmap&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span></code></pre></div><p><code>newFreelist</code> 関数
 <a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/freelist.go#L38-L65">freelist.go#L38-L65</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// newFreelist returns an empty, initialized freelist.
-</span><span class="c1"></span><span class="kd">func</span> <span class="nf">newFreelist</span><span class="p">(</span><span class="nx">freelistType</span> <span class="nx">FreelistType</span><span class="p">)</span> <span class="o">*</span><span class="nx">freelist</span> <span class="p">{</span>
-  <span class="nx">f</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">freelist</span><span class="p">{</span>
-    <span class="nx">freelistType</span><span class="p">:</span> <span class="nx">freelistType</span><span class="p">,</span>
-    <span class="nx">allocs</span><span class="p">:</span>       <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="nx">txid</span><span class="p">),</span>
-    <span class="nx">pending</span><span class="p">:</span>      <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="nx">txid</span><span class="p">]</span><span class="o">*</span><span class="nx">txPending</span><span class="p">),</span>
-    <span class="nx">cache</span><span class="p">:</span>        <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="kt">bool</span><span class="p">),</span>
-    <span class="nx">freemaps</span><span class="p">:</span>     <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">uint64</span><span class="p">]</span><span class="nx">pidSet</span><span class="p">),</span>
-    <span class="nx">forwardMap</span><span class="p">:</span>   <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="kt">uint64</span><span class="p">),</span>
-    <span class="nx">backwardMap</span><span class="p">:</span>  <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="kt">uint64</span><span class="p">),</span>
-  <span class="p">}</span>
-
-  <span class="k">if</span> <span class="nx">freelistType</span> <span class="o">==</span> <span class="nx">FreelistMapType</span> <span class="p">{</span>
-    <span class="nx">f</span><span class="p">.</span><span class="nx">allocate</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">hashmapAllocate</span>
-    <span class="nx">f</span><span class="p">.</span><span class="nx">free_count</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">hashmapFreeCount</span>
-    <span class="nx">f</span><span class="p">.</span><span class="nx">mergeSpans</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">hashmapMergeSpans</span>
-    <span class="nx">f</span><span class="p">.</span><span class="nx">getFreePageIDs</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">hashmapGetFreePageIDs</span>
-    <span class="nx">f</span><span class="p">.</span><span class="nx">readIDs</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">hashmapReadIDs</span>
-  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
-    <span class="nx">f</span><span class="p">.</span><span class="nx">allocate</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">arrayAllocate</span>
-    <span class="nx">f</span><span class="p">.</span><span class="nx">free_count</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">arrayFreeCount</span>
-    <span class="nx">f</span><span class="p">.</span><span class="nx">mergeSpans</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">arrayMergeSpans</span>
-    <span class="nx">f</span><span class="p">.</span><span class="nx">getFreePageIDs</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">arrayGetFreePageIDs</span>
-    <span class="nx">f</span><span class="p">.</span><span class="nx">readIDs</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">arrayReadIDs</span>
-  <span class="p">}</span>
-
-  <span class="k">return</span> <span class="nx">f</span>
-<span class="p">}</span>
-</code></pre></div><p><code>freelist</code> のバックエンド実装は <code>hashmap</code> と <code>array</code> の2種類があり、 <code>allocate</code>, <code>free_count</code>, <code>mergeSpans</code>, <code>getFreePageIDs</code>, <code>readIDs</code> メソッドがバックエンド毎に実装されている。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// newFreelist returns an empty, initialized freelist.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">newFreelist</span><span class="p">(</span><span class="nx">freelistType</span> <span class="nx">FreelistType</span><span class="p">)</span> <span class="o">*</span><span class="nx">freelist</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">f</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">freelist</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">freelistType</span><span class="p">:</span> <span class="nx">freelistType</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">allocs</span><span class="p">:</span>       <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="nx">txid</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">pending</span><span class="p">:</span>      <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="nx">txid</span><span class="p">]</span><span class="o">*</span><span class="nx">txPending</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">cache</span><span class="p">:</span>        <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="kt">bool</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">freemaps</span><span class="p">:</span>     <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">uint64</span><span class="p">]</span><span class="nx">pidSet</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">forwardMap</span><span class="p">:</span>   <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="kt">uint64</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">backwardMap</span><span class="p">:</span>  <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="kt">uint64</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">freelistType</span> <span class="o">==</span> <span class="nx">FreelistMapType</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">f</span><span class="p">.</span><span class="nx">allocate</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">hashmapAllocate</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">f</span><span class="p">.</span><span class="nx">free_count</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">hashmapFreeCount</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">f</span><span class="p">.</span><span class="nx">mergeSpans</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">hashmapMergeSpans</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">f</span><span class="p">.</span><span class="nx">getFreePageIDs</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">hashmapGetFreePageIDs</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">f</span><span class="p">.</span><span class="nx">readIDs</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">hashmapReadIDs</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">f</span><span class="p">.</span><span class="nx">allocate</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">arrayAllocate</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">f</span><span class="p">.</span><span class="nx">free_count</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">arrayFreeCount</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">f</span><span class="p">.</span><span class="nx">mergeSpans</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">arrayMergeSpans</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">f</span><span class="p">.</span><span class="nx">getFreePageIDs</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">arrayGetFreePageIDs</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">f</span><span class="p">.</span><span class="nx">readIDs</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">arrayReadIDs</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">f</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>freelist</code> のバックエンド実装は <code>hashmap</code> と <code>array</code> の2種類があり、 <code>allocate</code>, <code>free_count</code>, <code>mergeSpans</code>, <code>getFreePageIDs</code>, <code>readIDs</code> メソッドがバックエンド毎に実装されている。</p>
 <h2 id="array-ベースのバックエンド実装">array ベースのバックエンド実装</h2>
 <h3 id="arrayallocate-メソッド"><code>arrayAllocate</code> メソッド</h3>
 <p><a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/freelist.go#L107-L149">freelist.go#L107-L149</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// arrayAllocate returns the starting page id of a contiguous list of pages of a given size.
-</span><span class="c1">// If a contiguous block cannot be found then 0 is returned.
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">arrayAllocate</span><span class="p">(</span><span class="nx">txid</span> <span class="nx">txid</span><span class="p">,</span> <span class="nx">n</span> <span class="kt">int</span><span class="p">)</span> <span class="nx">pgid</span> <span class="p">{</span>
-  <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">ids</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
-    <span class="k">return</span> <span class="mi">0</span>
-  <span class="p">}</span>
-
-  <span class="kd">var</span> <span class="nx">initial</span><span class="p">,</span> <span class="nx">previd</span> <span class="nx">pgid</span>
-  <span class="k">for</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">id</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">f</span><span class="p">.</span><span class="nx">ids</span> <span class="p">{</span>
-    <span class="k">if</span> <span class="nx">id</span> <span class="o">&lt;=</span> <span class="mi">1</span> <span class="p">{</span>
-      <span class="nb">panic</span><span class="p">(</span><span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;invalid page allocation: %d&#34;</span><span class="p">,</span> <span class="nx">id</span><span class="p">))</span>
-    <span class="p">}</span>
-
-    <span class="c1">// Reset initial page if this is not contiguous.
-</span><span class="c1"></span>    <span class="k">if</span> <span class="nx">previd</span> <span class="o">==</span> <span class="mi">0</span> <span class="o">||</span> <span class="nx">id</span><span class="o">-</span><span class="nx">previd</span> <span class="o">!=</span> <span class="mi">1</span> <span class="p">{</span>
-      <span class="nx">initial</span> <span class="p">=</span> <span class="nx">id</span>
-    <span class="p">}</span>
-
-    <span class="c1">// If we found a contiguous block then remove it and return it.
-</span><span class="c1"></span>    <span class="k">if</span> <span class="p">(</span><span class="nx">id</span><span class="o">-</span><span class="nx">initial</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span> <span class="o">==</span> <span class="nf">pgid</span><span class="p">(</span><span class="nx">n</span><span class="p">)</span> <span class="p">{</span>
-      <span class="c1">// If we&#39;re allocating off the beginning then take the fast path
-</span><span class="c1"></span>      <span class="c1">// and just adjust the existing slice. This will use extra memory
-</span><span class="c1"></span>      <span class="c1">// temporarily but the append() in free() will realloc the slice
-</span><span class="c1"></span>      <span class="c1">// as is necessary.
-</span><span class="c1"></span>      <span class="k">if</span> <span class="p">(</span><span class="nx">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="nx">n</span> <span class="p">{</span>
-        <span class="nx">f</span><span class="p">.</span><span class="nx">ids</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">ids</span><span class="p">[</span><span class="nx">i</span><span class="o">+</span><span class="mi">1</span><span class="p">:]</span>
-      <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
-        <span class="nb">copy</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">ids</span><span class="p">[</span><span class="nx">i</span><span class="o">-</span><span class="nx">n</span><span class="o">+</span><span class="mi">1</span><span class="p">:],</span> <span class="nx">f</span><span class="p">.</span><span class="nx">ids</span><span class="p">[</span><span class="nx">i</span><span class="o">+</span><span class="mi">1</span><span class="p">:])</span>
-        <span class="nx">f</span><span class="p">.</span><span class="nx">ids</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">ids</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">ids</span><span class="p">)</span><span class="o">-</span><span class="nx">n</span><span class="p">]</span>
-      <span class="p">}</span>
-
-      <span class="c1">// Remove from the free cache.
-</span><span class="c1"></span>      <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="nf">pgid</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nf">pgid</span><span class="p">(</span><span class="nx">n</span><span class="p">);</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
-        <span class="nb">delete</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">cache</span><span class="p">,</span> <span class="nx">initial</span><span class="o">+</span><span class="nx">i</span><span class="p">)</span>
-      <span class="p">}</span>
-      <span class="nx">f</span><span class="p">.</span><span class="nx">allocs</span><span class="p">[</span><span class="nx">initial</span><span class="p">]</span> <span class="p">=</span> <span class="nx">txid</span>
-      <span class="k">return</span> <span class="nx">initial</span>
-    <span class="p">}</span>
-
-    <span class="nx">previd</span> <span class="p">=</span> <span class="nx">id</span>
-  <span class="p">}</span>
-  <span class="k">return</span> <span class="mi">0</span>
-<span class="p">}</span>
-</code></pre></div><ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// arrayAllocate returns the starting page id of a contiguous list of pages of a given size.
+</span></span></span><span class="line"><span class="cl"><span class="c1">// If a contiguous block cannot be found then 0 is returned.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">arrayAllocate</span><span class="p">(</span><span class="nx">txid</span> <span class="nx">txid</span><span class="p">,</span> <span class="nx">n</span> <span class="kt">int</span><span class="p">)</span> <span class="nx">pgid</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">ids</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">var</span> <span class="nx">initial</span><span class="p">,</span> <span class="nx">previd</span> <span class="nx">pgid</span>
+</span></span><span class="line"><span class="cl">  <span class="k">for</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">id</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">f</span><span class="p">.</span><span class="nx">ids</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">id</span> <span class="o">&lt;=</span> <span class="mi">1</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nb">panic</span><span class="p">(</span><span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;invalid page allocation: %d&#34;</span><span class="p">,</span> <span class="nx">id</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// Reset initial page if this is not contiguous.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="nx">previd</span> <span class="o">==</span> <span class="mi">0</span> <span class="o">||</span> <span class="nx">id</span><span class="o">-</span><span class="nx">previd</span> <span class="o">!=</span> <span class="mi">1</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">initial</span> <span class="p">=</span> <span class="nx">id</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// If we found a contiguous block then remove it and return it.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="p">(</span><span class="nx">id</span><span class="o">-</span><span class="nx">initial</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span> <span class="o">==</span> <span class="nf">pgid</span><span class="p">(</span><span class="nx">n</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="c1">// If we&#39;re allocating off the beginning then take the fast path
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="c1">// and just adjust the existing slice. This will use extra memory
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="c1">// temporarily but the append() in free() will realloc the slice
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="c1">// as is necessary.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="k">if</span> <span class="p">(</span><span class="nx">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="nx">n</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">f</span><span class="p">.</span><span class="nx">ids</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">ids</span><span class="p">[</span><span class="nx">i</span><span class="o">+</span><span class="mi">1</span><span class="p">:]</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nb">copy</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">ids</span><span class="p">[</span><span class="nx">i</span><span class="o">-</span><span class="nx">n</span><span class="o">+</span><span class="mi">1</span><span class="p">:],</span> <span class="nx">f</span><span class="p">.</span><span class="nx">ids</span><span class="p">[</span><span class="nx">i</span><span class="o">+</span><span class="mi">1</span><span class="p">:])</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">f</span><span class="p">.</span><span class="nx">ids</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">ids</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">ids</span><span class="p">)</span><span class="o">-</span><span class="nx">n</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">      <span class="c1">// Remove from the free cache.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="nf">pgid</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nf">pgid</span><span class="p">(</span><span class="nx">n</span><span class="p">);</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nb">delete</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">cache</span><span class="p">,</span> <span class="nx">initial</span><span class="o">+</span><span class="nx">i</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">f</span><span class="p">.</span><span class="nx">allocs</span><span class="p">[</span><span class="nx">initial</span><span class="p">]</span> <span class="p">=</span> <span class="nx">txid</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="nx">initial</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nx">previd</span> <span class="p">=</span> <span class="nx">id</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><ul>
 <li><code>f.ids</code> にはfreeなページIDが昇順で格納されている。</li>
 <li><code>f.ids</code> 内でページIDが <code>n</code> 個連続で並んでいる個所（つまり連続で <code>n</code> ページ空いている個所）を探す。</li>
 <li>見つかったら、先頭のページIDを <code>initial</code> にセットして変える。</li>
@@ -217,273 +217,273 @@
 </ul>
 <h3 id="arrayfreecount-メソッド"><code>arrayFreeCount</code> メソッド</h3>
 <p><a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/freelist.go#L82-L85">freelist.go#L82-L85</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// arrayFreeCount returns count of free pages(array version)
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">arrayFreeCount</span><span class="p">()</span> <span class="kt">int</span> <span class="p">{</span>
-  <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">ids</span><span class="p">)</span>
-<span class="p">}</span>
-</code></pre></div><p><code>f.ids</code> の長さがそのまま free なページ数になる。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// arrayFreeCount returns count of free pages(array version)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">arrayFreeCount</span><span class="p">()</span> <span class="kt">int</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">ids</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>f.ids</code> の長さがそのまま free なページ数になる。</p>
 <h3 id="arraymergespans-メソッド"><code>arrayMergeSpans</code> メソッド</h3>
 <p><a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/freelist.go#L388-L392">freelist.go#L388-L392</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// arrayMergeSpans try to merge list of pages(represented by pgids) with existing spans but using array
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">arrayMergeSpans</span><span class="p">(</span><span class="nx">ids</span> <span class="nx">pgids</span><span class="p">)</span> <span class="p">{</span>
-  <span class="nx">sort</span><span class="p">.</span><span class="nf">Sort</span><span class="p">(</span><span class="nx">ids</span><span class="p">)</span>
-  <span class="nx">f</span><span class="p">.</span><span class="nx">ids</span> <span class="p">=</span> <span class="nf">pgids</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">ids</span><span class="p">).</span><span class="nf">merge</span><span class="p">(</span><span class="nx">ids</span><span class="p">)</span>
-<span class="p">}</span>
-</code></pre></div><ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// arrayMergeSpans try to merge list of pages(represented by pgids) with existing spans but using array
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">arrayMergeSpans</span><span class="p">(</span><span class="nx">ids</span> <span class="nx">pgids</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">sort</span><span class="p">.</span><span class="nf">Sort</span><span class="p">(</span><span class="nx">ids</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">f</span><span class="p">.</span><span class="nx">ids</span> <span class="p">=</span> <span class="nf">pgids</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">ids</span><span class="p">).</span><span class="nf">merge</span><span class="p">(</span><span class="nx">ids</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><ul>
 <li>引数の <code>pgids</code> はソートされていないかもしれないのでまずソート。</li>
 <li><code>pgids</code> 型の <code>merge</code> メソッドを呼んで <code>f.ids</code> とソートした <code>ids</code> をマージする。</li>
 </ul>
 <h3 id="arraygetfreepageids-メソッド"><code>arrayGetFreePageIDs</code> メソッド</h3>
 <p><a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/freelist.go#L298-L300">freelist.go#L298-L300</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">arrayGetFreePageIDs</span><span class="p">()</span> <span class="p">[]</span><span class="nx">pgid</span> <span class="p">{</span>
-  <span class="k">return</span> <span class="nx">f</span><span class="p">.</span><span class="nx">ids</span>
-<span class="p">}</span>
-</code></pre></div><p><code>f.ids</code> をそのまま返すだけ。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">arrayGetFreePageIDs</span><span class="p">()</span> <span class="p">[]</span><span class="nx">pgid</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">f</span><span class="p">.</span><span class="nx">ids</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>f.ids</code> をそのまま返すだけ。</p>
 <h3 id="arrayreadids-メソッド"><code>arrayReadIDs</code> メソッド</h3>
 <p><a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/freelist.go#L292-L296">freelist.go#L292-L296</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// arrayReadIDs initializes the freelist from a given list of ids.
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">arrayReadIDs</span><span class="p">(</span><span class="nx">ids</span> <span class="p">[]</span><span class="nx">pgid</span><span class="p">)</span> <span class="p">{</span>
-  <span class="nx">f</span><span class="p">.</span><span class="nx">ids</span> <span class="p">=</span> <span class="nx">ids</span>
-  <span class="nx">f</span><span class="p">.</span><span class="nf">reindex</span><span class="p">()</span>
-<span class="p">}</span>
-</code></pre></div><p>引数の <code>ids</code> を <code>f.ids</code> にそのままセットして、 <code>reindex</code> メソッドを呼ぶだけ。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// arrayReadIDs initializes the freelist from a given list of ids.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">arrayReadIDs</span><span class="p">(</span><span class="nx">ids</span> <span class="p">[]</span><span class="nx">pgid</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">f</span><span class="p">.</span><span class="nx">ids</span> <span class="p">=</span> <span class="nx">ids</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">f</span><span class="p">.</span><span class="nf">reindex</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>引数の <code>ids</code> を <code>f.ids</code> にそのままセットして、 <code>reindex</code> メソッドを呼ぶだけ。</p>
 <h2 id="hashmap-ベースのバックエンド実装">hashmap ベースのバックエンド実装</h2>
 <h3 id="hashmapallocate-メソッド"><code>hashmapAllocate</code> メソッド</h3>
 <p><a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/freelist_hmap.go#L15-L61">freelist_hmap.go#L15-L61</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// hashmapAllocate serves the same purpose as arrayAllocate, but use hashmap as backend
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">hashmapAllocate</span><span class="p">(</span><span class="nx">txid</span> <span class="nx">txid</span><span class="p">,</span> <span class="nx">n</span> <span class="kt">int</span><span class="p">)</span> <span class="nx">pgid</span> <span class="p">{</span>
-  <span class="k">if</span> <span class="nx">n</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
-    <span class="k">return</span> <span class="mi">0</span>
-  <span class="p">}</span>
-
-  <span class="c1">// if we have a exact size match just return short path
-</span><span class="c1"></span>  <span class="k">if</span> <span class="nx">bm</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">freemaps</span><span class="p">[</span><span class="nb">uint64</span><span class="p">(</span><span class="nx">n</span><span class="p">)];</span> <span class="nx">ok</span> <span class="p">{</span>
-    <span class="k">for</span> <span class="nx">pid</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">bm</span> <span class="p">{</span>
-      <span class="c1">// remove the span
-</span><span class="c1"></span>      <span class="nx">f</span><span class="p">.</span><span class="nf">delSpan</span><span class="p">(</span><span class="nx">pid</span><span class="p">,</span> <span class="nb">uint64</span><span class="p">(</span><span class="nx">n</span><span class="p">))</span>
-
-      <span class="nx">f</span><span class="p">.</span><span class="nx">allocs</span><span class="p">[</span><span class="nx">pid</span><span class="p">]</span> <span class="p">=</span> <span class="nx">txid</span>
-
-      <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="nf">pgid</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nf">pgid</span><span class="p">(</span><span class="nx">n</span><span class="p">);</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
-        <span class="nb">delete</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">cache</span><span class="p">,</span> <span class="nx">pid</span><span class="o">+</span><span class="nf">pgid</span><span class="p">(</span><span class="nx">i</span><span class="p">))</span>
-      <span class="p">}</span>
-      <span class="k">return</span> <span class="nx">pid</span>
-    <span class="p">}</span>
-  <span class="p">}</span>
-
-  <span class="c1">// lookup the map to find larger span
-</span><span class="c1"></span>  <span class="k">for</span> <span class="nx">size</span><span class="p">,</span> <span class="nx">bm</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">f</span><span class="p">.</span><span class="nx">freemaps</span> <span class="p">{</span>
-    <span class="k">if</span> <span class="nx">size</span> <span class="p">&lt;</span> <span class="nb">uint64</span><span class="p">(</span><span class="nx">n</span><span class="p">)</span> <span class="p">{</span>
-      <span class="k">continue</span>
-    <span class="p">}</span>
-
-    <span class="k">for</span> <span class="nx">pid</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">bm</span> <span class="p">{</span>
-      <span class="c1">// remove the initial
-</span><span class="c1"></span>      <span class="nx">f</span><span class="p">.</span><span class="nf">delSpan</span><span class="p">(</span><span class="nx">pid</span><span class="p">,</span> <span class="nb">uint64</span><span class="p">(</span><span class="nx">size</span><span class="p">))</span>
-
-      <span class="nx">f</span><span class="p">.</span><span class="nx">allocs</span><span class="p">[</span><span class="nx">pid</span><span class="p">]</span> <span class="p">=</span> <span class="nx">txid</span>
-
-      <span class="nx">remain</span> <span class="o">:=</span> <span class="nx">size</span> <span class="o">-</span> <span class="nb">uint64</span><span class="p">(</span><span class="nx">n</span><span class="p">)</span>
-
-      <span class="c1">// add remain span
-</span><span class="c1"></span>      <span class="nx">f</span><span class="p">.</span><span class="nf">addSpan</span><span class="p">(</span><span class="nx">pid</span><span class="o">+</span><span class="nf">pgid</span><span class="p">(</span><span class="nx">n</span><span class="p">),</span> <span class="nx">remain</span><span class="p">)</span>
-
-      <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="nf">pgid</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nf">pgid</span><span class="p">(</span><span class="nx">n</span><span class="p">);</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
-        <span class="nb">delete</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">cache</span><span class="p">,</span> <span class="nx">pid</span><span class="o">+</span><span class="nf">pgid</span><span class="p">(</span><span class="nx">i</span><span class="p">))</span>
-      <span class="p">}</span>
-      <span class="k">return</span> <span class="nx">pid</span>
-    <span class="p">}</span>
-  <span class="p">}</span>
-
-  <span class="k">return</span> <span class="mi">0</span>
-<span class="p">}</span>
-</code></pre></div><ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// hashmapAllocate serves the same purpose as arrayAllocate, but use hashmap as backend
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">hashmapAllocate</span><span class="p">(</span><span class="nx">txid</span> <span class="nx">txid</span><span class="p">,</span> <span class="nx">n</span> <span class="kt">int</span><span class="p">)</span> <span class="nx">pgid</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">n</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// if we have a exact size match just return short path
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">bm</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">freemaps</span><span class="p">[</span><span class="nb">uint64</span><span class="p">(</span><span class="nx">n</span><span class="p">)];</span> <span class="nx">ok</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="nx">pid</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">bm</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="c1">// remove the span
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="nx">f</span><span class="p">.</span><span class="nf">delSpan</span><span class="p">(</span><span class="nx">pid</span><span class="p">,</span> <span class="nb">uint64</span><span class="p">(</span><span class="nx">n</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">      <span class="nx">f</span><span class="p">.</span><span class="nx">allocs</span><span class="p">[</span><span class="nx">pid</span><span class="p">]</span> <span class="p">=</span> <span class="nx">txid</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">      <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="nf">pgid</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nf">pgid</span><span class="p">(</span><span class="nx">n</span><span class="p">);</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nb">delete</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">cache</span><span class="p">,</span> <span class="nx">pid</span><span class="o">+</span><span class="nf">pgid</span><span class="p">(</span><span class="nx">i</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="nx">pid</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// lookup the map to find larger span
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">for</span> <span class="nx">size</span><span class="p">,</span> <span class="nx">bm</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">f</span><span class="p">.</span><span class="nx">freemaps</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">size</span> <span class="p">&lt;</span> <span class="nb">uint64</span><span class="p">(</span><span class="nx">n</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">continue</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="nx">pid</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">bm</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="c1">// remove the initial
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="nx">f</span><span class="p">.</span><span class="nf">delSpan</span><span class="p">(</span><span class="nx">pid</span><span class="p">,</span> <span class="nb">uint64</span><span class="p">(</span><span class="nx">size</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">      <span class="nx">f</span><span class="p">.</span><span class="nx">allocs</span><span class="p">[</span><span class="nx">pid</span><span class="p">]</span> <span class="p">=</span> <span class="nx">txid</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">      <span class="nx">remain</span> <span class="o">:=</span> <span class="nx">size</span> <span class="o">-</span> <span class="nb">uint64</span><span class="p">(</span><span class="nx">n</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">      <span class="c1">// add remain span
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="nx">f</span><span class="p">.</span><span class="nf">addSpan</span><span class="p">(</span><span class="nx">pid</span><span class="o">+</span><span class="nf">pgid</span><span class="p">(</span><span class="nx">n</span><span class="p">),</span> <span class="nx">remain</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">      <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="nf">pgid</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nf">pgid</span><span class="p">(</span><span class="nx">n</span><span class="p">);</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nb">delete</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">cache</span><span class="p">,</span> <span class="nx">pid</span><span class="o">+</span><span class="nf">pgid</span><span class="p">(</span><span class="nx">i</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="nx">pid</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><ul>
 <li><code>f.freemaps</code> は連続空きページ数をキー、 <code>pidSet</code> を値とする map になっている。</li>
 <li><code>f.freemaps</code> に引数で指定された連続空きページ数 <code>n</code> のエントリがあれば、 <code>pidSet</code> から1つページIDを取得して返す。 <code>f.allocs</code> にトランザクションIDをセットし、 <code>f.cache</code> から連続領域のページIDを削除。</li>
 <li><code>f.freemaps</code> に引数で指定された連続空きページ数 <code>n</code> のエントリがない場合は、 <code>f.freemaps</code> の全エントリを順番に見て、希望の連続空きページ数より多いエントリの最初のものから希望の連続ページ数だけ切り出して返す。差分の連続空きページ数は新たに <code>f.freemaps</code> に追加しておく。</li>
 </ul>
 <p><code>addSpan</code> と <code>delSpan</code> メソッド
 <a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/freelist_hmap.go#L125-L142">freelist_hmap.go#L125-L142</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">addSpan</span><span class="p">(</span><span class="nx">start</span> <span class="nx">pgid</span><span class="p">,</span> <span class="nx">size</span> <span class="kt">uint64</span><span class="p">)</span> <span class="p">{</span>
-  <span class="nx">f</span><span class="p">.</span><span class="nx">backwardMap</span><span class="p">[</span><span class="nx">start</span><span class="o">-</span><span class="mi">1</span><span class="o">+</span><span class="nf">pgid</span><span class="p">(</span><span class="nx">size</span><span class="p">)]</span> <span class="p">=</span> <span class="nx">size</span>
-  <span class="nx">f</span><span class="p">.</span><span class="nx">forwardMap</span><span class="p">[</span><span class="nx">start</span><span class="p">]</span> <span class="p">=</span> <span class="nx">size</span>
-  <span class="k">if</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">freemaps</span><span class="p">[</span><span class="nx">size</span><span class="p">];</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
-    <span class="nx">f</span><span class="p">.</span><span class="nx">freemaps</span><span class="p">[</span><span class="nx">size</span><span class="p">]</span> <span class="p">=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="kd">struct</span><span class="p">{})</span>
-  <span class="p">}</span>
-
-  <span class="nx">f</span><span class="p">.</span><span class="nx">freemaps</span><span class="p">[</span><span class="nx">size</span><span class="p">][</span><span class="nx">start</span><span class="p">]</span> <span class="p">=</span> <span class="kd">struct</span><span class="p">{}{}</span>
-<span class="p">}</span>
-
-<span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">delSpan</span><span class="p">(</span><span class="nx">start</span> <span class="nx">pgid</span><span class="p">,</span> <span class="nx">size</span> <span class="kt">uint64</span><span class="p">)</span> <span class="p">{</span>
-  <span class="nb">delete</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">forwardMap</span><span class="p">,</span> <span class="nx">start</span><span class="p">)</span>
-  <span class="nb">delete</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">backwardMap</span><span class="p">,</span> <span class="nx">start</span><span class="o">+</span><span class="nf">pgid</span><span class="p">(</span><span class="nx">size</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
-  <span class="nb">delete</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">freemaps</span><span class="p">[</span><span class="nx">size</span><span class="p">],</span> <span class="nx">start</span><span class="p">)</span>
-  <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">freemaps</span><span class="p">[</span><span class="nx">size</span><span class="p">])</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
-    <span class="nb">delete</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">freemaps</span><span class="p">,</span> <span class="nx">size</span><span class="p">)</span>
-  <span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div><p><code>hashmapFreeCount</code> メソッド
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">addSpan</span><span class="p">(</span><span class="nx">start</span> <span class="nx">pgid</span><span class="p">,</span> <span class="nx">size</span> <span class="kt">uint64</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">f</span><span class="p">.</span><span class="nx">backwardMap</span><span class="p">[</span><span class="nx">start</span><span class="o">-</span><span class="mi">1</span><span class="o">+</span><span class="nf">pgid</span><span class="p">(</span><span class="nx">size</span><span class="p">)]</span> <span class="p">=</span> <span class="nx">size</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">f</span><span class="p">.</span><span class="nx">forwardMap</span><span class="p">[</span><span class="nx">start</span><span class="p">]</span> <span class="p">=</span> <span class="nx">size</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">freemaps</span><span class="p">[</span><span class="nx">size</span><span class="p">];</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">f</span><span class="p">.</span><span class="nx">freemaps</span><span class="p">[</span><span class="nx">size</span><span class="p">]</span> <span class="p">=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="kd">struct</span><span class="p">{})</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="nx">f</span><span class="p">.</span><span class="nx">freemaps</span><span class="p">[</span><span class="nx">size</span><span class="p">][</span><span class="nx">start</span><span class="p">]</span> <span class="p">=</span> <span class="kd">struct</span><span class="p">{}{}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">delSpan</span><span class="p">(</span><span class="nx">start</span> <span class="nx">pgid</span><span class="p">,</span> <span class="nx">size</span> <span class="kt">uint64</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nb">delete</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">forwardMap</span><span class="p">,</span> <span class="nx">start</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nb">delete</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">backwardMap</span><span class="p">,</span> <span class="nx">start</span><span class="o">+</span><span class="nf">pgid</span><span class="p">(</span><span class="nx">size</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">  <span class="nb">delete</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">freemaps</span><span class="p">[</span><span class="nx">size</span><span class="p">],</span> <span class="nx">start</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">freemaps</span><span class="p">[</span><span class="nx">size</span><span class="p">])</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nb">delete</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">freemaps</span><span class="p">,</span> <span class="nx">size</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>hashmapFreeCount</code> メソッド
 <a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/freelist_hmap.go#L5-L13">freelist_hmap.go#L5-L13</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// hashmapFreeCount returns count of free pages(hashmap version)
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">hashmapFreeCount</span><span class="p">()</span> <span class="kt">int</span> <span class="p">{</span>
-  <span class="c1">// use the forwardmap to get the total count
-</span><span class="c1"></span>  <span class="nx">count</span> <span class="o">:=</span> <span class="mi">0</span>
-  <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">size</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">f</span><span class="p">.</span><span class="nx">forwardMap</span> <span class="p">{</span>
-    <span class="nx">count</span> <span class="o">+=</span> <span class="nb">int</span><span class="p">(</span><span class="nx">size</span><span class="p">)</span>
-  <span class="p">}</span>
-  <span class="k">return</span> <span class="nx">count</span>
-<span class="p">}</span>
-</code></pre></div><p><code>f.forwardMap</code> の値の合計を返す。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// hashmapFreeCount returns count of free pages(hashmap version)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">hashmapFreeCount</span><span class="p">()</span> <span class="kt">int</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// use the forwardmap to get the total count
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">count</span> <span class="o">:=</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl">  <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">size</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">f</span><span class="p">.</span><span class="nx">forwardMap</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">count</span> <span class="o">+=</span> <span class="nb">int</span><span class="p">(</span><span class="nx">size</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">count</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>f.forwardMap</code> の値の合計を返す。</p>
 <h3 id="hashmapmergespans-メソッド"><code>hashmapMergeSpans</code> メソッド</h3>
 <p><a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/freelist_hmap.go#L89-L95">freelist_hmap.go#L89-L95</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// hashmapMergeSpans try to merge list of pages(represented by pgids) with existing spans
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">hashmapMergeSpans</span><span class="p">(</span><span class="nx">ids</span> <span class="nx">pgids</span><span class="p">)</span> <span class="p">{</span>
-  <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">id</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">ids</span> <span class="p">{</span>
-    <span class="c1">// try to see if we can merge and update
-</span><span class="c1"></span>    <span class="nx">f</span><span class="p">.</span><span class="nf">mergeWithExistingSpan</span><span class="p">(</span><span class="nx">id</span><span class="p">)</span>
-  <span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div><p><code>mergeWithExistingSpan</code> メソッド
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// hashmapMergeSpans try to merge list of pages(represented by pgids) with existing spans
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">hashmapMergeSpans</span><span class="p">(</span><span class="nx">ids</span> <span class="nx">pgids</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">id</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">ids</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// try to see if we can merge and update
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">f</span><span class="p">.</span><span class="nf">mergeWithExistingSpan</span><span class="p">(</span><span class="nx">id</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>mergeWithExistingSpan</code> メソッド
 <a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/freelist_hmap.go#L97-L123">freelist_hmap.go#L97-L123</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// mergeWithExistingSpan merges pid to the existing free spans, try to merge it backward and forward
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">mergeWithExistingSpan</span><span class="p">(</span><span class="nx">pid</span> <span class="nx">pgid</span><span class="p">)</span> <span class="p">{</span>
-  <span class="nx">prev</span> <span class="o">:=</span> <span class="nx">pid</span> <span class="o">-</span> <span class="mi">1</span>
-  <span class="nx">next</span> <span class="o">:=</span> <span class="nx">pid</span> <span class="o">+</span> <span class="mi">1</span>
-
-  <span class="nx">preSize</span><span class="p">,</span> <span class="nx">mergeWithPrev</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">backwardMap</span><span class="p">[</span><span class="nx">prev</span><span class="p">]</span>
-  <span class="nx">nextSize</span><span class="p">,</span> <span class="nx">mergeWithNext</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">forwardMap</span><span class="p">[</span><span class="nx">next</span><span class="p">]</span>
-  <span class="nx">newStart</span> <span class="o">:=</span> <span class="nx">pid</span>
-  <span class="nx">newSize</span> <span class="o">:=</span> <span class="nb">uint64</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
-
-  <span class="k">if</span> <span class="nx">mergeWithPrev</span> <span class="p">{</span>
-    <span class="c1">//merge with previous span
-</span><span class="c1"></span>    <span class="nx">start</span> <span class="o">:=</span> <span class="nx">prev</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">-</span> <span class="nf">pgid</span><span class="p">(</span><span class="nx">preSize</span><span class="p">)</span>
-    <span class="nx">f</span><span class="p">.</span><span class="nf">delSpan</span><span class="p">(</span><span class="nx">start</span><span class="p">,</span> <span class="nx">preSize</span><span class="p">)</span>
-
-    <span class="nx">newStart</span> <span class="o">-=</span> <span class="nf">pgid</span><span class="p">(</span><span class="nx">preSize</span><span class="p">)</span>
-    <span class="nx">newSize</span> <span class="o">+=</span> <span class="nx">preSize</span>
-  <span class="p">}</span>
-
-  <span class="k">if</span> <span class="nx">mergeWithNext</span> <span class="p">{</span>
-    <span class="c1">// merge with next span
-</span><span class="c1"></span>    <span class="nx">f</span><span class="p">.</span><span class="nf">delSpan</span><span class="p">(</span><span class="nx">next</span><span class="p">,</span> <span class="nx">nextSize</span><span class="p">)</span>
-    <span class="nx">newSize</span> <span class="o">+=</span> <span class="nx">nextSize</span>
-  <span class="p">}</span>
-
-  <span class="nx">f</span><span class="p">.</span><span class="nf">addSpan</span><span class="p">(</span><span class="nx">newStart</span><span class="p">,</span> <span class="nx">newSize</span><span class="p">)</span>
-<span class="p">}</span>
-</code></pre></div><h3 id="hashmapgetfreepageids-メソッド"><code>hashmapGetFreePageIDs</code> メソッド</h3>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// mergeWithExistingSpan merges pid to the existing free spans, try to merge it backward and forward
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">mergeWithExistingSpan</span><span class="p">(</span><span class="nx">pid</span> <span class="nx">pgid</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">prev</span> <span class="o">:=</span> <span class="nx">pid</span> <span class="o">-</span> <span class="mi">1</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">next</span> <span class="o">:=</span> <span class="nx">pid</span> <span class="o">+</span> <span class="mi">1</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="nx">preSize</span><span class="p">,</span> <span class="nx">mergeWithPrev</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">backwardMap</span><span class="p">[</span><span class="nx">prev</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">nextSize</span><span class="p">,</span> <span class="nx">mergeWithNext</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">forwardMap</span><span class="p">[</span><span class="nx">next</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">newStart</span> <span class="o">:=</span> <span class="nx">pid</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">newSize</span> <span class="o">:=</span> <span class="nb">uint64</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">mergeWithPrev</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">//merge with previous span
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">start</span> <span class="o">:=</span> <span class="nx">prev</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">-</span> <span class="nf">pgid</span><span class="p">(</span><span class="nx">preSize</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">f</span><span class="p">.</span><span class="nf">delSpan</span><span class="p">(</span><span class="nx">start</span><span class="p">,</span> <span class="nx">preSize</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nx">newStart</span> <span class="o">-=</span> <span class="nf">pgid</span><span class="p">(</span><span class="nx">preSize</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">newSize</span> <span class="o">+=</span> <span class="nx">preSize</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">mergeWithNext</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// merge with next span
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">f</span><span class="p">.</span><span class="nf">delSpan</span><span class="p">(</span><span class="nx">next</span><span class="p">,</span> <span class="nx">nextSize</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">newSize</span> <span class="o">+=</span> <span class="nx">nextSize</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="nx">f</span><span class="p">.</span><span class="nf">addSpan</span><span class="p">(</span><span class="nx">newStart</span><span class="p">,</span> <span class="nx">newSize</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h3 id="hashmapgetfreepageids-メソッド"><code>hashmapGetFreePageIDs</code> メソッド</h3>
 <p><a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/freelist_hmap.go#L71-L87">freelist_hmap.go#L71-L87</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// hashmapGetFreePageIDs returns the sorted free page ids
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">hashmapGetFreePageIDs</span><span class="p">()</span> <span class="p">[]</span><span class="nx">pgid</span> <span class="p">{</span>
-  <span class="nx">count</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nf">free_count</span><span class="p">()</span>
-  <span class="k">if</span> <span class="nx">count</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
-    <span class="k">return</span> <span class="kc">nil</span>
-  <span class="p">}</span>
-
-  <span class="nx">m</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="nx">pgid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">count</span><span class="p">)</span>
-  <span class="k">for</span> <span class="nx">start</span><span class="p">,</span> <span class="nx">size</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">f</span><span class="p">.</span><span class="nx">forwardMap</span> <span class="p">{</span>
-    <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nb">int</span><span class="p">(</span><span class="nx">size</span><span class="p">);</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
-      <span class="nx">m</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">m</span><span class="p">,</span> <span class="nx">start</span><span class="o">+</span><span class="nf">pgid</span><span class="p">(</span><span class="nx">i</span><span class="p">))</span>
-    <span class="p">}</span>
-  <span class="p">}</span>
-  <span class="nx">sort</span><span class="p">.</span><span class="nf">Sort</span><span class="p">(</span><span class="nf">pgids</span><span class="p">(</span><span class="nx">m</span><span class="p">))</span>
-
-  <span class="k">return</span> <span class="nx">m</span>
-<span class="p">}</span>
-</code></pre></div><h3 id="hashmapreadids-メソッド"><code>hashmapReadIDs</code> メソッド</h3>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// hashmapGetFreePageIDs returns the sorted free page ids
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">hashmapGetFreePageIDs</span><span class="p">()</span> <span class="p">[]</span><span class="nx">pgid</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">count</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nf">free_count</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">count</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="nx">m</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="nx">pgid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">count</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">for</span> <span class="nx">start</span><span class="p">,</span> <span class="nx">size</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">f</span><span class="p">.</span><span class="nx">forwardMap</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nb">int</span><span class="p">(</span><span class="nx">size</span><span class="p">);</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">m</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">m</span><span class="p">,</span> <span class="nx">start</span><span class="o">+</span><span class="nf">pgid</span><span class="p">(</span><span class="nx">i</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">sort</span><span class="p">.</span><span class="nf">Sort</span><span class="p">(</span><span class="nf">pgids</span><span class="p">(</span><span class="nx">m</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">m</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h3 id="hashmapreadids-メソッド"><code>hashmapReadIDs</code> メソッド</h3>
 <p><a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/freelist_hmap.go#L63-L69">freelist_hmap.go#L63-L69</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// hashmapReadIDs reads pgids as input an initial the freelist(hashmap version)
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">hashmapReadIDs</span><span class="p">(</span><span class="nx">pgids</span> <span class="p">[]</span><span class="nx">pgid</span><span class="p">)</span> <span class="p">{</span>
-  <span class="nx">f</span><span class="p">.</span><span class="nf">init</span><span class="p">(</span><span class="nx">pgids</span><span class="p">)</span>
-
-  <span class="c1">// Rebuild the page cache.
-</span><span class="c1"></span>  <span class="nx">f</span><span class="p">.</span><span class="nf">reindex</span><span class="p">()</span>
-<span class="p">}</span>
-</code></pre></div><h2 id="free-メソッド"><code>free</code> メソッド</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// hashmapReadIDs reads pgids as input an initial the freelist(hashmap version)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">hashmapReadIDs</span><span class="p">(</span><span class="nx">pgids</span> <span class="p">[]</span><span class="nx">pgid</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">f</span><span class="p">.</span><span class="nf">init</span><span class="p">(</span><span class="nx">pgids</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Rebuild the page cache.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">f</span><span class="p">.</span><span class="nf">reindex</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h2 id="free-メソッド"><code>free</code> メソッド</h2>
 <p><a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/freelist.go#L151-L182">freelist.go#L151-L182</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// free releases a page and its overflow for a given transaction id.
-</span><span class="c1">// If the page is already free then a panic will occur.
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">free</span><span class="p">(</span><span class="nx">txid</span> <span class="nx">txid</span><span class="p">,</span> <span class="nx">p</span> <span class="o">*</span><span class="nx">page</span><span class="p">)</span> <span class="p">{</span>
-  <span class="k">if</span> <span class="nx">p</span><span class="p">.</span><span class="nx">id</span> <span class="o">&lt;=</span> <span class="mi">1</span> <span class="p">{</span>
-    <span class="nb">panic</span><span class="p">(</span><span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;cannot free page 0 or 1: %d&#34;</span><span class="p">,</span> <span class="nx">p</span><span class="p">.</span><span class="nx">id</span><span class="p">))</span>
-  <span class="p">}</span>
-
-  <span class="c1">// Free page and all its overflow pages.
-</span><span class="c1"></span>  <span class="nx">txp</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">pending</span><span class="p">[</span><span class="nx">txid</span><span class="p">]</span>
-  <span class="k">if</span> <span class="nx">txp</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
-    <span class="nx">txp</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">txPending</span><span class="p">{}</span>
-    <span class="nx">f</span><span class="p">.</span><span class="nx">pending</span><span class="p">[</span><span class="nx">txid</span><span class="p">]</span> <span class="p">=</span> <span class="nx">txp</span>
-  <span class="p">}</span>
-  <span class="nx">allocTxid</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">allocs</span><span class="p">[</span><span class="nx">p</span><span class="p">.</span><span class="nx">id</span><span class="p">]</span>
-  <span class="k">if</span> <span class="nx">ok</span> <span class="p">{</span>
-    <span class="nb">delete</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">allocs</span><span class="p">,</span> <span class="nx">p</span><span class="p">.</span><span class="nx">id</span><span class="p">)</span>
-  <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">flags</span> <span class="o">&amp;</span> <span class="nx">freelistPageFlag</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span> <span class="p">{</span>
-    <span class="c1">// Freelist is always allocated by prior tx.
-</span><span class="c1"></span>    <span class="nx">allocTxid</span> <span class="p">=</span> <span class="nx">txid</span> <span class="o">-</span> <span class="mi">1</span>
-  <span class="p">}</span>
-
-  <span class="k">for</span> <span class="nx">id</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nx">id</span><span class="p">;</span> <span class="nx">id</span> <span class="o">&lt;=</span> <span class="nx">p</span><span class="p">.</span><span class="nx">id</span><span class="o">+</span><span class="nf">pgid</span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">overflow</span><span class="p">);</span> <span class="nx">id</span><span class="o">++</span> <span class="p">{</span>
-    <span class="c1">// Verify that page is not already free.
-</span><span class="c1"></span>    <span class="k">if</span> <span class="nx">f</span><span class="p">.</span><span class="nx">cache</span><span class="p">[</span><span class="nx">id</span><span class="p">]</span> <span class="p">{</span>
-      <span class="nb">panic</span><span class="p">(</span><span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;page %d already freed&#34;</span><span class="p">,</span> <span class="nx">id</span><span class="p">))</span>
-    <span class="p">}</span>
-    <span class="c1">// Add to the freelist and cache.
-</span><span class="c1"></span>    <span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span><span class="p">,</span> <span class="nx">id</span><span class="p">)</span>
-    <span class="nx">txp</span><span class="p">.</span><span class="nx">alloctx</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">txp</span><span class="p">.</span><span class="nx">alloctx</span><span class="p">,</span> <span class="nx">allocTxid</span><span class="p">)</span>
-    <span class="nx">f</span><span class="p">.</span><span class="nx">cache</span><span class="p">[</span><span class="nx">id</span><span class="p">]</span> <span class="p">=</span> <span class="kc">true</span>
-  <span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div><h2 id="release-メソッド"><code>release</code> メソッド</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// free releases a page and its overflow for a given transaction id.
+</span></span></span><span class="line"><span class="cl"><span class="c1">// If the page is already free then a panic will occur.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">free</span><span class="p">(</span><span class="nx">txid</span> <span class="nx">txid</span><span class="p">,</span> <span class="nx">p</span> <span class="o">*</span><span class="nx">page</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">p</span><span class="p">.</span><span class="nx">id</span> <span class="o">&lt;=</span> <span class="mi">1</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nb">panic</span><span class="p">(</span><span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;cannot free page 0 or 1: %d&#34;</span><span class="p">,</span> <span class="nx">p</span><span class="p">.</span><span class="nx">id</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Free page and all its overflow pages.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">txp</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">pending</span><span class="p">[</span><span class="nx">txid</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">txp</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">txp</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">txPending</span><span class="p">{}</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">f</span><span class="p">.</span><span class="nx">pending</span><span class="p">[</span><span class="nx">txid</span><span class="p">]</span> <span class="p">=</span> <span class="nx">txp</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">allocTxid</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">allocs</span><span class="p">[</span><span class="nx">p</span><span class="p">.</span><span class="nx">id</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">ok</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nb">delete</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">allocs</span><span class="p">,</span> <span class="nx">p</span><span class="p">.</span><span class="nx">id</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">flags</span> <span class="o">&amp;</span> <span class="nx">freelistPageFlag</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Freelist is always allocated by prior tx.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">allocTxid</span> <span class="p">=</span> <span class="nx">txid</span> <span class="o">-</span> <span class="mi">1</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">for</span> <span class="nx">id</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nx">id</span><span class="p">;</span> <span class="nx">id</span> <span class="o">&lt;=</span> <span class="nx">p</span><span class="p">.</span><span class="nx">id</span><span class="o">+</span><span class="nf">pgid</span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">overflow</span><span class="p">);</span> <span class="nx">id</span><span class="o">++</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Verify that page is not already free.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="nx">f</span><span class="p">.</span><span class="nx">cache</span><span class="p">[</span><span class="nx">id</span><span class="p">]</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nb">panic</span><span class="p">(</span><span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;page %d already freed&#34;</span><span class="p">,</span> <span class="nx">id</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Add to the freelist and cache.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span><span class="p">,</span> <span class="nx">id</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">txp</span><span class="p">.</span><span class="nx">alloctx</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">txp</span><span class="p">.</span><span class="nx">alloctx</span><span class="p">,</span> <span class="nx">allocTxid</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">f</span><span class="p">.</span><span class="nx">cache</span><span class="p">[</span><span class="nx">id</span><span class="p">]</span> <span class="p">=</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h2 id="release-メソッド"><code>release</code> メソッド</h2>
 <p><a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/freelist.go#L184-L196">freelist.go#L184-L196</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// release moves all page ids for a transaction id (or older) to the freelist.
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">release</span><span class="p">(</span><span class="nx">txid</span> <span class="nx">txid</span><span class="p">)</span> <span class="p">{</span>
-  <span class="nx">m</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="nx">pgids</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-  <span class="k">for</span> <span class="nx">tid</span><span class="p">,</span> <span class="nx">txp</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">f</span><span class="p">.</span><span class="nx">pending</span> <span class="p">{</span>
-    <span class="k">if</span> <span class="nx">tid</span> <span class="o">&lt;=</span> <span class="nx">txid</span> <span class="p">{</span>
-      <span class="c1">// Move transaction&#39;s pending pages to the available freelist.
-</span><span class="c1"></span>      <span class="c1">// Don&#39;t remove from the cache since the page is still free.
-</span><span class="c1"></span>      <span class="nx">m</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">m</span><span class="p">,</span> <span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span><span class="o">...</span><span class="p">)</span>
-      <span class="nb">delete</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">pending</span><span class="p">,</span> <span class="nx">tid</span><span class="p">)</span>
-    <span class="p">}</span>
-  <span class="p">}</span>
-  <span class="nx">f</span><span class="p">.</span><span class="nf">mergeSpans</span><span class="p">(</span><span class="nx">m</span><span class="p">)</span>
-<span class="p">}</span>
-</code></pre></div><h2 id="releaserange-メソッド"><code>releaseRange</code> メソッド</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// release moves all page ids for a transaction id (or older) to the freelist.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">release</span><span class="p">(</span><span class="nx">txid</span> <span class="nx">txid</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">m</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="nx">pgids</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">for</span> <span class="nx">tid</span><span class="p">,</span> <span class="nx">txp</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">f</span><span class="p">.</span><span class="nx">pending</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">tid</span> <span class="o">&lt;=</span> <span class="nx">txid</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="c1">// Move transaction&#39;s pending pages to the available freelist.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="c1">// Don&#39;t remove from the cache since the page is still free.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="nx">m</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">m</span><span class="p">,</span> <span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="nb">delete</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">pending</span><span class="p">,</span> <span class="nx">tid</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">f</span><span class="p">.</span><span class="nf">mergeSpans</span><span class="p">(</span><span class="nx">m</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h2 id="releaserange-メソッド"><code>releaseRange</code> メソッド</h2>
 <p><a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/freelist.go#L198-L229">freelist.go#L198-L229</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// releaseRange moves pending pages allocated within an extent [begin,end] to the free list.
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">releaseRange</span><span class="p">(</span><span class="nx">begin</span><span class="p">,</span> <span class="nx">end</span> <span class="nx">txid</span><span class="p">)</span> <span class="p">{</span>
-  <span class="k">if</span> <span class="nx">begin</span> <span class="p">&gt;</span> <span class="nx">end</span> <span class="p">{</span>
-    <span class="k">return</span>
-  <span class="p">}</span>
-  <span class="kd">var</span> <span class="nx">m</span> <span class="nx">pgids</span>
-  <span class="k">for</span> <span class="nx">tid</span><span class="p">,</span> <span class="nx">txp</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">f</span><span class="p">.</span><span class="nx">pending</span> <span class="p">{</span>
-    <span class="k">if</span> <span class="nx">tid</span> <span class="p">&lt;</span> <span class="nx">begin</span> <span class="o">||</span> <span class="nx">tid</span> <span class="p">&gt;</span> <span class="nx">end</span> <span class="p">{</span>
-      <span class="k">continue</span>
-    <span class="p">}</span>
-    <span class="c1">// Don&#39;t recompute freed pages if ranges haven&#39;t updated.
-</span><span class="c1"></span>    <span class="k">if</span> <span class="nx">txp</span><span class="p">.</span><span class="nx">lastReleaseBegin</span> <span class="o">==</span> <span class="nx">begin</span> <span class="p">{</span>
-      <span class="k">continue</span>
-    <span class="p">}</span>
-    <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span><span class="p">);</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
-      <span class="k">if</span> <span class="nx">atx</span> <span class="o">:=</span> <span class="nx">txp</span><span class="p">.</span><span class="nx">alloctx</span><span class="p">[</span><span class="nx">i</span><span class="p">];</span> <span class="nx">atx</span> <span class="p">&lt;</span> <span class="nx">begin</span> <span class="o">||</span> <span class="nx">atx</span> <span class="p">&gt;</span> <span class="nx">end</span> <span class="p">{</span>
-        <span class="k">continue</span>
-      <span class="p">}</span>
-      <span class="nx">m</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">m</span><span class="p">,</span> <span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span><span class="p">[</span><span class="nx">i</span><span class="p">])</span>
-      <span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span> <span class="p">=</span> <span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-      <span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span> <span class="p">=</span> <span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-      <span class="nx">txp</span><span class="p">.</span><span class="nx">alloctx</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span> <span class="p">=</span> <span class="nx">txp</span><span class="p">.</span><span class="nx">alloctx</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">txp</span><span class="p">.</span><span class="nx">alloctx</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-      <span class="nx">txp</span><span class="p">.</span><span class="nx">alloctx</span> <span class="p">=</span> <span class="nx">txp</span><span class="p">.</span><span class="nx">alloctx</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="nx">txp</span><span class="p">.</span><span class="nx">alloctx</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-      <span class="nx">i</span><span class="o">--</span>
-    <span class="p">}</span>
-    <span class="nx">txp</span><span class="p">.</span><span class="nx">lastReleaseBegin</span> <span class="p">=</span> <span class="nx">begin</span>
-    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
-      <span class="nb">delete</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">pending</span><span class="p">,</span> <span class="nx">tid</span><span class="p">)</span>
-    <span class="p">}</span>
-  <span class="p">}</span>
-  <span class="nx">f</span><span class="p">.</span><span class="nf">mergeSpans</span><span class="p">(</span><span class="nx">m</span><span class="p">)</span>
-<span class="p">}</span>
-</code></pre></div>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// releaseRange moves pending pages allocated within an extent [begin,end] to the free list.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">freelist</span><span class="p">)</span> <span class="nf">releaseRange</span><span class="p">(</span><span class="nx">begin</span><span class="p">,</span> <span class="nx">end</span> <span class="nx">txid</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">begin</span> <span class="p">&gt;</span> <span class="nx">end</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="kd">var</span> <span class="nx">m</span> <span class="nx">pgids</span>
+</span></span><span class="line"><span class="cl">  <span class="k">for</span> <span class="nx">tid</span><span class="p">,</span> <span class="nx">txp</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">f</span><span class="p">.</span><span class="nx">pending</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">tid</span> <span class="p">&lt;</span> <span class="nx">begin</span> <span class="o">||</span> <span class="nx">tid</span> <span class="p">&gt;</span> <span class="nx">end</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">continue</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Don&#39;t recompute freed pages if ranges haven&#39;t updated.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="nx">txp</span><span class="p">.</span><span class="nx">lastReleaseBegin</span> <span class="o">==</span> <span class="nx">begin</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">continue</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span><span class="p">);</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">if</span> <span class="nx">atx</span> <span class="o">:=</span> <span class="nx">txp</span><span class="p">.</span><span class="nx">alloctx</span><span class="p">[</span><span class="nx">i</span><span class="p">];</span> <span class="nx">atx</span> <span class="p">&lt;</span> <span class="nx">begin</span> <span class="o">||</span> <span class="nx">atx</span> <span class="p">&gt;</span> <span class="nx">end</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">continue</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">m</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">m</span><span class="p">,</span> <span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span><span class="p">[</span><span class="nx">i</span><span class="p">])</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span> <span class="p">=</span> <span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span> <span class="p">=</span> <span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">txp</span><span class="p">.</span><span class="nx">alloctx</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span> <span class="p">=</span> <span class="nx">txp</span><span class="p">.</span><span class="nx">alloctx</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">txp</span><span class="p">.</span><span class="nx">alloctx</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">txp</span><span class="p">.</span><span class="nx">alloctx</span> <span class="p">=</span> <span class="nx">txp</span><span class="p">.</span><span class="nx">alloctx</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="nx">txp</span><span class="p">.</span><span class="nx">alloctx</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">i</span><span class="o">--</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">txp</span><span class="p">.</span><span class="nx">lastReleaseBegin</span> <span class="p">=</span> <span class="nx">begin</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">txp</span><span class="p">.</span><span class="nx">ids</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nb">delete</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">pending</span><span class="p">,</span> <span class="nx">tid</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">f</span><span class="p">.</span><span class="nf">mergeSpans</span><span class="p">(</span><span class="nx">m</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div>
 </div>
 
 

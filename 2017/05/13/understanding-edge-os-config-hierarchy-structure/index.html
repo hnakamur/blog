@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.89.4" />
+  <meta name="generator" content="Hugo 0.96.0" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -58,7 +58,7 @@
     </nav>
 
     <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
-    <p>&copy; 2021. All rights reserved. </p>
+    <p>&copy; 2022. All rights reserved. </p>
   </div>
 </aside>
 
@@ -123,115 +123,115 @@
 </ul>
 <h2 id="設定の構造を意識する必要がある例">設定の構造を意識する必要がある例</h2>
 <p>DHCPサーバーの設定を例として示します。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">set service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 start 192.168.3.2 stop 192.168.3.99
-</span></code></pre></div><p>この設定を削除するには以下のコマンドを実行すれば良いかと当初は思っていました。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">delete service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 start 192.168.3.2 stop 192.168.3.99
-</span></code></pre></div><p><code>compare</code> コマンドを実行すると以下のように表示されました。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">ubnt@ubnt# compare
-</span><span class="go">[edit service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 start 192.168.3.2]
-</span><span class="go">-stop 192.168.3.99
-</span><span class="go">[edit]
-</span></code></pre></div><p>仕組みを一旦理解した後ならこの出力でもわかるのですが、 <code>show</code> コマンドを実行したほうがわかりやすいです。出力が長いので以下では抜粋して示します。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">ubnt@ubnt# show
-</span><span class="go">…(略)…
-</span><span class="go"> service {
-</span><span class="go">     dhcp-server {
-</span><span class="go">         disabled false
-</span><span class="go">         hostfile-update disable
-</span><span class="go">…(略)…
-</span><span class="go">         shared-network-name LAN2 {
-</span><span class="go">             authoritative disable
-</span><span class="go">             subnet 192.168.3.0/24 {
-</span><span class="go">                 default-router 192.168.3.1
-</span><span class="go">                 dns-server 192.168.3.1
-</span><span class="go">                 lease 86400
-</span><span class="go">                 start 192.168.3.2 {
-</span><span class="go">-                    stop 192.168.3.99
-</span><span class="go">                 }
-</span><span class="go">             }
-</span><span class="go">         }
-</span><span class="go">         use-dnsmasq disable
-</span><span class="go">     }
-</span><span class="go">…(略)…
-</span></code></pre></div><p><code>service</code> &gt; <code>dhcp-server</code> &gt; <code>shared-network-name LAN2</code> というキーのパスになっていることがわかったので、以下のコマンドでその部分だけを表示してみます。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">ubnt@ubnt# show service dhcp-server shared-network-name LAN2
-</span><span class="go"> authoritative disable
-</span><span class="go"> subnet 192.168.3.0/24 {
-</span><span class="go">     default-router 192.168.3.1
-</span><span class="go">     dns-server 192.168.3.1
-</span><span class="go">     lease 86400
-</span><span class="go">     start 192.168.3.2 {
-</span><span class="go">-        stop 192.168.3.99
-</span><span class="go">     }
-</span><span class="go"> }
-</span><span class="go">[edit]
-</span></code></pre></div><p>この後、以下のようにDHCPで払い出すIPアドレスの範囲の終端だけを違う値に設定するのであれば、変更内容は以下のようになり問題はありません。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">ubnt@ubnt# set service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 start 192.168.3.2 stop 192.168.3.199
-</span><span class="go">[edit]
-</span><span class="go">ubnt@ubnt# show service dhcp-server shared-network-name LAN2
-</span><span class="go"> authoritative disable
-</span><span class="go"> subnet 192.168.3.0/24 {
-</span><span class="go">     default-router 192.168.3.1
-</span><span class="go">     dns-server 192.168.3.1
-</span><span class="go">     lease 86400
-</span><span class="go">     start 192.168.3.2 {
-</span><span class="go"></span><span class="gp">&gt;        </span>stop 192.168.3.199
-<span class="go">     }
-</span><span class="go"> }
-</span><span class="go">[edit]
-</span></code></pre></div><p>ですが、開始と終端のアドレスを両方変えたい場合は、以下の手順ではまずいです。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">set service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 start 192.168.3.2 stop 192.168.3.99
+</span></span></span></code></pre></div><p>この設定を削除するには以下のコマンドを実行すれば良いかと当初は思っていました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">delete service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 start 192.168.3.2 stop 192.168.3.99
+</span></span></span></code></pre></div><p><code>compare</code> コマンドを実行すると以下のように表示されました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">ubnt@ubnt# compare
+</span></span></span><span class="line"><span class="cl"><span class="go">[edit service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 start 192.168.3.2]
+</span></span></span><span class="line"><span class="cl"><span class="go">-stop 192.168.3.99
+</span></span></span><span class="line"><span class="cl"><span class="go">[edit]
+</span></span></span></code></pre></div><p>仕組みを一旦理解した後ならこの出力でもわかるのですが、 <code>show</code> コマンドを実行したほうがわかりやすいです。出力が長いので以下では抜粋して示します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">ubnt@ubnt# show
+</span></span></span><span class="line"><span class="cl"><span class="go">…(略)…
+</span></span></span><span class="line"><span class="cl"><span class="go"> service {
+</span></span></span><span class="line"><span class="cl"><span class="go">     dhcp-server {
+</span></span></span><span class="line"><span class="cl"><span class="go">         disabled false
+</span></span></span><span class="line"><span class="cl"><span class="go">         hostfile-update disable
+</span></span></span><span class="line"><span class="cl"><span class="go">…(略)…
+</span></span></span><span class="line"><span class="cl"><span class="go">         shared-network-name LAN2 {
+</span></span></span><span class="line"><span class="cl"><span class="go">             authoritative disable
+</span></span></span><span class="line"><span class="cl"><span class="go">             subnet 192.168.3.0/24 {
+</span></span></span><span class="line"><span class="cl"><span class="go">                 default-router 192.168.3.1
+</span></span></span><span class="line"><span class="cl"><span class="go">                 dns-server 192.168.3.1
+</span></span></span><span class="line"><span class="cl"><span class="go">                 lease 86400
+</span></span></span><span class="line"><span class="cl"><span class="go">                 start 192.168.3.2 {
+</span></span></span><span class="line"><span class="cl"><span class="go">-                    stop 192.168.3.99
+</span></span></span><span class="line"><span class="cl"><span class="go">                 }
+</span></span></span><span class="line"><span class="cl"><span class="go">             }
+</span></span></span><span class="line"><span class="cl"><span class="go">         }
+</span></span></span><span class="line"><span class="cl"><span class="go">         use-dnsmasq disable
+</span></span></span><span class="line"><span class="cl"><span class="go">     }
+</span></span></span><span class="line"><span class="cl"><span class="go">…(略)…
+</span></span></span></code></pre></div><p><code>service</code> &gt; <code>dhcp-server</code> &gt; <code>shared-network-name LAN2</code> というキーのパスになっていることがわかったので、以下のコマンドでその部分だけを表示してみます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">ubnt@ubnt# show service dhcp-server shared-network-name LAN2
+</span></span></span><span class="line"><span class="cl"><span class="go"> authoritative disable
+</span></span></span><span class="line"><span class="cl"><span class="go"> subnet 192.168.3.0/24 {
+</span></span></span><span class="line"><span class="cl"><span class="go">     default-router 192.168.3.1
+</span></span></span><span class="line"><span class="cl"><span class="go">     dns-server 192.168.3.1
+</span></span></span><span class="line"><span class="cl"><span class="go">     lease 86400
+</span></span></span><span class="line"><span class="cl"><span class="go">     start 192.168.3.2 {
+</span></span></span><span class="line"><span class="cl"><span class="go">-        stop 192.168.3.99
+</span></span></span><span class="line"><span class="cl"><span class="go">     }
+</span></span></span><span class="line"><span class="cl"><span class="go"> }
+</span></span></span><span class="line"><span class="cl"><span class="go">[edit]
+</span></span></span></code></pre></div><p>この後、以下のようにDHCPで払い出すIPアドレスの範囲の終端だけを違う値に設定するのであれば、変更内容は以下のようになり問題はありません。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">ubnt@ubnt# set service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 start 192.168.3.2 stop 192.168.3.199
+</span></span></span><span class="line"><span class="cl"><span class="go">[edit]
+</span></span></span><span class="line"><span class="cl"><span class="go">ubnt@ubnt# show service dhcp-server shared-network-name LAN2
+</span></span></span><span class="line"><span class="cl"><span class="go"> authoritative disable
+</span></span></span><span class="line"><span class="cl"><span class="go"> subnet 192.168.3.0/24 {
+</span></span></span><span class="line"><span class="cl"><span class="go">     default-router 192.168.3.1
+</span></span></span><span class="line"><span class="cl"><span class="go">     dns-server 192.168.3.1
+</span></span></span><span class="line"><span class="cl"><span class="go">     lease 86400
+</span></span></span><span class="line"><span class="cl"><span class="go">     start 192.168.3.2 {
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="gp">&gt;</span>        stop 192.168.3.199
+</span></span><span class="line"><span class="cl"><span class="go">     }
+</span></span></span><span class="line"><span class="cl"><span class="go"> }
+</span></span></span><span class="line"><span class="cl"><span class="go">[edit]
+</span></span></span></code></pre></div><p>ですが、開始と終端のアドレスを両方変えたい場合は、以下の手順ではまずいです。
 ここでは上の変更を破棄するため一旦 <code>discard</code> コマンドを実行して <code>delete</code> をやり直した後、開始と終端のアドレスを変えようとしています。が、差分を見ると変更前の開始アドレス <code>start 192.168.3.2</code> の設定が残ってしまっています。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">ubnt@ubnt# discard
-</span><span class="go">Changes have been discarded
-</span><span class="go">[edit]
-</span><span class="go">ubnt@ubnt# delete service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 start 192.168.3.2 stop 192.168.3.99
-</span><span class="go">[edit]
-</span><span class="go">ubnt@ubnt# show service dhcp-server shared-network-name LAN2
-</span><span class="go"> authoritative disable
-</span><span class="go"> subnet 192.168.3.0/24 {
-</span><span class="go">     default-router 192.168.3.1
-</span><span class="go">     dns-server 192.168.3.1
-</span><span class="go">     lease 86400
-</span><span class="go">     start 192.168.3.2 {
-</span><span class="go">-        stop 192.168.3.99
-</span><span class="go">     }
-</span><span class="go"> }
-</span><span class="go">[edit]
-</span><span class="go">ubnt@ubnt# set service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 start 192.168.3.100 stop 192.168.3.199
-</span><span class="go">[edit]
-</span><span class="go">ubnt@ubnt# show service dhcp-server shared-network-name LAN2
-</span><span class="go"> authoritative disable
-</span><span class="go"> subnet 192.168.3.0/24 {
-</span><span class="go">     default-router 192.168.3.1
-</span><span class="go">     dns-server 192.168.3.1
-</span><span class="go">     lease 86400
-</span><span class="go">     start 192.168.3.2 {
-</span><span class="go">-        stop 192.168.3.99
-</span><span class="go">     }
-</span><span class="go">+    start 192.168.3.100 {
-</span><span class="go">+        stop 192.168.3.199
-</span><span class="go">+    }
-</span><span class="go"> }
-</span><span class="go">[edit]
-</span></code></pre></div><p>また、上記のように別の設定を追加するのではなく、単に削除したい場合も上記の手順ではまずいです。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">ubnt@ubnt# discard
+</span></span></span><span class="line"><span class="cl"><span class="go">Changes have been discarded
+</span></span></span><span class="line"><span class="cl"><span class="go">[edit]
+</span></span></span><span class="line"><span class="cl"><span class="go">ubnt@ubnt# delete service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 start 192.168.3.2 stop 192.168.3.99
+</span></span></span><span class="line"><span class="cl"><span class="go">[edit]
+</span></span></span><span class="line"><span class="cl"><span class="go">ubnt@ubnt# show service dhcp-server shared-network-name LAN2
+</span></span></span><span class="line"><span class="cl"><span class="go"> authoritative disable
+</span></span></span><span class="line"><span class="cl"><span class="go"> subnet 192.168.3.0/24 {
+</span></span></span><span class="line"><span class="cl"><span class="go">     default-router 192.168.3.1
+</span></span></span><span class="line"><span class="cl"><span class="go">     dns-server 192.168.3.1
+</span></span></span><span class="line"><span class="cl"><span class="go">     lease 86400
+</span></span></span><span class="line"><span class="cl"><span class="go">     start 192.168.3.2 {
+</span></span></span><span class="line"><span class="cl"><span class="go">-        stop 192.168.3.99
+</span></span></span><span class="line"><span class="cl"><span class="go">     }
+</span></span></span><span class="line"><span class="cl"><span class="go"> }
+</span></span></span><span class="line"><span class="cl"><span class="go">[edit]
+</span></span></span><span class="line"><span class="cl"><span class="go">ubnt@ubnt# set service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 start 192.168.3.100 stop 192.168.3.199
+</span></span></span><span class="line"><span class="cl"><span class="go">[edit]
+</span></span></span><span class="line"><span class="cl"><span class="go">ubnt@ubnt# show service dhcp-server shared-network-name LAN2
+</span></span></span><span class="line"><span class="cl"><span class="go"> authoritative disable
+</span></span></span><span class="line"><span class="cl"><span class="go"> subnet 192.168.3.0/24 {
+</span></span></span><span class="line"><span class="cl"><span class="go">     default-router 192.168.3.1
+</span></span></span><span class="line"><span class="cl"><span class="go">     dns-server 192.168.3.1
+</span></span></span><span class="line"><span class="cl"><span class="go">     lease 86400
+</span></span></span><span class="line"><span class="cl"><span class="go">     start 192.168.3.2 {
+</span></span></span><span class="line"><span class="cl"><span class="go">-        stop 192.168.3.99
+</span></span></span><span class="line"><span class="cl"><span class="go">     }
+</span></span></span><span class="line"><span class="cl"><span class="go">+    start 192.168.3.100 {
+</span></span></span><span class="line"><span class="cl"><span class="go">+        stop 192.168.3.199
+</span></span></span><span class="line"><span class="cl"><span class="go">+    }
+</span></span></span><span class="line"><span class="cl"><span class="go"> }
+</span></span></span><span class="line"><span class="cl"><span class="go">[edit]
+</span></span></span></code></pre></div><p>また、上記のように別の設定を追加するのではなく、単に削除したい場合も上記の手順ではまずいです。
 今回の場合、古い設定の削除は以下のように <code>start</code> とその値までを指定して <code>stop</code> 以降は含めないのが正解でした。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">ubnt@ubnt# delete service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 start 192.168.3.2
-</span><span class="go">[edit]
-</span><span class="go">ubnt@ubnt# show service dhcp-server shared-network-name LAN2
-</span><span class="go"> authoritative disable
-</span><span class="go"> subnet 192.168.3.0/24 {
-</span><span class="go">     default-router 192.168.3.1
-</span><span class="go">     dns-server 192.168.3.1
-</span><span class="go">     lease 86400
-</span><span class="go">-    start 192.168.3.2 {
-</span><span class="go">-        stop 192.168.3.99
-</span><span class="go">-    }
-</span><span class="go">+    start 192.168.3.100 {
-</span><span class="go">+        stop 192.168.3.199
-</span><span class="go">+    }
-</span><span class="go"> }
-</span><span class="go">[edit]
-</span></code></pre></div><p>ということで、設定項目の階層構造を把握しつつ設定の削除や変更を行う必要があるという話でした。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">ubnt@ubnt# delete service dhcp-server shared-network-name LAN2 subnet 192.168.3.0/24 start 192.168.3.2
+</span></span></span><span class="line"><span class="cl"><span class="go">[edit]
+</span></span></span><span class="line"><span class="cl"><span class="go">ubnt@ubnt# show service dhcp-server shared-network-name LAN2
+</span></span></span><span class="line"><span class="cl"><span class="go"> authoritative disable
+</span></span></span><span class="line"><span class="cl"><span class="go"> subnet 192.168.3.0/24 {
+</span></span></span><span class="line"><span class="cl"><span class="go">     default-router 192.168.3.1
+</span></span></span><span class="line"><span class="cl"><span class="go">     dns-server 192.168.3.1
+</span></span></span><span class="line"><span class="cl"><span class="go">     lease 86400
+</span></span></span><span class="line"><span class="cl"><span class="go">-    start 192.168.3.2 {
+</span></span></span><span class="line"><span class="cl"><span class="go">-        stop 192.168.3.99
+</span></span></span><span class="line"><span class="cl"><span class="go">-    }
+</span></span></span><span class="line"><span class="cl"><span class="go">+    start 192.168.3.100 {
+</span></span></span><span class="line"><span class="cl"><span class="go">+        stop 192.168.3.199
+</span></span></span><span class="line"><span class="cl"><span class="go">+    }
+</span></span></span><span class="line"><span class="cl"><span class="go"> }
+</span></span></span><span class="line"><span class="cl"><span class="go">[edit]
+</span></span></span></code></pre></div><p>ということで、設定項目の階層構造を把握しつつ設定の削除や変更を行う必要があるという話でした。</p>
 
 </div>
 

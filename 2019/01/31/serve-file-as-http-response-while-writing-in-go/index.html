@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.89.4" />
+  <meta name="generator" content="Hugo 0.96.0" />
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -58,7 +58,7 @@
     </nav>
 
     <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
-    <p>&copy; 2021. All rights reserved. </p>
+    <p>&copy; 2022. All rights reserved. </p>
   </div>
 </aside>
 
@@ -87,158 +87,158 @@ WriterがCloseした後にReaderがEOFを受け取ったら、それは本物の
 <p>しかし、これだと待つ途中でキャンセルが出来ないのでchannelベースの実装に切り替えました。
 Readerが最初にWriterにsubscribeするとバッファサイズ1のchannelを作ります。</p>
 <p><a href="https://github.com/hnakamur/readwhilewrite/blob/68a26aa56e8f0f07a5c5301494128ccfc37b365c/notifier.go#L7-L22">notifier.go#L7-L22</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">notifier</span> <span class="kd">struct</span> <span class="p">{</span>
-        <span class="nx">mu</span>       <span class="nx">sync</span><span class="p">.</span><span class="nx">Mutex</span>
-        <span class="nx">channels</span> <span class="p">[]</span><span class="kd">chan</span> <span class="kd">struct</span><span class="p">{}</span>
-        <span class="nx">closed</span>   <span class="kt">bool</span>
-<span class="p">}</span>
-
-<span class="kd">func</span> <span class="p">(</span><span class="nx">n</span> <span class="o">*</span><span class="nx">notifier</span><span class="p">)</span> <span class="nf">Subscribe</span><span class="p">()</span> <span class="o">&lt;-</span><span class="kd">chan</span> <span class="kd">struct</span><span class="p">{}</span> <span class="p">{</span>
-        <span class="nx">c</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kd">struct</span><span class="p">{},</span> <span class="mi">1</span><span class="p">)</span>
-        <span class="nx">n</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
-        <span class="k">if</span> <span class="nx">n</span><span class="p">.</span><span class="nx">closed</span> <span class="p">{</span>
-     	   <span class="nb">close</span><span class="p">(</span><span class="nx">c</span><span class="p">)</span>
-        <span class="p">}</span>
-        <span class="nx">n</span><span class="p">.</span><span class="nx">channels</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">n</span><span class="p">.</span><span class="nx">channels</span><span class="p">,</span> <span class="nx">c</span><span class="p">)</span>
-        <span class="nx">n</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
-        <span class="k">return</span> <span class="nx">c</span>
-<span class="p">}</span>
-</code></pre></div><p>Writerが書き込んだらこのchannelに通知しますが、selectとdefaultを使ってReaderが前回送ったのを受け取ってない時はブロックせずに捨てるようにしています。こうすることにより遅いReaderがいても引きずられること無く書き込みを継続できます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">notifier</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">mu</span>       <span class="nx">sync</span><span class="p">.</span><span class="nx">Mutex</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">channels</span> <span class="p">[]</span><span class="kd">chan</span> <span class="kd">struct</span><span class="p">{}</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">closed</span>   <span class="kt">bool</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">n</span> <span class="o">*</span><span class="nx">notifier</span><span class="p">)</span> <span class="nf">Subscribe</span><span class="p">()</span> <span class="o">&lt;-</span><span class="kd">chan</span> <span class="kd">struct</span><span class="p">{}</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">c</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kd">struct</span><span class="p">{},</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">n</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">n</span><span class="p">.</span><span class="nx">closed</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     	   <span class="nb">close</span><span class="p">(</span><span class="nx">c</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">n</span><span class="p">.</span><span class="nx">channels</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">n</span><span class="p">.</span><span class="nx">channels</span><span class="p">,</span> <span class="nx">c</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">n</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">c</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>Writerが書き込んだらこのchannelに通知しますが、selectとdefaultを使ってReaderが前回送ったのを受け取ってない時はブロックせずに捨てるようにしています。こうすることにより遅いReaderがいても引きずられること無く書き込みを継続できます。</p>
 <p><a href="https://github.com/hnakamur/readwhilewrite/blob/68a26aa56e8f0f07a5c5301494128ccfc37b365c/notifier.go#L35-L44">notifier.go#L35-L44</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">n</span> <span class="o">*</span><span class="nx">notifier</span><span class="p">)</span> <span class="nf">Notify</span><span class="p">()</span> <span class="p">{</span>
-        <span class="nx">n</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
-        <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">c</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">n</span><span class="p">.</span><span class="nx">channels</span> <span class="p">{</span>
-                <span class="k">select</span> <span class="p">{</span>
-                <span class="k">case</span> <span class="nx">c</span> <span class="o">&lt;-</span> <span class="kd">struct</span><span class="p">{}{}:</span>
-                <span class="k">default</span><span class="p">:</span>
-                <span class="p">}</span>
-        <span class="p">}</span>
-        <span class="nx">n</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
-<span class="p">}</span>
-</code></pre></div><p>一方、Readerはまだ処理していない更新（＝書き込み）が1回以上あったことは分かるというわけです。更新の回数を知りたいとか空のstructではなくデータを送って最新の値を参照したいという場合にはこれでは困るわけですが、今回の用途にはこの方式で十分です。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">n</span> <span class="o">*</span><span class="nx">notifier</span><span class="p">)</span> <span class="nf">Notify</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">n</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">c</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">n</span><span class="p">.</span><span class="nx">channels</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">select</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">case</span> <span class="nx">c</span> <span class="o">&lt;-</span> <span class="kd">struct</span><span class="p">{}{}:</span>
+</span></span><span class="line"><span class="cl">                <span class="k">default</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">                <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">n</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>一方、Readerはまだ処理していない更新（＝書き込み）が1回以上あったことは分かるというわけです。更新の回数を知りたいとか空のstructではなくデータを送って最新の値を参照したいという場合にはこれでは困るわけですが、今回の用途にはこの方式で十分です。</p>
 <p>WriterがCloseしたときは各Reader用のchannelをcloseします。</p>
 <p><a href="https://github.com/hnakamur/readwhilewrite/blob/68a26aa56e8f0f07a5c5301494128ccfc37b365c/notifier.go#L46-L53">notifier.go#L46-L53</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">n</span> <span class="o">*</span><span class="nx">notifier</span><span class="p">)</span> <span class="nf">Close</span><span class="p">()</span> <span class="p">{</span>
-        <span class="nx">n</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
-        <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">c</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">n</span><span class="p">.</span><span class="nx">channels</span> <span class="p">{</span>
-     	   <span class="nb">close</span><span class="p">(</span><span class="nx">c</span><span class="p">)</span>
-        <span class="p">}</span>
-        <span class="nx">n</span><span class="p">.</span><span class="nx">closed</span> <span class="p">=</span> <span class="kc">true</span>
-        <span class="nx">n</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
-<span class="p">}</span>
-</code></pre></div><p>タイミングによっては既にWriterがCloseした後にSubscribeすることもあり得るので、上記のSubscribe内ではClose済みの場合はchannelをcloseするようにしています。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">n</span> <span class="o">*</span><span class="nx">notifier</span><span class="p">)</span> <span class="nf">Close</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">n</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">c</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">n</span><span class="p">.</span><span class="nx">channels</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     	   <span class="nb">close</span><span class="p">(</span><span class="nx">c</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">n</span><span class="p">.</span><span class="nx">closed</span> <span class="p">=</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">n</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>タイミングによっては既にWriterがCloseした後にSubscribeすることもあり得るので、上記のSubscribe内ではClose済みの場合はchannelをcloseするようにしています。</p>
 <h1 id="goでlinuxのsendfileシステムコールを使っている箇所の調査">GoでLinuxのsendfileシステムコールを使っている箇所の調査</h1>
 <p>前節で動くものが出来たのでGoで書いたHTTPサーバで使おうと思ったのですが、可能ならLinuxのsendfileシステムコールを使いたいと思い調べてみました。調査したバージョンはGo 1.11.5 です。</p>
 <p>まずGoのソースでsendfileで検索してみると以下の箇所で syscall.Sendfile を呼び出していました。</p>
 <p><a href="https://github.com/golang/go/blob/go1.11.5/src/internal/poll/sendfile_linux.go#L28">https://github.com/golang/go/blob/go1.11.5/src/internal/poll/sendfile_linux.go#L28</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Copyright 2011 The Go Authors. All rights reserved.
-</span><span class="c1">// Use of this source code is governed by a BSD-style
-</span><span class="c1">// license that can be found in the LICENSE file.
-</span><span class="c1"></span>
-<span class="kn">package</span> <span class="nx">poll</span>
-
-<span class="kn">import</span> <span class="s">&#34;syscall&#34;</span>
-
-<span class="c1">// maxSendfileSize is the largest chunk size we ask the kernel to copy
-</span><span class="c1">// at a time.
-</span><span class="c1"></span><span class="kd">const</span> <span class="nx">maxSendfileSize</span> <span class="kt">int</span> <span class="p">=</span> <span class="mi">4</span> <span class="o">&lt;&lt;</span> <span class="mi">20</span>
-
-<span class="c1">// SendFile wraps the sendfile system call.
-</span><span class="c1"></span><span class="kd">func</span> <span class="nf">SendFile</span><span class="p">(</span><span class="nx">dstFD</span> <span class="o">*</span><span class="nx">FD</span><span class="p">,</span> <span class="nx">src</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">remain</span> <span class="kt">int64</span><span class="p">)</span> <span class="p">(</span><span class="kt">int64</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
-        <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">dstFD</span><span class="p">.</span><span class="nf">writeLock</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-     	   <span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">err</span>
-        <span class="p">}</span>
-        <span class="k">defer</span> <span class="nx">dstFD</span><span class="p">.</span><span class="nf">writeUnlock</span><span class="p">()</span>
-
-        <span class="nx">dst</span> <span class="o">:=</span> <span class="nb">int</span><span class="p">(</span><span class="nx">dstFD</span><span class="p">.</span><span class="nx">Sysfd</span><span class="p">)</span>
-        <span class="kd">var</span> <span class="nx">written</span> <span class="kt">int64</span>
-        <span class="kd">var</span> <span class="nx">err</span> <span class="kt">error</span>
-        <span class="k">for</span> <span class="nx">remain</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
-     	   <span class="nx">n</span> <span class="o">:=</span> <span class="nx">maxSendfileSize</span>
-     	   <span class="k">if</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">n</span><span class="p">)</span> <span class="p">&gt;</span> <span class="nx">remain</span> <span class="p">{</span>
-     		   <span class="nx">n</span> <span class="p">=</span> <span class="nb">int</span><span class="p">(</span><span class="nx">remain</span><span class="p">)</span>
-     	   <span class="p">}</span>
-     	   <span class="nx">n</span><span class="p">,</span> <span class="nx">err1</span> <span class="o">:=</span> <span class="nx">syscall</span><span class="p">.</span><span class="nf">Sendfile</span><span class="p">(</span><span class="nx">dst</span><span class="p">,</span> <span class="nx">src</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">n</span><span class="p">)</span>
-     	   <span class="k">if</span> <span class="nx">n</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
-     		   <span class="nx">written</span> <span class="o">+=</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">n</span><span class="p">)</span>
-     		   <span class="nx">remain</span> <span class="o">-=</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">n</span><span class="p">)</span>
-     	   <span class="p">}</span>
-     	   <span class="k">if</span> <span class="nx">n</span> <span class="o">==</span> <span class="mi">0</span> <span class="o">&amp;&amp;</span> <span class="nx">err1</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
-     		   <span class="k">break</span>
-     	   <span class="p">}</span>
-     	   <span class="k">if</span> <span class="nx">err1</span> <span class="o">==</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">EAGAIN</span> <span class="p">{</span>
-     		   <span class="k">if</span> <span class="nx">err1</span> <span class="p">=</span> <span class="nx">dstFD</span><span class="p">.</span><span class="nx">pd</span><span class="p">.</span><span class="nf">waitWrite</span><span class="p">(</span><span class="nx">dstFD</span><span class="p">.</span><span class="nx">isFile</span><span class="p">);</span> <span class="nx">err1</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
-     			   <span class="k">continue</span>
-     		   <span class="p">}</span>
-     	   <span class="p">}</span>
-     	   <span class="k">if</span> <span class="nx">err1</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-     		   <span class="c1">// This includes syscall.ENOSYS (no kernel
-</span><span class="c1"></span>     		   <span class="c1">// support) and syscall.EINVAL (fd types which
-</span><span class="c1"></span>     		   <span class="c1">// don&#39;t implement sendfile)
-</span><span class="c1"></span>     		   <span class="nx">err</span> <span class="p">=</span> <span class="nx">err1</span>
-     		   <span class="k">break</span>
-     	   <span class="p">}</span>
-        <span class="p">}</span>
-        <span class="k">return</span> <span class="nx">written</span><span class="p">,</span> <span class="nx">err</span>
-<span class="p">}</span>
-</code></pre></div><p>internal/poll.SendFileは
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Copyright 2011 The Go Authors. All rights reserved.
+</span></span></span><span class="line"><span class="cl"><span class="c1">// Use of this source code is governed by a BSD-style
+</span></span></span><span class="line"><span class="cl"><span class="c1">// license that can be found in the LICENSE file.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="kn">package</span> <span class="nx">poll</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="s">&#34;syscall&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// maxSendfileSize is the largest chunk size we ask the kernel to copy
+</span></span></span><span class="line"><span class="cl"><span class="c1">// at a time.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">const</span> <span class="nx">maxSendfileSize</span> <span class="kt">int</span> <span class="p">=</span> <span class="mi">4</span> <span class="o">&lt;&lt;</span> <span class="mi">20</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// SendFile wraps the sendfile system call.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">SendFile</span><span class="p">(</span><span class="nx">dstFD</span> <span class="o">*</span><span class="nx">FD</span><span class="p">,</span> <span class="nx">src</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">remain</span> <span class="kt">int64</span><span class="p">)</span> <span class="p">(</span><span class="kt">int64</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">dstFD</span><span class="p">.</span><span class="nf">writeLock</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">defer</span> <span class="nx">dstFD</span><span class="p">.</span><span class="nf">writeUnlock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="nx">dst</span> <span class="o">:=</span> <span class="nb">int</span><span class="p">(</span><span class="nx">dstFD</span><span class="p">.</span><span class="nx">Sysfd</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="kd">var</span> <span class="nx">written</span> <span class="kt">int64</span>
+</span></span><span class="line"><span class="cl">        <span class="kd">var</span> <span class="nx">err</span> <span class="kt">error</span>
+</span></span><span class="line"><span class="cl">        <span class="k">for</span> <span class="nx">remain</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     	   <span class="nx">n</span> <span class="o">:=</span> <span class="nx">maxSendfileSize</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">if</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">n</span><span class="p">)</span> <span class="p">&gt;</span> <span class="nx">remain</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     		   <span class="nx">n</span> <span class="p">=</span> <span class="nb">int</span><span class="p">(</span><span class="nx">remain</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">     	   <span class="p">}</span>
+</span></span><span class="line"><span class="cl">     	   <span class="nx">n</span><span class="p">,</span> <span class="nx">err1</span> <span class="o">:=</span> <span class="nx">syscall</span><span class="p">.</span><span class="nf">Sendfile</span><span class="p">(</span><span class="nx">dst</span><span class="p">,</span> <span class="nx">src</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">n</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">if</span> <span class="nx">n</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     		   <span class="nx">written</span> <span class="o">+=</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">n</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">     		   <span class="nx">remain</span> <span class="o">-=</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">n</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">     	   <span class="p">}</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">if</span> <span class="nx">n</span> <span class="o">==</span> <span class="mi">0</span> <span class="o">&amp;&amp;</span> <span class="nx">err1</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     		   <span class="k">break</span>
+</span></span><span class="line"><span class="cl">     	   <span class="p">}</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">if</span> <span class="nx">err1</span> <span class="o">==</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">EAGAIN</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     		   <span class="k">if</span> <span class="nx">err1</span> <span class="p">=</span> <span class="nx">dstFD</span><span class="p">.</span><span class="nx">pd</span><span class="p">.</span><span class="nf">waitWrite</span><span class="p">(</span><span class="nx">dstFD</span><span class="p">.</span><span class="nx">isFile</span><span class="p">);</span> <span class="nx">err1</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     			   <span class="k">continue</span>
+</span></span><span class="line"><span class="cl">     		   <span class="p">}</span>
+</span></span><span class="line"><span class="cl">     	   <span class="p">}</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">if</span> <span class="nx">err1</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     		   <span class="c1">// This includes syscall.ENOSYS (no kernel
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>     		   <span class="c1">// support) and syscall.EINVAL (fd types which
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>     		   <span class="c1">// don&#39;t implement sendfile)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>     		   <span class="nx">err</span> <span class="p">=</span> <span class="nx">err1</span>
+</span></span><span class="line"><span class="cl">     		   <span class="k">break</span>
+</span></span><span class="line"><span class="cl">     	   <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">written</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>internal/poll.SendFileは
 <a href="https://github.com/golang/go/blob/go1.11.5/src/net/sendfile_linux.go#L35">https://github.com/golang/go/blob/go1.11.5/src/net/sendfile_linux.go#L35</a>
 で呼ばれています。
 コードを見るとsendfileが使われるのは <code>r io.Reader</code> が <code>*os.File</code> か <code>*os.File</code> をラップした <code>*io.LimitedReader</code> のときだけだということがわかります。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// sendFile copies the contents of r to c using the sendfile
-</span><span class="c1">// system call to minimize copies.
-</span><span class="c1">//
-</span><span class="c1">// if handled == true, sendFile returns the number of bytes copied and any
-</span><span class="c1">// non-EOF error.
-</span><span class="c1">//
-</span><span class="c1">// if handled == false, sendFile performed no work.
-</span><span class="c1"></span><span class="kd">func</span> <span class="nf">sendFile</span><span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">netFD</span><span class="p">,</span> <span class="nx">r</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="nx">written</span> <span class="kt">int64</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">,</span> <span class="nx">handled</span> <span class="kt">bool</span><span class="p">)</span> <span class="p">{</span>
-        <span class="kd">var</span> <span class="nx">remain</span> <span class="kt">int64</span> <span class="p">=</span> <span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="mi">62</span> <span class="c1">// by default, copy until EOF
-</span><span class="c1"></span>
-        <span class="nx">lr</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">r</span><span class="p">.(</span><span class="o">*</span><span class="nx">io</span><span class="p">.</span><span class="nx">LimitedReader</span><span class="p">)</span>
-        <span class="k">if</span> <span class="nx">ok</span> <span class="p">{</span>
-     	   <span class="nx">remain</span><span class="p">,</span> <span class="nx">r</span> <span class="p">=</span> <span class="nx">lr</span><span class="p">.</span><span class="nx">N</span><span class="p">,</span> <span class="nx">lr</span><span class="p">.</span><span class="nx">R</span>
-     	   <span class="k">if</span> <span class="nx">remain</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="p">{</span>
-     		   <span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">true</span>
-     	   <span class="p">}</span>
-        <span class="p">}</span>
-        <span class="nx">f</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">r</span><span class="p">.(</span><span class="o">*</span><span class="nx">os</span><span class="p">.</span><span class="nx">File</span><span class="p">)</span>
-        <span class="k">if</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
-     	   <span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">false</span>
-        <span class="p">}</span>
-
-        <span class="nx">written</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">poll</span><span class="p">.</span><span class="nf">SendFile</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">c</span><span class="p">.</span><span class="nx">pfd</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nf">Fd</span><span class="p">()),</span> <span class="nx">remain</span><span class="p">)</span>
-
-        <span class="k">if</span> <span class="nx">lr</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-     	   <span class="nx">lr</span><span class="p">.</span><span class="nx">N</span> <span class="p">=</span> <span class="nx">remain</span> <span class="o">-</span> <span class="nx">written</span>
-        <span class="p">}</span>
-        <span class="k">return</span> <span class="nx">written</span><span class="p">,</span> <span class="nf">wrapSyscallError</span><span class="p">(</span><span class="s">&#34;sendfile&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">),</span> <span class="nx">written</span> <span class="p">&gt;</span> <span class="mi">0</span>
-<span class="p">}</span>
-</code></pre></div><p>sendFile関数は <code>net/tcp.TCPConn</code> のreadFrom関数から呼ばれています。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// sendFile copies the contents of r to c using the sendfile
+</span></span></span><span class="line"><span class="cl"><span class="c1">// system call to minimize copies.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// if handled == true, sendFile returns the number of bytes copied and any
+</span></span></span><span class="line"><span class="cl"><span class="c1">// non-EOF error.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// if handled == false, sendFile performed no work.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">sendFile</span><span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">netFD</span><span class="p">,</span> <span class="nx">r</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="nx">written</span> <span class="kt">int64</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">,</span> <span class="nx">handled</span> <span class="kt">bool</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kd">var</span> <span class="nx">remain</span> <span class="kt">int64</span> <span class="p">=</span> <span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="mi">62</span> <span class="c1">// by default, copy until EOF
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl">        <span class="nx">lr</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">r</span><span class="p">.(</span><span class="o">*</span><span class="nx">io</span><span class="p">.</span><span class="nx">LimitedReader</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">ok</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     	   <span class="nx">remain</span><span class="p">,</span> <span class="nx">r</span> <span class="p">=</span> <span class="nx">lr</span><span class="p">.</span><span class="nx">N</span><span class="p">,</span> <span class="nx">lr</span><span class="p">.</span><span class="nx">R</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">if</span> <span class="nx">remain</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     		   <span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl">     	   <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">f</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">r</span><span class="p">.(</span><span class="o">*</span><span class="nx">os</span><span class="p">.</span><span class="nx">File</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">false</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="nx">written</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">poll</span><span class="p">.</span><span class="nf">SendFile</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">c</span><span class="p">.</span><span class="nx">pfd</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nf">Fd</span><span class="p">()),</span> <span class="nx">remain</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">lr</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     	   <span class="nx">lr</span><span class="p">.</span><span class="nx">N</span> <span class="p">=</span> <span class="nx">remain</span> <span class="o">-</span> <span class="nx">written</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">written</span><span class="p">,</span> <span class="nf">wrapSyscallError</span><span class="p">(</span><span class="s">&#34;sendfile&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">),</span> <span class="nx">written</span> <span class="p">&gt;</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>sendFile関数は <code>net/tcp.TCPConn</code> のreadFrom関数から呼ばれています。
 <a href="https://github.com/golang/go/blob/go1.11.5/src/net/tcpsock_posix.go#L47-L55">https://github.com/golang/go/blob/go1.11.5/src/net/tcpsock_posix.go#L47-L55</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">TCPConn</span><span class="p">)</span> <span class="nf">readFrom</span><span class="p">(</span><span class="nx">r</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="kt">int64</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
-        <span class="k">if</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span><span class="p">,</span> <span class="nx">handled</span> <span class="o">:=</span> <span class="nf">splice</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">fd</span><span class="p">,</span> <span class="nx">r</span><span class="p">);</span> <span class="nx">handled</span> <span class="p">{</span>
-     	   <span class="k">return</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span>
-        <span class="p">}</span>
-        <span class="k">if</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span><span class="p">,</span> <span class="nx">handled</span> <span class="o">:=</span> <span class="nf">sendFile</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">fd</span><span class="p">,</span> <span class="nx">r</span><span class="p">);</span> <span class="nx">handled</span> <span class="p">{</span>
-     	   <span class="k">return</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span>
-        <span class="p">}</span>
-        <span class="k">return</span> <span class="nf">genericReadFrom</span><span class="p">(</span><span class="nx">c</span><span class="p">,</span> <span class="nx">r</span><span class="p">)</span>
-<span class="p">}</span>
-</code></pre></div><p><code>net/tcp.TCPConn</code> のreadFrom関数は同じく <code>net/tcp.TCPConn</code> のReadFrom関数から呼ばれています。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">TCPConn</span><span class="p">)</span> <span class="nf">readFrom</span><span class="p">(</span><span class="nx">r</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="kt">int64</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span><span class="p">,</span> <span class="nx">handled</span> <span class="o">:=</span> <span class="nf">splice</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">fd</span><span class="p">,</span> <span class="nx">r</span><span class="p">);</span> <span class="nx">handled</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">return</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span><span class="p">,</span> <span class="nx">handled</span> <span class="o">:=</span> <span class="nf">sendFile</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">fd</span><span class="p">,</span> <span class="nx">r</span><span class="p">);</span> <span class="nx">handled</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">return</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nf">genericReadFrom</span><span class="p">(</span><span class="nx">c</span><span class="p">,</span> <span class="nx">r</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>net/tcp.TCPConn</code> のreadFrom関数は同じく <code>net/tcp.TCPConn</code> のReadFrom関数から呼ばれています。
 <a href="https://github.com/golang/go/blob/go1.11.5/src/net/tcpsock.go#L98-L108">https://github.com/golang/go/blob/go1.11.5/src/net/tcpsock.go#L98-L108</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// ReadFrom implements the io.ReaderFrom ReadFrom method.
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">TCPConn</span><span class="p">)</span> <span class="nf">ReadFrom</span><span class="p">(</span><span class="nx">r</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="kt">int64</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
-        <span class="k">if</span> <span class="p">!</span><span class="nx">c</span><span class="p">.</span><span class="nf">ok</span><span class="p">()</span> <span class="p">{</span>
-     	   <span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">EINVAL</span>
-        <span class="p">}</span>
-        <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nf">readFrom</span><span class="p">(</span><span class="nx">r</span><span class="p">)</span>
-        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">&amp;&amp;</span> <span class="nx">err</span> <span class="o">!=</span> <span class="nx">io</span><span class="p">.</span><span class="nx">EOF</span> <span class="p">{</span>
-     	   <span class="nx">err</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">OpError</span><span class="p">{</span><span class="nx">Op</span><span class="p">:</span> <span class="s">&#34;readfrom&#34;</span><span class="p">,</span> <span class="nx">Net</span><span class="p">:</span> <span class="nx">c</span><span class="p">.</span><span class="nx">fd</span><span class="p">.</span><span class="nx">net</span><span class="p">,</span> <span class="nx">Source</span><span class="p">:</span> <span class="nx">c</span><span class="p">.</span><span class="nx">fd</span><span class="p">.</span><span class="nx">laddr</span><span class="p">,</span> <span class="nx">Addr</span><span class="p">:</span> <span class="nx">c</span><span class="p">.</span><span class="nx">fd</span><span class="p">.</span><span class="nx">raddr</span><span class="p">,</span> <span class="nx">Err</span><span class="p">:</span> <span class="nx">err</span><span class="p">}</span>
-        <span class="p">}</span>
-        <span class="k">return</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span>
-<span class="p">}</span>
-</code></pre></div><h1 id="goのhttpでlinuxのsendfileシステムコールが使われる条件の調査">GoのhttpでLinuxのsendfileシステムコールが使われる条件の調査</h1>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ReadFrom implements the io.ReaderFrom ReadFrom method.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">TCPConn</span><span class="p">)</span> <span class="nf">ReadFrom</span><span class="p">(</span><span class="nx">r</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="kt">int64</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">!</span><span class="nx">c</span><span class="p">.</span><span class="nf">ok</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">EINVAL</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nf">readFrom</span><span class="p">(</span><span class="nx">r</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">&amp;&amp;</span> <span class="nx">err</span> <span class="o">!=</span> <span class="nx">io</span><span class="p">.</span><span class="nx">EOF</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     	   <span class="nx">err</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">OpError</span><span class="p">{</span><span class="nx">Op</span><span class="p">:</span> <span class="s">&#34;readfrom&#34;</span><span class="p">,</span> <span class="nx">Net</span><span class="p">:</span> <span class="nx">c</span><span class="p">.</span><span class="nx">fd</span><span class="p">.</span><span class="nx">net</span><span class="p">,</span> <span class="nx">Source</span><span class="p">:</span> <span class="nx">c</span><span class="p">.</span><span class="nx">fd</span><span class="p">.</span><span class="nx">laddr</span><span class="p">,</span> <span class="nx">Addr</span><span class="p">:</span> <span class="nx">c</span><span class="p">.</span><span class="nx">fd</span><span class="p">.</span><span class="nx">raddr</span><span class="p">,</span> <span class="nx">Err</span><span class="p">:</span> <span class="nx">err</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h1 id="goのhttpでlinuxのsendfileシステムコールが使われる条件の調査">GoのhttpでLinuxのsendfileシステムコールが使われる条件の調査</h1>
 <p>前節で動くものが出来たのでGoで書いたHTTPサーバで使おうと思ったのですが、可能ならLinuxのsendfileシステムコールを使いたいと思いました。</p>
 <p>ソースコードを検索して調べるのが大変になってきたので、以下のようなサンプル用のコードを書いて動かして調べることにしました。</p>
 <p>以下の2つの方法を試したので両方メモしておきます。通常は delve を使うほうが楽です。</p>
@@ -247,244 +247,244 @@ Readerが最初にWriterにsubscribeするとバッファサイズ1のchannelを
 <li>Goの標準ライブラリにデバッグログを埋め込んで調査</li>
 </ul>
 <h2 id="delveを使ってsendfile呼び出しまでのスタックトレースを調査">delveを使ってSendFile呼び出しまでのスタックトレースを調査</h2>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kn">package</span> <span class="nx">main</span>
-
-<span class="kn">import</span> <span class="p">(</span>
-    <span class="s">&#34;flag&#34;</span>
-    <span class="s">&#34;io/ioutil&#34;</span>
-    <span class="s">&#34;log&#34;</span>
-    <span class="s">&#34;net/http&#34;</span>
-    <span class="s">&#34;os&#34;</span>
-<span class="p">)</span>
-
-<span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
-    <span class="nx">addr</span> <span class="o">:=</span> <span class="nx">flag</span><span class="p">.</span><span class="nf">String</span><span class="p">(</span><span class="s">&#34;addr&#34;</span><span class="p">,</span> <span class="s">&#34;:8080&#34;</span><span class="p">,</span> <span class="s">&#34;listen address in host:port form&#34;</span><span class="p">)</span>
-    <span class="nx">flag</span><span class="p">.</span><span class="nf">Parse</span><span class="p">()</span>
-
-    <span class="nx">err</span> <span class="o">:=</span> <span class="nf">run</span><span class="p">(</span><span class="o">*</span><span class="nx">addr</span><span class="p">)</span>
-    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-        <span class="nx">log</span><span class="p">.</span><span class="nf">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
-    <span class="p">}</span>
-<span class="p">}</span>
-
-<span class="kd">func</span> <span class="nf">run</span><span class="p">(</span><span class="nx">addr</span> <span class="kt">string</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
-    <span class="nx">file</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">ioutil</span><span class="p">.</span><span class="nf">TempFile</span><span class="p">(</span><span class="s">&#34;&#34;</span><span class="p">,</span> <span class="s">&#34;test&#34;</span><span class="p">)</span>
-    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-        <span class="k">return</span> <span class="nx">err</span>
-    <span class="p">}</span>
-    <span class="k">defer</span> <span class="nx">os</span><span class="p">.</span><span class="nf">Remove</span><span class="p">(</span><span class="nx">file</span><span class="p">.</span><span class="nf">Name</span><span class="p">())</span>
-
-    <span class="nx">err</span> <span class="p">=</span> <span class="nx">ioutil</span><span class="p">.</span><span class="nf">WriteFile</span><span class="p">(</span><span class="nx">file</span><span class="p">.</span><span class="nf">Name</span><span class="p">(),</span> <span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&#34;hello\n&#34;</span><span class="p">),</span> <span class="mo">0644</span><span class="p">)</span>
-    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-        <span class="k">return</span> <span class="nx">err</span>
-    <span class="p">}</span>
-
-    <span class="nx">http</span><span class="p">.</span><span class="nf">HandleFunc</span><span class="p">(</span><span class="s">&#34;/&#34;</span><span class="p">,</span> <span class="kd">func</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
-        <span class="nx">http</span><span class="p">.</span><span class="nf">ServeFile</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">r</span><span class="p">,</span> <span class="nx">file</span><span class="p">.</span><span class="nf">Name</span><span class="p">())</span>
-    <span class="p">})</span>
-
-    <span class="nx">s</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">http</span><span class="p">.</span><span class="nx">Server</span><span class="p">{</span>
-        <span class="nx">Addr</span><span class="p">:</span> <span class="nx">addr</span><span class="p">,</span>
-    <span class="p">}</span>
-    <span class="k">return</span> <span class="nx">s</span><span class="p">.</span><span class="nf">ListenAndServe</span><span class="p">()</span>
-<span class="p">}</span>
-</code></pre></div><p>このサンプルを <a href="https://raw.githubusercontent.com/go-delve/delve/master/assets/delve_horizontal.png">delve</a> というデバッガで動かします。使い方は <a href="https://qiita.com/minamijoyo/items/4da68467c1c5d94c8cd7">Golangのデバッガdelveの使い方 - Qiita</a> がわかりやすかったです。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="go">dlv debug
-</span></code></pre></div><p>で起動して SendFile 関数にブレークポイントを設定し、別の端末で curl でリクエストを打ちました。で止まったところでスタックトレースを表示すると以下のようになりました。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-txt" data-lang="txt">(dlv) b SendFile
-Breakpoint 2 set at 0x4a67b8 for internal/poll.SendFile() /usr/local/go/src/internal/poll/sendfile_linux.go:14
-(dlv) c
-&gt; internal/poll.SendFile() /usr/local/go/src/internal/poll/sendfile_linux.go:14 (hits goroutine(20):1 total:1) (PC: 0x4a67b8)
-     9: // maxSendfileSize is the largest chunk size we ask the kernel to copy
-    10: // at a time.
-    11: const maxSendfileSize int = 4 &lt;&lt; 20
-    12:
-    13: // SendFile wraps the sendfile system call.
-=&gt;  14: func SendFile(dstFD *FD, src int, remain int64) (int64, error) {
-    15:         if err := dstFD.writeLock(); err != nil {
-    16:                 return 0, err
-    17:         }
-    18:         defer dstFD.writeUnlock()
-    19:
-(dlv) stack
- 0  0x00000000004a67b8 in internal/poll.SendFile
-    at /usr/local/go/src/internal/poll/sendfile_linux.go:14
- 1  0x00000000005b7346 in net.sendFile
-    at /usr/local/go/src/net/sendfile_linux.go:35
- 2  0x00000000005bc535 in net.(*TCPConn).readFrom
-    at /usr/local/go/src/net/tcpsock_posix.go:51
- 3  0x00000000005ba8e5 in net.(*TCPConn).ReadFrom
-    at /usr/local/go/src/net/tcpsock.go:103
- 4  0x00000000006c54fe in net/http.(*response).ReadFrom
-    at /usr/local/go/src/net/http/server.go:602
- 5  0x000000000047e20c in io.copyBuffer
-    at /usr/local/go/src/io/io.go:388
- 6  0x000000000047dd87 in io.Copy
-    at /usr/local/go/src/io/io.go:364
- 7  0x000000000047dc0b in io.CopyN
-    at /usr/local/go/src/io/io.go:340
- 8  0x000000000067895c in net/http.serveContent
-    at /usr/local/go/src/net/http/fs.go:296
- 9  0x000000000067bbab in net/http.serveFile
-    at /usr/local/go/src/net/http/fs.go:620
-10  0x000000000067c29b in net/http.ServeFile
-    at /usr/local/go/src/net/http/fs.go:681
-11  0x0000000000708ab4 in main.run.func1
-    at ./main.go:34
-12  0x00000000006cecb4 in net/http.HandlerFunc.ServeHTTP
-    at /usr/local/go/src/net/http/server.go:1964
-13  0x00000000006d1934 in net/http.(*ServeMux).ServeHTTP
-    at /usr/local/go/src/net/http/server.go:2361
-14  0x00000000006d26c9 in net/http.serverHandler.ServeHTTP
-    at /usr/local/go/src/net/http/server.go:2741
-15  0x00000000006ce026 in net/http.(*conn).serve
-    at /usr/local/go/src/net/http/server.go:1847
-16  0x000000000045f091 in runtime.goexit
-    at /usr/local/go/src/runtime/asm_amd64.s:1333
-(dlv) c
-</code></pre></div><h2 id="goの標準ライブラリにデバッグログを埋め込んで調査">Goの標準ライブラリにデバッグログを埋め込んで調査</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span> <span class="nx">main</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="s">&#34;flag&#34;</span>
+</span></span><span class="line"><span class="cl">    <span class="s">&#34;io/ioutil&#34;</span>
+</span></span><span class="line"><span class="cl">    <span class="s">&#34;log&#34;</span>
+</span></span><span class="line"><span class="cl">    <span class="s">&#34;net/http&#34;</span>
+</span></span><span class="line"><span class="cl">    <span class="s">&#34;os&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">addr</span> <span class="o">:=</span> <span class="nx">flag</span><span class="p">.</span><span class="nf">String</span><span class="p">(</span><span class="s">&#34;addr&#34;</span><span class="p">,</span> <span class="s">&#34;:8080&#34;</span><span class="p">,</span> <span class="s">&#34;listen address in host:port form&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">flag</span><span class="p">.</span><span class="nf">Parse</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nx">err</span> <span class="o">:=</span> <span class="nf">run</span><span class="p">(</span><span class="o">*</span><span class="nx">addr</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">log</span><span class="p">.</span><span class="nf">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">run</span><span class="p">(</span><span class="nx">addr</span> <span class="kt">string</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">file</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">ioutil</span><span class="p">.</span><span class="nf">TempFile</span><span class="p">(</span><span class="s">&#34;&#34;</span><span class="p">,</span> <span class="s">&#34;test&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">defer</span> <span class="nx">os</span><span class="p">.</span><span class="nf">Remove</span><span class="p">(</span><span class="nx">file</span><span class="p">.</span><span class="nf">Name</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nx">err</span> <span class="p">=</span> <span class="nx">ioutil</span><span class="p">.</span><span class="nf">WriteFile</span><span class="p">(</span><span class="nx">file</span><span class="p">.</span><span class="nf">Name</span><span class="p">(),</span> <span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&#34;hello\n&#34;</span><span class="p">),</span> <span class="mo">0644</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nx">http</span><span class="p">.</span><span class="nf">HandleFunc</span><span class="p">(</span><span class="s">&#34;/&#34;</span><span class="p">,</span> <span class="kd">func</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">http</span><span class="p">.</span><span class="nf">ServeFile</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">r</span><span class="p">,</span> <span class="nx">file</span><span class="p">.</span><span class="nf">Name</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">})</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nx">s</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">http</span><span class="p">.</span><span class="nx">Server</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">Addr</span><span class="p">:</span> <span class="nx">addr</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">s</span><span class="p">.</span><span class="nf">ListenAndServe</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>このサンプルを <a href="https://raw.githubusercontent.com/go-delve/delve/master/assets/delve_horizontal.png">delve</a> というデバッガで動かします。使い方は <a href="https://qiita.com/minamijoyo/items/4da68467c1c5d94c8cd7">Golangのデバッガdelveの使い方 - Qiita</a> がわかりやすかったです。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">dlv debug
+</span></span></span></code></pre></div><p>で起動して SendFile 関数にブレークポイントを設定し、別の端末で curl でリクエストを打ちました。で止まったところでスタックトレースを表示すると以下のようになりました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-txt" data-lang="txt"><span class="line"><span class="cl">(dlv) b SendFile
+</span></span><span class="line"><span class="cl">Breakpoint 2 set at 0x4a67b8 for internal/poll.SendFile() /usr/local/go/src/internal/poll/sendfile_linux.go:14
+</span></span><span class="line"><span class="cl">(dlv) c
+</span></span><span class="line"><span class="cl">&gt; internal/poll.SendFile() /usr/local/go/src/internal/poll/sendfile_linux.go:14 (hits goroutine(20):1 total:1) (PC: 0x4a67b8)
+</span></span><span class="line"><span class="cl">     9: // maxSendfileSize is the largest chunk size we ask the kernel to copy
+</span></span><span class="line"><span class="cl">    10: // at a time.
+</span></span><span class="line"><span class="cl">    11: const maxSendfileSize int = 4 &lt;&lt; 20
+</span></span><span class="line"><span class="cl">    12:
+</span></span><span class="line"><span class="cl">    13: // SendFile wraps the sendfile system call.
+</span></span><span class="line"><span class="cl">=&gt;  14: func SendFile(dstFD *FD, src int, remain int64) (int64, error) {
+</span></span><span class="line"><span class="cl">    15:         if err := dstFD.writeLock(); err != nil {
+</span></span><span class="line"><span class="cl">    16:                 return 0, err
+</span></span><span class="line"><span class="cl">    17:         }
+</span></span><span class="line"><span class="cl">    18:         defer dstFD.writeUnlock()
+</span></span><span class="line"><span class="cl">    19:
+</span></span><span class="line"><span class="cl">(dlv) stack
+</span></span><span class="line"><span class="cl"> 0  0x00000000004a67b8 in internal/poll.SendFile
+</span></span><span class="line"><span class="cl">    at /usr/local/go/src/internal/poll/sendfile_linux.go:14
+</span></span><span class="line"><span class="cl"> 1  0x00000000005b7346 in net.sendFile
+</span></span><span class="line"><span class="cl">    at /usr/local/go/src/net/sendfile_linux.go:35
+</span></span><span class="line"><span class="cl"> 2  0x00000000005bc535 in net.(*TCPConn).readFrom
+</span></span><span class="line"><span class="cl">    at /usr/local/go/src/net/tcpsock_posix.go:51
+</span></span><span class="line"><span class="cl"> 3  0x00000000005ba8e5 in net.(*TCPConn).ReadFrom
+</span></span><span class="line"><span class="cl">    at /usr/local/go/src/net/tcpsock.go:103
+</span></span><span class="line"><span class="cl"> 4  0x00000000006c54fe in net/http.(*response).ReadFrom
+</span></span><span class="line"><span class="cl">    at /usr/local/go/src/net/http/server.go:602
+</span></span><span class="line"><span class="cl"> 5  0x000000000047e20c in io.copyBuffer
+</span></span><span class="line"><span class="cl">    at /usr/local/go/src/io/io.go:388
+</span></span><span class="line"><span class="cl"> 6  0x000000000047dd87 in io.Copy
+</span></span><span class="line"><span class="cl">    at /usr/local/go/src/io/io.go:364
+</span></span><span class="line"><span class="cl"> 7  0x000000000047dc0b in io.CopyN
+</span></span><span class="line"><span class="cl">    at /usr/local/go/src/io/io.go:340
+</span></span><span class="line"><span class="cl"> 8  0x000000000067895c in net/http.serveContent
+</span></span><span class="line"><span class="cl">    at /usr/local/go/src/net/http/fs.go:296
+</span></span><span class="line"><span class="cl"> 9  0x000000000067bbab in net/http.serveFile
+</span></span><span class="line"><span class="cl">    at /usr/local/go/src/net/http/fs.go:620
+</span></span><span class="line"><span class="cl">10  0x000000000067c29b in net/http.ServeFile
+</span></span><span class="line"><span class="cl">    at /usr/local/go/src/net/http/fs.go:681
+</span></span><span class="line"><span class="cl">11  0x0000000000708ab4 in main.run.func1
+</span></span><span class="line"><span class="cl">    at ./main.go:34
+</span></span><span class="line"><span class="cl">12  0x00000000006cecb4 in net/http.HandlerFunc.ServeHTTP
+</span></span><span class="line"><span class="cl">    at /usr/local/go/src/net/http/server.go:1964
+</span></span><span class="line"><span class="cl">13  0x00000000006d1934 in net/http.(*ServeMux).ServeHTTP
+</span></span><span class="line"><span class="cl">    at /usr/local/go/src/net/http/server.go:2361
+</span></span><span class="line"><span class="cl">14  0x00000000006d26c9 in net/http.serverHandler.ServeHTTP
+</span></span><span class="line"><span class="cl">    at /usr/local/go/src/net/http/server.go:2741
+</span></span><span class="line"><span class="cl">15  0x00000000006ce026 in net/http.(*conn).serve
+</span></span><span class="line"><span class="cl">    at /usr/local/go/src/net/http/server.go:1847
+</span></span><span class="line"><span class="cl">16  0x000000000045f091 in runtime.goexit
+</span></span><span class="line"><span class="cl">    at /usr/local/go/src/runtime/asm_amd64.s:1333
+</span></span><span class="line"><span class="cl">(dlv) c
+</span></span></code></pre></div><h2 id="goの標準ライブラリにデバッグログを埋め込んで調査">Goの標準ライブラリにデバッグログを埋め込んで調査</h2>
 <p>dlvを使わない別の方法としてGoの標準ライブラリのソースを書き換えてデバッグログ出力のコードを埋め込み、
 ビルドして実行するという手もあります。</p>
 <p><a href="https://golang.org/dl/">Goのダウンロードページ</a> からバイナリをダウンロードして /usr/local/go/ に展開している場合 /usr/local/go/src/ に標準ライブラリのソースがあります。</p>
 <p>/usr/local/go/src/internal/poll/sendfile_linux.go を以下のように書き換えて上記のサンプルをビルドします。
 ちなみに os パッケージを使おうとするとimportが循環参照でコンパイルエラーになってしまったので標準出力のファイルディスクリプタ 1 はハードコーディングしています。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-diff" data-lang="diff"><span class="gh">diff -u /usr/local/go/src/internal/poll/sendfile_linux.go.orig /usr/local/go/src/internal/poll/sendfile_linux.go
-</span><span class="gh"></span><span class="gd">--- /usr/local/go/src/internal/poll/sendfile_linux.go.orig      2019-01-30 01:05:32.271820060 +0000
-</span><span class="gd"></span><span class="gi">+++ /usr/local/go/src/internal/poll/sendfile_linux.go   2019-01-30 01:01:36.240575572 +0000
-</span><span class="gi"></span><span class="gu">@@ -4,7 +4,10 @@
-</span><span class="gu"></span>
- package poll
-
-<span class="gd">-import &#34;syscall&#34;
-</span><span class="gd"></span><span class="gi">+import (
-</span><span class="gi">+       &#34;runtime&#34;
-</span><span class="gi">+       &#34;syscall&#34;
-</span><span class="gi">+)
-</span><span class="gi"></span>
- // maxSendfileSize is the largest chunk size we ask the kernel to copy
- // at a time.
-<span class="gu">@@ -12,6 +15,12 @@
-</span><span class="gu"></span>
- // SendFile wraps the sendfile system call.
- func SendFile(dstFD *FD, src int, remain int64) (int64, error) {
-<span class="gi">+       func() {
-</span><span class="gi">+               buf := make([]byte, 64 * 1024)
-</span><span class="gi">+               _ = runtime.Stack(buf, false)
-</span><span class="gi">+               syscall.Write(1, buf)
-</span><span class="gi">+       }()
-</span><span class="gi">+
-</span><span class="gi"></span>        if err := dstFD.writeLock(); err != nil {
-     	   return 0, err
-        }
-</code></pre></div><p>サンプルを起動してcurlでリクエストを打つと以下のようなスタックトレースが出力されました。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-txt" data-lang="txt">goroutine 5 [running]:
-internal/poll.SendFile.func1()
-        /usr/local/go/src/internal/poll/sendfile_linux.go:20 +0x79
-internal/poll.SendFile(0xc0000da080, 0x7, 0x6, 0x0, 0x0, 0x0)
-        /usr/local/go/src/internal/poll/sendfile_linux.go:22 +0x3d
-net.sendFile(0xc0000da080, 0x705c00, 0xc00014a760, 0x0, 0x0, 0x0, 0x0)
-        /usr/local/go/src/net/sendfile_linux.go:35 +0x98
-net.(*TCPConn).readFrom(0xc00000e050, 0x705c00, 0xc00014a760, 0xc0000a9810, 0x5fba90, 0xc0000582c0)
-        /usr/local/go/src/net/tcpsock_posix.go:51 +0x88
-net.(*TCPConn).ReadFrom(0xc00000e050, 0x705c00, 0xc00014a760, 0xc, 0xc0000c44c0, 0x6acd01)
-        /usr/local/go/src/net/tcpsock.go:103 +0x5d
-net/http.(*response).ReadFrom(0xc0000121c0, 0x705c00, 0xc00014a760, 0x0, 0x0, 0x0)
-        /usr/local/go/src/net/http/server.go:602 +0x2af
-io.copyBuffer(0x705fa0, 0xc0000121c0, 0x705c00, 0xc00014a760, 0x0, 0x0, 0x0, 0x684560, 0x705f01, 0xc00014a760)
-        /usr/local/go/src/io/io.go:388 +0x303
-io.Copy(0x705fa0, 0xc0000121c0, 0x705c00, 0xc00014a760, 0x6acd00, 0x6ca200, 0x705fa0)
-        /usr/local/go/src/io/io.go:364 +0x5a
-io.CopyN(0x705fa0, 0xc0000121c0, 0x706020, 0xc00000e060, 0x6, 0x0, 0x0, 0x0)
-        /usr/local/go/src/io/io.go:340 +0x86
-net/http.serveContent(0x7088e0, 0xc0000121c0, 0xc0000dc300, 0xc00001e2a5, 0xd, 0xf009351, 0xed3e2ee9a, 0x8c4300, 0xc00000c300, 0x7f3248d43fd0, ...)
-        /usr/local/go/src/net/http/fs.go:296 +0x285
-net/http.serveFile(0x7088e0, 0xc0000121c0, 0xc0000dc300, 0x706560, 0xc000010cb0, 0xc00001e205, 0xd, 0x0)
-        /usr/local/go/src/net/http/fs.go:620 +0x5f9
-net/http.ServeFile(0x7088e0, 0xc0000121c0, 0xc0000dc300, 0xc00001e200, 0x12)
-        /usr/local/go/src/net/http/fs.go:681 +0x13f
-main.run.func1(0x7088e0, 0xc0000121c0, 0xc0000dc300)
-        /root/go/src/bitbucket.org/hnakamur/http-sendfile-experiment/main.go:34 +0x5a
-net/http.HandlerFunc.ServeHTTP(0xc000010c10, 0x7088e0, 0xc0000121c0, 0xc0000dc300)
-        /usr/local/go/src/net/http/server.go:1964 +0x44
-net/http.(*ServeMux).ServeHTTP(0x8c3fa0, 0x7088e0, 0xc0000121c0, 0xc0000dc300)
-        /usr/local/go/src/net/http/server.go:2361 +0x127
-net/http.serverHandler.ServeHTTP(0xc000073040, 0x7088e0, 0xc0000121c0, 0xc0000dc300)
-        /usr/local/go/src/net/http/server.go:2741 +0xab
-net/http.(*conn).serve(0xc0000808c0, 0x708aa0, 0xc000058280)
-        /usr/local/go/src/net/http/server.go:1847 +0x646
-created by net/http.(*Server).Serve
-        /usr/local/go/src/net/http/server.go:2851 +0x2f5
-</code></pre></div><p>この方法はデバッグログ出力以外にも好きにコードを改変して実行できるので、振る舞いを変えて調査したいときには便利です。調査が終わったら標準ライブラリのコードを元に戻すのを忘れないようにしましょう。あるいはLXDやDockerなどで使い捨ての環境を作ってそこで行うと良いと思います。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-diff" data-lang="diff"><span class="line"><span class="cl"><span class="gh">diff -u /usr/local/go/src/internal/poll/sendfile_linux.go.orig /usr/local/go/src/internal/poll/sendfile_linux.go
+</span></span></span><span class="line"><span class="cl"><span class="gh"></span><span class="gd">--- /usr/local/go/src/internal/poll/sendfile_linux.go.orig      2019-01-30 01:05:32.271820060 +0000
+</span></span></span><span class="line"><span class="cl"><span class="gd"></span><span class="gi">+++ /usr/local/go/src/internal/poll/sendfile_linux.go   2019-01-30 01:01:36.240575572 +0000
+</span></span></span><span class="line"><span class="cl"><span class="gi"></span><span class="gu">@@ -4,7 +4,10 @@
+</span></span></span><span class="line"><span class="cl"><span class="gu"></span>
+</span></span><span class="line"><span class="cl"> package poll
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gd">-import &#34;syscall&#34;
+</span></span></span><span class="line"><span class="cl"><span class="gd"></span><span class="gi">+import (
+</span></span></span><span class="line"><span class="cl"><span class="gi">+       &#34;runtime&#34;
+</span></span></span><span class="line"><span class="cl"><span class="gi">+       &#34;syscall&#34;
+</span></span></span><span class="line"><span class="cl"><span class="gi">+)
+</span></span></span><span class="line"><span class="cl"><span class="gi"></span>
+</span></span><span class="line"><span class="cl"> // maxSendfileSize is the largest chunk size we ask the kernel to copy
+</span></span><span class="line"><span class="cl"> // at a time.
+</span></span><span class="line"><span class="cl"><span class="gu">@@ -12,6 +15,12 @@
+</span></span></span><span class="line"><span class="cl"><span class="gu"></span>
+</span></span><span class="line"><span class="cl"> // SendFile wraps the sendfile system call.
+</span></span><span class="line"><span class="cl"> func SendFile(dstFD *FD, src int, remain int64) (int64, error) {
+</span></span><span class="line"><span class="cl"><span class="gi">+       func() {
+</span></span></span><span class="line"><span class="cl"><span class="gi">+               buf := make([]byte, 64 * 1024)
+</span></span></span><span class="line"><span class="cl"><span class="gi">+               _ = runtime.Stack(buf, false)
+</span></span></span><span class="line"><span class="cl"><span class="gi">+               syscall.Write(1, buf)
+</span></span></span><span class="line"><span class="cl"><span class="gi">+       }()
+</span></span></span><span class="line"><span class="cl"><span class="gi">+
+</span></span></span><span class="line"><span class="cl"><span class="gi"></span>        if err := dstFD.writeLock(); err != nil {
+</span></span><span class="line"><span class="cl">     	   return 0, err
+</span></span><span class="line"><span class="cl">        }
+</span></span></code></pre></div><p>サンプルを起動してcurlでリクエストを打つと以下のようなスタックトレースが出力されました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-txt" data-lang="txt"><span class="line"><span class="cl">goroutine 5 [running]:
+</span></span><span class="line"><span class="cl">internal/poll.SendFile.func1()
+</span></span><span class="line"><span class="cl">        /usr/local/go/src/internal/poll/sendfile_linux.go:20 +0x79
+</span></span><span class="line"><span class="cl">internal/poll.SendFile(0xc0000da080, 0x7, 0x6, 0x0, 0x0, 0x0)
+</span></span><span class="line"><span class="cl">        /usr/local/go/src/internal/poll/sendfile_linux.go:22 +0x3d
+</span></span><span class="line"><span class="cl">net.sendFile(0xc0000da080, 0x705c00, 0xc00014a760, 0x0, 0x0, 0x0, 0x0)
+</span></span><span class="line"><span class="cl">        /usr/local/go/src/net/sendfile_linux.go:35 +0x98
+</span></span><span class="line"><span class="cl">net.(*TCPConn).readFrom(0xc00000e050, 0x705c00, 0xc00014a760, 0xc0000a9810, 0x5fba90, 0xc0000582c0)
+</span></span><span class="line"><span class="cl">        /usr/local/go/src/net/tcpsock_posix.go:51 +0x88
+</span></span><span class="line"><span class="cl">net.(*TCPConn).ReadFrom(0xc00000e050, 0x705c00, 0xc00014a760, 0xc, 0xc0000c44c0, 0x6acd01)
+</span></span><span class="line"><span class="cl">        /usr/local/go/src/net/tcpsock.go:103 +0x5d
+</span></span><span class="line"><span class="cl">net/http.(*response).ReadFrom(0xc0000121c0, 0x705c00, 0xc00014a760, 0x0, 0x0, 0x0)
+</span></span><span class="line"><span class="cl">        /usr/local/go/src/net/http/server.go:602 +0x2af
+</span></span><span class="line"><span class="cl">io.copyBuffer(0x705fa0, 0xc0000121c0, 0x705c00, 0xc00014a760, 0x0, 0x0, 0x0, 0x684560, 0x705f01, 0xc00014a760)
+</span></span><span class="line"><span class="cl">        /usr/local/go/src/io/io.go:388 +0x303
+</span></span><span class="line"><span class="cl">io.Copy(0x705fa0, 0xc0000121c0, 0x705c00, 0xc00014a760, 0x6acd00, 0x6ca200, 0x705fa0)
+</span></span><span class="line"><span class="cl">        /usr/local/go/src/io/io.go:364 +0x5a
+</span></span><span class="line"><span class="cl">io.CopyN(0x705fa0, 0xc0000121c0, 0x706020, 0xc00000e060, 0x6, 0x0, 0x0, 0x0)
+</span></span><span class="line"><span class="cl">        /usr/local/go/src/io/io.go:340 +0x86
+</span></span><span class="line"><span class="cl">net/http.serveContent(0x7088e0, 0xc0000121c0, 0xc0000dc300, 0xc00001e2a5, 0xd, 0xf009351, 0xed3e2ee9a, 0x8c4300, 0xc00000c300, 0x7f3248d43fd0, ...)
+</span></span><span class="line"><span class="cl">        /usr/local/go/src/net/http/fs.go:296 +0x285
+</span></span><span class="line"><span class="cl">net/http.serveFile(0x7088e0, 0xc0000121c0, 0xc0000dc300, 0x706560, 0xc000010cb0, 0xc00001e205, 0xd, 0x0)
+</span></span><span class="line"><span class="cl">        /usr/local/go/src/net/http/fs.go:620 +0x5f9
+</span></span><span class="line"><span class="cl">net/http.ServeFile(0x7088e0, 0xc0000121c0, 0xc0000dc300, 0xc00001e200, 0x12)
+</span></span><span class="line"><span class="cl">        /usr/local/go/src/net/http/fs.go:681 +0x13f
+</span></span><span class="line"><span class="cl">main.run.func1(0x7088e0, 0xc0000121c0, 0xc0000dc300)
+</span></span><span class="line"><span class="cl">        /root/go/src/bitbucket.org/hnakamur/http-sendfile-experiment/main.go:34 +0x5a
+</span></span><span class="line"><span class="cl">net/http.HandlerFunc.ServeHTTP(0xc000010c10, 0x7088e0, 0xc0000121c0, 0xc0000dc300)
+</span></span><span class="line"><span class="cl">        /usr/local/go/src/net/http/server.go:1964 +0x44
+</span></span><span class="line"><span class="cl">net/http.(*ServeMux).ServeHTTP(0x8c3fa0, 0x7088e0, 0xc0000121c0, 0xc0000dc300)
+</span></span><span class="line"><span class="cl">        /usr/local/go/src/net/http/server.go:2361 +0x127
+</span></span><span class="line"><span class="cl">net/http.serverHandler.ServeHTTP(0xc000073040, 0x7088e0, 0xc0000121c0, 0xc0000dc300)
+</span></span><span class="line"><span class="cl">        /usr/local/go/src/net/http/server.go:2741 +0xab
+</span></span><span class="line"><span class="cl">net/http.(*conn).serve(0xc0000808c0, 0x708aa0, 0xc000058280)
+</span></span><span class="line"><span class="cl">        /usr/local/go/src/net/http/server.go:1847 +0x646
+</span></span><span class="line"><span class="cl">created by net/http.(*Server).Serve
+</span></span><span class="line"><span class="cl">        /usr/local/go/src/net/http/server.go:2851 +0x2f5
+</span></span></code></pre></div><p>この方法はデバッグログ出力以外にも好きにコードを改変して実行できるので、振る舞いを変えて調査したいときには便利です。調査が終わったら標準ライブラリのコードを元に戻すのを忘れないようにしましょう。あるいはLXDやDockerなどで使い捨ての環境を作ってそこで行うと良いと思います。</p>
 <h2 id="goのhttpでlinuxのsendfileシステムコールが使われる条件">GoのhttpでLinuxのsendfileシステムコールが使われる条件</h2>
 <p><a href="https://golang.org/pkg/io/#Copy">io.Copy</a> のドキュメントを見ると、 src がWriteToインタフェースを実装していればそれが呼ばれ、dstがReadFromインタフェースを実装していればそれが呼ばれると書いてあります。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">Copy</span><span class="p">(</span><span class="nx">dst</span> <span class="nx">Writer</span><span class="p">,</span> <span class="nx">src</span> <span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="nx">written</span> <span class="kt">int64</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span>
-</code></pre></div><p>http.response (http.Responseではなく非公開の方)がReadFromインタフェースを実装しています。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">Copy</span><span class="p">(</span><span class="nx">dst</span> <span class="nx">Writer</span><span class="p">,</span> <span class="nx">src</span> <span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="nx">written</span> <span class="kt">int64</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span>
+</span></span></code></pre></div><p>http.response (http.Responseではなく非公開の方)がReadFromインタフェースを実装しています。</p>
 <p><a href="https://github.com/golang/go/blob/go1.11.5/src/net/http/server.go#L566-L611">https://github.com/golang/go/blob/go1.11.5/src/net/http/server.go#L566-L611</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// ReadFrom is here to optimize copying from an *os.File regular file
-</span><span class="c1">// to a *net.TCPConn with sendfile.
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">w</span> <span class="o">*</span><span class="nx">response</span><span class="p">)</span> <span class="nf">ReadFrom</span><span class="p">(</span><span class="nx">src</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int64</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
-        <span class="c1">// Our underlying w.conn.rwc is usually a *TCPConn (with its
-</span><span class="c1"></span>        <span class="c1">// own ReadFrom method). If not, or if our src isn&#39;t a regular
-</span><span class="c1"></span>        <span class="c1">// file, just fall back to the normal copy method.
-</span><span class="c1"></span>        <span class="nx">rf</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">w</span><span class="p">.</span><span class="nx">conn</span><span class="p">.</span><span class="nx">rwc</span><span class="p">.(</span><span class="nx">io</span><span class="p">.</span><span class="nx">ReaderFrom</span><span class="p">)</span>
-        <span class="nx">regFile</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">srcIsRegularFile</span><span class="p">(</span><span class="nx">src</span><span class="p">)</span>
-        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-     	   <span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">err</span>
-        <span class="p">}</span>
-        <span class="k">if</span> <span class="p">!</span><span class="nx">ok</span> <span class="o">||</span> <span class="p">!</span><span class="nx">regFile</span> <span class="p">{</span>
-     	   <span class="nx">bufp</span> <span class="o">:=</span> <span class="nx">copyBufPool</span><span class="p">.</span><span class="nf">Get</span><span class="p">().(</span><span class="o">*</span><span class="p">[]</span><span class="kt">byte</span><span class="p">)</span>
-     	   <span class="k">defer</span> <span class="nx">copyBufPool</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="nx">bufp</span><span class="p">)</span>
-     	   <span class="k">return</span> <span class="nx">io</span><span class="p">.</span><span class="nf">CopyBuffer</span><span class="p">(</span><span class="nx">writerOnly</span><span class="p">{</span><span class="nx">w</span><span class="p">},</span> <span class="nx">src</span><span class="p">,</span> <span class="o">*</span><span class="nx">bufp</span><span class="p">)</span>
-        <span class="p">}</span>
-
-        <span class="c1">// sendfile path:
-</span><span class="c1"></span>
-        <span class="k">if</span> <span class="p">!</span><span class="nx">w</span><span class="p">.</span><span class="nx">wroteHeader</span> <span class="p">{</span>
-     	   <span class="nx">w</span><span class="p">.</span><span class="nf">WriteHeader</span><span class="p">(</span><span class="nx">StatusOK</span><span class="p">)</span>
-        <span class="p">}</span>
-
-        <span class="k">if</span> <span class="nx">w</span><span class="p">.</span><span class="nf">needsSniff</span><span class="p">()</span> <span class="p">{</span>
-     	   <span class="nx">n0</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">io</span><span class="p">.</span><span class="nf">Copy</span><span class="p">(</span><span class="nx">writerOnly</span><span class="p">{</span><span class="nx">w</span><span class="p">},</span> <span class="nx">io</span><span class="p">.</span><span class="nf">LimitReader</span><span class="p">(</span><span class="nx">src</span><span class="p">,</span> <span class="nx">sniffLen</span><span class="p">))</span>
-     	   <span class="nx">n</span> <span class="o">+=</span> <span class="nx">n0</span>
-     	   <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-     		   <span class="k">return</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span>
-     	   <span class="p">}</span>
-        <span class="p">}</span>
-
-        <span class="nx">w</span><span class="p">.</span><span class="nx">w</span><span class="p">.</span><span class="nf">Flush</span><span class="p">()</span>  <span class="c1">// get rid of any previous writes
-</span><span class="c1"></span>        <span class="nx">w</span><span class="p">.</span><span class="nx">cw</span><span class="p">.</span><span class="nf">flush</span><span class="p">()</span> <span class="c1">// make sure Header is written; flush data to rwc
-</span><span class="c1"></span>
-        <span class="c1">// Now that cw has been flushed, its chunking field is guaranteed initialized.
-</span><span class="c1"></span>        <span class="k">if</span> <span class="p">!</span><span class="nx">w</span><span class="p">.</span><span class="nx">cw</span><span class="p">.</span><span class="nx">chunking</span> <span class="o">&amp;&amp;</span> <span class="nx">w</span><span class="p">.</span><span class="nf">bodyAllowed</span><span class="p">()</span> <span class="p">{</span>
-     	   <span class="nx">n0</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">rf</span><span class="p">.</span><span class="nf">ReadFrom</span><span class="p">(</span><span class="nx">src</span><span class="p">)</span>
-     	   <span class="nx">n</span> <span class="o">+=</span> <span class="nx">n0</span>
-     	   <span class="nx">w</span><span class="p">.</span><span class="nx">written</span> <span class="o">+=</span> <span class="nx">n0</span>
-     	   <span class="k">return</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span>
-        <span class="p">}</span>
-
-        <span class="nx">n0</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">io</span><span class="p">.</span><span class="nf">Copy</span><span class="p">(</span><span class="nx">writerOnly</span><span class="p">{</span><span class="nx">w</span><span class="p">},</span> <span class="nx">src</span><span class="p">)</span>
-        <span class="nx">n</span> <span class="o">+=</span> <span class="nx">n0</span>
-        <span class="k">return</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span>
-<span class="p">}</span>
-</code></pre></div><p>573行目で呼ばれている srcIsRegularFile 関数
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ReadFrom is here to optimize copying from an *os.File regular file
+</span></span></span><span class="line"><span class="cl"><span class="c1">// to a *net.TCPConn with sendfile.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">w</span> <span class="o">*</span><span class="nx">response</span><span class="p">)</span> <span class="nf">ReadFrom</span><span class="p">(</span><span class="nx">src</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int64</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// Our underlying w.conn.rwc is usually a *TCPConn (with its
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="c1">// own ReadFrom method). If not, or if our src isn&#39;t a regular
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="c1">// file, just fall back to the normal copy method.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="nx">rf</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">w</span><span class="p">.</span><span class="nx">conn</span><span class="p">.</span><span class="nx">rwc</span><span class="p">.(</span><span class="nx">io</span><span class="p">.</span><span class="nx">ReaderFrom</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">regFile</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">srcIsRegularFile</span><span class="p">(</span><span class="nx">src</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">!</span><span class="nx">ok</span> <span class="o">||</span> <span class="p">!</span><span class="nx">regFile</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     	   <span class="nx">bufp</span> <span class="o">:=</span> <span class="nx">copyBufPool</span><span class="p">.</span><span class="nf">Get</span><span class="p">().(</span><span class="o">*</span><span class="p">[]</span><span class="kt">byte</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">defer</span> <span class="nx">copyBufPool</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="nx">bufp</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">return</span> <span class="nx">io</span><span class="p">.</span><span class="nf">CopyBuffer</span><span class="p">(</span><span class="nx">writerOnly</span><span class="p">{</span><span class="nx">w</span><span class="p">},</span> <span class="nx">src</span><span class="p">,</span> <span class="o">*</span><span class="nx">bufp</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// sendfile path:
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">!</span><span class="nx">w</span><span class="p">.</span><span class="nx">wroteHeader</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     	   <span class="nx">w</span><span class="p">.</span><span class="nf">WriteHeader</span><span class="p">(</span><span class="nx">StatusOK</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">w</span><span class="p">.</span><span class="nf">needsSniff</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     	   <span class="nx">n0</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">io</span><span class="p">.</span><span class="nf">Copy</span><span class="p">(</span><span class="nx">writerOnly</span><span class="p">{</span><span class="nx">w</span><span class="p">},</span> <span class="nx">io</span><span class="p">.</span><span class="nf">LimitReader</span><span class="p">(</span><span class="nx">src</span><span class="p">,</span> <span class="nx">sniffLen</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">     	   <span class="nx">n</span> <span class="o">+=</span> <span class="nx">n0</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     		   <span class="k">return</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">     	   <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="nx">w</span><span class="p">.</span><span class="nx">w</span><span class="p">.</span><span class="nf">Flush</span><span class="p">()</span>  <span class="c1">// get rid of any previous writes
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="nx">w</span><span class="p">.</span><span class="nx">cw</span><span class="p">.</span><span class="nf">flush</span><span class="p">()</span> <span class="c1">// make sure Header is written; flush data to rwc
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// Now that cw has been flushed, its chunking field is guaranteed initialized.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="k">if</span> <span class="p">!</span><span class="nx">w</span><span class="p">.</span><span class="nx">cw</span><span class="p">.</span><span class="nx">chunking</span> <span class="o">&amp;&amp;</span> <span class="nx">w</span><span class="p">.</span><span class="nf">bodyAllowed</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     	   <span class="nx">n0</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">rf</span><span class="p">.</span><span class="nf">ReadFrom</span><span class="p">(</span><span class="nx">src</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">     	   <span class="nx">n</span> <span class="o">+=</span> <span class="nx">n0</span>
+</span></span><span class="line"><span class="cl">     	   <span class="nx">w</span><span class="p">.</span><span class="nx">written</span> <span class="o">+=</span> <span class="nx">n0</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">return</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="nx">n0</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">io</span><span class="p">.</span><span class="nf">Copy</span><span class="p">(</span><span class="nx">writerOnly</span><span class="p">{</span><span class="nx">w</span><span class="p">},</span> <span class="nx">src</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">n</span> <span class="o">+=</span> <span class="nx">n0</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>573行目で呼ばれている srcIsRegularFile 関数
 <a href="https://github.com/golang/go/blob/go1.11.5/src/net/http/server.go#L551-L564">https://github.com/golang/go/blob/go1.11.5/src/net/http/server.go#L551-L564</a>
 の実装を見ると、先程のinternal/poll.SendFileと同様
 <code>src io.Reader</code> が <code>*os.File</code> か <code>*os.File</code> をラップした <code>*io.LimitedReader</code> のときだけtrueを返すことがわかります。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">srcIsRegularFile</span><span class="p">(</span><span class="nx">src</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="nx">isRegular</span> <span class="kt">bool</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
-        <span class="k">switch</span> <span class="nx">v</span> <span class="o">:=</span> <span class="nx">src</span><span class="p">.(</span><span class="kd">type</span><span class="p">)</span> <span class="p">{</span>
-        <span class="k">case</span> <span class="o">*</span><span class="nx">os</span><span class="p">.</span><span class="nx">File</span><span class="p">:</span>
-     	   <span class="nx">fi</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">v</span><span class="p">.</span><span class="nf">Stat</span><span class="p">()</span>
-     	   <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-     		   <span class="k">return</span> <span class="kc">false</span><span class="p">,</span> <span class="nx">err</span>
-     	   <span class="p">}</span>
-     	   <span class="k">return</span> <span class="nx">fi</span><span class="p">.</span><span class="nf">Mode</span><span class="p">().</span><span class="nf">IsRegular</span><span class="p">(),</span> <span class="kc">nil</span>
-        <span class="k">case</span> <span class="o">*</span><span class="nx">io</span><span class="p">.</span><span class="nx">LimitedReader</span><span class="p">:</span>
-     	   <span class="k">return</span> <span class="nf">srcIsRegularFile</span><span class="p">(</span><span class="nx">v</span><span class="p">.</span><span class="nx">R</span><span class="p">)</span>
-        <span class="k">default</span><span class="p">:</span>
-     	   <span class="k">return</span>
-        <span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div><p>また601行目を見ると <code>w.cw.chunking</code> がtrueの場合はReadFromが使われないことがわかります。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">srcIsRegularFile</span><span class="p">(</span><span class="nx">src</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="nx">isRegular</span> <span class="kt">bool</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">switch</span> <span class="nx">v</span> <span class="o">:=</span> <span class="nx">src</span><span class="p">.(</span><span class="kd">type</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">case</span> <span class="o">*</span><span class="nx">os</span><span class="p">.</span><span class="nx">File</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">     	   <span class="nx">fi</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">v</span><span class="p">.</span><span class="nf">Stat</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     		   <span class="k">return</span> <span class="kc">false</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">     	   <span class="p">}</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">return</span> <span class="nx">fi</span><span class="p">.</span><span class="nf">Mode</span><span class="p">().</span><span class="nf">IsRegular</span><span class="p">(),</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">        <span class="k">case</span> <span class="o">*</span><span class="nx">io</span><span class="p">.</span><span class="nx">LimitedReader</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">return</span> <span class="nf">srcIsRegularFile</span><span class="p">(</span><span class="nx">v</span><span class="p">.</span><span class="nx">R</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="k">default</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">return</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>また601行目を見ると <code>w.cw.chunking</code> がtrueの場合はReadFromが使われないことがわかります。</p>
 <p>これは
 <a href="https://github.com/golang/go/blob/go1.11.5/src/net/http/server.go#L1402">https://github.com/golang/go/blob/go1.11.5/src/net/http/server.go#L1402</a>
 で true に設定されています。長いので引用は省略しますがリンク先を見ると <code>Transfer-Encoding: chunked</code> の場合に対応しています。この上の方を見ると Content-Length を設定しておけばtrueにはならないことがわかります。</p>
@@ -496,53 +496,53 @@ created by net/http.(*Server).Serve
 <h1 id="goのhttpでlinuxのsendfileシステムコールを使って書き込み中のファイルを配信するサンプル">GoのhttpでLinuxのsendfileシステムコールを使って書き込み中のファイルを配信するサンプル</h1>
 <p>上記の調査にの結果、io.Readerインタフェースを実装した独自のstructを使うとLinuxのsendfileシステムコールは使われないことがわかりました。そこで github.com/hnakamur/readwhilewrite パッケージに <a href="https://godoc.org/github.com/hnakamur/readwhilewrite#SendFileHTTP">SendFileHTTP</a> という関数を実装しました。</p>
 <p><a href="https://github.com/hnakamur/readwhilewrite/blob/68a26aa56e8f0f07a5c5301494128ccfc37b365c/send_file_http.go#L10-L49">send_file_http.go#L10-L49</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="c1">// SendFileHTTP serves a file as a HTTP response while fw is writing to the same file.
-</span><span class="c1">//
-</span><span class="c1">// Once it gets an EOF, it waits more writes by the writer. If the ctx is done while
-</span><span class="c1">// waiting, SendFileHTTP returns. Typically you want to pass r.Context() as ctx for
-</span><span class="c1">// r *http.Request.
-</span><span class="c1">//
-</span><span class="c1">// If you set the Content-Length header before calling SendFileHTTP, the sendfile
-</span><span class="c1">// system call is used on Linux.
-</span><span class="c1"></span><span class="kd">func</span> <span class="nf">SendFileHTTP</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">file</span> <span class="o">*</span><span class="nx">os</span><span class="p">.</span><span class="nx">File</span><span class="p">,</span> <span class="nx">fw</span> <span class="o">*</span><span class="nx">Writer</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int64</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
-        <span class="nx">wroteC</span> <span class="o">:=</span> <span class="nx">fw</span><span class="p">.</span><span class="nf">subscribe</span><span class="p">()</span>
-        <span class="k">defer</span> <span class="nx">fw</span><span class="p">.</span><span class="nf">unsubscribe</span><span class="p">(</span><span class="nx">wroteC</span><span class="p">)</span>
-
-        <span class="kd">var</span> <span class="nx">n1</span> <span class="kt">int64</span>
-        <span class="k">for</span> <span class="p">{</span>
-     	   <span class="nx">n1</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">io</span><span class="p">.</span><span class="nf">Copy</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">file</span><span class="p">)</span>
-     	   <span class="nx">n</span> <span class="o">+=</span> <span class="nx">n1</span>
-     	   <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">&amp;&amp;</span> <span class="nx">err</span> <span class="o">!=</span> <span class="nx">io</span><span class="p">.</span><span class="nx">EOF</span> <span class="p">{</span>
-     		   <span class="k">return</span>
-     	   <span class="p">}</span>
-
-     	   <span class="k">select</span> <span class="p">{</span>
-     	   <span class="k">case</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">wroteC</span><span class="p">:</span>
-     		   <span class="k">if</span> <span class="nx">ok</span> <span class="p">{</span>
-     			   <span class="k">continue</span>
-     		   <span class="p">}</span>
-
-     		   <span class="k">if</span> <span class="nx">fw</span><span class="p">.</span><span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-     			   <span class="nx">err</span> <span class="p">=</span> <span class="nx">fw</span><span class="p">.</span><span class="nx">err</span>
-     			   <span class="k">return</span>
-     		   <span class="p">}</span>
-
-     		   <span class="nx">n1</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">io</span><span class="p">.</span><span class="nf">Copy</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">file</span><span class="p">)</span>
-     		   <span class="nx">n</span> <span class="o">+=</span> <span class="nx">n1</span>
-     		   <span class="k">return</span>
-     	   <span class="k">case</span> <span class="o">&lt;-</span><span class="nx">ctx</span><span class="p">.</span><span class="nf">Done</span><span class="p">():</span>
-     		   <span class="nx">err</span> <span class="p">=</span> <span class="nx">ctx</span><span class="p">.</span><span class="nf">Err</span><span class="p">()</span>
-     		   <span class="k">return</span>
-     	   <span class="p">}</span>
-        <span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div><p>Writerからの書き込みを待っている間に処理を中断できるようにcontext.Contextを渡しています。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// SendFileHTTP serves a file as a HTTP response while fw is writing to the same file.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// Once it gets an EOF, it waits more writes by the writer. If the ctx is done while
+</span></span></span><span class="line"><span class="cl"><span class="c1">// waiting, SendFileHTTP returns. Typically you want to pass r.Context() as ctx for
+</span></span></span><span class="line"><span class="cl"><span class="c1">// r *http.Request.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// If you set the Content-Length header before calling SendFileHTTP, the sendfile
+</span></span></span><span class="line"><span class="cl"><span class="c1">// system call is used on Linux.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">SendFileHTTP</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">file</span> <span class="o">*</span><span class="nx">os</span><span class="p">.</span><span class="nx">File</span><span class="p">,</span> <span class="nx">fw</span> <span class="o">*</span><span class="nx">Writer</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int64</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">wroteC</span> <span class="o">:=</span> <span class="nx">fw</span><span class="p">.</span><span class="nf">subscribe</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="k">defer</span> <span class="nx">fw</span><span class="p">.</span><span class="nf">unsubscribe</span><span class="p">(</span><span class="nx">wroteC</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="kd">var</span> <span class="nx">n1</span> <span class="kt">int64</span>
+</span></span><span class="line"><span class="cl">        <span class="k">for</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     	   <span class="nx">n1</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">io</span><span class="p">.</span><span class="nf">Copy</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">file</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">     	   <span class="nx">n</span> <span class="o">+=</span> <span class="nx">n1</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">&amp;&amp;</span> <span class="nx">err</span> <span class="o">!=</span> <span class="nx">io</span><span class="p">.</span><span class="nx">EOF</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     		   <span class="k">return</span>
+</span></span><span class="line"><span class="cl">     	   <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">     	   <span class="k">select</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">case</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">wroteC</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">     		   <span class="k">if</span> <span class="nx">ok</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     			   <span class="k">continue</span>
+</span></span><span class="line"><span class="cl">     		   <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">     		   <span class="k">if</span> <span class="nx">fw</span><span class="p">.</span><span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     			   <span class="nx">err</span> <span class="p">=</span> <span class="nx">fw</span><span class="p">.</span><span class="nx">err</span>
+</span></span><span class="line"><span class="cl">     			   <span class="k">return</span>
+</span></span><span class="line"><span class="cl">     		   <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">     		   <span class="nx">n1</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">io</span><span class="p">.</span><span class="nf">Copy</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">file</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">     		   <span class="nx">n</span> <span class="o">+=</span> <span class="nx">n1</span>
+</span></span><span class="line"><span class="cl">     		   <span class="k">return</span>
+</span></span><span class="line"><span class="cl">     	   <span class="k">case</span> <span class="o">&lt;-</span><span class="nx">ctx</span><span class="p">.</span><span class="nf">Done</span><span class="p">():</span>
+</span></span><span class="line"><span class="cl">     		   <span class="nx">err</span> <span class="p">=</span> <span class="nx">ctx</span><span class="p">.</span><span class="nf">Err</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">     		   <span class="k">return</span>
+</span></span><span class="line"><span class="cl">     	   <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>Writerからの書き込みを待っている間に処理を中断できるようにcontext.Contextを渡しています。
 理想を言うとファイルからの読み込み中にも中断できると良いなと思ったのですが、現状これはできなさそうです。
 妥協案として <a href="https://golang.org/pkg/os/#File.SetDeadline">os/File.SetDeadline()</a> が使えるかとも思ったのですが、ドキュメントを読むと殆どのシステムで通常ファイルにDeadlineを設定するのは非サポートとのことでした。</p>
 <p>使用例としてテストコードから以下に抜粋します。</p>
 <p><a href="https://github.com/hnakamur/readwhilewrite/blob/68a26aa56e8f0f07a5c5301494128ccfc37b365c/send_file_http_test.go#L17-L71">send_file_http_test.go#L17-L71</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="nx">ts</span> <span class="o">:=</span> <span class="nx">httptest</span><span class="p">.</span><span class="nf">NewServer</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nf">HandlerFunc</span><span class="p">(</span><span class="kd">func</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
-</code></pre></div><pre><code>	   file, err := ioutil.TempFile(&quot;&quot;, &quot;test&quot;)
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">ts</span> <span class="o">:=</span> <span class="nx">httptest</span><span class="p">.</span><span class="nf">NewServer</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nf">HandlerFunc</span><span class="p">(</span><span class="kd">func</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+</span></span></code></pre></div><pre><code>	   file, err := ioutil.TempFile(&quot;&quot;, &quot;test&quot;)
 	   if err != nil {
 		   httpError(w, http.StatusInternalServerError)
 		   return
