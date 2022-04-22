@@ -68,3 +68,16 @@ Icon=keepassxc-logo
 EOF
 ```
 
+## 日本語入力のセットアップ
+
+参考: [第689回　Ubuntu 21.10でFcitx 5を使用する：Ubuntu Weekly Recipe｜gihyo.jp … 技術評論社](https://gihyo.jp/admin/serial/01/ubuntu-recipe/0689)
+
+```bash
+sudo apt install fcitx5-mozc
+im-config -n fcitx5
+```
+
+* 上記を実行したあと再起動
+* 画面上部のfcitxのアイコンを押し[Configure]メニューを選択。
+* [Input Method]タブで右の[Available Input Method]の一覧から[Mozc]を選んで[<]ボタンを押し[OK]ボタンを押す。
+
