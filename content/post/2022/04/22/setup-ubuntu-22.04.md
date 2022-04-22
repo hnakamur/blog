@@ -5,34 +5,66 @@ date: 2022-04-22T21:23:18+09:00
 
 ## ブート可能なUSBメモリ作成
 
-### USBメモリをフォーマット
+今回は [How to Install Ubuntu 22.04 LTS Desktop (Jammy Jellyfish)](https://phoenixnap.com/kb/ubuntu-22-04-lts) の "Option 2: Make a Bootable USB Drive on Windows" の手順を参考にしました。
 
-参考：[software recommendation - GUI tool for formating to exFAT - Ask Ubuntu](https://askubuntu.com/questions/750681/gui-tool-for-formating-to-exfat)
+1. [Ubuntu 22.04 LTS (Jammy Jellyfish)](https://releases.ubuntu.com/22.04/) から Desktop image をダウンロード。
+2. サイズが4GB以上のUSBメモリをPCに挿す。
+3. [Rufus - Create bootable USB drives the easy way](https://rufus.ie/en/) の Portable 版をダウンロードして実行。
+4. 以下のように選択して[スタート]ボタンを押して書き込み。
+    * [ブートの種類]の右のほうの[選択]ボタンを押して上でダウンロードしたイメージファイルを選択。
+    * [パーティション構成]は[MBR]、[ターゲットシステム]は[BIOSまたはUEFI]のまま。
+    * [ボリュームラベル]も自動入力される[Ubuntu 22.04 LTS amd64]のまま。
+    * [ファイルシステム]は[FAT32]、[クラスターサイズ]は[4096バイト(規定)]。
+        * これは容量4GBのUSBメモリの場合。容量がもっと大きい場合は異なる可能性あり。
 
-必要なパッケージをインストール。
+約18分とかなり時間がかかりましたが、書き込み完了後、USBメモリからインストーラを起動して無事インストールできました。
 
-```bash
-sudo apt-get install exfat-utils exfat-fuse
+## キーボードの Ctrl と CapsLock 入れ替え
+
+```
+sudo sed -i -e '/^XKBOPTIONS=/s/""/"ctrl:swapcaps"/' /etc/default/keyboard
 ```
 
-1. サイズが8GB以上のUSBメモリをPCに挿す。
-2. [Show Applications] を押して検索欄に [Disks] と入力して、Disksを起動。
-3. 左の一覧で USBドライブを選択し、歯車アイコンを押して[Format Partition...]メニューを選択。
-4. Volume Nameにはお好みの名前を入力（例: jammy）し、Eraseを有効にし Type は [Other] を選択し [Next]を押す。
-5. Custom Formatの画面で exFAT を選択して [Next] を押す。
-6. Confirm Details の画面で内容を確認の上 [Format] を押す。
+## KeePassXC セットアップ
 
-
-### USBメモリにイメージファイルを書き込み
-
-参考： [Installation/FromUSBStick - Community Help Wiki](https://help.ubuntu.com/community/Installation/FromUSBStick)
-
-必要なパッケージをインストール。
+[KeePassXC Password Manager](https://keepassxc.org/)
 
 ```bash
-sudo apt install usb-creator-gtk
+mkdir ~/AppImage
+cd !$
+curl -LO https://github.com/keepassxreboot/keepassxc/releases/download/2.7.1/KeePassXC-2.7.1-x86_64.AppImage
+chmod +x KeePassXC-2.7.1-x86_64.AppImage
 ```
 
-[Ubuntu 22.04 LTS (Jammy Jellyfish)](https://releases.ubuntu.com/22.04/) から Desktop image をダウンロード。
+[FUSE · AppImage/AppImageKit Wiki](https://github.com/AppImage/AppImageKit/wiki/FUSE) に沿って libfuse2 をセットアップ。
 
-サイズが4GB以上のUSBメモリを指して、[Show Applications]を押して[Startup Disk Creator]を実行し、ダウンロードしたイメージファイルを選択してUSBメモリに書き込み。
+```bash
+sudo apt install fuse libfuse2
+sudo modprobe fuse
+sudo groupadd fuse
+
+user="$(whoami)"
+sudo usermod -a -G fuse $user
+```
+
+Dock に KeePassXC を登録。
+
+```bash
+mkdir -p ~/.icons ~/.local/share/applications
+(cd ~/.icons; curl -LO https://keepassxc.org/images/keepassxc-logo.svg)
+```
+
+```bash
+cat > ~/.local/share/applications/keepassxc.desktop <<EOF
+#!/usr/bin/env xdg-open
+[Desktop Entry]
+Version=2.7.1
+Type=Application
+Terminal=false
+Exec=/home/hnakamur/AppImage/KeePassXC-2.7.1-x86_64.AppImage
+Name=KeepassXC
+Comment=Cross-Platform Password Manager
+Icon=keepassxc-logo
+EOF
+```
+
