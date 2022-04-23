@@ -1,6 +1,7 @@
 ---
 title: "Ubuntu 22.04のセットアップメモ"
 date: 2022-04-22T21:23:18+09:00
+lastmod: 2022-04-23T22:02:00+09:00
 ---
 
 ## ブート可能なUSBメモリ作成
@@ -18,6 +19,8 @@ date: 2022-04-22T21:23:18+09:00
         * これは容量4GBのUSBメモリの場合。容量がもっと大きい場合は異なる可能性あり。
 
 約18分とかなり時間がかかりましたが、書き込み完了後、USBメモリからインストーラを起動して無事インストールできました。
+
+インストール先を選ぶところで zfs を使うようにしてみました。
 
 ## キーボードの Ctrl と CapsLock 入れ替え
 
@@ -80,4 +83,19 @@ im-config -n fcitx5
 * 上記を実行したあと再起動
 * 画面上部のfcitxのアイコンを押し[Configure]メニューを選択。
 * [Input Method]タブで右の[Available Input Method]の一覧から[Mozc]を選んで[<]ボタンを押し[OK]ボタンを押す。
+
+
+## その他セットアップ
+
+細々といろいろインストールするので、手順をスクリプトにしていくことにしました。
+完全に自分用で設定項目にも自分のメールアドレスなどをハードコーディングしてたりするので他の方はそのまま実行しないでください。
+
+https://github.com/hnakamur/setup-my-ubuntu-desktop
+
+## zfsでsbuildを使う場合設定に調整が必要
+
+sbuild実行時に schroot でマウントするときにエラーが出ました。
+[Bug#988354: schroot: fails to enter zfs source chroots](https://groups.google.com/g/linux.debian.bugs.dist/c/2AstXL3gofg?pli=1) を参考にして設定を調整すると無事実行できました。
+
+https://github.com/hnakamur/setup-my-ubuntu-desktop/blob/main/sbuild-create-schroot.sh
 
