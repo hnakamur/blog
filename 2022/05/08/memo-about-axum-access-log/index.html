@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.98.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Axumでのアクセスログ出力の現状について調べてみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2022. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Axumでのアクセスログ出力の現状について調べてみた</h1>
+  <time datetime=2022-05-08T22:10:35&#43;0900 class="post-date">2022-05-08</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#axum-でのログ出力の実現方法について調査">axum でのログ出力の実現方法について調査</a></li>
+    <li><a href="#hyper-での転送量取得について調査">hyper での転送量取得について調査</a></li>
+    <li><a href="#ちなみに-actix-web-のアクセスログのレスポンスサイズについても調べてみた">ちなみに actix-web のアクセスログのレスポンスサイズについても調べてみた</a></li>
+  </ul>
+</nav>
+  <p>Axumでのアクセスログ出力の現状について調べてみたのでメモです。
+個人的には特にヘッダとボディ（新しい用語だとフィールドとコンテント）を合わせた転送量をログに書きたいというニーズがあります。</p>
+<p>結論を先に書くと現状は非対応で今のところ予定もないそうです。</p>
+<h2 id="axum-でのログ出力の実現方法について調査">axum でのログ出力の実現方法について調査</h2>
+<p><a href="https://github.com/tokio-rs/axum/">tokio-rs/axum: Ergonomic and modular web framework built with Tokio, Tower, and Hyper</a> の <a href="https://github.com/tokio-rs/axum/#getting-help">Getting Help</a> で紹介されている Discord での <a href="https://discord.com/channels/500028886025895936/870760546109116496/890916692530716682">axumのメインの開発者の davidpdrsn さんの発言</a> によると</p>
+<ul>
+<li>axum側でデフォルトのアクセスログを提供する予定はない</li>
+<li>tower-http の TracingLayer の仕組みで作るのがお勧めらしい</li>
+</ul>
+<p>とのことでした。</p>
+<p>axum の <a href="https://github.com/tokio-rs/axum/blob/main/examples/tracing-aka-logging/src/main.rs">examples/tracing-aka-logging/src/main.rs</a> を試してみたのですが、 <code>on_eos</code> は <code>End of Stream</code> ということでこれでレスポンスボディを送り切った最後に呼ばれるのかと思いきや、これは Transfer-Encoding: chunked でかつ最後に trailer のフィールドを送らないと呼ばれなさそうでした（ここはしっかりは確認してないです）。</p>
+<p><a href="https://github.com/tower-rs/tower-http/issues/119">Question - getting last byte latency metric with trace layer · Issue #119 · tower-rs/tower-http</a> のやり取りを見ても hyper の polling の現状の実装だとにレスポンスの最後で呼ばれるメソッドというのは今後も出来なさそうでした。 <a href="https://github.com/tower-rs/tower-http/issues/119#issuecomment-900984344">davidpdrsn さんの発言</a> に classifier はレスポンスボディが最後まで送信した後に drop されるというのを使った回避策的なコードが紹介されていました。</p>
+<p>でもこの技を使っても <a href="https://github.com/tokio-rs/axum/blob/b8514cf1c2cb514949edd2a8c04479f1a7b59e3c/examples/tracing-aka-logging/src/main.rs#L41-L60">axum/main.rs at main · tokio-rs/axum</a> の</p>
+<pre tabindex="0"><code>            TraceLayer::new_for_http()
+                .on_request(|_request: &amp;Request&lt;_&gt;, _span: &amp;Span| {
+                    // ...
+                })
+                .on_response(|_response: &amp;Response, _latency: Duration, _span: &amp;Span| {
+                    // ...
+                })
+                .on_body_chunk(|_chunk: &amp;Bytes, _latency: Duration, _span: &amp;Span| {
+                    // ..
+                })
+                .on_eos(
+                    |_trailers: Option&lt;&amp;HeaderMap&gt;, _stream_duration: Duration, _span: &amp;Span| {
+                        // ...
+                    },
+                )
+                .on_failure(
+                    |_error: ServerErrorsFailureClass, _latency: Duration, _span: &amp;Span| {
+                        // ...
+                    },
+                ),
+</code></pre><p><code>on_body_chunk</code> でボディのチャンクサイズは取れるので合算していくとボディサイズは出せるとしてヘッダサイズは <code>on_response</code> の <code>Response</code> の <code>HeaderMap</code> からエンコード後のサイズを再度計算するのは出来れば避けたいなという印象です。 HTTP のバージョンによってエンコード方法も違いますし。</p>
+<p>とりあえず現状では
+<a href="https://github.com/tower-rs/tower-http/issues/119">Question - getting last byte latency metric with trace layer · Issue #119 · tower-rs/tower-http</a> の
+<a href="https://github.com/tower-rs/tower-http/issues/119#issuecomment-901351196">lkts さんのコメント</a> のように Stream をラップして対応するほうが良さそうな気がします。と言いつつ私は具体的な方法が今のところ分かってないです。</p>
+<h2 id="hyper-での転送量取得について調査">hyper での転送量取得について調査</h2>
+<p>hyper の tracing 対応について <a href="https://github.com/hyperium/hyper/issues/2678">Meta: Tracing · Issue #2678 · hyperium/hyper</a> というトラッキング・イシューがありました。</p>
+<p>そこからリンクされている</p>
+<p>横道ですが、 2022年2月に <a href="https://seanmonstar.com/post/676912131372875776/hyper-10-timeline">hyper 1.0 timeline - seanmonstar</a> が出ていたのに先程気づきました。2022年に 1.0 をリリース予定らしいです。</p>
+<h2 id="ちなみに-actix-web-のアクセスログのレスポンスサイズについても調べてみた">ちなみに actix-web のアクセスログのレスポンスサイズについても調べてみた</h2>
+<p><a href="https://actix.rs/docs/middleware/">Middleware</a> のドキュメントの <a href="https://actix.rs/docs/middleware/#logging">Logging</a> の <a href="https://actix.rs/docs/middleware/#format">Format</a> には</p>
+<pre tabindex="0"><code>%b Size of response in bytes, including HTTP headers
+</code></pre><p>と書いてありました。</p>
+<p>ですが <a href="https://github.com/actix/actix-web/blob/6a5b37020676fdfed4b8c7466d8542904bca825c/actix-web/src/middleware/logger.rs">src/middleware/logger.rs</a> を見るとボディのみのサイズになっているようです。</p>
+<p><a href="https://github.com/actix/actix-web/blob/6a5b37020676fdfed4b8c7466d8542904bca825c/actix-web/examples/basic.rs">examples/basic.rs</a> を試してみても</p>
+<pre tabindex="0"><code>$ curl -v 127.0.0.1:8080
+*   Trying 127.0.0.1:8080...
+* Connected to 127.0.0.1 (127.0.0.1) port 8080 (#0)
+&gt; GET / HTTP/1.1
+&gt; Host: 127.0.0.1:8080
+&gt; User-Agent: curl/7.81.0
+&gt; Accept: */*
+&gt;
+* Mark bundle as not supporting multiuse
+&lt; HTTP/1.1 200 OK
+&lt; content-length: 14
+&lt; content-type: text/plain; charset=utf-8
+&lt; x-version: 0.2
+&lt; date: Sun, 08 May 2022 14:11:55 GMT
+&lt;
+Hello world!
+</code></pre><p>に対してログは</p>
+<pre tabindex="0"><code>[2022-05-08T14:11:55Z INFO  http_log] 127.0.0.1 &#34;GET / HTTP/1.1&#34; 200 14 &#34;-&#34; &#34;curl/7.81.0&#34; 0.000802
+</code></pre><p>となっていてレスポンスサイズは 14 バイトで、やはりボディのみのサイズとなっていました。</p>
+<pre tabindex="0"><code>$ printf &#39;Hello world!\r\n&#39; | wc -c
+14
+</code></pre>
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'G-KMMXGG2Z56', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
