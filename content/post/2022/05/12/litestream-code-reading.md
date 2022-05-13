@@ -3,11 +3,14 @@ title: "Litestreamのコードリーディング"
 date: 2022-05-12T18:18:49+09:00
 ---
 
+## はじめに
 対象バージョン
 https://github.com/benbjohnson/litestream/tree/e6f7c6052d84b7265fd54d3a3ab33208948e126b
 
 replicate と restore のコードを読んで見る。
 順を追って全部書くのは大変なので気になったところだけメモ。
+
+次回: [Litestreamのコードリーディングその2](/blog/2022/05/13/litestream-code-reading2/)
 
 ## replicate と restore のログ出力例
 
