@@ -1,10 +1,24 @@
-+++
-title="add-apt-repositoryを使わずにPPAをapt-lineに追加する方法"
-date = "2017-09-02T11:47:00+09:00"
-tags = ["deb", "apt"]
-categories = ["blog"]
-+++
+---
+title: add-apt-repositoryを使わずにPPAをapt-lineに追加する方法
+date: 2017-09-02T11:47:00+09:00
+tags: ["deb", "apt"]
+categories: ["blog"]
+lastmod: 2022-05-17T21:50:00+09:00
+---
 
+## 2022-05-17 追記：代替スクリプトを書きました
+
+https://github.com/hnakamur/setup-my-ubuntu-desktop/blob/main/my-apt-add-repository
+
+事前に curl, gpg, coreutils パッケージがインストールされている必要があります。
+
+使用例
+
+```
+my-apt-add-repository ppa:hnakamur/nginx
+```
+
+GPG公開鍵の登録は [第675回　apt-keyはなぜ廃止予定となったのか：Ubuntu Weekly Recipe｜gihyo.jp … 技術評論社](https://gihyo.jp/admin/serial/01/ubuntu-recipe/0675) で解説されている手順に沿っています。
 
 ## はじめに
 

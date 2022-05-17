@@ -1,8 +1,20 @@
 ---
 title: "Ubuntu 20.10 で apt-key add が deprecated になっていたので代替スクリプトを書いた"
 date: 2020-12-10T22:37:26+09:00
-lastmod: 2021-07-21T10:06:06+09:00
+lastmod: 2022-05-17T21:40:00+09:00
 ---
+## 2022-05-17 追記：別のスクリプトを書きました
+
+https://github.com/hnakamur/setup-my-ubuntu-desktop/blob/main/my-apt-add-repository
+
+事前に gpg, coreutils パッケージがインストールされている必要があります。
+
+使用例
+
+```
+curl -sS 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x532a4a026239fc3baeb7869c60d954a11017341e' | my-apt-key-add - hnakamur-ubuntu-nginx-jammy
+```
+
 ## 2021-07-21 追記：このスクリプトは使わないでください
 
 [第675回　apt-keyはなぜ廃止予定となったのか：Ubuntu Weekly Recipe｜gihyo.jp … 技術評論社](https://gihyo.jp/admin/serial/01/ubuntu-recipe/0675)
