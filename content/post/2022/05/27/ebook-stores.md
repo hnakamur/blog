@@ -1,6 +1,7 @@
 ---
 title: "PDFなどを買い切りの電子書籍ストア"
 date: 2022-05-27T01:12:03+09:00
+lastmod: 2022-05-30T20:00:00+09:00
 ---
 
 PDFなどをダウンロードしてオフラインで読める買い切りの電子書籍ストアのメモです。
@@ -25,6 +26,8 @@ PDFなどをダウンロードしてオフラインで読める買い切りの�
 | [Feisty Duck](https://www.feistyduck.com/) | PDF、epub |
 | [The Pragmatic Bookshelf](https://pragprog.com/) | PDF、epub、mobi |
 | [Packt Publishing 旧サイト](https://www.packtpub.com/) | PDF、epub、mobi |
+| [Manning Publications Co.](https://www.manning.com/) | PDF、epub、mobi |
+| [Elsevier](https://www.elsevier.com/books-and-journals) | PDF、epub、mobi |
 
 ## 個人販売
 
