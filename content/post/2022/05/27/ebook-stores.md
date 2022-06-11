@@ -1,7 +1,7 @@
 ---
 title: "PDFなどを買い切りの電子書籍ストア"
 date: 2022-05-27T01:12:03+09:00
-lastmod: 2022-05-31T04:21:00+09:00
+lastmod: 2022-06-11T11:15:00+09:00
 ---
 
 PDFなどをダウンロードしてオフラインで読める買い切りの電子書籍ストアのメモです。
@@ -18,6 +18,7 @@ PDFなどをダウンロードしてオフラインで読める買い切りの�
 | [マイナビBOOKS](https://book.mynavi.jp/) | PDF |
 | [SEshop 翔泳社の通販](https://www.seshop.com) | PDF |
 | [インプレス ブックス](https://book.impress.co.jp/) | PDF |
+| [達人出版会](https://tatsu-zine.com/) | PDF、epub |
 
 ## 洋書
 
