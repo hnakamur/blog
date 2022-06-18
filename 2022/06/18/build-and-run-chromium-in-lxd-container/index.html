@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.98.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>LXDコンテナ内でChromiumをビルド・実行してみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2022. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>LXDコンテナ内でChromiumをビルド・実行してみた</h1>
+  <time datetime=2022-06-18T14:52:08&#43;0900 class="post-date">2022-06-18</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#ビルド">ビルド</a>
+      <ul>
+        <li><a href="#最初-docker-でビルドしようとしたが-snapcraft-を入れ始めたのでやめた">最初 Docker でビルドしようとしたが snapcraft を入れ始めたのでやめた</a></li>
+        <li><a href="#lxd-コンテナで-chromium-をビルド">LXD コンテナで Chromium をビルド</a></li>
+      </ul>
+    </li>
+    <li><a href="#lxd-コンテナ内で-chromium-を実行してホスト環境に表示">LXD コンテナ内で Chromium を実行してホスト環境に表示</a></li>
+    <li><a href="#改変してビルド">改変してビルド</a></li>
+    <li><a href="#ホスト環境上の自作拡張のソースディレクトリをコンテナでマウント">ホスト環境上の自作拡張のソースディレクトリをコンテナでマウント</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>背景は <a href="https://twitter.com/hnakamur2/status/1537786550716489728">https://twitter.com/hnakamur2/status/1537786550716489728</a> のスレッドに書きましたが、こちらにも残しておきます。</p>
+<p>Chrome 拡張の API のコンテキストメニューをクリックしたときに呼ばれる onClick ハンドラの引数に渡される <a href="https://developer.chrome.com/docs/extensions/reference/contextMenus/#type-OnClickData">chrome.contextMenus.OnClickData</a> に <code>linkUrl</code> というプロパティがあるのですが <code>linkText</code> は無いのでこれを追加したいということです（ちなみに Firefox の <a href="https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/menus/OnClickData">menus.OnClickData - Mozilla | MDN</a> には <code>linkText</code> もあります）。</p>
+<p>自作の Chrome 拡張 <a href="https://github.com/hnakamur/FormatLink-Chrome/">hnakamur/FormatLink-Chrome: Format a link and title of the active tab of Chrome and MS Edge and copy it the clipboard</a> でページ内のリンクにマウスカーソルをおいた状態でコンテキストメニューを選ぶと <code>onClick</code> ハンドラが呼ばれて <code>linkUrl</code> でリンクの URL は分かるけど、リンクのテキストが取得できないので困っているからです。</p>
+<p>回避策として現状はページ内のリンクを順に見ていって同じ URL のリンクがあったらそのテキストを使っているのですが、ページ内に同じリンクが複数あると別のテキストになってしまう場合があるという問題があります。</p>
+<p>5年前に機能追加要望のイシュー <a href="https://bugs.chromium.org/p/chromium/issues/detail?id=766074">766074 - Feature request: Please add info.linkText property to context menu click callback - chromium</a> を立てたのですが、2018年に <code>Owner: a_deleted_user</code> と担当者不在になっていました。</p>
+<h2 id="ビルド">ビルド</h2>
+<p><a href="https://github.com/chromium/chromium/blob/main/docs/linux/build_instructions.md">chromium/build_instructions.md at main · chromium/chromium</a> の手順に沿ってビルドしてみました。</p>
+<h3 id="最初-docker-でビルドしようとしたが-snapcraft-を入れ始めたのでやめた">最初 Docker でビルドしようとしたが snapcraft を入れ始めたのでやめた</h3>
+<p>以下のような Dockerfile で試行錯誤中でした。</p>
+<p>最初は Ubuntu 22.04 LTS のホスト環境でビルドしようとしていたのですが、
+<code>./build/install-build-deps.sh</code> で以下の Dockerfile 内のコメントのようなエラーが出ました。</p>
+<p>そこでサポートされているディストリビューション内で Ubuntu の最新の LTS で 20.04 を使って Docker でビルドしようとしました。</p>
+<p>が、途中で snapcraft をセットアップ？とかいうメッセージが出てきたところで Ctrl-C を押して中断しました。 snapcraft は systemd が必要で Docker で systemd を使うのは面倒だと思ったので。</p>
+<pre tabindex="0"><code>FROM ubuntu:20.04
+# NOTE: ubuntu:22.04 is not supported as of 2022-06-18.
+#
+# $ ./build/install-build-deps.sh
+# ERROR: The only supported distros are
+#         Ubuntu 14.04 LTS (trusty with EoL April 2022)
+#         Ubuntu 16.04 LTS (xenial with EoL April 2024)
+#         Ubuntu 18.04 LTS (bionic with EoL April 2028)
+#         Ubuntu 20.04 LTS (focal with Eol April 2030)
+#         Ubuntu 20.10 (groovy)
+#         Debian 10 (buster) or later
+
+RUN apt-get update \
+ &amp;&amp; apt-get install -y build-essential git python3 curl lsb-release sudo
+
+WORKDIR /
+RUN git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+ENV PATH=&#34;${PATH}:/depot_tools&#34;
+
+RUN mkdir /chromium
+WORKDIR /chromium
+RUN fetch --nohooks --no-history chromium
+
+WORKDIR /chromium/src
+RUN ./build/install-build-deps.sh
+RUN gclient runhooks
+RUN gn gen out/Default
+RUN autoninja -C out/Default chrome
+</code></pre><h3 id="lxd-コンテナで-chromium-をビルド">LXD コンテナで Chromium をビルド</h3>
+<p>そこで LXD で Ubuntu 20.04 LTS のコンテナを作ってそこでビルドしてみました。</p>
+<pre tabindex="0"><code>lxc launch ubuntu:20.04 chromium-dev
+</code></pre><p>で起動後</p>
+<pre tabindex="0"><code>lxc exec chromium-dev bash
+</code></pre><p>でコンテナ内で bash を起動します。</p>
+<p>後は上記の Dockerfile の手順と同様です。</p>
+<pre tabindex="0"><code>apt-get update
+apt-get install -y build-essential git python3 curl lsb-release sudo
+
+cd /
+git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+export PATH=&#34;${PATH}:/depot_tools&#34;
+
+mkdir /chromium
+cd /chromium
+fetch --nohooks --no-history chromium
+
+cd /chromium/src
+./build/install-build-deps.sh
+gclient runhooks
+gn gen out/Default
+autoninja -C out/Default chrome
+</code></pre><p>ですが</p>
+<pre tabindex="0"><code>Running depot tools as root is sad.
+Running: gclient sync --nohooks --no-history
+Running depot tools as root is sad.
+</code></pre><p>のようなメッセージが出ていたので、 <code>apt-get install</code> の後は <code>sudo -iu ubuntu</code> で ubuntu ユーザに切り替えて作業したほうが良さそうでした。</p>
+<p>私は全部 root ユーザのままでビルドしたのですが、root ユーザのままだと起動時にエラーになったので、 <code>chown -R ubuntu: /chromium</code> で所有者を変更しました。</p>
+<p>ビルドは以下の環境で約 2 時間かかりました。</p>
+<ul>
+<li>ThinkCentre M75q Tiny Gen 2 (価格.com限定 プレミアム、製品番号: 11JJCTO1WW、購入日: 2020-11-02)</li>
+<li>CPU: <a href="https://www.amd.com/ja/products/apu/amd-ryzen-7-pro-4750ge">AMD Ryzen™ 7 PRO 4750GE</a></li>
+<li>RAM: PATRIOT パトリオットメモリ ノートパソコン用メモリ SODIMM DDR4 3200MHz PC4-25600 32GB CL22 PSD432G32002S x 2</li>
+<li>SSD: Western Digital SSD 1TB WD Blue SN550 PC M.2-2280 NVMe WDS100T2B0C-EC</li>
+<li>OS: Ubuntu 22.04 LTS</li>
+<li>ファイルシステム: ZFS （圧縮・暗号化は無し）</li>
+</ul>
+<h2 id="lxd-コンテナ内で-chromium-を実行してホスト環境に表示">LXD コンテナ内で Chromium を実行してホスト環境に表示</h2>
+<p>以下の記事を参考にしつつ、最初の記事の手順を真似しました。</p>
+<ul>
+<li><a href="https://blog.simos.info/how-to-easily-run-graphics-accelerated-gui-apps-in-lxd-containers-on-your-ubuntu-desktop/">How to easily run graphics-accelerated GUI apps in LXD containers on your Ubuntu desktop – Mi blog lah!</a></li>
+<li><a href="https://discuss.linuxcontainers.org/t/running-gui-apps-in-lxd/9515">Running Gui apps in LXD - LXD - Linux Containers Forum</a></li>
+<li><a href="https://qiita.com/yoshi10ryu1/items/9bbe1434874b3cc88e57">LXD で作る仮想化 GUI 環境 - Qiita</a></li>
+<li><a href="https://zenn.dev/tantan_tanuki/articles/7796a4f1d6d1b0">DockerもいいけどLXDもね 1 〜LXDEデスクトップ環境の構築〜</a></li>
+</ul>
+<p>以下の内容で <code>lxdguiprofile.txt</code> というファイルを作成します。</p>
+<pre tabindex="0"><code>config:
+  environment.DISPLAY: :0
+  raw.idmap: both 1000 1000
+  user.user-data: |
+    #cloud-config
+    runcmd:
+      - &#39;sed -i &#34;s/; enable-shm = yes/enable-shm = no/g&#34; /etc/pulse/client.conf&#39;
+      - &#39;echo export PULSE_SERVER=unix:/tmp/.pulse-native | tee --append /home/ubuntu/.profile&#39;
+    packages:
+      - x11-apps
+      - mesa-utils
+      - pulseaudio
+description: GUI LXD profile
+devices:
+  PASocket:
+    path: /tmp/.pulse-native
+    source: /run/user/1000/pulse/native
+    type: disk
+  X0:
+    path: /tmp/.X11-unix/X0
+    source: /tmp/.X11-unix/X0
+    type: disk
+  mygpu:
+    type: gpu
+name: gui
+used_by:
+</code></pre><p>その後以下のコマンドを実行して <code>gui</code> という名前で LXD のプロファイルを作成します。</p>
+<pre tabindex="0"><code>lxc profile create gui
+cat lxdguiprofile.txt | lxc profile edit gui
+</code></pre><p>作成したプロファイルを上記で作成したコンテナ <code>chromium-dev</code> に反映します。</p>
+<pre tabindex="0"><code>lxc profile assign chromium-dev default,gui
+</code></pre><p>コンテナを再起動します。</p>
+<pre tabindex="0"><code>lxc restart chromium-dev
+</code></pre><p>コンテナ内に ubuntu ユーザで bash シェルを起動します。</p>
+<pre tabindex="0"><code>lxc exec chromium-dev -- sudo -iu ubuntu
+</code></pre><p>LXD コンテナ内で Chromium を起動してみると、無事ホスト環境に表示されました。</p>
+<pre tabindex="0"><code>/chromium/src/out/Default/chrome
+</code></pre><h2 id="改変してビルド">改変してビルド</h2>
+<p>コンテナ内の <code>/chromium/src</code> 以下で
+<a href="https://github.com/hnakamur/chromium/commit/fdb048d6d75e9d43a32ed1dce267af35a9f954bb">Add linkText property to extension chrome.contextMenus.OnClickData · hnakamur/chromium@fdb048d</a>
+の変更を加えて再度ビルドしてみました。</p>
+<pre tabindex="0"><code>cd /chromium/src
+autoninja -C out/Default chrome
+</code></pre><p>今度は変更した <code>chrome/browser/extensions/menu_manager.cc</code> だけがコンパイルされて、リンクが走って数分程度で済みました。</p>
+<h2 id="ホスト環境上の自作拡張のソースディレクトリをコンテナでマウント">ホスト環境上の自作拡張のソースディレクトリをコンテナでマウント</h2>
+<p><a href="https://qiita.com/yoshi10ryu1/items/9bbe1434874b3cc88e57">LXD で作る仮想化 GUI 環境 - Qiita</a> の <a href="https://qiita.com/yoshi10ryu1/items/9bbe1434874b3cc88e57#%E3%83%9B%E3%82%B9%E3%83%88%E3%81%AE%E3%83%87%E3%82%A3%E3%83%AC%E3%82%AF%E3%83%88%E3%83%AA%E3%82%92mount%E3%81%99%E3%82%8B">ホストのディレクトリをmountする</a> を参考にマウントしました。</p>
+<pre tabindex="0"><code>lxc exec chromium-dev -- mkdir -p /mnt/disk1/chrome1
+mkdir /home/hnakamur/chromium-dev-share-disk
+lxc config device add chromium-dev share-drdata disk source=/mnt/disk1/chrome1 path=/home/hnakamur/chromium-dev-share-disk
+</code></pre><p>これでホスト環境の <code>/home/hnakamur/chromium-dev-share-disk</code> 以下に自作拡張 <a href="https://github.com/hnakamur/FormatLink-Chrome/">hnakamur/FormatLink-Chrome</a> のソースを配置して Chrome の extensions の Devloper mode の Launch unpacked で読み込んで動作確認しました。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'G-KMMXGG2Z56', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>

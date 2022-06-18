@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.98.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>LXDとDockerを同時利用するためにiptables設定を調整 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2022. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>LXDとDockerを同時利用するためにiptables設定を調整</h1>
+  <time datetime=2022-06-18T15:49:54&#43;0900 class="post-date">2022-06-18</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#設定手順">設定手順</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>Ubuntu 22.04 LTS 上で snapcraft で入れた LXD 5.2 と Docker 公式パッケージの docker-ce 20.10.17 を入れているのですが、 LXD コンテナから <code>ping 8.8.8.8</code> のように実行しても通信できないという症状が起きていました。</p>
+<p><a href="https://lxd-ja.readthedocs.io/ja/latest/howto/network_bridge_firewalld/">ファイアウォールを設定するには - LXD ドキュメント</a> の <a href="https://lxd-ja.readthedocs.io/ja/latest/howto/network_bridge_firewalld/#lxd-docker">LXD と Docker の問題を回避する</a> のコマンドも試してみたのですが、通信できませんでした（正しく指定できたかは自信なし）。</p>
+<p>LXD のフォーラムで <a href="https://discuss.linuxcontainers.org/t/lxd-and-docker-firewall-redux-how-to-deal-with-forward-policy-set-to-drop/9953">Lxd and Docker Firewall Redux - How to deal with FORWARD policy set to drop - LXD - Linux Containers Forum</a> の <a href="https://discuss.linuxcontainers.org/t/lxd-and-docker-firewall-redux-how-to-deal-with-forward-policy-set-to-drop/9953/7">コメント</a> の手順で無事通信できるようになったということでメモ。</p>
+<h2 id="設定手順">設定手順</h2>
+<p>事前の iptables の設定確認</p>
+<pre tabindex="0"><code>sudo iptables -n -L
+</code></pre><p>と</p>
+<pre tabindex="0"><code>sudo iptables-save
+</code></pre><p>で確認します。</p>
+<p><code>-A FORWARD -j DOCKER-USER</code> の前に <code>lxdbr0</code> のブリッジに関する設定を追加するということで、以下のコマンドで先頭と2行目に入れるようにしました。</p>
+<pre tabindex="0"><code>sudo iptables -I FORWARD -o lxdbr0 -m comment --comment &#34;generated for LXD network lxdbr0&#34; -j ACCEPT
+sudo iptables -I FORWARD 2 -i lxdbr0 -m comment --comment &#34;generated for LXD network lxdbr0&#34; -j ACCEPT
+</code></pre>
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'G-KMMXGG2Z56', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
