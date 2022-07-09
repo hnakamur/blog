@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.101.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Targeted Cache Control のライブラリをC言語で書いた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2022. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Targeted Cache Control のライブラリをC言語で書いた</h1>
+  <time datetime=2022-07-09T22:38:40&#43;0900 class="post-date">2022-07-09</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#参考書籍">参考書籍</a></li>
+    <li><a href="#実装メモ">実装メモ</a>
+      <ul>
+        <li><a href="#zigのスタイルを取り入れ">Zigのスタイルを取り入れ</a></li>
+        <li><a href="#その他の実装メモ">その他の実装メモ</a></li>
+        <li><a href="#c99の利点">C99の利点</a></li>
+        <li><a href="#最近接偶数への丸め">最近接偶数への丸め</a></li>
+      </ul>
+    </li>
+    <li><a href="#テスト">テスト</a>
+      <ul>
+        <li><a href="#テストライブラリは-catch2-の-v301-を使ってみた">テストライブラリは Catch2 の v3.0.1 を使ってみた</a></li>
+        <li><a href="#メモリ割り当て失敗時のテスト">メモリ割り当て失敗時のテスト</a></li>
+        <li><a href="#address-sanitizer-を使ってみた">Address Sanitizer を使ってみた</a></li>
+        <li><a href="#clangの-source-based-code-coverage-を使ってみた">Clangの Source-based Code Coverage を使ってみた</a></li>
+        <li><a href="#jsonファイルの読み込みには-yyjson-を使用">JSONファイルの読み込みには yyjson を使用</a></li>
+        <li><a href="#base32-もサードパーティのライブラリを使用">base32 もサードパーティのライブラリを使用</a></li>
+      </ul>
+    </li>
+    <li><a href="#targeted-http-cache-control-のフィールド値のパース関数の実装メモ">Targeted HTTP Cache Control のフィールド値のパース関数の実装メモ</a></li>
+    <li><a href="#cmake-関連メモ">CMake 関連メモ</a>
+      <ul>
+        <li><a href="#cmake-format">cmake-format</a></li>
+        <li><a href="#clang-format">clang-format</a></li>
+        <li><a href="#address-sanitizer">Address Sanitizer</a></li>
+        <li><a href="#source-based-code-coverage">Source-based Code Coverage</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>C11 のような最近(と言っても2022年だと11年前ですが)のC言語の勉強を兼ねて <a href="https://datatracker.ietf.org/doc/rfc8941/">RFC 8941 - Structured Field Values for HTTP</a> のライブラリを書いてみました。
+さらに <a href="https://datatracker.ietf.org/doc/rfc9213/">RFC 9213 - Targeted HTTP Cache Control</a> のフィールド値をパースする関数も書いてみました。</p>
+<p>ビルドツールはこれも勉強を兼ねて CMake を使いました。</p>
+<p>得られた知見などをメモしておきます。なお、例によって間違っていたり、もっと良い方法が他にあるかもしれませんが、その場合はやさしくご指摘いただけるとありがたいです。</p>
+<p>ライブラリは <a href="https://github.com/hnakamur/http-sfv">hnakamur/http-sfv</a> で公開しています。
+ただ、<a href="https://datatracker.ietf.org/doc/rfc8941/">RFC 8941 - Structured Field Values for HTTP</a>
+のほうは毎回メモリ割り当てする素朴な実装なので実用向きではないです。
+<a href="https://datatracker.ietf.org/doc/rfc9213/">RFC 9213 - Targeted HTTP Cache Control</a> のフィールド値をパースする関数のほうはメモリ割り当て不要で実用でも使えそうかと思ってますが、まだ実際には使ってないです。</p>
+<h2 id="参考書籍">参考書籍</h2>
+<ul>
+<li><a href="https://www.oreilly.co.jp/books/9784873117812/">O&rsquo;Reilly Japan - Cクイックリファレンス 第2版</a></li>
+<li><a href="https://crascit.com/professional-cmake/">Professional CMake: A Practical Guide - 12th Edition</a></li>
+</ul>
+<p>「Cクイックリファレンス」はC99とC11の言語とライブラリについてコンパクトにまとめられていて、C言語は一応知っているけど、C11のような最近の標準を知らない私にはとても良い本でした。</p>
+<p><a href="https://en.wikipedia.org/wiki/C11_%28C_standard_revision%29">C11 (C standard revision) - Wikipedia</a> からリンクされている C11 の最終ドラフト <a href="https://www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf">N1570 の PDF</a> も少し参照しました。</p>
+<p>Professional CMake のほうは 7th Edition は持っていたのですが <a href="https://crascit.com/professional-cmake/release-notes/">Release Notes</a> を見て 12th Edition まで出ているということで買ってみました。</p>
+<h2 id="実装メモ">実装メモ</h2>
+<h3 id="zigのスタイルを取り入れ">Zigのスタイルを取り入れ</h3>
+<p>Zigを勉強したのでそれの影響を受けたスタイルにしてみました。</p>
+<ul>
+<li>エラーコードは <code>hsfv_err_t</code> という enum を作って、エラーが起きうる関数は全て戻り値を <code>hsfv_err_t</code> にし、それ以外の出力は引数でポインタを渡して値をセットする。</li>
+<li>メモリ割り当て用に <code>hsfv_allocator_t</code> というアロケータの型を定義し、メモリ割り当てが必要な関数にはこれを引数で渡す。</li>
+<li>構造体ごとのメモリ解放などの後処理は <code>*_deinit</code> という関数の命名規則にする。</li>
+</ul>
+<h3 id="その他の実装メモ">その他の実装メモ</h3>
+<ul>
+<li>データ構造やメモリ割り当ては、とりあえず素朴に単純な構造にし、メモリも逐一割り当てる方式とした。
+<ul>
+<li>最初から効率を考えると実装が難しいので、まずは素直に実装してみました。と言いつつ今後最適化をするかは未定です。</li>
+</ul>
+</li>
+<li>Base64 のエンコード、デコードのコードは nginx から頂きました。</li>
+</ul>
+<h3 id="c99の利点">C99の利点</h3>
+<p>今回感じた利点は以下のとおりです。</p>
+<ul>
+<li><code>//</code> で始める行コメントが使える。</li>
+<li><code>bool</code> 型が使える
+<ul>
+<li>C99 で <code>_Bool</code> 型が入って <code>#include &lt;stdbool.h&gt;</code> すれば <code>bool</code> が使える</li>
+</ul>
+</li>
+<li><code>uint64_t</code> などの正確なビット数の整数型が使える
+<ul>
+<li><code>#include &lt;stdint.h&gt;</code> で使える</li>
+</ul>
+</li>
+<li>配列の特定要素の初期化
+<ul>
+<li>ほとんどの要素は 0 で一部の要素だけ 0 以外の値を持つような整数の配列を初期化する際に <code>int a[] = { [5] = 1 };</code> のような書き方が出来る。</li>
+<li>キーやトークンなどに使える文字種チェックの表を配列で作るのに便利（以下の例参照）。</li>
+</ul>
+</li>
+</ul>
+<p><a href="https://github.com/hnakamur/http-sfv/blob/9496ab08ec045a59a27c88f6b7ff54179d66d07e/lib/bare_item.c#L15-L23">http-sfv/bare_item.c at main · hnakamur/http-sfv</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">const</span> <span class="kt">char</span> <span class="n">hsfv_key_trailing_char_map</span><span class="p">[</span><span class="mi">256</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="p">[</span><span class="sc">&#39;*&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="sc">&#39;\1&#39;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">[</span><span class="sc">&#39;-&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="sc">&#39;\1&#39;</span><span class="p">,</span> <span class="p">[</span><span class="sc">&#39;.&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="sc">&#39;\1&#39;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">[</span><span class="sc">&#39;0&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="sc">&#39;\1&#39;</span><span class="p">,</span> <span class="sc">&#39;\1&#39;</span><span class="p">,</span> <span class="sc">&#39;\1&#39;</span><span class="p">,</span> <span class="sc">&#39;\1&#39;</span><span class="p">,</span> <span class="sc">&#39;\1&#39;</span><span class="p">,</span> <span class="sc">&#39;\1&#39;</span><span class="p">,</span> <span class="sc">&#39;\1&#39;</span><span class="p">,</span> <span class="sc">&#39;\1&#39;</span><span class="p">,</span> <span class="sc">&#39;\1&#39;</span><span class="p">,</span> <span class="sc">&#39;\1&#39;</span><span class="p">,</span> <span class="c1">// to &#39;9&#39;
+</span></span></span><span class="line"><span class="cl"><span class="c1">// …(略)…
+</span></span></span></code></pre></div><p>ちなみに C89 で書かれている nginx ではこんな技を使っているのを見つけました。</p>
+<p><a href="https://github.com/nginx/nginx/blob/release-1.23.0/src/http/ngx_http_parse.c#L835-L845">nginx/ngx_http_parse.c at release-1.23.0 · nginx/nginx</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">    <span class="cm">/* the last &#39;\0&#39; is not needed because string is zero terminated */</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">static</span> <span class="n">u_char</span>  <span class="n">lowcase</span><span class="p">[]</span> <span class="o">=</span>
+</span></span><span class="line"><span class="cl">        <span class="s">&#34;</span><span class="se">\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0</span><span class="s">&#34;</span>
+</span></span><span class="line"><span class="cl">        <span class="s">&#34;</span><span class="se">\0\0\0\0\0\0\0\0\0\0\0\0\0</span><span class="s">-</span><span class="se">\0\0</span><span class="s">&#34;</span> <span class="s">&#34;0123456789</span><span class="se">\0\0\0\0\0\0</span><span class="s">&#34;</span>
+</span></span><span class="line"><span class="cl">        <span class="s">&#34;</span><span class="se">\0</span><span class="s">abcdefghijklmnopqrstuvwxyz</span><span class="se">\0\0\0\0\0</span><span class="s">&#34;</span>
+</span></span><span class="line"><span class="cl">        <span class="s">&#34;</span><span class="se">\0</span><span class="s">abcdefghijklmnopqrstuvwxyz</span><span class="se">\0\0\0\0\0</span><span class="s">&#34;</span>
+</span></span><span class="line"><span class="cl">        <span class="s">&#34;</span><span class="se">\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0</span><span class="s">&#34;</span>
+</span></span><span class="line"><span class="cl">        <span class="s">&#34;</span><span class="se">\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0</span><span class="s">&#34;</span>
+</span></span><span class="line"><span class="cl">        <span class="s">&#34;</span><span class="se">\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0</span><span class="s">&#34;</span>
+</span></span><span class="line"><span class="cl">        <span class="s">&#34;</span><span class="se">\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0</span><span class="s">&#34;</span><span class="p">;</span>
+</span></span></code></pre></div><p>最後の行だけ1文字わざと短くしていて文字列の終端の NUL 文字を添字255の要素として使うというものです。この手の表は添え字255の要素の値はたいてい0なので、この技は C89 では便利かもと思いました。</p>
+<h3 id="最近接偶数への丸め">最近接偶数への丸め</h3>
+<p><a href="https://www.rfc-editor.org/rfc/rfc8941.html#name-decimals">RFC 8941 3.3.2. Decimals</a> では Decimal は以下の形式と定められています。</p>
+<pre tabindex="0"><code>sf-decimal  = [&#34;-&#34;] 1*12DIGIT &#34;.&#34; 1*3DIGIT
+</code></pre><p><a href="https://en.wikipedia.org/wiki/IEEE_754">IEEE 754 - Wikipedia</a> の <a href="https://en.wikipedia.org/wiki/IEEE_754#Basic_and_interchange_formats">Basic and interchange formats</a> の binary64 の Decimal digits 列の値は 15.95 とあります。 Decimal は整数部12桁、小数部3桁で合計15桁でこれを考慮しているのだなと思います。</p>
+<p><a href="https://www.rfc-editor.org/rfc/rfc8941.html#name-serializing-a-decimal">RFC 8941 4.1.5. Serializing a Decimal</a> には Decimal をシリアライズする場合は小数部3桁で最近接偶数へ丸めると書かれています。</p>
+<p>最初 <code>snprintf</code> で <code>&quot;%.3f&quot;</code> という書式で実装してみたら <a href="https://github.com/httpwg/structured-field-tests">httpwg/structured-field-tests: Tests for HTTP Structured Field Values</a> のテストが通りませんでした。</p>
+<p>そこで <code>fesetround</code> と <code>rint</code> を使って実装するように変更しました。</p>
+<p><code>fegetround</code> で現在の丸めモードを取得して最近接偶数への丸め <code>FE_TONEAREST</code> でない場合は <code>fesetround</code> でモードを切り替えて、 <code>rint</code> で丸めます。丸めモードを変更した場合は元に戻します。</p>
+<p><a href="https://github.com/hnakamur/http-sfv/blob/9496ab08ec045a59a27c88f6b7ff54179d66d07e/lib/bare_item.c#L224-L267">http-sfv/bare_item.c at main · hnakamur/http-sfv</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cp">#pragma STDC FENV_ACCESS ON
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="n">hsfv_err_t</span> <span class="nf">hsfv_serialize_decimal</span><span class="p">(</span><span class="kt">double</span> <span class="n">decimal</span><span class="p">,</span> <span class="n">hsfv_allocator_t</span> <span class="o">*</span><span class="n">allocator</span><span class="p">,</span> <span class="n">hsfv_buffer_t</span> <span class="o">*</span><span class="n">dest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">int</span> <span class="n">prev_rounding</span> <span class="o">=</span> <span class="n">fegetround</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">prev_rounding</span> <span class="o">!=</span> <span class="n">FE_TONEAREST</span> <span class="o">&amp;&amp;</span> <span class="n">fesetround</span><span class="p">(</span><span class="n">FE_TONEAREST</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">HSFV_ERR_FLOAT_ROUNDING_MODE</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kt">double</span> <span class="n">rounded</span> <span class="o">=</span> <span class="n">rint</span><span class="p">(</span><span class="n">decimal</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">prev_rounding</span> <span class="o">!=</span> <span class="n">FE_TONEAREST</span> <span class="o">&amp;&amp;</span> <span class="n">fesetround</span><span class="p">(</span><span class="n">prev_rounding</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">HSFV_ERR_FLOAT_ROUNDING_MODE</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kt">char</span> <span class="n">tmp</span><span class="p">[</span><span class="n">decimal_tmp_bufsize</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">int</span> <span class="n">n</span> <span class="o">=</span> <span class="n">snprintf</span><span class="p">(</span><span class="n">tmp</span><span class="p">,</span> <span class="n">decimal_tmp_bufsize</span><span class="p">,</span> <span class="s">&#34;%.3f&#34;</span><span class="p">,</span> <span class="n">rounded</span> <span class="o">/</span> <span class="mi">1000</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// …(略)…
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">return</span> <span class="n">HSFV_OK</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="cp">#pragma STDC FENV_ACCESS OFF
+</span></span></span></code></pre></div><h2 id="テスト">テスト</h2>
+<h3 id="テストライブラリは-catch2-の-v301-を使ってみた">テストライブラリは Catch2 の v3.0.1 を使ってみた</h3>
+<p><a href="https://github.com/catchorg/Catch2">catchorg/Catch2: A modern, C++-native, test framework for unit-tests, TDD and BDD - using C++14, C++17 and later (C++11 support is in v2.x branch, and C++03 on the Catch1.x branch)</a></p>
+<p>Catch2 自体は C++ で書かれていますが、私のテストコードは C で書きました。使い方がシンプルで良かったです。</p>
+<h3 id="メモリ割り当て失敗時のテスト">メモリ割り当て失敗時のテスト</h3>
+<p>Zig の <a href="https://github.com/ziglang/zig/blob/0.9.1/lib/std/testing/failing_allocator.zig">lib/std/testing/failing_allocator.zig</a> を参考に指定した回に失敗するようなアロケータ <a href="https://github.com/hnakamur/http-sfv/blob/9496ab08ec045a59a27c88f6b7ff54179d66d07e/lib/allocator.c#L24-L57">hsfv_failing_allocator</a> を実装してそれを使ってテストしました。</p>
+<h3 id="address-sanitizer-を使ってみた">Address Sanitizer を使ってみた</h3>
+<p>テストコードでメモリリークや二重解放などがあるとソースコードの行数とともに教えてくれるので便利でした。
+Zigの<code>std.testing.allocator</code> で出来てて便利と思っていたのですが、Cでも出来たんですね。</p>
+<h3 id="clangの-source-based-code-coverage-を使ってみた">Clangの Source-based Code Coverage を使ってみた</h3>
+<p><a href="https://clang.llvm.org/docs/SourceBasedCodeCoverage.html">Source-based Code Coverage</a></p>
+<p>行より細かいリージョンという単位でカバレッジが見れて便利でした。</p>
+<h3 id="jsonファイルの読み込みには-yyjson-を使用">JSONファイルの読み込みには yyjson を使用</h3>
+<p>mattn さんの <a href="https://mattn.kaoriya.net/software/lang/c/20220320234556.htm">Big Sky :: RapidJSON や simdjson よりも速いC言語から使えるJSONライブラリ「yyjson」</a> を読みつつ <a href="https://github.com/ibireme/yyjson">ibireme/yyjson: The fastest C JSON library</a> を使ってみました。使いやすい API で良かったです。
+<a href="https://github.com/httpwg/structured-field-tests">httpwg/structured-field-tests: Tests for HTTP Structured Field Values</a> のテストデータはJSONファイルで提供されているのでそれを読み込む必要があります。</p>
+<h3 id="base32-もサードパーティのライブラリを使用">base32 もサードパーティのライブラリを使用</h3>
+<p><a href="https://github.com/httpwg/structured-field-tests">httpwg/structured-field-tests: Tests for HTTP Structured Field Values</a> のJSONファイル内でbase32が使用されているので <a href="https://github.com/paolostivanin/libbaseencode">paolostivanin/libbaseencode: Library written in C for encoding and decoding data using base32 or base64 (RFC-4648)</a> を使いました。</p>
+<h2 id="targeted-http-cache-control-のフィールド値のパース関数の実装メモ">Targeted HTTP Cache Control のフィールド値のパース関数の実装メモ</h2>
+<p>Structured Field Values for HTTP のパーサとシリアライザがとりあえず動くようになった後、データ構造やメモリ割り当ての効率化をどうしようかなと考えていたときに <a href="https://www.rfc-editor.org/rfc/rfc8941.html#name-why-not-json">RFC 8941 A.1. Why Not JSON?</a> を見て、JSONのライブラリがどうやってるか見ると参考になるかもと思いました。</p>
+<p>で、<a href="https://ibireme.github.io/yyjson/doc/doxygen/html/md_doc__data_structure.html">yyjson: Data Structures</a> を見るといろいろ工夫されていて勉強になりました。</p>
+<p>が、<a href="https://simdjson.org/">The simdjson library</a> のベンチマークのグラフを見ると、 simdjson のほうが3倍以上速かったので、こちらも見てみました。このベンチマークでは <a href="https://github.com/simdjson/simdjson/blob/master/doc/basics.md#the-basics-loading-and-parsing-json-documents">The Basics: Loading and Parsing JSON Documents</a> で説明されている <code>ondemand::parser</code> というが使われていました。これは JSON 全体を解釈してデータ構造を作るのではなく、利用側のコードで参照する箇所だけ局所的に解釈するようになっています。yyjsonのパースはJSON全体のデータ構造を作るのでこのベンチマークは apple to apple な比較にはなっていないのではという気もしますが、JSONを読み込んで一部のキーだけ参照するという利用ケースを想定するのであれば妥当なのかもしれません。</p>
+<p>それはともかく、Targeted HTTP Cache Control のフィールド値のパースのことを考えてみると、これも必要なキー以外は無視することになるので、全体のデータ構造を作る必要はないことに気づきました。</p>
+<p><a href="https://www.rfc-editor.org/rfc/rfc9213.html#name-syntax">RFC 9213 2.1. Syntax</a> を見ると Target Cached Control のフィールド値は Structured Field Values の Dictionary として解釈するという仕様です。仕様通りパースできない場合はフィールド全体を無視せよとあります。</p>
+<p><code>max-age</code> に整数値ではなく少数付きのdecimal値が指定されていた場合もエラーにするという厳格な方針になっています。</p>
+<p>昔はネットワークのプロトコルは送信側は仕様に厳格に沿うが受信側は寛容にするというスタイルがあったが、近年ではセキュリティ上問題になるので受信側も厳格にするという流れになっています。<a href="https://github.com/intarchboard/draft-protocol-maintenance">intarchboard/draft-protocol-maintenance: Don&rsquo;t apply the robustness principle, look after your protocol instead</a></p>
+<p>ということで、以下の方針としました。</p>
+<ul>
+<li><code>must-revalidate</code> などのbooleanもDictionaryのシリアライズではtrueは省略するので、省略しているものだけを受け付ける。</li>
+<li>Dictionaryでは同じキーが重複する場合は値は上書きになるが、上書きされる前の値が不正な場合もエラーとする。</li>
+<li>パラメータは無視するよう書かれているので無視する。</li>
+<li><code>max-age</code> は非負整数だけ許可する。
+<ul>
+<li>RFC 8941 には整数とdecimalは両対応のパース仕様だけが書かれているが、別途非負整数だけ許可する処理を実装してそれを使う。最大桁数は仕様に従う。</li>
+</ul>
+</li>
+<li>boolのtrueと非負整数以外は仕様通りパースできるか確認して値は破棄するような関数を実装しました。</li>
+</ul>
+<p>Target Cached Control のフィールドが複数ある場合はカンマで連結後パースすることになります。実装上は実際に連結しなくても各フィールドを順にパースすれば同等の処理になります。</p>
+<p>この結果、動的メモリ割り当てを全く行わずにパースする実装ができました。</p>
+<h2 id="cmake-関連メモ">CMake 関連メモ</h2>
+<h3 id="cmake-format">cmake-format</h3>
+<p><code>cmake</code> の実行時に <code>cmake-format</code> で <code>CMakeLists.txt</code> をフォーマットするようにしてみました。</p>
+<h3 id="clang-format">clang-format</h3>
+<p><code>make</code> の実行時に <code>clang-format</code> でソースコードをフォーマットにするようにしてみました。</p>
+<h3 id="address-sanitizer">Address Sanitizer</h3>
+<p>上でも書きましたが、テストのコードを <code>-fsanitize=address</code> つきでビルドして Address Sanitizer を有効にしました。</p>
+<h3 id="source-based-code-coverage">Source-based Code Coverage</h3>
+<p>上でも書きましたが、テスト実行後にカバレッジを取得するカスタムターゲットを追加し、 <code>make check</code> で実行できるようにしました。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'G-KMMXGG2Z56', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
