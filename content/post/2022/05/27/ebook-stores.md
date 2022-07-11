@@ -1,7 +1,7 @@
 ---
 title: "PDFなどを買い切りの電子書籍ストア"
 date: 2022-05-27T01:12:03+09:00
-lastmod: 2022-06-11T11:15:00+09:00
+lastmod: 2022-07-11T09:50:00+09:00
 ---
 
 PDFなどをダウンロードしてオフラインで読める買い切りの電子書籍ストアのメモです。
@@ -30,6 +30,7 @@ PDFなどをダウンロードしてオフラインで読める買い切りの�
 | [Manning Publications Co.](https://www.manning.com/) | PDF、epub、mobi |
 | [Elsevier](https://www.elsevier.com/books-and-journals) | PDF、epub、mobi |
 | [Leanpub](https://leanpub.com/) | PDF、epub、mobi |
+| [InformIT](https://www.informit.com/) | PDF、epub、mobi |
 
 ## 個人販売
 
