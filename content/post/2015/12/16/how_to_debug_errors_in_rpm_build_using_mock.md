@@ -59,7 +59,7 @@ $ docker cp romantic_fermi:/var/lib/mock/epel-7-x86_64/root/builddir/build/SPECS
 
 取り出した修正ファイルはgitにコミットして、さらに修正作業を続けていきます。
 
-修正が一通り終わったら、クリーンな状態からビルドが成功することを確認するため、dockerコンテナを一度破棄して[nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました · hnakamur's blog at github](http://localhost:1313/blog/2015/12/15/using_mock_and_copr_to_build_nginx_rpm_on_docker/) の手順で再度ビルドしてみます。これでエラーが出なければOKです。
+修正が一通り終わったら、クリーンな状態からビルドが成功することを確認するため、dockerコンテナを一度破棄して[nginxのカスタムrpmをmockでビルドできることを確認してからcoprでビルド・配布する環境を作りました · hnakamur's blog at github](/blog/2015/12/15/using_mock_and_copr_to_build_nginx_rpm_on_docker/) の手順で再度ビルドしてみます。これでエラーが出なければOKです。
 
 ## まとめ
 mockを使ったrpmのビルドが失敗した場合の調査方法を紹介しました。もっと良い方法などありましたら、ぜひ教えてください。
