@@ -86,6 +86,7 @@
     <li><a href="#git-でコミットに署名する設定">git でコミットに署名する設定</a></li>
     <li><a href="#コミットまたはタグがどの鍵で署名されているかを確認">コミットまたはタグがどの鍵で署名されているかを確認</a></li>
     <li><a href="#公開鍵をキーサーバにアップロード">公開鍵をキーサーバにアップロード</a></li>
+    <li><a href="#自分の鍵を信頼する">自分の鍵を信頼する</a></li>
   </ul>
 </nav>
   <h2 id="はじめに">はじめに</h2>
@@ -848,6 +849,116 @@ Keys 1-1 of 1 for &#34;0629F2A2680DEB3C&#34;.  Enter number(s), N)ext, or Q)uit 
 gpg: key 0629F2A2680DEB3C: &#34;Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;&#34; not changed
 gpg: Total number processed: 1
 gpg:              unchanged: 1
+</code></pre><h2 id="自分の鍵を信頼する">自分の鍵を信頼する</h2>
+<p><a href="https://stackoverflow.com/questions/17371955/verifying-signed-git-commits">Verifying signed git commits? - Stack Overflow</a> で
+<code>git log --show-signature</code> というコマンドを知り、試してみると各コミットにシグネチャ (上記の <code>git verify-commit</code> の出力) が青字で
+表示されました。</p>
+<p><a href="https://gnupg.org/download/integrity_check.html">GnuPG - Integrity Check</a> を見ると unknown となっているのは、キーを信頼していない状態だとわかりました。
+<a href="https://www.gnupg.org/gph/en/manual/x334.html">Validating other keys on your public keyring</a> の手順で信頼できるようです。</p>
+<pre tabindex="0"><code>$ gpg --edit-key 0629F2A2680DEB3C trust
+gpg (GnuPG) 2.2.27; Copyright (C) 2021 Free Software Foundation, Inc.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
+Secret subkeys are available.
+
+pub  ed25519/0629F2A2680DEB3C
+     created: 2022-08-06  expires: never       usage: C
+     trust: unknown       validity: unknown
+ssb  ed25519/F7ADBE58173B8F2E
+     created: 2022-08-06  expires: 2023-08-06  usage: S
+ssb  cv25519/0DDE7B8165A04D70
+     created: 2022-08-06  expires: 2023-08-06  usage: E
+ssb  ed25519/4428346A4DA67825
+     created: 2022-08-06  expires: 2023-08-06  usage: A
+[ unknown] (1). Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+[ unknown] (2)  [jpeg image of size 2607]
+
+pub  ed25519/0629F2A2680DEB3C
+     created: 2022-08-06  expires: never       usage: C
+     trust: unknown       validity: unknown
+ssb  ed25519/F7ADBE58173B8F2E
+     created: 2022-08-06  expires: 2023-08-06  usage: S
+ssb  cv25519/0DDE7B8165A04D70
+     created: 2022-08-06  expires: 2023-08-06  usage: E
+ssb  ed25519/4428346A4DA67825
+     created: 2022-08-06  expires: 2023-08-06  usage: A
+[ unknown] (1). Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+[ unknown] (2)  [jpeg image of size 2607]
+
+Please decide how far you trust this user to correctly verify other users&#39; keys
+(by looking at passports, checking fingerprints from different sources, etc.)
+
+  1 = I don&#39;t know or won&#39;t say
+  2 = I do NOT trust
+  3 = I trust marginally
+  4 = I trust fully
+  5 = I trust ultimately
+  m = back to the main menu
+
+Your decision?
+</code></pre><p>ここで選択肢を選ぶ前に内容を調べました。</p>
+<p><a href="https://www.gnupg.org/gph/en/manual/x334.html">Validating other keys on your public keyring</a> の例の出力に比べて <code>5 = I trust ultimately</code> が増えていました。</p>
+<p><a href="https://security.stackexchange.com/questions/69062/what-is-the-difference-between-full-and-ultimate-trust">pgp - What is the difference between &ldquo;full&rdquo; and &ldquo;ultimate&rdquo; trust? - Information Security Stack Exchange</a> に ultimate trust と full trust と marginal trust の違いが書かれていました。</p>
+<ul>
+<li>ultimate trust は web of trust の中で対象の鍵が introducer として許可されることを意味する。つまり、鍵が ultimately に信頼される場合、ultimately に信頼されるキーへの trust path が無い場合でも全ての certify されたキーは有効と考えられる。これは秘密鍵を所有していることを必須とはしないが、通常は所有している。</li>
+<li>full trust (デフォルトの信頼度、調整可能) も fully に信頼された鍵で certify されたキーは信頼されるが、これは fully に信頼された鍵自体が有効な場合 (ultimately に信頼される鍵からの trust path がある) のみに限定される。</li>
+<li>marginal trust は full trust と似たように機能するが、他の marginally に有効な鍵からの複数の incoming certifications を必要とする。</li>
+</ul>
+<p><a href="https://www.phildev.net/pgp/gpgtrust.html">Phil&rsquo;s PGP Docs</a> に</p>
+<blockquote>
+<p>Generally it is a good idea to trust only yourself ultimately, and gnupg often does this for you.</p>
+</blockquote>
+<p>と説明がありました。通常は自分の鍵だけを ultimately に信頼するのが良くて gnupg はそうしてくれるとのことです。</p>
+<p>今回作成した鍵はなぜ信頼されていないのかなと思ったら、ホストマシンとは別のコンテナで鍵を生成してそれをインポートしたからだと気づきました。</p>
+<p>ということで元の端末の <code>Your decision?</code> に 5 を入力しました。その後 <code>Do you really want to set this key to ultimate trust? (y/N)</code> に y と入力し、<code>gpg&gt;</code> のプロンプトで quit と入力しました。</p>
+<pre tabindex="0"><code>Your decision? 5
+Do you really want to set this key to ultimate trust? (y/N) y
+
+pub  ed25519/0629F2A2680DEB3C
+     created: 2022-08-06  expires: never       usage: C
+     trust: ultimate      validity: unknown
+ssb  ed25519/F7ADBE58173B8F2E
+     created: 2022-08-06  expires: 2023-08-06  usage: S
+ssb  cv25519/0DDE7B8165A04D70
+     created: 2022-08-06  expires: 2023-08-06  usage: E
+ssb  ed25519/4428346A4DA67825
+     created: 2022-08-06  expires: 2023-08-06  usage: A
+[ unknown] (1). Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+[ unknown] (2)  [jpeg image of size 2607]
+Please note that the shown key validity is not necessarily correct
+unless you restart the program.
+
+gpg&gt; quit
+</code></pre><p>再度 <code>git verify-commit HEAD</code> を実行すると <code>[unknown]</code> の部分が <code>[ultimate]</code> に変わりました。</p>
+<pre tabindex="0"><code>$ git verify-commit HEAD
+gpg: Signature made 2022年08月07日 07時22分43秒 JST
+gpg:                using EDDSA key 13F0F7266E46D846A741FF4BF7ADBE58173B8F2E
+gpg: checking the trustdb
+gpg: marginals needed: 3  completes needed: 1  trust model: pgp
+gpg: depth: 0  valid:   1  signed:   0  trust: 0-, 0q, 0n, 0m, 0f, 1u
+gpg: Good signature from &#34;Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;&#34; [ultimate]
+gpg:                 aka &#34;[jpeg image of size 2607]&#34; [ultimate]
+</code></pre><p><code>git log --signature</code> でも同様に変わりました。</p>
+<pre tabindex="0"><code>commit 8a7b61024e4b8309f5ab25edeb6f121074564e73 (HEAD -&gt; main)
+gpg: Signature made 2022年08月07日 07時22分43秒 JST
+gpg:                using EDDSA key 13F0F7266E46D846A741FF4BF7ADBE58173B8F2E
+gpg: Good signature from &#34;Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;&#34; [ultimate]
+gpg:                 aka &#34;[jpeg image of size 2607]&#34; [ultimate]
+Author: Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+Date:   Sun Aug 7 07:22:00 2022
+
+    3時間後サブキーやマスターキーのIDでも gpg --search-key が動いた旨追記
+
+commit d55783fcd31b65172388df3cc3e9c7e2276df0ad (origin/main, origin/HEAD)
+gpg: Signature made 2022年08月07日 04時13分40秒 JST
+gpg:                using EDDSA key 13F0F7266E46D846A741FF4BF7ADBE58173B8F2E
+gpg: Good signature from &#34;Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;&#34; [ultimate]
+gpg:                 aka &#34;[jpeg image of size 2607]&#34; [ultimate]
+Author: Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+Date:   Sun Aug 7 04:13:21 2022
+
+    LUKS でUSBメモリを暗号化のリンク追加
 </code></pre>
 </div>
 
