@@ -1055,3 +1055,23 @@ gpg: Total number processed: 1
 gpg:              unchanged: 1
 ```
 
+3時間ほどしたらサブキーやマスターキーのIDでも検索できるようになってました。
+
+```
+$ gpg --keyserver keyserver.ubuntu.com --search-key F7ADBE58173B8F2E
+gpg: data source: http://162.213.33.9:11371
+(1)     Hiroaki Nakamura <hnakamur@gmail.com>
+          263 bit EDDSA key 0629F2A2680DEB3C, created: 2022-08-06
+Keys 1-1 of 1 for "F7ADBE58173B8F2E".  Enter number(s), N)ext, or Q)uit > 1
+gpg: key 0629F2A2680DEB3C: "Hiroaki Nakamura <hnakamur@gmail.com>" not changed
+gpg: Total number processed: 1
+gpg:              unchanged: 1
+$ gpg --keyserver keyserver.ubuntu.com --search-key 0629F2A2680DEB3C
+gpg: data source: http://162.213.33.9:11371
+(1)     Hiroaki Nakamura <hnakamur@gmail.com>
+          263 bit EDDSA key 0629F2A2680DEB3C, created: 2022-08-06
+Keys 1-1 of 1 for "0629F2A2680DEB3C".  Enter number(s), N)ext, or Q)uit > 1
+gpg: key 0629F2A2680DEB3C: "Hiroaki Nakamura <hnakamur@gmail.com>" not changed
+gpg: Total number processed: 1
+gpg:              unchanged: 1
+```
