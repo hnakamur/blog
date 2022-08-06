@@ -992,7 +992,7 @@ $ dpkg -L gpg-wks-client
 gpg --keyserver keyserver.ubuntu.com --send-key F7ADBE58173B8F2E
 ```
 
-実行結果。これを見るとプライマリーキーのIDを指定するのが正しそうです。また hkp://keyserver.ubuntu.com とあるので hkp プロトコルが使われたようです。
+実行結果。これを見るとプライマリーキーのIDを指定するのが正しかったのかもしれません(が、よくわかっていません)。また hkp://keyserver.ubuntu.com とあるので hkp プロトコルが使われたようです。
 [Key server (cryptographic) - Wikipedia](https://en.wikipedia.org/wiki/Key_server_%28cryptographic%29) に [draft-shaw-openpgp-hkp-00](https://datatracker.ietf.org/doc/html/draft-shaw-openpgp-hkp-00) へのリンクがありました。
 
 ```
