@@ -576,7 +576,7 @@ paperkey --secret-key my-gpg-master-key-for-github.gpg --output my-gpg-master-ke
 上記で作成したファイル一式と [GPGで自分用の秘密鍵を1つに統一する · JoeMPhilips](http://joemphilips.com/post/gpg_memo/) をテキストファイルに保存して、普段使用しない USB メモリにバックアップしました。将来故障して読めなくなるリスクを考えて 2 つの USB メモリにコピーしました。
 
 
-USB メモリは念の為 LUKS で暗号化しておきました。
+USB メモリは念の為 LUKS で暗号化しておきました。手順は [LUKS でUSBメモリを暗号化 | Linux Magazine](https://mekou.com/linux-magazine/luks-%E3%81%A7usb%E3%83%A1%E3%83%A2%E3%83%AA%E3%82%92%E6%9A%97%E5%8F%B7%E5%8C%96/) を参考にしました。
 
 
 ## 作業用コンテナ内からサブキーをエクスポートしてホストマシンにインポート
