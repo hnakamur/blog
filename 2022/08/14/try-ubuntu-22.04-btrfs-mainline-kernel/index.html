@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.101.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Ubuntu 22.04でbtrfsとmainline kernelを試してみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2022. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Ubuntu 22.04でbtrfsとmainline kernelを試してみた</h1>
+  <time datetime=2022-08-14T12:29:56&#43;0900 class="post-date">2022-08-14</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#インストーラをusbメモリに書き込み">インストーラをUSBメモリに書き込み</a></li>
+    <li><a href="#ルートパーティションを-btrfs-にした">ルートパーティションを Btrfs にした</a></li>
+    <li><a href="#mainline-kernel-を試してみた">mainline kernel を試してみた</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="/blog/2022/08/14/try-archlinux/">Arch Linux を試してみた · hnakamur&rsquo;s blog</a> でとりあえずセットアップできることを確認したので、再度 Ubuntu をセットアップすることにしました。</p>
+<h2 id="インストーラをusbメモリに書き込み">インストーラをUSBメモリに書き込み</h2>
+<p><a href="/blog/2022/04/22/setup-ubuntu-22.04/">Ubuntu 22.04のセットアップメモ · hnakamur&rsquo;s blog</a> と同様に今回も <a href="https://rufus.ie/en/">Rufus - Create bootable USB drives the easy way</a> のポータブル版 (バージョン 3.20p) を使いました。</p>
+<p><a href="https://ubuntu.com/download/desktop">Download Ubuntu Desktop | Download | Ubuntu</a> から ubuntu-22.04.1-desktop-amd64.iso をダウンロードしました。sha256 のチェックサムは <a href="http://releases.ubuntu.com/jammy/">Ubuntu 22.04.1 LTS (Jammy Jellyfish)</a> の <code>SHA256SUM</code> にありました。</p>
+<h2 id="ルートパーティションを-btrfs-にした">ルートパーティションを Btrfs にした</h2>
+<p>&ldquo;Installation type&rdquo; のダイアログで &ldquo;Something else&rdquo; のラジオボタンを押し、ルートパーティションを btrfs にして &ldquo;Format the partition&rdquo; のチェックをオンにした。</p>
+<table>
+<thead>
+<tr>
+<th>パーティション</th>
+<th>サイズ</th>
+<th>パーティションタイプ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>/dev/nvme0n1p1</td>
+<td>512M</td>
+<td>EFI</td>
+</tr>
+<tr>
+<td>/dev/nvme0n1p2</td>
+<td>EFIとスワップを引いた残り</td>
+<td>btrfs</td>
+</tr>
+<tr>
+<td>/dev/nvme0n1p3</td>
+<td>8GB</td>
+<td>Linux swap</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mainline-kernel-を試してみた">mainline kernel を試してみた</h2>
+<p>インストール完了して再起動した後 <a href="https://9to5linux.com/you-can-now-install-linux-kernel-5-19-on-ubuntu-and-ubuntu-based-distributions">You Can Now Install Linux Kernel 5.19 on Ubuntu and Ubuntu-Based Distributions - 9to5Linux</a> を参考に mainline kernel の 5.19.1 を入れてみました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">sudo add-apt-repository ppa:cappelikan/ppa
+</span></span><span class="line"><span class="cl">sudo apt update
+</span></span><span class="line"><span class="cl">sudo apt -y install mainline
+</span></span></code></pre></div><ol>
+<li>Windows キーを押して Mainline と入力して Ubuntu Mainline を起動</li>
+<li>Ubuntu Mainline Kernel Installer の画面で Refresh ボタンを押す</li>
+<li>カーネルのバージョンの一覧が表示されたら 5.19.1 を選んで Install ボタンを押す</li>
+</ol>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'G-KMMXGG2Z56', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
