@@ -359,7 +359,7 @@ cd yay
 makepkg -si
 ```
 
-### Linux カーネル 5.19 を入れてみる
+## Linux カーネル 5.19 を入れてみた
 
 標準のカーネルのバージョンを `uname -r` で確認すると `5.18.16-arch1-1` でした。
 
@@ -534,3 +534,112 @@ sudo grub-mkconfig -o /boot/grub/grub.cfg
 `diff -u /boot/grub/grub.cfg{.bak,}` で差分を見て linux-mainline のメニューが追加されていることを確認しました。
 
 `sudo reboot` で再起動してみると起動できて `Arch Linux 5.19.0-1-mainline (tty1)` と表示されていました。
+
+## GNOME をインストール
+
+[GNOME - ArchWiki](https://wiki.archlinux.jp/index.php/GNOME) を読んで以下のコマンドでインストール。
+
+```bash
+sudo pacman -S gnome
+```
+
+いくつか質問されますが全てデフォルトで回答。
+
+[ディスプレイマネージャ - ArchWiki](https://wiki.archlinux.jp/index.php/%E3%83%87%E3%82%A3%E3%82%B9%E3%83%97%E3%83%AC%E3%82%A4%E3%83%9E%E3%83%8D%E3%83%BC%E3%82%B8%E3%83%A3)
+
+```bash
+sudo pacman -S gdm
+```
+
+```bash
+sudo systemctl enable --now gdm
+```
+
+## Wayland で左CtrlとCapsLock入れ替え
+
+最初 Xorg が動いているのかなと思い [Xorg でのキーボード設定 - ArchWiki](https://wiki.archlinux.jp/index.php/Xorg_%E3%81%A7%E3%81%AE%E3%82%AD%E3%83%BC%E3%83%9C%E3%83%BC%E3%83%89%E8%A8%AD%E5%AE%9A) と [X KeyBoard extension - ArchWiki](https://wiki.archlinux.jp/index.php/X_KeyBoard_extension) を読んで以下のコマンドを実行しました。
+
+```
+setxkbmap -model pc101 -layout us -variant qwerty -option ctrl:swapcaps
+```
+
+が、 `WARNING: Running setxkbmap against an Wayland server` という警告が出て Xorg ではなく Wayland が動いていることを知りました。
+
+[Wayland - ArchWiki](https://wiki.archlinux.jp/index.php/Wayland#.E3.82.AD.E3.83.BC.E3.83.9C.E3.83.BC.E3.83.89.E3.82.84.E3.83.9E.E3.82.A6.E3.82.B9.E3.82.AD.E3.83.BC.E3.81.AE.E3.83.AA.E3.83.9E.E3.83.83.E3.83.97) と [入力リマップユーティリティ - ArchWiki](https://wiki.archlinux.jp/index.php/%E5%85%A5%E5%8A%9B%E3%83%AA%E3%83%9E%E3%83%83%E3%83%97%E3%83%A6%E3%83%BC%E3%83%86%E3%82%A3%E3%83%AA%E3%83%86%E3%82%A3) を見て [wez/evremap: A keyboard input remapper for Linux/Wayland systems, written by @wez](https://github.com/wez/evremap) をインストール。
+
+```bash
+yay -S evremap
+```
+
+パッケージ内のファイル一覧を確認。
+
+```bash
+$ pacman -Ql evremap
+evremap /usr/
+evremap /usr/bin/
+evremap /usr/bin/evremap
+evremap /usr/lib/
+evremap /usr/lib/systemd/
+evremap /usr/lib/systemd/system/
+evremap /usr/lib/systemd/system/evremap.service
+```
+
+サービス定義ファイルの内容を確認。
+
+```bash
+$ cat /usr/lib/systemd/system/evremap.service
+[Service]
+WorkingDirectory=/
+# For reasons I don't care to troubleshoot, Fedora 31 won't let me start this
+# unless I use `bash -c` around it.  Putting the command line in directly
+# yields a 203 permission denied error with no logs about what it didn't like.
+ExecStart=bash -c "/home/wez/github/evremap/target/release/evremap remap /home/wez/github/evremap/pixelbookgo.toml"
+Restart=always
+
+[Install]
+WantedBy=gdm.service
+```
+
+evremap 用の設定ファイルを作成。
+
+```bash
+cat <<'EOF' | sudo tee /etc/evremap.toml > /dev/null
+# The name of the device to remap.
+# Run `sudo evremap list-devices` to see the devices available
+# on your system.
+device_name = "Lenovo ThinkPad Compact USB Keyboard with TrackPoint"
+
+# If you have multiple devices with the same name, you can optionally
+# specify the `phys` value that is printed by the `list-devices` subcommand
+# phys = "usb-0000:07:00.3-2.1.1/input0"
+
+# Swap CapsLock and left Control.
+[[remap]]
+input = ["KEY_LEFTCTRL"]
+output = ["KEY_CAPSLOCK"]
+
+[[remap]]
+input = ["KEY_CAPSLOCK"]
+output = ["KEY_LEFTCTRL"]
+EOF
+```
+
+サービス定義ファイルを作成。
+
+```bash
+cat <<'EOF' | sudo tee /etc/systemd/system/evremap.service > /dev/null
+[Service]
+WorkingDirectory=/
+ExecStart=/usr/bin/evremap remap /etc/evremap.toml
+Restart=always
+
+[Install]
+WantedBy=gdm.service
+EOF
+```
+
+サービスを起動し自動起動を有効にしました。これで期待通り左CtrlとCapsLockが入れ替わりました。
+
+```bash
+sudo systemctl enable --now evremap
+```
