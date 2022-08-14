@@ -555,6 +555,8 @@ sudo pacman -S gdm
 sudo systemctl enable --now gdm
 ```
 
+最初に画面下部に出ていたドック？は Windows キーで表示／非表示がトグルになりました。
+
 ## Wayland で左CtrlとCapsLock入れ替え
 
 最初 Xorg が動いているのかなと思い [Xorg でのキーボード設定 - ArchWiki](https://wiki.archlinux.jp/index.php/Xorg_%E3%81%A7%E3%81%AE%E3%82%AD%E3%83%BC%E3%83%9C%E3%83%BC%E3%83%89%E8%A8%AD%E5%AE%9A) と [X KeyBoard extension - ArchWiki](https://wiki.archlinux.jp/index.php/X_KeyBoard_extension) を読んで以下のコマンドを実行しました。
@@ -642,4 +644,88 @@ EOF
 
 ```bash
 sudo systemctl enable --now evremap
+```
+
+## インプットメソッドの設定
+
+* [インプットメソッド - ArchWiki](https://wiki.archlinux.jp/index.php/%E3%82%A4%E3%83%B3%E3%83%97%E3%83%83%E3%83%88%E3%83%A1%E3%82%BD%E3%83%83%E3%83%89)
+* [Mozc - ArchWiki](https://wiki.archlinux.jp/index.php/Mozc)
+* [AURにあるMozc-UT系パッケージについて - Chienomi](https://www.chienomi.org/articles/linux/202011-aur-mozc-ut.html)
+* [AURに(fcitx-)mozc-ut-unifiedを上げました - Chienomi](https://chienomi.org/articles/linux/202006-mozc-ut-unified.html)
+
+
+```bash
+yay -S fcitx5-mozc-ut
+```
+
+```bash
+[hnakamur@thinkcentre ~]$ yay -S fcitx5-mozc-ut
+:: There are 3 providers available for mozc>=2.28.4800.102:
+:: Repository AUR
+    1) mozc 2) mozc-ut 3) mozc-ut-united
+
+Enter a number (default=1):
+:: Checking for conflicts...
+:: Checking for inner conflicts...
+[Repo:5]  wayland-protocols-1.26-1  xcb-imdkit-1.0.3-1  fmt-8.1.1-2  unicode-cldr-annotations-38.0-2  fcitx5-5.0.18-2
+[Repo Make:7]  java-runtime-common-3-3  libnet-1:1.1.6-1  jre11-openjdk-headless-11.0.16.1.u1-2  jre11-openjdk-11.0.16.1.u1-2  java-environment-common-3-3  jdk11-openjdk-11.0.16.1.u1-2  bazel-5.2.0-1
+[Aur:2]  mozc-2.28.4800.102-1  fcitx5-mozc-ut-2.28.4800.102-1
+
+==> Remove make dependencies after install? [y/N] y
+:: (1/2) Downloaded PKGBUILD: mozc
+:: (2/2) Downloaded PKGBUILD: fcitx5-mozc-ut
+  2 mozc                                     (Build Files Exist)
+  1 fcitx5-mozc-ut                           (Build Files Exist)
+==> Diffs to show?
+==> [N]one [A]ll [Ab]ort [I]nstalled [No]tInstalled or (1 2 3, 1-3, ^4)
+==> A
+…(略)…
+==> Proceed with install? [Y/n] y
+```
+
+[Fcitx5 - ArchWiki](https://wiki.archlinux.jp/index.php/Fcitx5) を参考に以下のコマンドで `/etc/environments` に設定を追加。
+
+```bash
+cat <<'EOF' | sudo tee -a /etc/environment > /dev/null
+GTK_IM_MODULE=fcitx
+QT_IM_MODULE=fcitx
+XMODIFIERS=@im=fcitx
+EOF
+```
+
+GUI の設定ツールをインストール。
+
+```bash
+sudo pacman -S fcitx5-configtool
+```
+
+設定ツールを起動。
+
+```bash
+fcitx5-configtool
+```
+
+1. 右の [Available Input Method] の下の入力欄に Mozc と入力する
+2. その下のリストに表示された Mozc を選んで左矢印のボタンを押す
+3. ダイアログ右下の [Apply] ボタンを押す
+4. [Close] ボタンを押して設定ツールを終了する
+
+## 日本語フォントをインストール
+
+[フォント - ArchWiki](https://wiki.archlinux.jp/index.php/%E3%83%95%E3%82%A9%E3%83%B3%E3%83%88)
+
+```bash
+sudo pacman -S adobe-source-han-sans-jp-fonts adobe-source-han-serif-jp-fonts
+```
+
+ターミナルで Ctrl+Space で mozc が使えるようになったが日本語が表示されないので `fc-cache -vf` を実行してみた(が、本当に必要だったかは要確認)。
+これで入力した日本語が正しく表示されるようになりました。が、入力中のポップアップウィンドウの中は文字化けしています。
+GDM から一旦ログアウトしてログインし直したら解消しました。
+
+## Visual Studio Code をインストール
+
+[Visual Studio Code - ArchWiki](https://wiki.archlinux.jp/index.php/Visual_Studio_Code)
+
+```bash
+yay -S visual-studio-code-bin
 ```
