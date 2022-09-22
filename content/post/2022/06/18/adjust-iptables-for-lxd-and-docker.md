@@ -34,7 +34,7 @@ sudo iptables -I FORWARD -o lxdbr0 -m comment --comment "generated for LXD netwo
 sudo iptables -I FORWARD 2 -i lxdbr0 -m comment --comment "generated for LXD network lxdbr0" -j ACCEPT
 ```
 
-## iptablesの設定の自動化
+## iptablesの設定の自動化 (2022-09-23追記)
 
 OS再起動の度に起動時に毎回上記のコマンドを手動で実行するのは面倒なので、OS起動時に自動実行するように設定するスクリプト [setup-iptables-for-lxd-with-docker.sh](https://github.com/hnakamur/setup-my-ubuntu-desktop/blob/acea2b1b7fe854b00654a47a65a7db10482fb435/setup-iptables-for-lxd-with-docker.sh) を書きました。
 
