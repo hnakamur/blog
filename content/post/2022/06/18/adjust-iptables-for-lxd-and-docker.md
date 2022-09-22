@@ -1,6 +1,7 @@
 ---
 title: "LXDとDockerを同時利用するためにiptables設定を調整"
 date: 2022-06-18T15:49:54+09:00
+lastmod: 2022-09-23T16:40:00+09:00
 ---
 
 ## はじめに
@@ -32,3 +33,37 @@ sudo iptables-save
 sudo iptables -I FORWARD -o lxdbr0 -m comment --comment "generated for LXD network lxdbr0" -j ACCEPT
 sudo iptables -I FORWARD 2 -i lxdbr0 -m comment --comment "generated for LXD network lxdbr0" -j ACCEPT
 ```
+
+## iptablesの設定の自動化
+
+OS再起動の度に起動時に毎回上記のコマンドを手動で実行するのは面倒なので、OS起動時に自動実行するように設定するスクリプト [setup-iptables-for-lxd-with-docker.sh](https://github.com/hnakamur/setup-my-ubuntu-desktop/blob/acea2b1b7fe854b00654a47a65a7db10482fb435/setup-iptables-for-lxd-with-docker.sh) を書きました。
+
+このスクリプトでは以下のような systemd の service 定義ファイルを `/etc/systemd/system/iptables-for-lxd-with-docker.service` というファイル名で作成します。
+
+```
+[Unit]
+Description=Add iptables rules for LXD coexisting with Docker
+After=docker.service
+
+[Service]
+Type=oneshot
+# https://discuss.linuxcontainers.org/t/lxd-and-docker-firewall-redux-how-to-deal-with-forward-policy-set-to-drop/9953/7
+ExecStart=iptables -I FORWARD -o lxdbr0 -m comment --comment "generated for LXD network lxdbr0" -j ACCEPT
+ExecStart=iptables -I FORWARD 2 -i lxdbr0 -m comment --comment "generated for LXD network lxdbr0" -j ACCEPT
+
+[Install]
+WantedBy=multi-user.target
+```
+
+`After=docker.service` によってDockerのサービスが起動してDocker用のiptables設定が投入された後に実行されるようにしています。
+
+iptablesコマンドを実行するだけなのでTypeはoneshotとし、ExecStartは複数指定可能なので2つのコマンドを実行するのに2つのExecStartを使っています。
+
+`/etc/systemd/system/iptables-for-lxd-with-docker.service` を作成した後、以下のコマンドでOS起動時に自動実行されるように登録します。
+
+```
+sudo systemctl daemon-reload
+sudo systemctl enable --now iptables-for-lxd-with-docker
+```
+
+また初回はその場でも実行したいので `systemctl enable` の `--now` オプションを使っています。これは [(小ネタ) systemctlでサービスの有効化と起動を同時に設定 - zaki work log](https://zaki-hmkc.hatenablog.com/entry/2020/03/19/183459) で知りました。
