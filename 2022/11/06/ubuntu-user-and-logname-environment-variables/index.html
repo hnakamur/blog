@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.101.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>UbuntuのUSERとLOGNAME環境変数について調べてみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2022. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>UbuntuのUSERとLOGNAME環境変数について調べてみた</h1>
+  <time datetime=2022-11-06T09:56:38&#43;0900 class="post-date">2022-11-06</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#user-と-logname-は-login-コマンドが設定している">USER と LOGNAME は login コマンドが設定している</a>
+      <ul>
+        <li><a href="#login-パッケージのソースを確認">login パッケージのソースを確認</a></li>
+      </ul>
+    </li>
+    <li><a href="#ubuntu-では-cron-ジョブでは-user-は設定されないが-logname-は設定される">Ubuntu では cron ジョブでは USER は設定されないが LOGNAME は設定される</a>
+      <ul>
+        <li><a href="#ubuntu-の-cron-パッケージのソースを確認">Ubuntu の cron パッケージのソースを確認</a></li>
+      </ul>
+    </li>
+    <li><a href="#user-は-bsd-由来logname-は-system-v-由来">USER は BSD 由来、LOGNAME は System-V 由来</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>Linuxで現在のユーザ名の取得に <code>USER</code> 環境変数を使っていたのですが、どこで設定されているのか調べたことがなかったので調べてみたメモです。</p>
+<h2 id="user-と-logname-は-login-コマンドが設定している">USER と LOGNAME は login コマンドが設定している</h2>
+<p><a href="https://unix.stackexchange.com/questions/76354/who-sets-user-and-username-environment-variables">Who sets $USER and $USERNAME environment variables? - Unix &amp; Linux Stack Exchange</a> の<a href="https://unix.stackexchange.com/a/76356/135274">回答</a> によると Linux の <a href="https://man7.org/linux/man-pages/man1/login.1.html">man 1 login</a> に以下の記載があるとのことでした。</p>
+<blockquote>
+<p>The environment variable values for
+$HOME, $USER, $SHELL, $PATH, $LOGNAME, and $MAIL are set
+according to the appropriate fields in the password entry.</p>
+</blockquote>
+<p>一方、 <a href="https://manpages.ubuntu.com/manpages/jammy/en/man1/login.1.html">Ubuntu Manpage: login - begin session on the system</a> では以下のようになっておりUSERについては記載がありませんでした。</p>
+<blockquote>
+<p>The value for $HOME, $SHELL, $PATH, $LOGNAME, and $MAIL are set according to the appropriate
+fields in the password entry.</p>
+</blockquote>
+<h3 id="login-パッケージのソースを確認">login パッケージのソースを確認</h3>
+<p>そこでソースを確認しようと思ってパッケージを調べました。</p>
+<pre tabindex="0"><code>$ type login
+login is /usr/bin/login
+$ dpkg -S /bin/login
+login: /bin/login
+</code></pre><p>作業ディレクトリを作って login パッケージのソースをダウンロードしてみると、以下のように shadow-4.8.1 というディレクトリにソースが展開されました。</p>
+<pre tabindex="0"><code>$ mkdir ~/login-deb-src
+$ cd !$
+$ apt source login
+$ ls
+shadow-4.8.1  shadow_4.8.1-2ubuntu2.debian.tar.xz  shadow_4.8.1-2ubuntu2.dsc  shadow_4.8.1.orig.tar.xz
+</code></pre><p><code>dpkg -l</code> で調べると shadow パッケージはなく login パッケージだけがありました。よくわかりませんが、こちらは一旦棚上げ。</p>
+<pre tabindex="0"><code>$ LC_ALL=C dpkg -l login shadow
+dpkg-query: no packages found matching shadow
+Desired=Unknown/Install/Remove/Purge/Hold
+| Status=Not/Inst/Conf-files/Unpacked/halF-conf/Half-inst/trig-aWait/Trig-pend
+|/ Err?=(none)/Reinst-required (Status,Err: uppercase=bad)
+||/ Name           Version          Architecture Description
++++-==============-================-============-=================================
+ii  login          1:4.8.1-2ubuntu2 amd64        system login tools
+</code></pre><p>shadow-4.8.1 のディレクトリ内で LOGNAME を検索して見ていくと以下の箇所で USER と LOGNAME 環境変数を設定していました。</p>
+<p><a href="https://git.launchpad.net/ubuntu/+source/shadow/tree/libmisc/setupenv.c?h=applied/1%254.8.1-2ubuntu1#n254">https://git.launchpad.net/ubuntu/+source/shadow/tree/libmisc/setupenv.c?h=applied/1%254.8.1-2ubuntu1#n254</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">  <span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">   * Export the user name.  For BSD derived systems, it&#39;s &#34;USER&#34;, for
+</span></span></span><span class="line"><span class="cl"><span class="cm">   * all others it&#39;s &#34;LOGNAME&#34;.  We set both of them.
+</span></span></span><span class="line"><span class="cl"><span class="cm">   */</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="n">addenv</span> <span class="p">(</span><span class="s">&#34;USER&#34;</span><span class="p">,</span> <span class="n">info</span><span class="o">-&gt;</span><span class="n">pw_name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="n">addenv</span> <span class="p">(</span><span class="s">&#34;LOGNAME&#34;</span><span class="p">,</span> <span class="n">info</span><span class="o">-&gt;</span><span class="n">pw_name</span><span class="p">);</span>
+</span></span></code></pre></div><h2 id="ubuntu-では-cron-ジョブでは-user-は設定されないが-logname-は設定される">Ubuntu では cron ジョブでは USER は設定されないが LOGNAME は設定される</h2>
+<p><a href="https://askubuntu.com/questions/802733/environment-variable-for-username">scripts - Environment Variable for Username - Ask Ubuntu</a> の <a href="https://askubuntu.com/a/802892/707184">回答</a> によると、cron ジョブでは USER は設定されないが LOGNAME は設定されるとのことです(回答者の方は Ubuntu 14.04 で確認したとのこと)。</p>
+<p>Ubuntu 22.04 LTS の環境で以下の内容で <code>/etc/cron.d/echo_env_user</code> というファイルを作って試してみました。</p>
+<pre tabindex="0"><code>* * * * * root /bin/sh -c &#39;echo USER=$USER LOGNAME=$LOGNAME&#39; &gt;&gt; /tmp/cron-env-user.log
+</code></pre><p>cron ジョブが実行されるのを待ってからログを確認すると以下のようになっており、cron ジョブでは USER は設定されないが LOGNAME は設定されることが確認できました。</p>
+<pre tabindex="0"><code>$ head -1 /tmp/cron-env-user.log
+USER= LOGNAME=root
+</code></pre><p>確認後 cron の設定とログは以下のコマンドで削除しました。</p>
+<pre tabindex="0"><code>sudo rm /etc/cron.d/echo_env_user /tmp/cron-env-user.log
+</code></pre><h3 id="ubuntu-の-cron-パッケージのソースを確認">Ubuntu の cron パッケージのソースを確認</h3>
+<p><a href="https://git.launchpad.net/ubuntu/+source/cron/tree/entry.c?h=applied/3.0pl1-137#n301">https://git.launchpad.net/ubuntu/+source/cron/tree/entry.c?h=applied/3.0pl1-137#n301</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">  <span class="n">snprintf</span><span class="p">(</span><span class="n">envstr</span><span class="p">,</span> <span class="n">MAX_ENVSTR</span><span class="p">,</span> <span class="s">&#34;%s=%s&#34;</span><span class="p">,</span> <span class="s">&#34;LOGNAME&#34;</span><span class="p">,</span> <span class="n">pw</span><span class="o">-&gt;</span><span class="n">pw_name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">((</span><span class="n">tenvp</span> <span class="o">=</span> <span class="n">env_set</span><span class="p">(</span><span class="n">e</span><span class="o">-&gt;</span><span class="n">envp</span><span class="p">,</span> <span class="n">envstr</span><span class="p">)))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">e</span><span class="o">-&gt;</span><span class="n">envp</span> <span class="o">=</span> <span class="n">tenvp</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">ecode</span> <span class="o">=</span> <span class="n">e_none</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">goto</span> <span class="n">eof</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="cp">#if defined(BSD)
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>  <span class="n">snprintf</span><span class="p">(</span><span class="n">envstr</span><span class="p">,</span> <span class="n">MAX_ENVSTR</span><span class="p">,</span> <span class="s">&#34;%s=%s&#34;</span><span class="p">,</span> <span class="s">&#34;USER&#34;</span><span class="p">,</span> <span class="n">pw</span><span class="o">-&gt;</span><span class="n">pw_name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">((</span><span class="n">tenvp</span> <span class="o">=</span> <span class="n">env_set</span><span class="p">(</span><span class="n">e</span><span class="o">-&gt;</span><span class="n">envp</span><span class="p">,</span> <span class="n">envstr</span><span class="p">)))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">e</span><span class="o">-&gt;</span><span class="n">envp</span> <span class="o">=</span> <span class="n">tenvp</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">ecode</span> <span class="o">=</span> <span class="n">e_none</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">goto</span> <span class="n">eof</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="cp">#endif
+</span></span></span></code></pre></div><p><a href="https://git.launchpad.net/ubuntu/+source/cron/tree/debian/rules?h=applied/3.0pl1-137">https://git.launchpad.net/ubuntu/+source/cron/tree/debian/rules?h=applied/3.0pl1-137</a>
+を見ると BSD は定義していなさそうでした。</p>
+<h2 id="user-は-bsd-由来logname-は-system-v-由来">USER は BSD 由来、LOGNAME は System-V 由来</h2>
+<p>上の <a href="https://askubuntu.com/a/802892/707184">回答</a> には <code>man 7 environ</code> で USER は BSD 由来のプログラムで使われ、 LOGNAME は System-V 由来のプログラムで使われると書かれているとありました。</p>
+<p><a href="https://manpages.ubuntu.com/manpages/jammy/en/man7/environ.7.html">Ubuntu Manpage: environ - user environment</a> も見てみると以下のように書かれていました。</p>
+<blockquote>
+<p>USER   The name of the logged-in user (used by some BSD-derived programs).</p>
+<p>LOGNAME
+The name of the logged-in user (used by some System-V derived programs).</p>
+</blockquote>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'G-KMMXGG2Z56', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
