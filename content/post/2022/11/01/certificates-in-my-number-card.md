@@ -1,6 +1,7 @@
 ---
 title: "マイナンバーカードに含まれる2つの電子証明書について調べてみた"
 date: 2022-11-01T21:39:34+09:00
+lastmod: 2022-11-06T21:25:00+09:00
 ---
 ## はじめに
 
@@ -110,6 +111,11 @@ digitalSignature とnonRepudiation の説明を引用します。
       data.  (Note that recent editions of X.509 have renamed the
       nonRepudiation bit to contentCommitment.)
 ```
+
+### 2022-11-06 追記。鍵用途もドキュメントに記載されていました。
+
+[お問い合わせ | 公的個人認証サービス ポータルサイト](https://www.jpki.go.jp/contact/index.html) から署名用電子証明書と利用者証明用電子証明書の鍵用途についてもサイトに記載してほしいという要望を出していたのですが、 [公的個人認証サービス プロファイル仕様書 2.2 版](https://www.j-lis.go.jp/file/13_profile_genkou.pdf) に記載されているとご回答をいただきました。このドキュメントは [J-LIS 利用者クライアントソフトに係る技術仕様について](https://www.j-lis.go.jp/jpki/procedure/procedure1_2_3.html) からリンクされていました。
+
 
 ## X509v3 Issuer Alternative Name
 
