@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.101.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>GoでGratious ARP (GARP)を送信と受信する &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2022. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>GoでGratious ARP (GARP)を送信と受信する</h1>
+  <time datetime=2022-11-19T21:20:07&#43;0900 class="post-date">2022-11-19</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#garpの送信">GARPの送信</a></li>
+    <li><a href="#garpの受信">GARPの受信</a></li>
+    <li><a href="#cliを書いた">CLIを書いた</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>GARP については <a href="https://ja.wikipedia.org/wiki/Gratuitous_ARP">Gratuitous ARP - Wikipedia</a> や <a href="https://wiki.wireshark.org/Gratuitous_ARP">Gratuitous_ARP</a> 参照。</p>
+<p>2台のサーバからなる冗長構成でフェイルオーバーした際に、新しいプライマリサーバに仮想IPアドレス(Virtual IP; VIP)を追加してGARPを送信することで、他のサーバのARPテーブルを更新し仮想IPアドレスに対応するMACアドレスを新しいプライマリサーバのものに更新するという使い方があります。</p>
+<p>GoでGratious ARP (GARP)を送信と受信するCLIを書いてみたのでメモです。
+レポジトリは <a href="https://github.com/hnakamur/netvip">hnakamur/netvip: A package for virtual IP address (VIP) written in Go</a> です。</p>
+<h2 id="garpの送信">GARPの送信</h2>
+<p><a href="https://github.com/mdlayher/arp">mdlayher/arp: Package arp implements the ARP protocol, as described in RFC 826. MIT Licensed.</a> という便利なライブラリがあるので、これを使えば
+<a href="https://github.com/hnakamur/netvip/blob/781a3c3647a234313ea17f8708265461d7aea0b5/garp.go#L15-L36">https://github.com/hnakamur/netvip/blob/781a3c3647a234313ea17f8708265461d7aea0b5/garp.go#L15-L36</a>
+と数十行程度のコードを書くだけです。</p>
+<p>もっと詳しく中身を知るには <a href="https://css.bz/2016/12/08/go-raw-sockets.html">Using raw sockets in Go</a> の記事が良かったです。</p>
+<h2 id="garpの受信">GARPの受信</h2>
+<p><a href="https://github.com/hnakamur/netvip/blob/781a3c3647a234313ea17f8708265461d7aea0b5/garp.go#L38-L77">https://github.com/hnakamur/netvip/blob/781a3c3647a234313ea17f8708265461d7aea0b5/garp.go#L38-L77</a></p>
+<p>RAW ソケット作成部分は <a href="https://css.bz/2016/12/08/go-raw-sockets.html">Using raw sockets in Go</a> の記事の最初のサンプルプログラムを参考にしつつ、keepalivedの
+<a href="https://github.com/acassen/keepalived/blob/26c979eef9c57d0b62ba3c4a18d080878575e5a1/keepalived/vrrp/vrrp_arp.c#L212">https://github.com/acassen/keepalived/blob/26c979eef9c57d0b62ba3c4a18d080878575e5a1/keepalived/vrrp/vrrp_arp.c#L212</a>
+を見て <code>syscall.ETH_P_ALL</code> を <code>syscall.ETH_P_ARP</code> に変えています。</p>
+<p>受信する部分は
+<a href="https://gist.github.com/corny/5e4e3f8e6f2395726e46c3db9db17f12">DHCP discover with Go and raw sockets</a>
+で <code>syscall.RecvFrom</code> を使っているのを見て真似しました。</p>
+<p>ARP パケットをパースする関数は
+<a href="https://github.com/mdlayher/arp">mdlayher/arp: Package arp implements the ARP protocol, as described in RFC 826. MIT Licensed.</a> の非公開関数のコード
+<a href="https://github.com/mdlayher/arp/blob/6706a2966875c189c24afd003ffe801ff69542a1/packet.go#L245-L261">https://github.com/mdlayher/arp/blob/6706a2966875c189c24afd003ffe801ff69542a1/packet.go#L245-L261</a>
+をコピーしました。</p>
+<h2 id="cliを書いた">CLIを書いた</h2>
+<p>VIPを追加してGARPを送信するのと、GARPを受信したらVIPを削除するCLIを書きました。
+<a href="https://github.com/hnakamur/netvip/blob/781a3c3647a234313ea17f8708265461d7aea0b5/cmd/vip/main.go">https://github.com/hnakamur/netvip/blob/781a3c3647a234313ea17f8708265461d7aea0b5/cmd/vip/main.go</a></p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'G-KMMXGG2Z56', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
