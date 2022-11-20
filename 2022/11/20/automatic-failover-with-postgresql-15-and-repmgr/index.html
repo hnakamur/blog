@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.101.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>PostgreSQL 15とrepmgrで自動フェイルオーバーを試してみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2022. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>PostgreSQL 15とrepmgrで自動フェイルオーバーを試してみた</h1>
+  <time datetime=2022-11-20T18:49:33&#43;0900 class="post-date">2022-11-20</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#試した環境">試した環境</a></li>
+    <li><a href="#構築手順メモ">構築手順メモ</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="https://repmgr.org/">repmgr - Replication Manager for PostgreSQL clusters</a> というのを最近知ったので PostgreSQL 15 との組み合わせで自動フェールオーバーを試してみたメモです。</p>
+<h2 id="試した環境">試した環境</h2>
+<ul>
+<li>LXD 5.6</li>
+<li>Ubuntu 22.04 LTS</li>
+<li>PostgreSQL 15</li>
+<li>repmgr 5.3.3</li>
+</ul>
+<h2 id="構築手順メモ">構築手順メモ</h2>
+<p>LXD で repmgr のプロジェクトを作って切り替えます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">lxc project create repmgr -c features.images<span class="o">=</span><span class="nb">false</span> -c features.profiles<span class="o">=</span><span class="nb">false</span>
+</span></span><span class="line"><span class="cl">lxc project switch repmgr
+</span></span></code></pre></div><p>2 つのコンテナ名を変数にセットします。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="nv">containers</span><span class="o">=</span><span class="k">$(for</span> c in node<span class="o">{</span>1,2<span class="o">}</span><span class="p">;</span> <span class="k">do</span> <span class="nb">echo</span> <span class="nv">$c</span><span class="p">;</span> <span class="k">done)</span>
+</span></span></code></pre></div><p>コンテナを作成起動します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  lxc launch ubuntu:22.04 <span class="nv">$c</span>
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span></code></pre></div><p><code>apt-get update</code> を実行します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  lxc <span class="nb">exec</span> <span class="nv">$c</span> -- apt-get update
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span></code></pre></div><p><a href="https://repmgr.org/docs/current/installation-packages.html#INSTALLATION-PACKAGES-DEBIAN">2.2.2. Debian/Ubuntu</a> に書かれていた PostgreSQL Community APT repository (<a href="https://apt.postgresql.org/">https://apt.postgresql.org/</a>) から deb パッケージをインストールする手順にしました。</p>
+<p>PostgreSQL Global Development Group (PGDG) のレポジトリの鍵をインポートして、レポジトリを追加。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  lxc <span class="nb">exec</span> <span class="nv">$c</span> -- mkdir -p /usr/local/share/keyrings
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  lxc <span class="nb">exec</span> <span class="nv">$c</span> -- curl -sS -o /usr/local/share/keyrings/pgdg.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  lxc <span class="nb">exec</span> <span class="nv">$c</span> -- sh -c <span class="s1">&#39;echo &#34;deb [signed-by=/usr/local/share/keyrings/pgdg.asc] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main&#34; &gt; /etc/apt/sources.list.d/pgdg.list&#39;</span>
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span></code></pre></div><p><code>apt-get update</code> した後必要なパッケージをインストール。
+<a href="https://repmgr.org/docs/current/configuration-prerequisites.html">4.1. Prerequisites for configuration</a> に Debian パッケージのように PostgreSQL のデータディレクトリ外に設定ファイルがある場合は rsync が必要とのことなので、openssh-server とともに入れています。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  lxc <span class="nb">exec</span> <span class="nv">$c</span> -- apt-get update
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  lxc <span class="nb">exec</span> <span class="nv">$c</span> -- apt-get -y install postgresql-15 postgresql-15-repmgr sudo openssh-server rsync
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span></code></pre></div><p>ロケール作成。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  lxc <span class="nb">exec</span> <span class="nv">$c</span> -- sed -i <span class="s1">&#39;/^# ja_JP.UTF-8 UTF-8/s/^# //&#39;</span> /etc/locale.gen
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  lxc <span class="nb">exec</span> <span class="nv">$c</span> -- locale-gen
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span></code></pre></div><p>postgresユーザでパスフレーズ無しの鍵で2つのコンテナ間でsshできるようにセットアップ。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ssh-keygen -t ed25519 -f postgres.id_ed25519 -C postgres -N <span class="s1">&#39;&#39;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  lxc <span class="nb">exec</span> <span class="nv">$c</span> -- sudo -u postgres mkdir -m <span class="m">700</span> /var/lib/postgresql/.ssh
+</span></span><span class="line"><span class="cl">  lxc file push --mode <span class="m">400</span> postgres.id_ed25519 <span class="nv">$c</span>/var/lib/postgresql/.ssh/id_ed25519
+</span></span><span class="line"><span class="cl">  lxc file push --mode <span class="m">600</span> postgres.id_ed25519.pub <span class="nv">$c</span>/var/lib/postgresql/.ssh/authorized_keys
+</span></span><span class="line"><span class="cl">  lxc <span class="nb">exec</span> <span class="nv">$c</span> -- sh -c <span class="s1">&#39;chown postgres: /var/lib/postgresql/.ssh/*&#39;</span>
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span><span class="line"><span class="cl">lxc <span class="nb">exec</span> node1 -- sudo -u postgres sh -c <span class="s1">&#39;ssh-keyscan -H node2 &gt; /var/lib/postgresql/.ssh/known_hosts&#39;</span>
+</span></span><span class="line"><span class="cl">lxc <span class="nb">exec</span> node2 -- sudo -u postgres sh -c <span class="s1">&#39;ssh-keyscan -H node1 &gt; /var/lib/postgresql/.ssh/known_hosts&#39;</span>
+</span></span></code></pre></div><p>PostgreSQLの設定ファイル作成。
+<a href="https://repmgr.org/docs/current/quickstart-postgresql-configuration.html">3.2. PostgreSQL configuration</a> と <a href="https://repmgr.org/docs/current/configuration-prerequisites.html#CONFIGURATION-POSTGRESQL">4.1. Prerequisites for configuration</a> を参考にしました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  cat <span class="s">&lt;&lt;EOF | lxc exec $c -- sudo -u postgres sh -c &#39;cat &gt; /etc/postgresql/15/main/conf.d/01-custom.conf&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">listen_addresses = &#39;*&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">port = 5432
+</span></span></span><span class="line"><span class="cl"><span class="s">timezone = &#39;Asia/Tokyo&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">log_timezone = &#39;Asia/Tokyo&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">logging_collector = on
+</span></span></span><span class="line"><span class="cl"><span class="s">log_directory = &#39;/var/log/postgresql/15-main&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">max_wal_senders = 10
+</span></span></span><span class="line"><span class="cl"><span class="s">wal_level = replica
+</span></span></span><span class="line"><span class="cl"><span class="s">wal_log_hints = on
+</span></span></span><span class="line"><span class="cl"><span class="s">archive_mode = on
+</span></span></span><span class="line"><span class="cl"><span class="s">archive_command = &#39;/bin/true&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">
+</span></span></span><span class="line"><span class="cl"><span class="s">external_pid_file = &#39;/run/postgresql/15-main.pid&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">
+</span></span></span><span class="line"><span class="cl"><span class="s">tcp_keepalives_idle = 60
+</span></span></span><span class="line"><span class="cl"><span class="s">tcp_keepalives_interval = 5
+</span></span></span><span class="line"><span class="cl"><span class="s">tcp_keepalives_count = 6
+</span></span></span><span class="line"><span class="cl"><span class="s">
+</span></span></span><span class="line"><span class="cl"><span class="s">shared_buffers = 1024MB
+</span></span></span><span class="line"><span class="cl"><span class="s">work_mem = 8MB
+</span></span></span><span class="line"><span class="cl"><span class="s">
+</span></span></span><span class="line"><span class="cl"><span class="s">hot_standby = on
+</span></span></span><span class="line"><span class="cl"><span class="s">hot_standby_feedback = on
+</span></span></span><span class="line"><span class="cl"><span class="s">max_replication_slots = 10
+</span></span></span><span class="line"><span class="cl"><span class="s">max_standby_streaming_delay = -1
+</span></span></span><span class="line"><span class="cl"><span class="s">max_standby_archive_delay = -1
+</span></span></span><span class="line"><span class="cl"><span class="s">reload_after_crash = off
+</span></span></span><span class="line"><span class="cl"><span class="s">synchronous_commit = on
+</span></span></span><span class="line"><span class="cl"><span class="s">wal_keep_size = 16GB
+</span></span></span><span class="line"><span class="cl"><span class="s">wal_receiver_status_interval = 2
+</span></span></span><span class="line"><span class="cl"><span class="s">
+</span></span></span><span class="line"><span class="cl"><span class="s"># Use repmgrd for automatic failover
+</span></span></span><span class="line"><span class="cl"><span class="s">shared_preload_libraries = &#39;repmgr&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">EOF</span>
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span></code></pre></div><p>repmgrユーザとrepmgrデータベースを作成。パスワードは適宜変更してください。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  lxc <span class="nb">exec</span> <span class="nv">$c</span> -- sudo -iu postgres mkdir -p /var/log/postgresql/15-main
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  lxc <span class="nb">exec</span> <span class="nv">$c</span> -- sudo -iu postgres psql -c <span class="s2">&#34;CREATE USER repmgr SUPERUSER PASSWORD &#39;repmgrpass&#39;;&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  lxc <span class="nb">exec</span> <span class="nv">$c</span> -- sudo -iu postgres createdb repmgr -O repmgr
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  lxc <span class="nb">exec</span> <span class="nv">$c</span> -- sudo -iu postgres sh -c <span class="s2">&#34;install -m 600 /dev/null /var/lib/postgresql/.pgpass&#34;</span>
+</span></span><span class="line"><span class="cl">  cat <span class="s">&lt;&lt;EOF | lxc exec $c -- sudo -u postgres sh -c &#39;cat &gt; /var/lib/postgresql/.pgpass&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">*:*:*:repmgr:repmgrpass
+</span></span></span><span class="line"><span class="cl"><span class="s">EOF</span>
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span></code></pre></div><p><code>pg_hba.conf</code> に repmgr ユーザ用の設定を追加。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  lxc <span class="nb">exec</span> <span class="nv">$c</span> -- cp /etc/postgresql/15/main/pg_hba.conf /etc/postgresql/15/main/pg_hba.conf.orig
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  cat <span class="s">&lt;&lt;EOF | lxc exec $c -- sudo -u postgres tee -a /etc/postgresql/15/main/pg_hba.conf &gt; /dev/null
+</span></span></span><span class="line"><span class="cl"><span class="s">
+</span></span></span><span class="line"><span class="cl"><span class="s">#
+</span></span></span><span class="line"><span class="cl"><span class="s"># custom entries for repmgr
+</span></span></span><span class="line"><span class="cl"><span class="s">#
+</span></span></span><span class="line"><span class="cl"><span class="s">host    replication     repmgr          samenet                 scram-sha-256
+</span></span></span><span class="line"><span class="cl"><span class="s">host    repmgr          repmgr          samenet                 scram-sha-256
+</span></span></span><span class="line"><span class="cl"><span class="s">EOF</span>
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span></code></pre></div><p>リロードして反映。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  lxc <span class="nb">exec</span> <span class="nv">$c</span> -- systemctl reload postgresql@15-main
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span></code></pre></div><p>接続テスト。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">lxc <span class="nb">exec</span> node1 -- sudo -iu postgres psql -c <span class="s2">&#34;SELECT 1&#34;</span> <span class="s1">&#39;host=node1 user=repmgr dbname=repmgr connect_timeout=2&#39;</span>
+</span></span></code></pre></div><p>フェイルオーバー成功時に仮想IPアドレス(VIP)を追加するスクリプトを作成。
+以下ではVIPを192.0.2.2/32としていますが、環境に合わせて適宜変更してください。
+<code>/usr/local/bin/vip</code> はVIPを追加してGARPを送信する自作CLIです (詳細は <a href="/blog/2022/11/19/send-and-receive-garp-with-go/">GoでGratious ARP (GARP)を送信と受信する · hnakamur&rsquo;s blog</a> 参照)。</p>
+<pre tabindex="0"><code>for c in $containers; do
+  lxc exec $c -- install -m 755 /dev/null /usr/local/sbin/add-vip-on-standby-promote.sh
+  cat &lt;&lt;&#39;EOF&#39; | lxc exec $c -- tee /dev/null /usr/local/sbin/add-vip-on-standby-promote.sh &gt; /dev/null
+#!/bin/bash
+success=&#34;$1&#34;
+logger -t repmgr-event add-vip-on-standby-promote &#34;$success&#34;
+if [ &#34;$success&#34; -eq 1 ]; then
+  /usr/bin/sudo /usr/local/bin/vip add --interface eth0 --label eth0:0 --address 192.0.2.2/32
+fi
+EOF
+done
+</code></pre><p>repmgrの設定ファイル <code>/etc/repmgr.conf</code> を作成。
+repmgrのCLIで <code>-f</code> オプションを明示的に指定しない場合に設定ファイルを読み込むパスが
+<a href="https://github.com/EnterpriseDB/repmgr/blob/v5.3.3/configfile.c#L151-L225">https://github.com/EnterpriseDB/repmgr/blob/v5.3.3/configfile.c#L151-L225</a>
+に書かれているので、このうち <code>/etc/repmgr.conf</code> に置くことにしました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="k">for</span> id in <span class="o">{</span>1,2<span class="o">}</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  cat <span class="s">&lt;&lt;EOF | lxc exec node$id -- tee /etc/repmgr.conf &gt; /dev/null
+</span></span></span><span class="line"><span class="cl"><span class="s">node_id=$id
+</span></span></span><span class="line"><span class="cl"><span class="s">node_name=&#39;node$id&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">conninfo=&#39;host=node$id user=repmgr dbname=repmgr connect_timeout=2&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">pg_bindir=&#39;/usr/lib/postgresql/15/bin&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">data_directory=&#39;/var/lib/postgresql/15/main&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">service_start_command=&#39;/usr/bin/sudo /usr/bin/systemctl start postgresql&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">service_stop_command=&#39;/usr/bin/sudo /usr/bin/systemctl stop postgresql&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">service_reload_command=&#39;/usr/bin/sudo /usr/bin/systemctl restart postgresql&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">service_reload_command=&#39;/usr/bin/sudo /usr/bin/systemctl reload postgresql&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">failover=automatic
+</span></span></span><span class="line"><span class="cl"><span class="s">promote_command=&#39;/usr/bin/repmgr standby promote --log-to-file&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">follow_command=&#39;/usr/bin/repmgr standby follow --log-to-file --upstream-node-id=%n&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">monitoring_history=yes
+</span></span></span><span class="line"><span class="cl"><span class="s">log_file=&#39;/var/log/postgresql/15-main/repmgr.log&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">repmgrd_pid_file=&#39;/var/run/postgresql/repmgrd.pid&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">event_notification_command=&#39;/usr/local/sbin/add-vip-on-standby-promote.sh %s&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">event_notifications=&#39;standby_promote&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">EOF</span>
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span></code></pre></div><p>repmgrdを使うために設定ファイルを編集します。</p>
+<pre tabindex="0"><code class="language-sudo" data-lang="sudo">for c in $containers; do
+  lxc exec $c -- sed -i -e &#39;s|^REPMGRD_ENABLED=no$|REPMGRD_ENABLED=yes|;s|^#REPMGRD_CONF=&#34;/path/to/repmgr.conf&#34;$|REPMGRD_CONF=&#34;/etc/repmgr.conf&#34;|&#39; /etc/default/repmgrd
+done
+</code></pre><p>postgresユーザが以下のコマンドをパスワード無しでsudoで実行できるように設定を追加。</p>
+<pre tabindex="0"><code class="language-sudo" data-lang="sudo">for c in $containers; do
+  cat &lt;&lt;&#39;EOF&#39; | lxc exec $c -- sh -c &#39;cat &gt; /etc/sudoers.d/01-postgres&#39;
+Defaults:postgres !requiretty
+postgres ALL = NOPASSWD: /usr/bin/systemctl start postgresql, \
+                         /usr/bin/systemctl stop postgresql, \
+                         /usr/bin/systemctl reload postgresql, \
+                         /usr/bin/systemctl reload postgresql, \
+                         /usr/local/bin/vip add --interface eth0 --label eth0\:0 --address 192.0.2.2/32
+EOF
+done
+</code></pre><p><a href="https://repmgr.org/docs/current/quickstart-primary-register.html">3.7. Register the primary server</a> に従ってプライマリサーバを登録。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">lxc <span class="nb">exec</span> node1 -- sudo -u postgres repmgr primary register
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">lxc <span class="nb">exec</span> node1 -- sudo -u postgres repmgr cluster show
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">lxc <span class="nb">exec</span> node1 -- sudo -u postgres psql -U repmgr -h localhost -c <span class="s1">&#39;\x on&#39;</span> -c <span class="s1">&#39;SELECT * FROM repmgr.nodes;&#39;</span> repmgr
+</span></span></code></pre></div><p><a href="https://repmgr.org/docs/current/quickstart-standby-clone.html">3.8. Clone the standby server</a> を参考にスタンバイサーバをセットアップ。スタンバイサーバのPostgreSQLを停止し、データディレクトリを削除し、<code>repmgr standby clone</code> を <code>--dry-run</code> つきで実行。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">lxc <span class="nb">exec</span> node2 -- systemctl stop postgresql
+</span></span><span class="line"><span class="cl">lxc <span class="nb">exec</span> node2 -- sudo -iu postgres sh -c <span class="s1">&#39;rm -rf /var/lib/postgresql/15/main/*&#39;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">lxc <span class="nb">exec</span> node2 -- sudo -iu postgres repmgr -h node1 -U repmgr -d repmgr standby clone --dry-run
+</span></span></code></pre></div><p>ドライランの出力結果。</p>
+<pre tabindex="0"><code>$ lxc exec node2 -- sudo -iu postgres repmgr -h node1 -U repmgr -d repmgr standby clone --dry-run
+NOTICE: destination directory &#34;/var/lib/postgresql/15/main&#34; provided
+INFO: connecting to source node
+DETAIL: connection string is: host=node1 user=repmgr dbname=repmgr
+DETAIL: current installation size is 29 MB
+INFO: &#34;repmgr&#34; extension is installed in database &#34;repmgr&#34;
+INFO: replication slot usage not requested;  no replication slot will be set up for this standby
+INFO: parameter &#34;max_wal_senders&#34; set to 10
+NOTICE: checking for available walsenders on the source node (2 required)
+INFO: sufficient walsenders available on the source node
+DETAIL: 2 required, 10 available
+NOTICE: checking replication connections can be made to the source server (2 required)
+INFO: required number of replication connections could be made to the source server
+DETAIL: 2 replication connections required
+NOTICE: standby will attach to upstream node 1
+HINT: consider using the -c/--fast-checkpoint option
+INFO: would execute:
+  /usr/lib/postgresql/15/bin/pg_basebackup -l &#34;repmgr base backup&#34;  -D /var/lib/postgresql/15/main -h node1 -p 5432 -U repmgr -X stream
+INFO: all prerequisites for &#34;standby clone&#34; are met
+</code></pre><p><code>--dry-run</code> なしで実際に実行。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">lxc <span class="nb">exec</span> node2 -- sudo -iu postgres repmgr -h node1 -U repmgr -d repmgr standby clone
+</span></span></code></pre></div><p>出力結果。</p>
+<pre tabindex="0"><code>$ lxc exec node2 -- sudo -iu postgres repmgr -h node1 -U repmgr -d repmgr standby clone
+NOTICE: destination directory &#34;/var/lib/postgresql/15/main&#34; provided
+INFO: connecting to source node
+DETAIL: connection string is: host=node1 user=repmgr dbname=repmgr
+DETAIL: current installation size is 29 MB
+INFO: replication slot usage not requested;  no replication slot will be set up for this standby
+NOTICE: checking for available walsenders on the source node (2 required)
+NOTICE: checking replication connections can be made to the source server (2 required)
+INFO: checking and correcting permissions on existing directory &#34;/var/lib/postgresql/15/main&#34;
+NOTICE: starting backup (using pg_basebackup)...
+HINT: this may take some time; consider using the -c/--fast-checkpoint option
+INFO: executing:
+  /usr/lib/postgresql/15/bin/pg_basebackup -l &#34;repmgr base backup&#34;  -D /var/lib/postgresql/15/main -h node1 -p 5432 -U repmgr -X stream
+NOTICE: standby clone (using pg_basebackup) complete
+NOTICE: you can now start your PostgreSQL server
+HINT: for example: pg_ctl -D /var/lib/postgresql/15/main start
+HINT: after starting the server, you need to register this standby with &#34;repmgr standby register&#34;
+</code></pre><p>自動生成されたPostgreSQLの追加設定のファイルを確認。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">lxc <span class="nb">exec</span> node2 -- cat /var/lib/postgresql/15/main/postgresql.auto.conf
+</span></span></code></pre></div><p>実行結果。</p>
+<pre tabindex="0"><code>$ lxc exec node2 -- cat /var/lib/postgresql/15/main/postgresql.auto.conf
+# Do not edit this file manually!
+# It will be overwritten by the ALTER SYSTEM command.
+primary_conninfo = &#39;host=node1 user=repmgr application_name=node2 connect_timeout=2&#39;
+</code></pre><p>スタンバイサーバのPostgreSQLサービスを起動。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">lxc <span class="nb">exec</span> node2 -- systemctl start postgresql
+</span></span></code></pre></div><p>レプリケーションの状態確認。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">lxc <span class="nb">exec</span> node1 -- sudo -iu postgres psql -h node1 -U repmgr -d repmgr -c <span class="s2">&#34;\x on&#34;</span> -c <span class="s2">&#34;SELECT * FROM pg_stat_replication&#34;</span>
+</span></span><span class="line"><span class="cl">lxc <span class="nb">exec</span> node2 -- sudo -iu postgres psql -h node2 -U repmgr -d repmgr -c <span class="s2">&#34;\x on&#34;</span> -c <span class="s2">&#34;SELECT * FROM pg_stat_wal_receiver&#34;</span>
+</span></span></code></pre></div><p>実行結果。</p>
+<pre tabindex="0"><code>$ lxc exec node1 -- sudo -iu postgres psql -h node1 -U repmgr -d repmgr -c &#34;\x on&#34; -c &#34;SELECT * FROM pg_sta
+t_replication&#34;
+Expanded display is on.
+-[ RECORD 1 ]----+---------------------------------------
+pid              | 4402
+usesysid         | 16388
+usename          | repmgr
+application_name | node2
+client_addr      | fd42:b136:20b6:1c77:216:3eff:fec2:d2c8
+client_hostname  |
+client_port      | 45718
+backend_start    | 2022-11-09 23:40:02.953572+09
+backend_xmin     | 743
+state            | streaming
+sent_lsn         | 0/5000298
+write_lsn        | 0/5000298
+flush_lsn        | 0/5000298
+replay_lsn       | 0/5000298
+write_lag        |
+flush_lag        |
+replay_lag       |
+sync_priority    | 0
+sync_state       | async
+reply_time       | 2022-11-09 23:42:06.7976+09
+
+$ lxc exec node2 -- sudo -iu postgres psql -h node2 -U repmgr -d repmgr -c &#34;\x on&#34; -c &#34;SELECT * FROM pg_stat_wal_receiver&#34;
+Expanded display is on.
+-[ RECORD 1 ]---------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+pid                   | 4275
+status                | streaming
+receive_start_lsn     | 0/5000000
+receive_start_tli     | 1
+written_lsn           | 0/50002D0
+flushed_lsn           | 0/50002D0
+received_tli          | 1
+last_msg_send_time    | 2022-11-09 23:42:37.629225+09
+last_msg_receipt_time | 2022-11-09 23:42:37.62934+09
+latest_end_lsn        | 0/50002D0
+latest_end_time       | 2022-11-09 23:42:07.595489+09
+slot_name             |
+sender_host           | node1
+sender_port           | 5432
+conninfo              | user=repmgr passfile=/var/lib/postgresql/.pgpass channel_binding=prefer connect_timeout=2 dbname=replication host=node1 port=5432 application_name=node2 fallback_application_name=15/main sslmode=prefer sslcompression=0 sslsni=1 ssl_min_protocol_version=TLSv1.2 gssencmode=prefer krbsrvname=postgres target_session_attrs=any
+</code></pre><p>スタンバイサーバをrepmgrに登録。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">lxc <span class="nb">exec</span> node2 -- sudo -u postgres repmgr standby register
+</span></span></code></pre></div><p>実行結果。</p>
+<pre tabindex="0"><code>$ lxc exec node2 -- sudo -u postgres repmgr standby register
+INFO: connecting to local node &#34;node2&#34; (ID: 2)
+INFO: connecting to primary database
+WARNING: --upstream-node-id not supplied, assuming upstream node is primary (node ID: 1)
+INFO: standby registration complete
+NOTICE: standby node &#34;node2&#34; (ID: 2) successfully registered
+</code></pre><p>クラスタの状態確認。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">lxc <span class="nb">exec</span> node1 -- sudo -u postgres repmgr cluster show
+</span></span></code></pre></div><p>2つのコンテナでの実行結果。同じ内容が出力された。</p>
+<pre tabindex="0"><code>$ lxc exec node1 -- sudo -u postgres repmgr cluster show
+ ID | Name  | Role    | Status    | Upstream | Location | Priority | Timeline | Connection string
+----+-------+---------+-----------+----------+----------+----------+----------+--------------------------------------------------------
+ 1  | node1 | primary | * running |          | default  | 100      | 1        | host=node1 user=repmgr dbname=repmgr connect_timeout=2
+ 2  | node2 | standby |   running | node1    | default  | 100      | 1        | host=node2 user=repmgr dbname=repmgr connect_timeout=2
+</code></pre><pre tabindex="0"><code>$ lxc exec node2 -- sudo -u postgres repmgr cluster show
+ ID | Name  | Role    | Status    | Upstream | Location | Priority | Timeline | Connection string
+----+-------+---------+-----------+----------+----------+----------+----------+--------------------------------------------------------
+ 1  | node1 | primary | * running |          | default  | 100      | 1        | host=node1 user=repmgr dbname=repmgr connect_timeout=2
+ 2  | node2 | standby |   running | node1    | default  | 100      | 1        | host=node2 user=repmgr dbname=repmgr connect_timeout=2
+</code></pre><p>GARPを受信したらVIPを削除する自作CLIのサービスを登録して起動。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  cat <span class="s">&lt;&lt;&#39;EOF&#39; | lxc exec $c -- sh -c &#39;cat &gt;&gt; /etc/systemd/system/vip-delete.service&#39;
+</span></span></span><span class="line"><span class="cl"><span class="s">[Unit]
+</span></span></span><span class="line"><span class="cl"><span class="s">Description=vip delete when GARP received
+</span></span></span><span class="line"><span class="cl"><span class="s">After=network.target
+</span></span></span><span class="line"><span class="cl"><span class="s">
+</span></span></span><span class="line"><span class="cl"><span class="s">[Service]
+</span></span></span><span class="line"><span class="cl"><span class="s">Type=simple
+</span></span></span><span class="line"><span class="cl"><span class="s">ExecStart=/usr/local/bin/vip del --watch --interface eth0 --address 192.0.2.2/32
+</span></span></span><span class="line"><span class="cl"><span class="s">
+</span></span></span><span class="line"><span class="cl"><span class="s">[Install]
+</span></span></span><span class="line"><span class="cl"><span class="s">WantedBy=multi-user.target
+</span></span></span><span class="line"><span class="cl"><span class="s">EOF</span>
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  lxc <span class="nb">exec</span> <span class="nv">$c</span> -- systemctl daemon-reload
+</span></span><span class="line"><span class="cl">  lxc <span class="nb">exec</span> <span class="nv">$c</span> -- systemctl <span class="nb">enable</span> --now vip-delete.service
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span></code></pre></div><p>repmgrdは最初は止めた状態で</p>
+<ul>
+<li><a href="https://repmgr.org/docs/current/promoting-standby.html">Chapter 6. Promoting a standby server with repmgr</a></li>
+<li><a href="https://repmgr.org/docs/current/performing-switchover.html">Chapter 8. Performing a switchover with repmgr</a></li>
+</ul>
+<p>を試して、その後</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="k">for</span> c in <span class="nv">$containers</span><span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">  lxc <span class="nb">exec</span> <span class="nv">$c</span> -- systemctl <span class="nb">enable</span> --now repmgrd
+</span></span><span class="line"><span class="cl"><span class="k">done</span>
+</span></span></code></pre></div><p>でrepmgrdの自動起動を有効にしつつ起動して</p>
+<ul>
+<li><a href="https://repmgr.org/docs/current/repmgrd-automatic-failover.html">Chapter 12. Automatic failover with repmgrd</a></li>
+</ul>
+<p>を試しました。</p>
+<p>テスト用のサンプルアプリケーション <a href="https://github.com/hnakamur/postgresql-ha-test-webapp">hnakamur/postgresql-ha-test-webapp</a> を書いて試したところ、フェイルオーバー時は2秒程度接続エラーが出ますが、その後は復旧してデータベースに接続して更新処理が出来ていました。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'G-KMMXGG2Z56', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
