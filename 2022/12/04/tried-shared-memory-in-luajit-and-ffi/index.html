@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.101.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>LuaJIT&#43;FFIで共有メモリを試してみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2022. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>LuaJIT&#43;FFIで共有メモリを試してみた</h1>
+  <time datetime=2022-12-04T21:23:06&#43;0900 class="post-date">2022-12-04</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#マルチプロセスで共有メモリを使う際の要約">マルチプロセスで共有メモリを使う際の要約</a></li>
+    <li><a href="#排他制御にmutexとrwlockのどちらを使うかとrwlockのreaderwriter-starvationについて">排他制御にmutexとrwlockのどちらを使うかとrwlockのreader/writer starvationについて</a></li>
+    <li><a href="#the-allegory-sdkhttpsgithubcomallegory-softwareallegory-sdkがluajitffiでコードを書く教材として役立つ"><a href="https://github.com/allegory-software/allegory-sdk">The Allegory SDK</a>がLuaJIT＋FFIでコードを書く教材として役立つ</a></li>
+    <li><a href="#luajitのffimetatypehttpsluajitorgext_ffi_apihtmlffi_metatypeの使い方も学べた">LuaJITの<a href="https://luajit.org/ext_ffi_api.html#ffi_metatype">ffi.metatype</a>の使い方も学べた</a></li>
+    <li><a href="#goのエラー処理を参考にして構造化エラーのコードを書いてみた">Goのエラー処理を参考にして構造化エラーのコードを書いてみた</a></li>
+    <li><a href="#visual-studio-code-のlua拡張httpsmarketplacevisualstudiocomitemsitemnamesumnekoluaが便利">Visual Studio Code の<a href="https://marketplace.visualstudio.com/items?itemName=sumneko.lua">Lua拡張</a>が便利</a></li>
+    <li><a href="#luajitffiでuint64を扱うためのハック">LuaJIT+FFIでuint64を扱うためのハック</a></li>
+    <li><a href="#おわりに">おわりに</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="https://github.com/openresty/lua-nginx-module">openresty/lua-nginx-module</a> の <a href="https://github.com/openresty/lua-nginx-module#ngxshareddict">ngx.shared.DICT</a> のような仕組みが <a href="https://github.com/apache/trafficserver">Apache Traffic Server™</a> の
+<a href="https://docs.trafficserver.apache.org/en/latest/admin-guide/plugins/lua.en.html">Lua Plugin</a> にも欲しいなあと以前から思っていました。</p>
+<p>私の場合は公式の <a href="https://www.lua.org/">Lua</a> の実装ではなく <a href="https://luajit.org/">LuaJIT</a> を使用していますので、複数の LuaJIT の VM でデータを共有して排他制御しつつ読み書きしたいというわけです。NGINX の場合はワーカーがマルチプロセス構成なのでプロセス間で参照できる共有メモリが必要です。Traffic Server の場合はシングルスレッド・マルチスレッドですが、可能なら同じサーバ上で稼働している NGINX とも共有したいという思いがあって、そうなるとやはりマルチプロセスとなります。</p>
+<p>マルチプロセスでの排他制御について、以前調べたときは良い方法を見つけられず諦めていたのですが、改めて検索してみると <a href="https://stackoverflow.com/questions/42628949/using-pthread-mutex-shared-between-processes-correctly">linux - Using pthread mutex shared between processes correctly - Stack Overflow</a> というページが見つかりました。ここに書かれている手法を試してみたので、その際に調べたり試したりしたことをメモしておきます。</p>
+<p>試してみたソースコードは <a href="https://github.com/hnakamur/luajit-pshared-mmapf-experiment">https://github.com/hnakamur/luajit-pshared-mmapf-experiment</a> にあります。</p>
+<h2 id="マルチプロセスで共有メモリを使う際の要約">マルチプロセスで共有メモリを使う際の要約</h2>
+<ul>
+<li><a href="https://manpages.ubuntu.com/manpages/jammy/en/man3/shm_open.3.html">shm_open</a>で共有メモリを作成または開いて<a href="https://manpages.ubuntu.com/manpages/kinetic/en/man3/mmap.3posix.html">mmap</a>でメモリにマップすると複数のプロセス間で共有できる。
+<ul>
+<li><code>mmap</code>では<code>MAP_SHARED</code>か<code>MAP_SHARED_VALIDATE</code>を指定。</li>
+<li>存在しない場合に作成する処理を排他制御するには<code>shm_open</code>で<code>O_CREAT</code>と<code>O_EXCL</code>を指定する。</li>
+</ul>
+</li>
+<li>マップしたメモリ上に<code>pthread_mutex_t</code>か<code>pthread_rwlock_t</code>のインスタンスを作って排他制御することができる
+<ul>
+<li>複数プロセスで共有して使うため、作成時に<a href="https://manpages.ubuntu.com/manpages/jammy/en/man3/pthread_mutexattr_setpshared.3.html">pthread_mutexattr_setpshared</a>か<a href="https://manpages.ubuntu.com/manpages/kinetic/en/man3/pthread_rwlockattr_setpshared.3posix.html">pthread_rwlockattr_setpshared</a>で<code>PTHREAD_PROCESS_SHARED</code> を指定。</li>
+<li><code>pthread_rwlock_t</code>はデフォルトではreader優先だが、非標準でGNU拡張の<a href="https://manpages.ubuntu.com/manpages/jammy/en/man3/pthread_rwlockattr_setkind_np.3.html">pthread_rwlockattr_setkind_np</a>を使えばwriter優先にもできる。</li>
+<li>今回は試してないが<a href="https://manpages.ubuntu.com/manpages/jammy/en/man7/shm_overview.7.html">man 7 shm_overview</a>によるとPOSIXセマフォを使う方法もある (<a href="https://manpages.ubuntu.com/manpages/jammy/en/man7/sem_overview.7.html">man 7 sem_overview</a>参照)。</li>
+</ul>
+</li>
+</ul>
+<h2 id="排他制御にmutexとrwlockのどちらを使うかとrwlockのreaderwriter-starvationについて">排他制御にmutexとrwlockのどちらを使うかとrwlockのreader/writer starvationについて</h2>
+<p>NGINXは共有メモリの排他制御に独自実装のmutex (<a href="https://github.com/nginx/nginx/blob/release-1.23.2/src/core/ngx_shmtx.h">src/core/ngx_shmtx.h</a>)を使っています。<a href="https://github.com/nginx/nginx/blob/release-1.23.2/src/core/ngx_cycle.c#L413-L500">src/core/ngx_cycle.c#L413-L500</a>で共有メモリを作成していて、そこから呼ばれる<a href="https://github.com/nginx/nginx/blob/release-1.23.2/src/core/ngx_cycle.c#L951-L1014">ngx_init_zone_pool</a>関数内の<a href="https://github.com/nginx/nginx/blob/release-1.23.2/src/core/ngx_cycle.c#L1007">src/core/ngx_cycle.c#L1007</a>で<a href="https://github.com/nginx/nginx/blob/release-1.23.2/src/core/ngx_shmtx.c#L18-L43">ngx_shmtx_create</a>関数を呼んでいます。</p>
+<p>mutexではなくrwlockのほうが複数のreaderが同時に実行できて良さそうなのに、なぜmutexにしてるんだろう、なぜ<a href="https://github.com/nginx/nginx/blob/release-1.23.2/src/core/ngx_rwlock.h">src/core/ngx_rwlock.h</a>と単一プロセス用のはあるのに<code>ngx_shrwlock</code>は無いんだろうという素朴な疑問がありました。</p>
+<p><a href="https://sites.google.com/site/embeddedmonologue/home/mutual-exclusion-and-synchronization/rwlock-and-reader-writer-starvation?pli=1">embeddedmonologue - rwlock and reader/writer starvation</a>というブログにrwlockではreader starvationとwriter starvationの両方を防ぐことはできないと説明されていました。利用ケースに応じて、reader優先にしてwriter starvationは許容するか、writer優先にしてreader starvationは許容するか、どちらかを選ぶ必要があります。</p>
+<p>これを知って、利用ケースを限定できないような汎用的な仕組みを提供するとなるとmutexにしておいたほうが無難だなと納得しました。</p>
+<h2 id="the-allegory-sdkhttpsgithubcomallegory-softwareallegory-sdkがluajitffiでコードを書く教材として役立つ"><a href="https://github.com/allegory-software/allegory-sdk">The Allegory SDK</a>がLuaJIT＋FFIでコードを書く教材として役立つ</h2>
+<p><a href="https://luapower.com/">luapower - The LuaJIT distribution for Windows, Linux and OS X</a> (2022-12-04現在証明書期限切れになってました。<a href="https://gist.github.com/hnakamur/2021a1a42c9d449517240ba2a185cf53#file-show-cert-info-server-sh">file-show-cert-info-server-sh</a>で調べると<code>notAfter=Dec  3 07:11:35 2022 GMT</code>でした)のコードを時々参考にしていたのですが、更新停止のお知らせとアクティブに開発中の<a href="https://github.com/allegory-software/allegory-sdk">The Allegory SDK</a>へのリンクがあって知りました。</p>
+<p>サーバサイドはLuaJITで書かれていてLinux、macOS、Windowsに対応しています。ですが私の場合はLinuxのみで良いのと、細かいところでいろいろ調整したいので、そのまま利用するのではなくコードを参考にしました。</p>
+<p><code>pthread_mutex</code>と<code>pthread_rwlock</code>のFFI周りのコードはここから頂きました。感謝！</p>
+<h2 id="luajitのffimetatypehttpsluajitorgext_ffi_apihtmlffi_metatypeの使い方も学べた">LuaJITの<a href="https://luajit.org/ext_ffi_api.html#ffi_metatype">ffi.metatype</a>の使い方も学べた</h2>
+<p>また<a href="https://github.com/allegory-software/allegory-sdk">The Allegory SDK</a>のコードを見て、<a href="https://luajit.org/ext_ffi_api.html#ffi_metatype">ffi.metatype</a>の使い方も学びました。
+<a href="https://github.com/hnakamur/luajit-pshared-mmapf-experiment/blob/main/pshared_rwlock.lua">pshared_rwlock.lua</a>で<code>pthread_rwlock_t</code>をラップしてメソッドを追加するのに使っています。</p>
+<h2 id="goのエラー処理を参考にして構造化エラーのコードを書いてみた">Goのエラー処理を参考にして構造化エラーのコードを書いてみた</h2>
+<p>ここで突然Goの話になりますが、<a href="https://github.com/golang/go/issues/53435">errors: add support for wrapping multiple errors · Issue #53435 · golang/go</a>は個人的にはかなり嬉しいと思っています。今までだと複数エラーが出てもreturnで返せるのは1つだけなので、残りはログ出力するしかありませんでした。エラーのログは呼ばれた側で出力するのではなく、呼び出し側がにエラーを返してそちらで1回だけログ出力するのが理想だと私は思っています。呼ばれた側で出力するとログが一か所ではなく分散してしまい確認が大変なので。</p>
+<p>また、<a href="https://go.googlesource.com/proposal/+/master/design/56345-structured-logging.md">Proposal: Structured Logging</a>が来たことで、構造化エラーを文字列化するのではなく構造を維持したままログ出力するのもしやすくなりそうということでこちらも期待しています。</p>
+<p>ということでLuaJITでコードを書く場合も、エラーを構造化できないかと思って今回書いてみました (<a href="https://github.com/hnakamur/luajit-pshared-mmapf-experiment/blob/main/errors.lua">errors.lua</a>)。といってもGoの<a href="https://pkg.go.dev/errors@go1.19.3">errors package</a>のような<code>errors.Is</code>や<code>errors.As</code>のような判定の仕組みはなくて、エラーの値を構築するところだけです。</p>
+<p>エラーは<code>Error</code>のインスタンスとして生成し、必要に応じて属性をフィールドとして設定できます。
+ログ出力時は<code>error</code>メソッドを呼ぶと<a href="https://github.com/DaveGamble/cJSON">cJSON</a>で文字列化します。</p>
+<p>エラーインスタンスのフィールドを見てエラー処理を分岐する処理は以下のような感じで書けます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl">    <span class="kd">local</span> <span class="n">f</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">open</span><span class="p">(</span><span class="n">shm_name</span><span class="p">,</span> <span class="n">map_len</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">if</span> <span class="n">err</span> <span class="o">~=</span> <span class="kc">nil</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">if</span> <span class="n">err.errno</span> <span class="o">~=</span> <span class="n">errors.ENOENT</span> <span class="ow">and</span> <span class="n">err.errno</span> <span class="o">~=</span> <span class="n">errors.EACCES</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">            <span class="kr">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="n">err</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">-- err.errnoがerrors.ENOENTかerrors.EACCESの場合のエラー処理</span>
+</span></span></code></pre></div><h2 id="visual-studio-code-のlua拡張httpsmarketplacevisualstudiocomitemsitemnamesumnekoluaが便利">Visual Studio Code の<a href="https://marketplace.visualstudio.com/items?itemName=sumneko.lua">Lua拡張</a>が便利</h2>
+<p>今回初めて使ってみたのですが便利でした。静的型付けではないLua言語でここまで出来るのかと驚きました。</p>
+<p>コードフォーマットも出来ますし、ホバーで関数などの定義が表示されますし、Rename Symbolでは参照側のファイルも連動して変更されました (ただこれはされない場合もあるようです。詳しく調べてないです)。</p>
+<p>またnilチェックしないで参照しているとPROBLEMSに警告が出るというのもすごいなと思いました。</p>
+<p>ただ、Goっぽく <code>local value, err = some_function()</code> のように値とエラーを返すようにしていると、errが非nilの場合にreturnで抜けると、その後はvalueは非nilなんだけどなー(と言っても関数の実装次第)、と思いつつ、上の警告を消すために以下のようにnilチェックを入れるようにしてみました。</p>
+<p>unreachableは<a href="https://doc.rust-lang.org/std/macro.unreachable.html">Rustのunreachable</a>や<a href="https://ziglang.org/documentation/master/#unreachable">Zigのunreachable</a>の名前を頂きました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">ms</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">mmap_shm.open_or_create</span><span class="p">(</span><span class="n">shm_name</span><span class="p">,</span> <span class="n">map_len</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">pshared_rwlock.PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="kr">if</span> <span class="n">err</span> <span class="o">~=</span> <span class="kc">nil</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">    <span class="n">print</span><span class="p">(</span><span class="n">err</span><span class="p">:</span><span class="n">error</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl"><span class="kr">if</span> <span class="n">ms</span> <span class="o">==</span> <span class="kc">nil</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">errors.unreachable</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl"><span class="c1">-- この下でmsを参照。</span>
+</span></span></code></pre></div><h2 id="luajitffiでuint64を扱うためのハック">LuaJIT+FFIでuint64を扱うためのハック</h2>
+<p>今回の例の最終版では使わなくなっていますが、LuaJIT+FFIでuint64を扱うコードも<a href="https://github.com/allegory-software/allegory-sdk">The Allegory SDK</a>の<a href="https://github.com/allegory-software/allegory-sdk/blob/45ce7d77481391e9c5f631bcd9c97ee65b25ca21/lua/fs.lua#L1375-L1388">fs.lua#L1375-L1388</a>から頂きました (<a href="https://github.com/hnakamur/luajit-pshared-mmapf-experiment/blob/main/uint64.lua">uint64.lua</a>)。</p>
+<p>Luaの数値型はfloat64で64bit整数の範囲の数は表せないので、以下の共用体を使って32bit整数を2つ指定して64bit整数を作ります (この共用体はLittle Endian用です)。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">	<span class="k">union</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">struct</span> <span class="p">{</span> <span class="kt">uint32_t</span> <span class="n">lo</span><span class="p">;</span> <span class="kt">uint32_t</span> <span class="n">hi</span><span class="p">;</span> <span class="p">};</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">uint64_t</span> <span class="n">x</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span></code></pre></div><p><a href="https://github.com/allegory-software/allegory-sdk/blob/45ce7d77481391e9c5f631bcd9c97ee65b25ca21/lua/fs.lua#L1375-L1388">fs.lua#L1375-L1388</a>ではインスタンスを1つだけ作って使いまわす方式ですが、<a href="https://github.com/hnakamur/luajit-pshared-mmapf-experiment/blob/main/uint64.lua">uint64.lua</a>では、その都度インスタンスを生成する方式にしてみました。FFIの関数に2つ以上の64bit引数を渡す場合はこの方式が必要になるはずということで。</p>
+<p><a href="https://luajit.org/ext_ffi_api.html#create">Creating cdata Objects</a>に<code>ffi.new()</code>を何度も呼ぶ場合は<code>ffi.typeof()</code>を一度読んで戻り値の関数をコンストラクタとして呼び出してインスタンス生成するほうがパフォーマンスが良いと書いてあったので、そのようにしてみました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">ffi</span> <span class="o">=</span> <span class="n">require</span> <span class="s2">&#34;ffi&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">uint64_union_t</span> <span class="o">=</span> <span class="n">ffi.typeof</span> <span class="s">[[
+</span></span></span><span class="line"><span class="cl"><span class="s">  union {
+</span></span></span><span class="line"><span class="cl"><span class="s">    struct { uint32_t lo; uint32_t hi; };
+</span></span></span><span class="line"><span class="cl"><span class="s">    uint64_t x;
+</span></span></span><span class="line"><span class="cl"><span class="s">  }
+</span></span></span><span class="line"><span class="cl"><span class="s">]]</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="kr">function</span> <span class="nf">split</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">local</span> <span class="n">m</span> <span class="o">=</span> <span class="n">uint64_union_t</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="n">m.x</span> <span class="o">=</span> <span class="n">x</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">m.hi</span><span class="p">,</span> <span class="n">m.lo</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="kr">function</span> <span class="nf">join</span><span class="p">(</span><span class="n">hi</span><span class="p">,</span> <span class="n">lo</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">local</span> <span class="n">m</span> <span class="o">=</span> <span class="n">uint64_union_t</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="n">m.hi</span><span class="p">,</span> <span class="n">m.lo</span> <span class="o">=</span> <span class="n">hi</span><span class="p">,</span> <span class="n">lo</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">m.x</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span></code></pre></div><h2 id="おわりに">おわりに</h2>
+<p>長らく方法がわからずに諦めていたマルチプロセスでの共有メモリの使い方が<a href="https://stackoverflow.com/questions/42628949/using-pthread-mutex-shared-between-processes-correctly">linux - Using pthread mutex shared between processes correctly - Stack Overflow</a>で知れて非常にありがたいです。</p>
+<p>また今回の例を書いてみてLuaJIT+FFIでの実装スキルが以前よりは上がった気がします。
+<a href="https://github.com/allegory-software/allegory-sdk">The Allegory SDK</a>は参考になりまくりで本当に感謝しています。</p>
+<p>LuaJIT+FFIは<a href="https://luajit.org/ext_ffi_api.html#ffi_string">ffi.string(ptr [,len])</a>でコピーが発生するという不利な点もあるのですが、まだまだお世話になるので感謝しつつ使っていきたいところです。</p>
+<p>また、<a href="https://sillycross.github.io/2022/11/22/2022-11-22/index.html">Building the fastest Lua interpreter.. automatically!</a>の<a href="https://github.com/luajit-remake/luajit-remake">luajit-remake/luajit-remake: An ongoing attempt to re-engineer LuaJIT from scratch</a>も気になるので今後試してみたいところです。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'G-KMMXGG2Z56', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
