@@ -8,7 +8,7 @@ date: 2022-12-04T21:23:06+09:00
 [openresty/lua-nginx-module](https://github.com/openresty/lua-nginx-module) の [ngx.shared.DICT](https://github.com/openresty/lua-nginx-module#ngxshareddict) のような仕組みが [Apache Traffic Server™](https://github.com/apache/trafficserver) の
 [Lua Plugin](https://docs.trafficserver.apache.org/en/latest/admin-guide/plugins/lua.en.html) にも欲しいなあと以前から思っていました。
 
-私の場合は公式の [Lua](https://www.lua.org/) の実装ではなく [LuaJIT](https://luajit.org/) を使用していますので、複数の LuaJIT の VM でデータを共有して排他制御しつつ読み書きしたいというわけです。NGINX の場合はワーカーがマルチプロセス構成なのでプロセス間で参照できる共有メモリが必要です。Traffic Server の場合はシングルスレッド・マルチスレッドですが、可能なら同じサーバ上で稼働している NGINX とも共有したいという思いがあって、そうなるとやはりマルチプロセスとなります。
+私の場合は公式の [Lua](https://www.lua.org/) の実装ではなく [LuaJIT](https://luajit.org/) を使用していますので、複数の LuaJIT の VM でデータを共有して排他制御しつつ読み書きしたいというわけです。NGINX の場合はワーカーがマルチプロセス構成なのでプロセス間で参照できる共有メモリが必要です。Traffic Server の場合はシングルプロセス・マルチスレッドですが、可能なら同じサーバ上で稼働している NGINX とも共有したいという思いがあって、そうなるとやはりマルチプロセスとなります。
 
 マルチプロセスでの排他制御について、以前調べたときは良い方法を見つけられず諦めていたのですが、改めて検索してみると [linux - Using pthread mutex shared between processes correctly - Stack Overflow](https://stackoverflow.com/questions/42628949/using-pthread-mutex-shared-between-processes-correctly) というページが見つかりました。ここに書かれている手法を試してみたので、その際に調べたり試したりしたことをメモしておきます。
 
