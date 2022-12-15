@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.101.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>HAProxyのserver stateについてコードリーディング &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2022. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>HAProxyのserver stateについてコードリーディング</h1>
+  <time datetime=2022-12-15T19:52:54&#43;0900 class="post-date">2022-12-15</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#コードリーディング">コードリーディング</a>
+      <ul>
+        <li><a href="#statsc">stats.c</a></li>
+        <li><a href="#checkc">check.c</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>kazeburoさんの<a href="https://twitter.com/kazeburo/status/1603243011038552064">ツイート</a>を見て興味が湧いたのでちょっと見てみました。なお私自身は普段HAProxy使ってないです。</p>
+<p>リーディング対象は <a href="https://github.com/haproxy/haproxy/commit/c4913f6b54e8b323b9ecbd2a711b2cbf486afae0">https://github.com/haproxy/haproxy/commit/c4913f6b54e8b323b9ecbd2a711b2cbf486afae0</a> です。</p>
+<p>なお以下のコードの引用ではインデントが深い行は適宜調整しています。</p>
+<h2 id="コードリーディング">コードリーディング</h2>
+<p>まず UP 1/3 の文字列を組み立てている箇所を探してみます。</p>
+<pre tabindex="0"><code>$ rg &#39;&#34;UP &#39;
+src/stats.c
+2045:   [SRV_STATS_STATE_UP_GOING_DOWN]         = &#34;UP %d/%d&#34;,
+
+src/check.c
+958:                                  &#34;UP %d/%d&#34;, &#34;UP&#34;,
+</code></pre><h3 id="statsc">stats.c</h3>
+<p><a href="https://github.com/haproxy/haproxy/blob/c4913f6b54e8b323b9ecbd2a711b2cbf486afae0/src/stats.c#L2025-L2053">https://github.com/haproxy/haproxy/blob/c4913f6b54e8b323b9ecbd2a711b2cbf486afae0/src/stats.c#L2025-L2053</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">enum</span> <span class="n">srv_stats_state</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">SRV_STATS_STATE_DOWN</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">SRV_STATS_STATE_DOWN_AGENT</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">SRV_STATS_STATE_GOING_UP</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">SRV_STATS_STATE_UP_GOING_DOWN</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">SRV_STATS_STATE_UP</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">SRV_STATS_STATE_NOLB_GOING_DOWN</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">SRV_STATS_STATE_NOLB</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">SRV_STATS_STATE_DRAIN_GOING_DOWN</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">SRV_STATS_STATE_DRAIN</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">SRV_STATS_STATE_DRAIN_AGENT</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">SRV_STATS_STATE_NO_CHECK</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">SRV_STATS_STATE_COUNT</span><span class="p">,</span> <span class="cm">/* Must be last */</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">srv_hlt_st</span><span class="p">[</span><span class="n">SRV_STATS_STATE_COUNT</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="p">[</span><span class="n">SRV_STATS_STATE_DOWN</span><span class="p">]</span>			<span class="o">=</span> <span class="s">&#34;DOWN&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">[</span><span class="n">SRV_STATS_STATE_DOWN_AGENT</span><span class="p">]</span>		<span class="o">=</span> <span class="s">&#34;DOWN (agent)&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">[</span><span class="n">SRV_STATS_STATE_GOING_UP</span><span class="p">]</span>		<span class="o">=</span> <span class="s">&#34;DOWN %d/%d&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">[</span><span class="n">SRV_STATS_STATE_UP_GOING_DOWN</span><span class="p">]</span>		<span class="o">=</span> <span class="s">&#34;UP %d/%d&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">[</span><span class="n">SRV_STATS_STATE_UP</span><span class="p">]</span>			<span class="o">=</span> <span class="s">&#34;UP&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">[</span><span class="n">SRV_STATS_STATE_NOLB_GOING_DOWN</span><span class="p">]</span>	<span class="o">=</span> <span class="s">&#34;NOLB %d/%d&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">[</span><span class="n">SRV_STATS_STATE_NOLB</span><span class="p">]</span>			<span class="o">=</span> <span class="s">&#34;NOLB&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">[</span><span class="n">SRV_STATS_STATE_DRAIN_GOING_DOWN</span><span class="p">]</span>	<span class="o">=</span> <span class="s">&#34;DRAIN %d/%d&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">[</span><span class="n">SRV_STATS_STATE_DRAIN</span><span class="p">]</span>			<span class="o">=</span> <span class="s">&#34;DRAIN&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">[</span><span class="n">SRV_STATS_STATE_DRAIN_AGENT</span><span class="p">]</span>		<span class="o">=</span> <span class="s">&#34;DRAIN (agent)&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">[</span><span class="n">SRV_STATS_STATE_NO_CHECK</span><span class="p">]</span>		<span class="o">=</span> <span class="s">&#34;no check&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span></code></pre></div><p><code>enum srv_stats_state</code>が<code>SRV_STATS_STATE_UP_GOING_DOWN</code>に<code>&quot;UP %d/%d&quot;</code>という文字列が対応しています。</p>
+<p><code>srv_hlt_st</code> で検索してみると<code>/</code>の前後の値を指定している箇所がありました。</p>
+<p><a href="https://github.com/haproxy/haproxy/blob/c4913f6b54e8b323b9ecbd2a711b2cbf486afae0/src/stats.c#L2242-L2245">https://github.com/haproxy/haproxy/blob/c4913f6b54e8b323b9ecbd2a711b2cbf486afae0/src/stats.c#L2242-L2245</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="n">chunk_appendf</span><span class="p">(</span><span class="n">out</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="n">srv_hlt_st</span><span class="p">[</span><span class="n">state</span><span class="p">],</span>
+</span></span><span class="line"><span class="cl">  <span class="p">(</span><span class="n">ref</span><span class="o">-&gt;</span><span class="n">cur_state</span> <span class="o">!=</span> <span class="n">SRV_ST_STOPPED</span><span class="p">)</span> <span class="o">?</span> <span class="p">(</span><span class="n">ref</span><span class="o">-&gt;</span><span class="n">check</span><span class="p">.</span><span class="n">health</span> <span class="o">-</span> <span class="n">ref</span><span class="o">-&gt;</span><span class="n">check</span><span class="p">.</span><span class="n">rise</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">:</span> <span class="p">(</span><span class="n">ref</span><span class="o">-&gt;</span><span class="n">check</span><span class="p">.</span><span class="n">health</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">  <span class="p">(</span><span class="n">ref</span><span class="o">-&gt;</span><span class="n">cur_state</span> <span class="o">!=</span> <span class="n">SRV_ST_STOPPED</span><span class="p">)</span> <span class="o">?</span> <span class="p">(</span><span class="n">ref</span><span class="o">-&gt;</span><span class="n">check</span><span class="p">.</span><span class="n">fall</span><span class="p">)</span> <span class="o">:</span> <span class="p">(</span><span class="n">ref</span><span class="o">-&gt;</span><span class="n">check</span><span class="p">.</span><span class="n">rise</span><span class="p">));</span>
+</span></span></code></pre></div><p><code>SRV_ST_STOPPED</code>の定義を見ると<code>enum srv_state</code>の中にありました。</p>
+<p><a href="https://github.com/haproxy/haproxy/blob/c4913f6b54e8b323b9ecbd2a711b2cbf486afae0/include/haproxy/server-t.h#L46-L52">https://github.com/haproxy/haproxy/blob/c4913f6b54e8b323b9ecbd2a711b2cbf486afae0/include/haproxy/server-t.h#L46-L52</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/* server states. Only SRV_ST_STOPPED indicates a down server. */</span>
+</span></span><span class="line"><span class="cl"><span class="k">enum</span> <span class="n">srv_state</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">SRV_ST_STOPPED</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>              <span class="cm">/* the server is down. Please keep set to zero. */</span>
+</span></span><span class="line"><span class="cl">	<span class="n">SRV_ST_STARTING</span><span class="p">,</span>                 <span class="cm">/* the server is warming up (up but throttled) */</span>
+</span></span><span class="line"><span class="cl">	<span class="n">SRV_ST_RUNNING</span><span class="p">,</span>                  <span class="cm">/* the server is fully up */</span>
+</span></span><span class="line"><span class="cl">	<span class="n">SRV_ST_STOPPING</span><span class="p">,</span>                 <span class="cm">/* the server is up but soft-stopping (eg: 404) */</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span> <span class="n">__attribute__</span><span class="p">((</span><span class="n">packed</span><span class="p">));</span>
+</span></span></code></pre></div><p><code>SRV_STATS_STATE_UP_GOING_DOWN</code>はおそらく<code>SRV_ST_STOPPING</code>だろうということで、<code>&quot;UP %d/%d&quot;</code>の<code>/</code>の前は<code>ref-&gt;check.health - ref-&gt;check.rise + 1</code>、<code>/</code>の後は<code>ref-&gt;check.fall</code>になりそうです。</p>
+<p><code>health</code>, <code>fall</code>, <code>rise</code>フィールドの定義は<code>struct check</code>内にありました。
+<a href="https://github.com/haproxy/haproxy/blob/c4913f6b54e8b323b9ecbd2a711b2cbf486afae0/include/haproxy/check-t.h#L171-L173">https://github.com/haproxy/haproxy/blob/c4913f6b54e8b323b9ecbd2a711b2cbf486afae0/include/haproxy/check-t.h#L171-L173</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">	<span class="kt">int</span> <span class="n">health</span><span class="p">;</span>				<span class="cm">/* 0 to rise-1 = bad;
+</span></span></span><span class="line"><span class="cl"><span class="cm">						 * rise to rise+fall-1 = good */</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">int</span> <span class="n">rise</span><span class="p">,</span> <span class="n">fall</span><span class="p">;</span>				<span class="cm">/* time in iterations */</span>
+</span></span></code></pre></div><p>HAProxy &ldquo;server status&rdquo; rise fallとかで検索すると<a href="https://www.haproxy.com/blog/using-haproxy-as-an-api-gateway-part-3-health-checks/">Using HAProxy as an API Gateway, Part 3 [Health Checks] - HAProxy Technologies</a>にriseとfallの説明がありました。</p>
+<pre tabindex="0"><code>fall 	The number of failed checks before marking the server as down.
+rise 	The number of successful checks before marking a server as up again.
+</code></pre><h3 id="checkc">check.c</h3>
+<p><code>&quot;UP </code>の文字列があるのは以下の箇所です。
+<a href="https://github.com/haproxy/haproxy/blob/c4913f6b54e8b323b9ecbd2a711b2cbf486afae0/src/check.c#L950-L981">https://github.com/haproxy/haproxy/blob/c4913f6b54e8b323b9ecbd2a711b2cbf486afae0/src/check.c#L950-L981</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/* Builds the server state header used by HTTP health-checks */</span>
+</span></span><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">httpchk_build_status_header</span><span class="p">(</span><span class="k">struct</span> <span class="n">server</span> <span class="o">*</span><span class="n">s</span><span class="p">,</span> <span class="k">struct</span> <span class="n">buffer</span> <span class="o">*</span><span class="n">buf</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">int</span> <span class="n">sv_state</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">int</span> <span class="n">ratio</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">char</span> <span class="n">addr</span><span class="p">[</span><span class="mi">46</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">char</span> <span class="n">port</span><span class="p">[</span><span class="mi">6</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">	<span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">srv_hlt_st</span><span class="p">[</span><span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span> <span class="s">&#34;DOWN&#34;</span><span class="p">,</span> <span class="s">&#34;DOWN %d/%d&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">				      <span class="s">&#34;UP %d/%d&#34;</span><span class="p">,</span> <span class="s">&#34;UP&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">				      <span class="s">&#34;NOLB %d/%d&#34;</span><span class="p">,</span> <span class="s">&#34;NOLB&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">				      <span class="s">&#34;no check&#34;</span> <span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="p">(</span><span class="n">s</span><span class="o">-&gt;</span><span class="n">check</span><span class="p">.</span><span class="n">state</span> <span class="o">&amp;</span> <span class="n">CHK_ST_ENABLED</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">		<span class="n">sv_state</span> <span class="o">=</span> <span class="mi">6</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">s</span><span class="o">-&gt;</span><span class="n">cur_state</span> <span class="o">!=</span> <span class="n">SRV_ST_STOPPED</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">s</span><span class="o">-&gt;</span><span class="n">check</span><span class="p">.</span><span class="n">health</span> <span class="o">==</span> <span class="n">s</span><span class="o">-&gt;</span><span class="n">check</span><span class="p">.</span><span class="n">rise</span> <span class="o">+</span> <span class="n">s</span><span class="o">-&gt;</span><span class="n">check</span><span class="p">.</span><span class="n">fall</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="n">sv_state</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span> <span class="cm">/* UP */</span>
+</span></span><span class="line"><span class="cl">		<span class="k">else</span>
+</span></span><span class="line"><span class="cl">			<span class="n">sv_state</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span> <span class="cm">/* going down */</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">s</span><span class="o">-&gt;</span><span class="n">cur_state</span> <span class="o">==</span> <span class="n">SRV_ST_STOPPING</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="n">sv_state</span> <span class="o">+=</span> <span class="mi">2</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">s</span><span class="o">-&gt;</span><span class="n">check</span><span class="p">.</span><span class="n">health</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="n">sv_state</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span> <span class="cm">/* going up */</span>
+</span></span><span class="line"><span class="cl">		<span class="k">else</span>
+</span></span><span class="line"><span class="cl">			<span class="n">sv_state</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="cm">/* DOWN */</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">chunk_appendf</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span> <span class="n">srv_hlt_st</span><span class="p">[</span><span class="n">sv_state</span><span class="p">],</span>
+</span></span><span class="line"><span class="cl">		      <span class="p">(</span><span class="n">s</span><span class="o">-&gt;</span><span class="n">cur_state</span> <span class="o">!=</span> <span class="n">SRV_ST_STOPPED</span><span class="p">)</span> <span class="o">?</span> <span class="p">(</span><span class="n">s</span><span class="o">-&gt;</span><span class="n">check</span><span class="p">.</span><span class="n">health</span> <span class="o">-</span> <span class="n">s</span><span class="o">-&gt;</span><span class="n">check</span><span class="p">.</span><span class="n">rise</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">:</span> <span class="p">(</span><span class="n">s</span><span class="o">-&gt;</span><span class="n">check</span><span class="p">.</span><span class="n">health</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">		      <span class="p">(</span><span class="n">s</span><span class="o">-&gt;</span><span class="n">cur_state</span> <span class="o">!=</span> <span class="n">SRV_ST_STOPPED</span><span class="p">)</span> <span class="o">?</span> <span class="p">(</span><span class="n">s</span><span class="o">-&gt;</span><span class="n">check</span><span class="p">.</span><span class="n">fall</span><span class="p">)</span> <span class="o">:</span> <span class="p">(</span><span class="n">s</span><span class="o">-&gt;</span><span class="n">check</span><span class="p">.</span><span class="n">rise</span><span class="p">));</span>
+</span></span></code></pre></div><p><code>&quot;UP %d/%d&quot;</code>に対応するのは<code>sv_state = 2; /* going down */</code>のケースです。<code>chunk_appendf</code>で引数に指定している<code>/</code>の前後の数は<code>stats.c</code>と同じです。</p>
+<p><code>health =</code>の箇所を見ていたら<code>set_server_check_status</code>という関数内に<code>health</code>の値を増減している箇所が見つかりました。
+<a href="https://github.com/haproxy/haproxy/blob/c4913f6b54e8b323b9ecbd2a711b2cbf486afae0/src/check.c#L486-L519">https://github.com/haproxy/haproxy/blob/c4913f6b54e8b323b9ecbd2a711b2cbf486afae0/src/check.c#L486-L519</a></p>
+<p>ヘルスチェックに成功すると増えて失敗すると減るようになっています。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">	<span class="k">switch</span> <span class="p">(</span><span class="n">check</span><span class="o">-&gt;</span><span class="n">result</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nl">CHK_RES_FAILED</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="cm">/* Failure to connect to the agent as a secondary check should not
+</span></span></span><span class="line"><span class="cl"><span class="cm">		 * cause the server to be marked down.
+</span></span></span><span class="line"><span class="cl"><span class="cm">		 */</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">((</span><span class="o">!</span><span class="p">(</span><span class="n">check</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">&amp;</span> <span class="n">CHK_ST_AGENT</span><span class="p">)</span> <span class="o">||</span>
+</span></span><span class="line"><span class="cl">		    <span class="p">(</span><span class="n">check</span><span class="o">-&gt;</span><span class="n">status</span> <span class="o">&gt;=</span> <span class="n">HCHK_STATUS_L57DATA</span><span class="p">))</span> <span class="o">&amp;&amp;</span>
+</span></span><span class="line"><span class="cl">		    <span class="p">(</span><span class="n">check</span><span class="o">-&gt;</span><span class="n">health</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">_HA_ATOMIC_INC</span><span class="p">(</span><span class="o">&amp;</span><span class="n">s</span><span class="o">-&gt;</span><span class="n">counters</span><span class="p">.</span><span class="n">failed_checks</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="n">report</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="n">check</span><span class="o">-&gt;</span><span class="n">health</span><span class="o">--</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">check</span><span class="o">-&gt;</span><span class="n">health</span> <span class="o">&lt;</span> <span class="n">check</span><span class="o">-&gt;</span><span class="n">rise</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="n">check</span><span class="o">-&gt;</span><span class="n">health</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nl">CHK_RES_PASSED</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nl">CHK_RES_CONDPASS</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">check</span><span class="o">-&gt;</span><span class="n">health</span> <span class="o">&lt;</span> <span class="n">check</span><span class="o">-&gt;</span><span class="n">rise</span> <span class="o">+</span> <span class="n">check</span><span class="o">-&gt;</span><span class="n">fall</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">report</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="n">check</span><span class="o">-&gt;</span><span class="n">health</span><span class="o">++</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">check</span><span class="o">-&gt;</span><span class="n">health</span> <span class="o">&gt;=</span> <span class="n">check</span><span class="o">-&gt;</span><span class="n">rise</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="n">check</span><span class="o">-&gt;</span><span class="n">health</span> <span class="o">=</span> <span class="n">check</span><span class="o">-&gt;</span><span class="n">rise</span> <span class="o">+</span> <span class="n">check</span><span class="o">-&gt;</span><span class="n">fall</span> <span class="o">-</span> <span class="mi">1</span><span class="p">;</span> <span class="cm">/* OK now */</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="cm">/* clear consecutive_errors if observing is enabled */</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">s</span><span class="o">-&gt;</span><span class="n">onerror</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="n">HA_ATOMIC_STORE</span><span class="p">(</span><span class="o">&amp;</span><span class="n">s</span><span class="o">-&gt;</span><span class="n">consecutive_errors</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">default</span><span class="o">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span></code></pre></div><p>これを踏まえてもう一度</p>
+<pre tabindex="0"><code>(s-&gt;cur_state != SRV_ST_STOPPED) ? (s-&gt;check.health - s-&gt;check.rise + 1) : (s-&gt;check.health),
+(s-&gt;cur_state != SRV_ST_STOPPED) ? (s-&gt;check.fall) : (s-&gt;check.rise));
+</code></pre><p>のコードを見ると、理解しやすいのは<code>s-&gt;cur_state != SRV_ST_STOPPED</code>が<code>false</code>のケース(<code>:</code>の右側)、つまり分子が<code>health</code>で分母が<code>rise</code>です。こちらは<code>rise</code>回ヘルスチェックが成功したらサーバを起動状態(up)とマークするけど現在はそのうち<code>health</code>回成功したという状況ということですね。</p>
+<p><code>s-&gt;cur_state != SRV_ST_STOPPED</code>が<code>true</code>のケース(<code>:</code>の左側)、つまり分子が<code>health-rise+1</code>で分母が<code>fall</code>です。こちらは分母の方は<code>fall</code>回ヘルスチェックが失敗したらサーバを停止状態(down)とマークすることを意味しているのでしょうが、分子はちょっと複雑です。</p>
+<p>上のコードに</p>
+<pre tabindex="0"><code>			if (check-&gt;health &gt;= check-&gt;rise)
+				check-&gt;health = check-&gt;rise + check-&gt;fall - 1; /* OK now */
+</code></pre><p>という箇所があって<code>health</code>の最大値を<code>rise+fall-1</code>にしています。</p>
+<p><code>struct check</code>の<code>health</code>フィールドのコメントにも</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">	<span class="kt">int</span> <span class="n">health</span><span class="p">;</span>				<span class="cm">/* 0 to rise-1 = bad;
+</span></span></span><span class="line"><span class="cl"><span class="cm">						 * rise to rise+fall-1 = good */</span>
+</span></span></code></pre></div><p>とあるので最大値は一致しています。ここから<code>fall</code>を引いた<code>rise-1</code>まで<code>health</code>が下がるとdownになるけど、そこまであと何回猶予があるかというのが<code>health-(rise-1)</code>つまり<code>health-rise+1</code>になるということですね。　</p>
+<p>というわけで<code>UP 1/3</code>はあと一回ヘルスチェックが失敗したらDOWNになる状態だと思われます。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'G-KMMXGG2Z56', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
