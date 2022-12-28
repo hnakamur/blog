@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.108.0">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>luajit-remakeを試してみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2022. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>luajit-remakeを試してみた</h1>
+  <time datetime=2022-12-28T18:20:31&#43;0900 class="post-date">2022-12-28</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#ビルド">ビルド</a></li>
+    <li><a href="#付属のベンチマークを実行">付属のベンチマークを実行</a></li>
+    <li><a href="#たらい回し関数のベンチマークを試してみた">たらい回し関数のベンチマークを試してみた</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="/blog/2022/12/28/tried-tarai-benchmark-with-luajit/">LuaJITでたらい回し関数のベンチマークを試してみた · hnakamur&rsquo;s blog</a>のついでに<a href="https://github.com/luajit-remake/luajit-remake">luajit-remake/luajit-remake: An ongoing attempt to re-engineer LuaJIT from scratch</a>も試してみたのでメモです。</p>
+<h2 id="ビルド">ビルド</h2>
+<p>Dockerはインストール済みという前提で、以下のコマンドを実行すると、カレントディレクトリに<code>luajitr</code>という実行ファイルが生成されます。</p>
+<pre tabindex="0"><code>git clone https://github.com/luajit-remake/luajit-remake
+cd luajit-remake
+./ljr-build make release
+</code></pre><p>ビルドに使用するLLVMなどのツールチェインは
+<a href="https://hub.docker.com/r/haoranxu510/ljr-build">haoranxu510/ljr-build - Docker Image | Docker Hub</a>のv0.0.3のイメージをpullしてくるようになっていました。</p>
+<p>これを手元でビルドする場合は、上記のコマンドを実行する前に以下のようにすればOKでした。</p>
+<pre tabindex="0"><code>cd dockerfile
+docker build -t ljr-build:v0.0.3 .
+</code></pre><p>ただ、ljr-buildのDockerイメージのv0.0.3がgitのどのコミットに対応しているかが分からなかったので、正しくは手元でljr-buildのDockerイメージをビルドする際はv0.0.3と付けずにビルドして<code>./ljr-build</code>のスクリプトのほうをコピペ改変してv0.0.3ではなく手元のビルドを使うように改変したほうが良さそうです。</p>
+<p>ツールチェインのDockerイメージのビルドには<a href="https://github.com/luajit-remake/luajit-remake/blob/master/dockerfile/build_docker_image.sh">dockerfile/build_docker_image.sh</a>というスクリプトを使っていますが、CMakeをソースからインストールして、独自パッチを当てたLLVM 12でLLVM 15.0.3をビルドしたりしています。また<a href="https://github.com/rui314/mold/">rui314/mold: mold: A Modern Linker 🦠</a>も使われていました。</p>
+<h2 id="付属のベンチマークを実行">付属のベンチマークを実行</h2>
+<p>ここでは<a href="https://hub.docker.com/r/haoranxu510/ljr-build">haoranxu510/ljr-build - Docker Image | Docker Hub</a>のv0.0.3のイメージのツールチェインを使って以下のコミットのソースでビルドしたluajitrで試しました。</p>
+<pre tabindex="0"><code>$ git log -1
+commit f2701c3dfdfb4e14ec0875804704177720582bd8 (HEAD -&gt; master, origin/master, origin/HEAD)
+Author:     Haoran Xu &lt;haoranxu510@gmail.com&gt;
+AuthorDate: Thu Dec 1 21:52:55 2022
+Commit:     Haoran Xu &lt;haoranxu510@gmail.com&gt;
+CommitDate: Thu Dec 1 21:52:55 2022
+
+    more refactoring in preparation for baseline jit
+</code></pre><p><code>./run_bench.sh</code>と実行するとコンソールに出力されつつ<code>benchmark.log</code>というログファイルが生成されます。</p>
+<p><code>run_bench.sh</code>ではテストデータをluaで作るようになっているのですがそこをluajitに書き換えた版と、luajitrではなくluajitを使うようにした<code>run_bench_luajit.sh</code>を作って、luajitrとluajitでベンチマークを実行して見ました。</p>
+<p>結果は<a href="https://github.com/hnakamur/luajit-remake/tree/compare-benchmark-with-luajit">hnakamur/luajit-remake at compare-benchmark-with-luajit</a>の<a href="https://github.com/hnakamur/luajit-remake/blob/compare-benchmark-with-luajit/benchmark-luajitr.log">benchmark-luajitr.log</a>と<a href="https://github.com/hnakamur/luajit-remake/blob/compare-benchmark-with-luajit/benchmark-luajit.log">benchmark-luajit.log</a>に置いています。ほとんどのテストではluajitのほうが速いですが、一部のテストはluajitrのほうが速かったです。</p>
+<h2 id="たらい回し関数のベンチマークを試してみた">たらい回し関数のベンチマークを試してみた</h2>
+<p>LuaJITのFFIや<code>os.time</code>はluajitrでは未実装でした。</p>
+<pre tabindex="0"><code>$ ~/ghq/github.com/luajit-remake/luajit-remake/luajitr tarai-ffi-time.lua
+Uncaught error: Library function &#39;require&#39; is not implemented yet!
+$ ~/ghq/github.com/luajit-remake/luajit-remake/luajitr tarai-os-time.lua
+Uncaught error: Library function &#39;os.time&#39; is not implemented yet!
+</code></pre><p>ということで<code>/usr/bin/time</code>で処理時間とメモリ消費量を調べてLuaJITと比べました。<a href="/blog/2022/12/28/tried-tarai-benchmark-with-luajit/">LuaJITでたらい回し関数のベンチマークを試してみた · hnakamur&rsquo;s blog</a>の<code>clock_gettime</code>を使う方式とは異なり、<code>luajit</code>と<code>luajitr</code>の起動時間も含まれるので、そちらの記事とは別の比較になります。</p>
+<pre tabindex="0"><code>$ set -x; for i in {1..3}; do /usr/bin/time -f &#39;%e %M&#39; ~/ghq/github.com/luajit-remake/luajit-remake/luajitr tarai-no-time.lua ; /usr/bin/time -f &#39;%e %M&#39; luajit tarai-no-time.lua; done; set +x
++ for i in {1..3}
++ /usr/bin/time -f &#39;%e %M&#39; /home/hnakamur/ghq/github.com/luajit-remake/luajit-remake/luajitr tarai-no-time.lua
+ans=14
+5.51 3140
++ /usr/bin/time -f &#39;%e %M&#39; luajit tarai-no-time.lua
+ans=14
+2.12 2164
++ for i in {1..3}
++ /usr/bin/time -f &#39;%e %M&#39; /home/hnakamur/ghq/github.com/luajit-remake/luajit-remake/luajitr tarai-no-time.lua
+ans=14
+5.50 3256
++ /usr/bin/time -f &#39;%e %M&#39; luajit tarai-no-time.lua
+ans=14
+1.91 2092
++ for i in {1..3}
++ /usr/bin/time -f &#39;%e %M&#39; /home/hnakamur/ghq/github.com/luajit-remake/luajit-remake/luajitr tarai-no-time.lua
+ans=14
+5.50 3132
++ /usr/bin/time -f &#39;%e %M&#39; luajit tarai-no-time.lua
+ans=14
+2.23 2104
++ set +x
+</code></pre><p>このベンチマークに関しては、現状ではOpenRestyのフォーク版LuaJITのほうが速くてメモリ消費量も少ないようです。</p>
+<p>ただ、<a href="https://sillycross.github.io/2022/11/22/2022-11-22/">Building the fastest Lua interpreter.. automatically!</a>の記事を読むとtail-call approachは良さそうな感じなので将来に期待したいところです。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'G-KMMXGG2Z56', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>

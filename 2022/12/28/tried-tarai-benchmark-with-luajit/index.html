@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.108.0">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>LuaJITでたらい回し関数のベンチマークを試してみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2022. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>LuaJITでたらい回し関数のベンチマークを試してみた</h1>
+  <time datetime=2022-12-28T16:22:42&#43;0900 class="post-date">2022-12-28</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#レポジトリ">レポジトリ</a></li>
+    <li><a href="#実行結果">実行結果</a></li>
+    <li><a href="#実行環境">実行環境</a>
+      <ul>
+        <li><a href="#gcc">GCC</a></li>
+        <li><a href="#luajit">LuaJIT</a></li>
+        <li><a href="#nodejs">Node.js</a></li>
+        <li><a href="#ruby">Ruby</a></li>
+        <li><a href="#sbcl-steel-bank-common-lisphttpswwwsbclorg">SBCL (<a href="https://www.sbcl.org/">Steel Bank Common Lisp</a>)</a></li>
+      </ul>
+    </li>
+    <li><a href="#以下はついでのメモ">以下はついでのメモ</a>
+      <ul>
+        <li><a href="#javascriptのmax_safe_integerについてluajitでも試してみた">JavaScriptのMAX_SAFE_INTEGERについてLuaJITでも試してみた</a></li>
+        <li><a href="#たらい回し関数が呼び出される回数も調べてみた">たらい回し関数が呼び出される回数も調べてみた</a></li>
+        <li><a href="#bashのシェルスクリプトで同じコマンドをn回実行する">bashのシェルスクリプトで同じコマンドをn回実行する</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="https://sumim.hatenablog.com/entry/2022/09/08/173557">Pythonが速度改善に本気出すと聞いたので恒例のたらい回しベンチをとってみたら、RubyがYJITですごく速くなっていて驚いた話 - Smalltalkのtは小文字です</a>の記事を見ました。</p>
+<p><a href="https://cybozushiki.cybozu.co.jp/articles/m000434.html">ハッカーの遺言状──竹内郁雄の徒然苔第18回：問題児も悪くない | サイボウズ式</a>には以下のように書かれていました。</p>
+<blockquote>
+<p>竹内関数ことタライ回し関数は、アッカーマン関数に比べればヒヨコのヒヨコだが、それでも十分に時間がかかる。それでいて、計算の途中で使うメモリはほんのちょっとしかない。上の例では途中に現れる数は -1 から 2n の間の整数だし、計算に必要なスタックの長さは n の数倍程度である。洗濯機の中のマイコンでも計算できる。つまり、ベンチマークとしては無差別級として使える問題だったのだ。</p>
+</blockquote>
+<p><a href="http://nginx.org/">NGINX</a>の<a href="https://github.com/openresty/lua-nginx-module">openresty/lua-nginx-module</a>と<a href="https://trafficserver.apache.org/">Apache Traffic Server</a>の<a href="https://docs.trafficserver.apache.org/en/latest/admin-guide/plugins/lua.en.html">Lua Plugin</a>でLuaJITをがっつり使っている私としては、LuaJITだとどれぐらいなのかなと興味がわいたので試してみました。</p>
+<p>処理時間に加えてメモリ消費量も気になったので、<a href="https://openai.com/blog/chatgpt/">ChatGPT</a>に聞いてみたら<code>/usr/bin/time -v</code>コマンドでRSS (resident set size)の最大値がKilobyte単位で表示されると教えてもらいました。</p>
+<p><a href="https://manpages.ubuntu.com/manpages/jammy/en/man1/time.1.html">time (1)</a>を見て<code>/usr/bin/time -f %M</code>でRSSの最大値だけ出力できると分かったので、今回はこれを使っています。</p>
+<pre tabindex="0"><code> M      Maximum resident set size of the process during its lifetime, in Kilobytes.
+</code></pre><h2 id="レポジトリ">レポジトリ</h2>
+<p><a href="https://github.com/hnakamur/tarai-benchmark.git">https://github.com/hnakamur/tarai-benchmark.git</a></p>
+<h2 id="実行結果">実行結果</h2>
+<pre tabindex="0"><code>$ make run-all-3-times
+seq 1 3 | xargs -I {} make run-all
+make[1]: Entering directory &#39;/home/hnakamur/tarai-benchmark&#39;
+2&gt;&amp;1 /usr/bin/time -f %M ./tarai_O3
+0.429032 14
+1436
+2&gt;&amp;1 /usr/bin/time -f %M luajit tarai-ffi-time.lua
+2.763897 14
+2176
+2&gt;&amp;1 /usr/bin/time -f %M node tarai.js
+1.594 14
+21928
+2&gt;&amp;1 /usr/bin/time -f %M ruby --yjit tarai.rb
+14
+3.446833922
+23428
+2&gt;&amp;1 /usr/bin/time -f %M sbcl --script tarai-g1.lisp
+Evaluation took:
+  0.592 seconds of real time
+  0.588501 seconds of total run time (0.588501 user, 0.000000 system)
+  99.49% CPU
+  1,822,123,115 processor cycles
+  0 bytes consed
+  
+14
+36080
+make[1]: Leaving directory &#39;/home/hnakamur/tarai-benchmark&#39;
+make[1]: Entering directory &#39;/home/hnakamur/tarai-benchmark&#39;
+2&gt;&amp;1 /usr/bin/time -f %M ./tarai_O3
+0.424106 14
+1448
+2&gt;&amp;1 /usr/bin/time -f %M luajit tarai-ffi-time.lua
+2.777932 14
+2088
+2&gt;&amp;1 /usr/bin/time -f %M node tarai.js
+1.596 14
+21812
+2&gt;&amp;1 /usr/bin/time -f %M ruby --yjit tarai.rb
+14
+3.431343189
+23460
+2&gt;&amp;1 /usr/bin/time -f %M sbcl --script tarai-g1.lisp
+Evaluation took:
+  0.592 seconds of real time
+  0.590194 seconds of total run time (0.590194 user, 0.000000 system)
+  99.66% CPU
+  1,826,274,449 processor cycles
+  0 bytes consed
+  
+14
+36120
+make[1]: Leaving directory &#39;/home/hnakamur/tarai-benchmark&#39;
+make[1]: Entering directory &#39;/home/hnakamur/tarai-benchmark&#39;
+2&gt;&amp;1 /usr/bin/time -f %M ./tarai_O3
+0.430504 14
+1440
+2&gt;&amp;1 /usr/bin/time -f %M luajit tarai-ffi-time.lua
+2.787522 14
+2148
+2&gt;&amp;1 /usr/bin/time -f %M node tarai.js
+1.583 14
+21884
+2&gt;&amp;1 /usr/bin/time -f %M ruby --yjit tarai.rb
+14
+3.447886121
+23432
+2&gt;&amp;1 /usr/bin/time -f %M sbcl --script tarai-g1.lisp
+Evaluation took:
+  0.592 seconds of real time
+  0.592078 seconds of total run time (0.591549 user, 0.000529 system)
+  100.00% CPU
+  1,832,438,954 processor cycles
+  0 bytes consed
+  
+14
+36116
+make[1]: Leaving directory &#39;/home/hnakamur/tarai-benchmark&#39;
+</code></pre><ul>
+<li>元記事ではSBCLのほうがCより速いとありましたが、私の環境ではCが一番速かったです。</li>
+<li>RubyはJIT無しとmjitも試しましたがyjitが一番速かったのでyjitのみにしています。</li>
+<li>LuaJITはNode.jsよりは遅いですが、メモリ消費量がC以外の言語の中では約10分の1と少ないです。</li>
+</ul>
+<p>Apache Traffic ServerのLuaプラグインだと<a href="https://docs.trafficserver.apache.org/en/latest/admin-guide/plugins/lua.en.html#configuration-for-number-of-lua-states">Configuration for number of Lua states</a>に説明があるように最大かつデフォルトで256個のLuaJITのVMを作成するようになっています。ですのでメモリ消費量が少ないのはありがたいです。</p>
+<h2 id="実行環境">実行環境</h2>
+<p>実行環境もメモしておきます。</p>
+<ul>
+<li>ThinkCentre M75q Tiny Gen2</li>
+<li>CPU: AMD Ryzen 7 PRO 4750GE</li>
+<li>RAM: PATOIOT SODIMM DDR4 3200MHz PC4-25600 32GB CL22 PSD432G32002S x 2</li>
+<li>SSD: Western Digital 1TB WD Blue SN550 NVMe WDS100T2B0C-EC</li>
+<li>OS: Ubuntu 22.04 LTS</li>
+</ul>
+<p>今回のベンチマークだとSSDは関係なさそうですが、今後他でも自分の環境を参照するとき用に一式書いておきます。</p>
+<h3 id="gcc">GCC</h3>
+<p>Ubuntu標準パッケージでインストールしたバージョン4:11.2.0-1ubuntu1。</p>
+<pre tabindex="0"><code>$ dpkg-query -W -f &#39;${Version}\n&#39; gcc
+4:11.2.0-1ubuntu1
+</code></pre><h3 id="luajit">LuaJIT</h3>
+<p>OpenRestyのフォーク版を自分のPPAでビルドしたもの。バージョン2.1.0~beta3.20220915+dfsg-1ppa1~ubuntu22.04。</p>
+<ul>
+<li>upstreamのソース: <a href="https://github.com/openresty/luajit2/releases/tag/v2.1-20220915">https://github.com/openresty/luajit2/releases/tag/v2.1-20220915</a></li>
+<li>自作debパッケージのソース: <a href="https://github.com/hnakamur/openresty-luajit-deb/releases/tag/debian%2F2.1.0_beta3.20220915%2Bdfsg-1ppa1_ubuntu22.04">https://github.com/hnakamur/openresty-luajit-deb/releases/tag/debian%2F2.1.0_beta3.20220915%2Bdfsg-1ppa1_ubuntu22.04</a>
+<ul>
+<li><a href="https://launchpad.net/ubuntu/+ppas">Personal Package Archives : Ubuntu</a>の <a href="https://launchpad.net/~hnakamur/+archive/ubuntu/openresty-luajit">https://launchpad.net/~hnakamur/+archive/ubuntu/openresty-luajit</a> でビルドしたものですが、PPAは最新版しか残らないので、試したバージョンのdebをGitHubレポジトリのReleaseに置いてます(ただしこのままaptレポジトリとしては使用できません)。</li>
+</ul>
+</li>
+</ul>
+<h3 id="nodejs">Node.js</h3>
+<p><a href="https://github.com/nvm-sh/nvm">nvm-sh/nvm: Node Version Manager</a>でインストールしたバージョン18.2.0。</p>
+<pre tabindex="0"><code>$ node --version
+v18.2.0
+$ type node
+node is hashed (/home/hnakamur/.nvm/versions/node/v18.2.0/bin/node)
+</code></pre><h3 id="ruby">Ruby</h3>
+<p>rbenvとruby-buildでインストールしたバージョン3.2.0。</p>
+<pre tabindex="0"><code>$ ruby --version
+ruby 3.2.0 (2022-12-25 revision a528908271) [x86_64-linux]
+$ type ruby
+ruby is /home/hnakamur/.rbenv/shims/ruby
+</code></pre><p>インストール手順は <a href="https://github.com/rbenv/rbenv#basic-git-checkout">https://github.com/rbenv/rbenv#basic-git-checkout</a> と <a href="https://github.com/rbenv/ruby-build#clone-as-rbenv-plugin-using-git">https://github.com/rbenv/ruby-build#clone-as-rbenv-plugin-using-git</a> を参考にしました。途中libyamlが必要と言われたのでlibyaml-devも入れています。</p>
+<pre tabindex="0"><code>git clone https://github.com/rbenv/rbenv.git ~/.rbenv
+echo &#39;eval &#34;$(~/.rbenv/bin/rbenv init - bash)&#34;&#39; &gt;&gt; ~/.bashrc
+</code></pre><pre tabindex="0"><code>exec $SHELL -l
+</code></pre><pre tabindex="0"><code>git clone https://github.com/rbenv/ruby-build.git &#34;$(rbenv root)&#34;/plugins/ruby-build
+</code></pre><pre tabindex="0"><code>sudo apt-get install libyaml-dev
+</code></pre><pre tabindex="0"><code>rbenv install 3.2.0
+rbenv global 3.2.0
+</code></pre><h3 id="sbcl-steel-bank-common-lisphttpswwwsbclorg">SBCL (<a href="https://www.sbcl.org/">Steel Bank Common Lisp</a>)</h3>
+<p>Ubuntu標準パッケージでインストールしたバージョン2.1.11-1。</p>
+<pre tabindex="0"><code>$ dpkg-query -W -f &#39;${Version}\n&#39; sbcl
+2:2.1.11-1
+</code></pre><h2 id="以下はついでのメモ">以下はついでのメモ</h2>
+<p>他の方に読んで頂く用の記事なら分けたほうが良いのでしょうが、このブログはあくまで自分用メモなのでついでに書いてしまいます。</p>
+<h3 id="javascriptのmax_safe_integerについてluajitでも試してみた">JavaScriptのMAX_SAFE_INTEGERについてLuaJITでも試してみた</h3>
+<p><a href="https://luajit.org/luajit.html">LuaJIT</a>はLua 5.1互換のJITコンパイラで、Number型は<a href="https://www.lua.org/manual/5.1/manual.html#2.2">2.2 – Values and Types</a>にあるように倍精度の浮動小数点数となっています。</p>
+<p>そのため、JavaScriptのNumber型と同様、整数値で扱える範囲は
+<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MIN_SAFE_INTEGER">Number.MIN_SAFE_INTEGER</a>から<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER">Number.MAX_SAFE_INTEGER</a>となります。具体的には<code>-9007199254740991 // -(2 ** 53 - 1)</code>から<code>9007199254740991 // 2 ** 53 - 1</code>です。</p>
+<p>上のページに書いてあったサンプルを試してみると、以下のようにLuaJITでも<code>max_safe_integer + 1 == max_safe_integer + 2</code>が<code>true</code>となることが確認できました。</p>
+<p>ただ、<code>max_safe_integer == max_safe_integer + 1</code>は<code>false</code>なので<code>max_safe_integer</code>はもう1多くても良いのではという素朴な疑問がわきましたが、<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/isSafeInteger">Number.isSafeInteger() - JavaScript | MDN</a>に説明がありました。</p>
+<pre tabindex="0"><code>$ cat safe-integer.lua
+local max_safe_integer = 9007199254740991
+local min_safe_integer = -9007199254740991
+
+local w = max_safe_integer
+local x = max_safe_integer + 1
+local y = max_safe_integer + 2
+print(string.format(&#39;w=%d, x=%d, w==x: %s&#39;, w, x, w == x))
+print(string.format(&#39;x=%d, y=%d, x==y: %s&#39;, x, y, x == y))
+
+local w2 = min_safe_integer
+local x2 = min_safe_integer - 1
+local y2 = min_safe_integer - 2
+print(string.format(&#39;w2=%d, x2=%d, w2==x2: %s&#39;, w2, x2, w2 == x2))
+print(string.format(&#39;x2=%d, y2=%d, x2==y2: %s&#39;, x2, y2, x2 == y2))
+
+function check_safe_integer(v)
+    if v &lt; min_safe_integer or v &gt; max_safe_integer then
+        print(string.format(&#34;number %g is not a safe integer&#34;, v))
+    end
+end
+
+check_safe_integer(max_safe_integer)
+check_safe_integer(max_safe_integer + 1)
+check_safe_integer(min_safe_integer)
+check_safe_integer(min_safe_integer - 1)
+</code></pre><pre tabindex="0"><code>$ luajit safe-integer.lua
+w=9007199254740991, x=9007199254740992, w==x: false
+x=9007199254740992, y=9007199254740992, x==y: true
+w2=-9007199254740991, x2=-9007199254740992, w2==x2: false
+x2=-9007199254740992, y2=-9007199254740992, x2==y2: true
+number 9.0072e+15 is not a safe integer
+number -9.0072e+15 is not a safe integer
+</code></pre><p>今回LuaJITの<a href="https://luajit.org/ext_ffi.html">FFI Library</a>で<a href="https://manpages.ubuntu.com/manpages/jammy/en/man2/clock_gettime.2.html">clock_gettime (2)</a>を呼んでいるのですが、<code>struct timespec</code>の2つのフィールドはともに64bit整数なのでNumber型で扱える範囲を超える可能性が定義上はあります。</p>
+<p>ということで念のためチェックするようにしてみました。ただ<code>clock_gettime</code>で得られる値だと<code>tv_nsec</code>は1^9未満ですし<code>tv_sec</code>もこの記事を書いている2022-12-28時点で1672217792と相当余裕があるので、この用途に限ればチェックは不要です。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">ffi</span> <span class="o">=</span> <span class="n">require</span> <span class="s2">&#34;ffi&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">C</span> <span class="o">=</span> <span class="n">ffi.C</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">ffi.cdef</span><span class="s">[[
+</span></span></span><span class="line"><span class="cl"><span class="s">    typedef int clockid_t;
+</span></span></span><span class="line"><span class="cl"><span class="s">    typedef int64_t time_t;
+</span></span></span><span class="line"><span class="cl"><span class="s">
+</span></span></span><span class="line"><span class="cl"><span class="s">    struct timespec {
+</span></span></span><span class="line"><span class="cl"><span class="s">        time_t   tv_sec;        /* seconds */
+</span></span></span><span class="line"><span class="cl"><span class="s">        long     tv_nsec;       /* nanoseconds */
+</span></span></span><span class="line"><span class="cl"><span class="s">    };
+</span></span></span><span class="line"><span class="cl"><span class="s">
+</span></span></span><span class="line"><span class="cl"><span class="s">    int clock_gettime(clockid_t clockid, struct timespec *tp);
+</span></span></span><span class="line"><span class="cl"><span class="s">]]</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">CLOCK_REALTIME</span> <span class="o">=</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">function</span> <span class="nf">tarai</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">if</span> <span class="n">x</span> <span class="o">&gt;</span> <span class="n">y</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">return</span> <span class="n">tarai</span><span class="p">(</span> <span class="n">tarai</span><span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">),</span> <span class="n">tarai</span><span class="p">(</span><span class="n">y</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">x</span><span class="p">),</span> <span class="n">tarai</span><span class="p">(</span><span class="n">z</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span> <span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">else</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">return</span> <span class="n">y</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">end</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">-- See</span>
+</span></span><span class="line"><span class="cl"><span class="c1">-- https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER</span>
+</span></span><span class="line"><span class="cl"><span class="c1">-- https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MIN_SAFE_INTEGER</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">max_safe_integer</span> <span class="o">=</span> <span class="mi">9007199254740991</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">min_safe_integer</span> <span class="o">=</span> <span class="o">-</span><span class="mi">9007199254740991</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">function</span> <span class="nf">check_safe_integer</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">if</span> <span class="n">v</span> <span class="o">&lt;</span> <span class="n">min_safe_integer</span> <span class="ow">or</span> <span class="n">v</span> <span class="o">&gt;</span> <span class="n">max_safe_integer</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">        <span class="n">print</span><span class="p">(</span><span class="n">string.format</span><span class="p">(</span><span class="s2">&#34;number %g is not a safe integer&#34;</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="n">os.exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">end</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">function</span> <span class="nf">timespecdiffsec</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="n">check_safe_integer</span><span class="p">(</span><span class="n">tonumber</span><span class="p">(</span><span class="n">t.tv_sec</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="n">check_safe_integer</span><span class="p">(</span><span class="n">tonumber</span><span class="p">(</span><span class="n">t.tv_nsec</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="n">check_safe_integer</span><span class="p">(</span><span class="n">tonumber</span><span class="p">(</span><span class="n">u.tv_sec</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="n">check_safe_integer</span><span class="p">(</span><span class="n">tonumber</span><span class="p">(</span><span class="n">u.tv_nsec</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kd">local</span> <span class="n">sec</span> <span class="o">=</span> <span class="n">tonumber</span><span class="p">(</span><span class="n">t.tv_sec</span><span class="p">)</span> <span class="o">-</span> <span class="n">tonumber</span><span class="p">(</span><span class="n">u.tv_sec</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">local</span> <span class="n">nsec</span> <span class="o">=</span> <span class="n">tonumber</span><span class="p">(</span><span class="n">t.tv_nsec</span><span class="p">)</span> <span class="o">-</span> <span class="n">tonumber</span><span class="p">(</span><span class="n">u.tv_nsec</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">if</span> <span class="n">nsec</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">        <span class="n">sec</span> <span class="o">=</span> <span class="n">sec</span> <span class="o">-</span> <span class="mi">1</span>
+</span></span><span class="line"><span class="cl">        <span class="n">nsec</span> <span class="o">=</span> <span class="n">nsec</span> <span class="o">+</span> <span class="mi">1000000000</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">end</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">sec</span> <span class="o">+</span> <span class="n">nsec</span> <span class="o">/</span> <span class="mi">1000000000</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">t1</span> <span class="o">=</span> <span class="n">ffi.new</span><span class="p">(</span><span class="s2">&#34;struct timespec[1]&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">t2</span> <span class="o">=</span> <span class="n">ffi.new</span><span class="p">(</span><span class="s2">&#34;struct timespec[1]&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">C.clock_gettime</span><span class="p">(</span><span class="n">CLOCK_REALTIME</span><span class="p">,</span> <span class="n">t1</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">ans</span> <span class="o">=</span> <span class="n">tarai</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">C.clock_gettime</span><span class="p">(</span><span class="n">CLOCK_REALTIME</span><span class="p">,</span> <span class="n">t2</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">delta</span> <span class="o">=</span> <span class="n">timespecdiffsec</span><span class="p">(</span><span class="n">t2</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">t1</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">string.format</span><span class="p">(</span><span class="s2">&#34;%f %d&#34;</span><span class="p">,</span> <span class="n">delta</span><span class="p">,</span> <span class="n">ans</span><span class="p">))</span>
+</span></span></code></pre></div><h3 id="たらい回し関数が呼び出される回数も調べてみた">たらい回し関数が呼び出される回数も調べてみた</h3>
+<p>今回のベンチマークで使っている<code>tarai(14, 7, 0)</code>でたらい関数が何回くらい呼ばれるのか気になったので、以下のように改変して試してみました。</p>
+<pre tabindex="0"><code>$ sed -n &#39;/^local called/,/^end/p&#39; tarai-count.lua
+local called = 0
+function tarai(x, y, z)
+    called = called + 1
+    if x &gt; y then
+        return tarai( tarai(x-1, y, z), tarai(y-1, z, x), tarai(z-1, x, y) )
+    else
+        return y
+    end
+end
+</code></pre><pre tabindex="0"><code>$ luajit tarai-count.lua
+elapsed=5.985 ans=14 called=588802013
+</code></pre><p>約5.9億回も呼ばれていました。</p>
+<h3 id="bashのシェルスクリプトで同じコマンドをn回実行する">bashのシェルスクリプトで同じコマンドをn回実行する</h3>
+<p>さらに脱線ですが、ベンチマークは1回だけ実行するのではなく何回か実行したほうが良いという話を聞いたことがあったので、繰り返し実行する方法を検索してみたところ、<a href="https://www.baeldung.com/linux/repeat-command">Linux Commands – Repeat a Command n Times | Baeldung on Linux</a>にいろんな方法が詳解されていました。</p>
+<p>私は普段はforループを使っているのですが、5番の<code>repeat</code>という関数を定義しておく方法は、よく使うなら便利かもと思いました。</p>
+<pre tabindex="0"><code>function repeat(){
+  for ((i=0;i&lt;$1;i++)); do
+    eval ${*:2}
+  done
+}
+</code></pre><p>複数のコマンドも指定可能とのことで、試してみると確かにできました。</p>
+<pre tabindex="0"><code>$ repeat 3 uname -r &#34;;&#34; hostname
+5.15.0-56-generic
+thinkcentre2
+5.15.0-56-generic
+thinkcentre2
+5.15.0-56-generic
+thinkcentre2
+</code></pre><p>試しに<code>;</code>をクォートしないと以下のようになりました。なるほど、そりゃそうか。</p>
+<pre tabindex="0"><code>$ repeat 3 uname -r ; hostname
+5.15.0-56-generic
+5.15.0-56-generic
+5.15.0-56-generic
+thinkcentre2
+</code></pre><p>ということでセミコロンをクォートするのが意味があるケースもあるということを学びました。
+<code>';'</code>や<code>\;</code>でもOKでした。</p>
+<p>そういえばfindの<code>-exec</code>で<code>\;</code>は昔から使ってましたが、意味は考えてなかった。なおfindでコマンドを実行する際は<code>-exec {} +</code>のほうが良くて、削除するには<code>-delete</code>があるそうです。</p>
+<ul>
+<li><a href="https://twitter.com/matsuu/status/1440827429497409551">https://twitter.com/matsuu/status/1440827429497409551</a></li>
+<li><a href="https://qiita.com/ko1nksm/items/9ff1f212255e8520070c">POSIX 準拠のシェルスクリプトでは find | xargs よりも find -exec {} + を使うべき！ - Qiita</a></li>
+</ul>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'G-KMMXGG2Z56', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
