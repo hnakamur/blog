@@ -80,7 +80,11 @@
       </ul>
     </li>
     <li><a href="#文字列キーのハッシュ関数はngx_crc32_shortからngx_murmur_hash2に変更">文字列キーのハッシュ関数はngx_crc32_shortからngx_murmur_hash2に変更</a></li>
-    <li><a href="#nginxとtrafficserverのログ出力関数の利用">nginxとtrafficserverのログ出力関数の利用</a></li>
+    <li><a href="#nginxとtrafficserverのログ出力関数の利用">nginxとtrafficserverのログ出力関数の利用</a>
+      <ul>
+        <li><a href="#2023-01-02-ログ書式をvsnprintfに統一しました">2023-01-02 ログ書式をvsnprintfに統一しました</a></li>
+      </ul>
+    </li>
     <li><a href="#リスト関連のメソッドlpush-rpush-lpop-rpop-llen">リスト関連のメソッド(lpush, rpush, lpop, rpop, llen)</a></li>
     <li><a href="#単体テストとカバレッジ">単体テストとカバレッジ</a></li>
     <li><a href="#関連-handles-are-the-better-pointers">関連: Handles are the better pointers</a></li>
@@ -139,6 +143,30 @@ nginxはワーカープロセスがマルチプロセス構成なのに対して
 <p>nginxのほうは最終的には<a href="https://github.com/nginx/nginx/blob/release-1.23.3/src/core/ngx_string.c#L164-L481">ngx_vslprintf</a>に行きついてこちらは<a href="https://github.com/nginx/nginx/blob/release-1.23.3/src/core/ngx_string.c#L90-L119">src/core/ngx_string.c#L90-L119</a>のフォーマットをサポートしています。</p>
 <p>一方trafficserverのほうは最終的には<a href="https://github.com/apache/trafficserver/blob/9.1.4-rc0/src/tscore/Diags.cc#L222-L332">Diags::print_va</a>に行きついてこれは<a href="https://manpages.ubuntu.com/manpages/jammy/en/man3/vfprintf.3.html">vfprintf (3)</a>を呼んでいます。</p>
 <p>最大長さを指定した文字列出力はnginxでは<code>%*s</code>、trafficserverでは<code>%.*s</code>と違う指定が必要なので、<a href="https://github.com/hnakamur/ats-ngx-lua-shdict/blob/8565c6e379beec724cdab58dc492ec4caa773dc5/src/mps_log.h">mps_log.h</a>に<code>LogLenStr</code>というマクロを定義してとりあえずしのいでいます。</p>
+<h3 id="2023-01-02-ログ書式をvsnprintfに統一しました">2023-01-02 ログ書式をvsnprintfに統一しました</h3>
+<p><a href="https://github.com/hnakamur/ats-ngx-lua-shdict/commit/e14b679436c202d7a6d4835e94d0648bb7b4d4b6">e14b679</a>と<a href="https://github.com/hnakamur/ats-ngx-lua-shdict/commit/8cdd4befa63d4038485293e80f78b8ba0a1cd768">8cdd4be</a>のコミットで統一しました。</p>
+<p><code>&quot;%&quot; PRId64</code>みたいに書くのは割と面倒なので、<a href="https://github.com/nginx/nginx/blob/release-1.23.3/src/core/ngx_string.c#L164-L481">ngx_vslprintf</a>をコピペ改変しようかと一度は思ったのですが、書式と引数が一致しないときにコンパイル時に警告が出るのは便利だなと思い直して、nginx用のログ出力をvsnprintfを使って文字列を作ってからnginxのログ出力関数に渡すように改修しました。</p>
+<p>また、<a href="https://github.com/hnakamur/ats-ngx-lua-shdict/blob/8cdd4befa63d4038485293e80f78b8ba0a1cd768/src/tslog.h">tslog.h</a>で使用されていた<a href="https://clang.llvm.org/docs/AttributeReference.html#format">Clang format attribute</a>を、nginxと標準エラー出力用のログ関数にも付けました。</p>
+<p>これで上に書いた<code>LogLenStr</code>のマクロは不要になったので直接<code>&quot;%.*s&quot;</code>と書くようにしました。
+なお、テストでは面倒だったので<code>&quot;%&quot; PRId64</code>ではなく<code>&quot;%ld&quot;</code>のように書いています。</p>
+<p>このへんを試していて気づいたのですが、フォーマット文字列と値の間で改行が入っていると、以下のように警告メッセージにフォーマット文字列が出力されないんですね。</p>
+<pre tabindex="0"><code>src/mps_slab.c:108:9: warning: format specifies type &#39;int&#39; but the argument has type &#39;ngx_uint_t&#39; (aka &#39;unsigned long&#39;) [-Wformat]
+        mps_pagesize, mps_slab_max_size, mps_slab_exact_size);
+        ^~~~~~~~~~~~
+src/mps_log.h:11:48: note: expanded from macro &#39;mps_log_debug&#39;
+#define mps_log_debug(tag, ...) TSDebug((tag), __VA_ARGS__)
+                                               ^~~~~~~~~~~
+1 warning generated.
+</code></pre><p>フォーマット文字列と値の間に改行が入っていない場合は、フォーマット文字列と修正後のフォーマットも出力されます。</p>
+<pre tabindex="0"><code>src/mps_slab.c:105:51: warning: format specifies type &#39;int&#39; but the argument has type &#39;ngx_uint_t&#39; (aka &#39;unsigned long&#39;) [-Wformat]
+    mps_log_debug(MPS_LOG_TAG, &#34;mps_pagesize=%d&#34;, mps_pagesize);
+                                             ~~   ^~~~~~~~~~~~
+                                             %lu
+src/mps_log.h:20:48: note: expanded from macro &#39;mps_log_debug&#39;
+#define mps_log_debug(tag, ...) TSDebug((tag), __VA_ARGS__)
+                                               ^~~~~~~~~~~
+1 warning generated.
+</code></pre><p>1回のログ出力で多数の値を出してフォーマット文字列が長くなりがちな私としてはちょっと残念ですが、警告メッセージを見れば分かるので慣れればよいかという気もしました。</p>
 <h2 id="リスト関連のメソッドlpush-rpush-lpop-rpop-llen">リスト関連のメソッド(lpush, rpush, lpop, rpop, llen)</h2>
 <p><a href="https://github.com/openresty/lua-nginx-module#ngxshareddict">ngx.shared.DICT</a>にはLuaの文字列、Number、booleanの値の設定・取得などのメソッドに加えて、リスト関連のメソッド(lpush, rpush, lpop, rpop, llen)も用意されています。</p>
 <p>個人的には使ってないので、非対応にしようかとも思ったのですが、一旦対応してみました。getなどのメソッドはLuaJIT FFI用の関数が実装されているのですが、リスト関連のメソッドはLua用の関数しかなかったのでFFI用の関数に改変して対応しました。</p>
