@@ -1,6 +1,7 @@
 ---
 title: "Apache Traffic Serverとnginxで使えるLuaJIT用shared dictを作ってみた"
 date: 2023-01-01T15:53:38+09:00
+lastmod: 2023-01-12T14:08:00+09:00
 ---
 ## はじめに
 
@@ -92,6 +93,44 @@ nginxのほうは最終的には[ngx_vslprintf](https://github.com/nginx/nginx/b
 一方trafficserverのほうは最終的には[Diags::print_va](https://github.com/apache/trafficserver/blob/9.1.4-rc0/src/tscore/Diags.cc#L222-L332)に行きついてこれは[vfprintf (3)](https://manpages.ubuntu.com/manpages/jammy/en/man3/vfprintf.3.html)を呼んでいます。
 
 最大長さを指定した文字列出力はnginxでは`%*s`、trafficserverでは`%.*s`と違う指定が必要なので、[mps_log.h](https://github.com/hnakamur/ats-ngx-lua-shdict/blob/8565c6e379beec724cdab58dc492ec4caa773dc5/src/mps_log.h)に`LogLenStr`というマクロを定義してとりあえずしのいでいます。
+
+### 2023-01-02 ログ書式をvsnprintfに統一しました
+
+[e14b679](https://github.com/hnakamur/ats-ngx-lua-shdict/commit/e14b679436c202d7a6d4835e94d0648bb7b4d4b6)と[8cdd4be](https://github.com/hnakamur/ats-ngx-lua-shdict/commit/8cdd4befa63d4038485293e80f78b8ba0a1cd768)のコミットで統一しました。
+
+`"%" PRId64`みたいに書くのは割と面倒なので、[ngx_vslprintf](https://github.com/nginx/nginx/blob/release-1.23.3/src/core/ngx_string.c#L164-L481)をコピペ改変しようかと一度は思ったのですが、書式と引数が一致しないときにコンパイル時に警告が出るのは便利だなと思い直して、nginx用のログ出力をvsnprintfを使って文字列を作ってからnginxのログ出力関数に渡すように改修しました。
+
+また、[tslog.h](https://github.com/hnakamur/ats-ngx-lua-shdict/blob/8cdd4befa63d4038485293e80f78b8ba0a1cd768/src/tslog.h)で使用されていた[Clang format attribute](https://clang.llvm.org/docs/AttributeReference.html#format)を、nginxと標準エラー出力用のログ関数にも付けました。
+
+これで上に書いた`LogLenStr`のマクロは不要になったので直接`"%.*s"`と書くようにしました。
+なお、テストでは面倒だったので`"%" PRId64`ではなく`"%ld"`のように書いています。
+
+このへんを試していて気づいたのですが、フォーマット文字列と値の間で改行が入っていると、以下のように警告メッセージにフォーマット文字列が出力されないんですね。
+
+```
+src/mps_slab.c:108:9: warning: format specifies type 'int' but the argument has type 'ngx_uint_t' (aka 'unsigned long') [-Wformat]
+        mps_pagesize, mps_slab_max_size, mps_slab_exact_size);
+        ^~~~~~~~~~~~
+src/mps_log.h:11:48: note: expanded from macro 'mps_log_debug'
+#define mps_log_debug(tag, ...) TSDebug((tag), __VA_ARGS__)
+                                               ^~~~~~~~~~~
+1 warning generated.
+```
+
+フォーマット文字列と値の間に改行が入っていない場合は、フォーマット文字列と修正後のフォーマットも出力されます。
+
+```
+src/mps_slab.c:105:51: warning: format specifies type 'int' but the argument has type 'ngx_uint_t' (aka 'unsigned long') [-Wformat]
+    mps_log_debug(MPS_LOG_TAG, "mps_pagesize=%d", mps_pagesize);
+                                             ~~   ^~~~~~~~~~~~
+                                             %lu
+src/mps_log.h:20:48: note: expanded from macro 'mps_log_debug'
+#define mps_log_debug(tag, ...) TSDebug((tag), __VA_ARGS__)
+                                               ^~~~~~~~~~~
+1 warning generated.
+```
+
+1回のログ出力で多数の値を出してフォーマット文字列が長くなりがちな私としてはちょっと残念ですが、警告メッセージを見れば分かるので慣れればよいかという気もしました。
 
 ## リスト関連のメソッド(lpush, rpush, lpop, rpop, llen)
 
