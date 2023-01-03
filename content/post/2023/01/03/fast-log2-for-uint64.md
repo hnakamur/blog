@@ -7,6 +7,8 @@ date: 2023-01-03T17:09:58+09:00
 [kazuhoさんのツイート](https://twitter.com/kazuho/status/1610109662346752002)とソースを見て、本題のパーセンタイル値をインクリメンタルに更新する方法の前に、
 [`static uint64_t ullog2(uint64_t x)`](https://github.com/h2o/h2o/blob/0f08b675c8244fc4552a93e9b35271ecf5e0f8fa/deps/libgkc/gkc.c#L109-L127)というuint64の整数のlog2を高速に計算する関数に興味がわいて調べてみたのでメモです。
 
+試したコードは[hnakamur/log2_experiment](https://github.com/hnakamur/log2_experiment)に置いてます。
+
 ## アルゴリズム
 
 ### 一番近い2のべき乗から1を引いた値の計算
