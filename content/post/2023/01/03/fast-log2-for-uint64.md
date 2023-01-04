@@ -10,6 +10,108 @@ lastmod: 2023-01-04T04:06:00+09:00
 
 試したコードは[hnakamur/log2_experiment](https://github.com/hnakamur/log2_experiment)に置いてます。
 
+## 2022-01-04追記 herumiさんのツイートでさらに別の実装を知った
+
+* [一旦doubleに変換する方式](https://twitter.com/herumi/status/1610248792254844929)
+* `__builtin_clzll`を使う方式。[Ilog2 by herumi · Pull Request #3177 · h2o/h2o](https://github.com/h2o/h2o/pull/3177)。
+    * [テストコード](https://github.com/herumi/misc/blob/main/ilog2.c)
+
+これを見て自分でも試してみました。
+
+* [math.hのlogと比較してみました](https://wandbox.org/permlink/a103Ixk5NYiYfpAL)。
+* [Goに移植してみた](https://github.com/hnakamur/log2_experiment/commit/87c3d50d211a3ba4c6f38ee65074c81dd45b3a32)
+
+```go
+// ILog2 calculates log2 of a uint64 value.
+// Ported from
+// https://github.com/h2o/h2o/pull/3177/files
+func ILog2(x uint64) int64 {
+	if x == 0 {
+		return 0
+	}
+	return 63 - int64(bits.LeadingZeros64(x))
+}
+
+// ILog2B calculates log2 of a uint64 value.
+// Ported from
+// https://twitter.com/herumi/status/1610248792254844929
+func ILog2B(x uint64) int64 {
+	f := float64(x)
+	v := math.Float64bits(f)
+	return int64(v>>52) - 1023
+}
+```
+
+そもそもlogは0では無限大になるので上のILog2の`return 0`は変ではあるのですが、Cでの実装の結果に合わせるとこれが必要でした。
+
+math.Logを使う方式と比較したテストの結果は以下のようになりました。
+
+```
+=== RUN   TestILog2
+    log2_test.go:45: result mismatch, x=0, got=0, want=-9223372036854775808
+    log2_test.go:45: result mismatch, x=1ffffffffffff, got=48, want=49
+    log2_test.go:45: result mismatch, x=3ffffffffffff, got=49, want=50
+    log2_test.go:45: result mismatch, x=7ffffffffffff, got=50, want=51
+    log2_test.go:45: result mismatch, x=fffffffffffff, got=51, want=52
+    log2_test.go:45: result mismatch, x=1fffffffffffff, got=52, want=53
+    log2_test.go:45: result mismatch, x=3fffffffffffff, got=53, want=54
+    log2_test.go:45: result mismatch, x=7fffffffffffff, got=54, want=55
+    log2_test.go:45: result mismatch, x=ffffffffffffff, got=55, want=56
+    log2_test.go:45: result mismatch, x=1ffffffffffffff, got=56, want=57
+    log2_test.go:45: result mismatch, x=3ffffffffffffff, got=57, want=58
+    log2_test.go:45: result mismatch, x=7ffffffffffffff, got=58, want=59
+    log2_test.go:45: result mismatch, x=fffffffffffffff, got=59, want=60
+    log2_test.go:45: result mismatch, x=1fffffffffffffff, got=60, want=61
+    log2_test.go:45: result mismatch, x=3fffffffffffffff, got=61, want=62
+    log2_test.go:45: result mismatch, x=7fffffffffffffff, got=62, want=63
+    log2_test.go:45: result mismatch, x=ffffffffffffffff, got=63, want=64
+--- FAIL: TestILog2 (0.00s)
+=== RUN   TestILog2B
+    log2_test.go:45: result mismatch, x=0, got=-1023, want=-9223372036854775808
+    log2_test.go:45: result mismatch, x=1ffffffffffff, got=48, want=49
+    log2_test.go:45: result mismatch, x=3ffffffffffff, got=49, want=50
+    log2_test.go:45: result mismatch, x=7ffffffffffff, got=50, want=51
+    log2_test.go:45: result mismatch, x=fffffffffffff, got=51, want=52
+    log2_test.go:45: result mismatch, x=1fffffffffffff, got=52, want=53
+--- FAIL: TestILog2B (0.00s)
+=== RUN   TestLog2ByAvernar
+    log2_test.go:45: result mismatch, x=0, got=0, want=-9223372036854775808
+    log2_test.go:45: result mismatch, x=1ffffffffffff, got=48, want=49
+    log2_test.go:45: result mismatch, x=3ffffffffffff, got=49, want=50                                                                                                                                                  log2_test.go:45: result mismatch, x=7ffffffffffff, got=50, want=51                                                                                                                                                  log2_test.go:45: result mismatch, x=fffffffffffff, got=51, want=52                                                                                                                                                  log2_test.go:45: result mismatch, x=1fffffffffffff, got=52, want=53                                                                                                                                                 log2_test.go:45: result mismatch, x=3fffffffffffff, got=53, want=54                                                                                                                                                 log2_test.go:45: result mismatch, x=7fffffffffffff, got=54, want=55
+    log2_test.go:45: result mismatch, x=ffffffffffffff, got=55, want=56
+    log2_test.go:45: result mismatch, x=1ffffffffffffff, got=56, want=57
+    log2_test.go:45: result mismatch, x=3ffffffffffffff, got=57, want=58
+    log2_test.go:45: result mismatch, x=7ffffffffffffff, got=58, want=59
+    log2_test.go:45: result mismatch, x=fffffffffffffff, got=59, want=60
+    log2_test.go:45: result mismatch, x=1fffffffffffffff, got=60, want=61
+    log2_test.go:45: result mismatch, x=3fffffffffffffff, got=61, want=62
+    log2_test.go:45: result mismatch, x=7fffffffffffffff, got=62, want=63
+    log2_test.go:45: result mismatch, x=ffffffffffffffff, got=63, want=64
+--- FAIL: TestLog2ByAvernar (0.00s)
+```
+
+ベンチマークの結果。
+
+```
+$ go test -v -run ^$ -bench . -benchmem
+goos: linux
+goarch: amd64
+pkg: github.com/hnakamur/log2_experiment
+cpu: AMD Ryzen 7 PRO 4750GE with Radeon Graphics
+BenchmarkILog2
+BenchmarkILog2-16                4560423               245.8 ns/op             0 B/op          0 allocs/op
+BenchmarkILog2B
+BenchmarkILog2B-16               4428868               247.3 ns/op             0 B/op          0 allocs/op
+BenchmarkLogByAvernar
+BenchmarkLogByAvernar-16          782736              1566 ns/op               0 B/op          0 allocs/op
+BenchmarkLogByAvernarU8
+BenchmarkLogByAvernarU8-16        794042              1561 ns/op               0 B/op          0 allocs/op
+BenchmarkLogByStdlib
+BenchmarkLogByStdlib-16            80896             15269 ns/op               0 B/op          0 allocs/op
+PASS
+ok      github.com/hnakamur/log2_experiment     7.322s
+```
+
 ## アルゴリズム
 
 ### 一番近い2のべき乗から1を引いた値の計算
