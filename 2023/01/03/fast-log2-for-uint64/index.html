@@ -69,6 +69,7 @@
   <nav id="TableOfContents">
   <ul>
     <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#2022-01-04追記-herumiさんのツイートでさらに別の実装を知った">2022-01-04追記 herumiさんのツイートでさらに別の実装を知った</a></li>
     <li><a href="#アルゴリズム">アルゴリズム</a>
       <ul>
         <li><a href="#一番近い2のべき乗から1を引いた値の計算">一番近い2のべき乗から1を引いた値の計算</a></li>
@@ -84,7 +85,100 @@
 <p><a href="https://twitter.com/kazuho/status/1610109662346752002">kazuhoさんのツイート</a>とソースを見て、本題のパーセンタイル値をインクリメンタルに更新する方法の前に、
 <a href="https://github.com/h2o/h2o/blob/0f08b675c8244fc4552a93e9b35271ecf5e0f8fa/deps/libgkc/gkc.c#L109-L127"><code>static uint64_t ullog2(uint64_t x)</code></a>というuint64の整数のlog2を高速に計算する関数に興味がわいて調べてみたのでメモです。</p>
 <p>試したコードは<a href="https://github.com/hnakamur/log2_experiment">hnakamur/log2_experiment</a>に置いてます。</p>
-<h2 id="アルゴリズム">アルゴリズム</h2>
+<h2 id="2022-01-04追記-herumiさんのツイートでさらに別の実装を知った">2022-01-04追記 herumiさんのツイートでさらに別の実装を知った</h2>
+<ul>
+<li><a href="https://twitter.com/herumi/status/1610248792254844929">一旦doubleに変換する方式</a></li>
+<li><code>__builtin_clzll</code>を使う方式。<a href="https://github.com/h2o/h2o/pull/3177">Ilog2 by herumi · Pull Request #3177 · h2o/h2o</a>。
+<ul>
+<li><a href="https://github.com/herumi/misc/blob/main/ilog2.c">テストコード</a></li>
+</ul>
+</li>
+</ul>
+<p>これを見て自分でも試してみました。</p>
+<ul>
+<li><a href="https://wandbox.org/permlink/a103Ixk5NYiYfpAL">math.hのlogと比較してみました</a>。</li>
+<li><a href="https://github.com/hnakamur/log2_experiment/commit/87c3d50d211a3ba4c6f38ee65074c81dd45b3a32">Goに移植してみた</a></li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ILog2 calculates log2 of a uint64 value.
+</span></span></span><span class="line"><span class="cl"><span class="c1">// Ported from
+</span></span></span><span class="line"><span class="cl"><span class="c1">// https://github.com/h2o/h2o/pull/3177/files
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">ILog2</span><span class="p">(</span><span class="nx">x</span> <span class="kt">uint64</span><span class="p">)</span> <span class="kt">int64</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">x</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="mi">63</span> <span class="o">-</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">bits</span><span class="p">.</span><span class="nf">LeadingZeros64</span><span class="p">(</span><span class="nx">x</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// ILog2B calculates log2 of a uint64 value.
+</span></span></span><span class="line"><span class="cl"><span class="c1">// Ported from
+</span></span></span><span class="line"><span class="cl"><span class="c1">// https://twitter.com/herumi/status/1610248792254844929
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">ILog2B</span><span class="p">(</span><span class="nx">x</span> <span class="kt">uint64</span><span class="p">)</span> <span class="kt">int64</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">f</span> <span class="o">:=</span> <span class="nb">float64</span><span class="p">(</span><span class="nx">x</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">v</span> <span class="o">:=</span> <span class="nx">math</span><span class="p">.</span><span class="nf">Float64bits</span><span class="p">(</span><span class="nx">f</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">v</span><span class="o">&gt;&gt;</span><span class="mi">52</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1023</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>そもそもlogは0では無限大になるので上のILog2の<code>return 0</code>は変ではあるのですが、Cでの実装の結果に合わせるとこれが必要でした。</p>
+<p>math.Logを使う方式と比較したテストの結果は以下のようになりました。</p>
+<pre tabindex="0"><code>=== RUN   TestILog2
+    log2_test.go:45: result mismatch, x=0, got=0, want=-9223372036854775808
+    log2_test.go:45: result mismatch, x=1ffffffffffff, got=48, want=49
+    log2_test.go:45: result mismatch, x=3ffffffffffff, got=49, want=50
+    log2_test.go:45: result mismatch, x=7ffffffffffff, got=50, want=51
+    log2_test.go:45: result mismatch, x=fffffffffffff, got=51, want=52
+    log2_test.go:45: result mismatch, x=1fffffffffffff, got=52, want=53
+    log2_test.go:45: result mismatch, x=3fffffffffffff, got=53, want=54
+    log2_test.go:45: result mismatch, x=7fffffffffffff, got=54, want=55
+    log2_test.go:45: result mismatch, x=ffffffffffffff, got=55, want=56
+    log2_test.go:45: result mismatch, x=1ffffffffffffff, got=56, want=57
+    log2_test.go:45: result mismatch, x=3ffffffffffffff, got=57, want=58
+    log2_test.go:45: result mismatch, x=7ffffffffffffff, got=58, want=59
+    log2_test.go:45: result mismatch, x=fffffffffffffff, got=59, want=60
+    log2_test.go:45: result mismatch, x=1fffffffffffffff, got=60, want=61
+    log2_test.go:45: result mismatch, x=3fffffffffffffff, got=61, want=62
+    log2_test.go:45: result mismatch, x=7fffffffffffffff, got=62, want=63
+    log2_test.go:45: result mismatch, x=ffffffffffffffff, got=63, want=64
+--- FAIL: TestILog2 (0.00s)
+=== RUN   TestILog2B
+    log2_test.go:45: result mismatch, x=0, got=-1023, want=-9223372036854775808
+    log2_test.go:45: result mismatch, x=1ffffffffffff, got=48, want=49
+    log2_test.go:45: result mismatch, x=3ffffffffffff, got=49, want=50
+    log2_test.go:45: result mismatch, x=7ffffffffffff, got=50, want=51
+    log2_test.go:45: result mismatch, x=fffffffffffff, got=51, want=52
+    log2_test.go:45: result mismatch, x=1fffffffffffff, got=52, want=53
+--- FAIL: TestILog2B (0.00s)
+=== RUN   TestLog2ByAvernar
+    log2_test.go:45: result mismatch, x=0, got=0, want=-9223372036854775808
+    log2_test.go:45: result mismatch, x=1ffffffffffff, got=48, want=49
+    log2_test.go:45: result mismatch, x=3ffffffffffff, got=49, want=50                                                                                                                                                  log2_test.go:45: result mismatch, x=7ffffffffffff, got=50, want=51                                                                                                                                                  log2_test.go:45: result mismatch, x=fffffffffffff, got=51, want=52                                                                                                                                                  log2_test.go:45: result mismatch, x=1fffffffffffff, got=52, want=53                                                                                                                                                 log2_test.go:45: result mismatch, x=3fffffffffffff, got=53, want=54                                                                                                                                                 log2_test.go:45: result mismatch, x=7fffffffffffff, got=54, want=55
+    log2_test.go:45: result mismatch, x=ffffffffffffff, got=55, want=56
+    log2_test.go:45: result mismatch, x=1ffffffffffffff, got=56, want=57
+    log2_test.go:45: result mismatch, x=3ffffffffffffff, got=57, want=58
+    log2_test.go:45: result mismatch, x=7ffffffffffffff, got=58, want=59
+    log2_test.go:45: result mismatch, x=fffffffffffffff, got=59, want=60
+    log2_test.go:45: result mismatch, x=1fffffffffffffff, got=60, want=61
+    log2_test.go:45: result mismatch, x=3fffffffffffffff, got=61, want=62
+    log2_test.go:45: result mismatch, x=7fffffffffffffff, got=62, want=63
+    log2_test.go:45: result mismatch, x=ffffffffffffffff, got=63, want=64
+--- FAIL: TestLog2ByAvernar (0.00s)
+</code></pre><p>ベンチマークの結果。</p>
+<pre tabindex="0"><code>$ go test -v -run ^$ -bench . -benchmem
+goos: linux
+goarch: amd64
+pkg: github.com/hnakamur/log2_experiment
+cpu: AMD Ryzen 7 PRO 4750GE with Radeon Graphics
+BenchmarkILog2
+BenchmarkILog2-16                4560423               245.8 ns/op             0 B/op          0 allocs/op
+BenchmarkILog2B
+BenchmarkILog2B-16               4428868               247.3 ns/op             0 B/op          0 allocs/op
+BenchmarkLogByAvernar
+BenchmarkLogByAvernar-16          782736              1566 ns/op               0 B/op          0 allocs/op
+BenchmarkLogByAvernarU8
+BenchmarkLogByAvernarU8-16        794042              1561 ns/op               0 B/op          0 allocs/op
+BenchmarkLogByStdlib
+BenchmarkLogByStdlib-16            80896             15269 ns/op               0 B/op          0 allocs/op
+PASS
+ok      github.com/hnakamur/log2_experiment     7.322s
+</code></pre><h2 id="アルゴリズム">アルゴリズム</h2>
 <h3 id="一番近い2のべき乗から1を引いた値の計算">一番近い2のべき乗から1を引いた値の計算</h3>
 <p><a href="https://stackoverflow.com/questions/68677658/how-does-one-find-the-floor-of-the-log-base-2-of-an-n-bit-integer-using-bitwise">algorithm - How does one find the floor of the log-base-2 of an n-bit integer using bitwise operators? - Stack Overflow</a>の<a href="https://stackoverflow.com/a/68681396/1391518">回答</a>の1によると以下のコードはx以上の一番近い2のべき乗から1を引いた値を計算しているそうです。</p>
 <pre tabindex="0"><code>    x |= (x &gt;&gt; 1);
