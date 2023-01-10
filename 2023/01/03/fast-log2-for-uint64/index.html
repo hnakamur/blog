@@ -69,6 +69,7 @@
   <nav id="TableOfContents">
   <ul>
     <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#2022-01-10追記-その後さらに更新しました">2022-01-10追記 その後さらに更新しました</a></li>
     <li><a href="#2022-01-04追記-herumiさんのツイートでさらに別の実装を知った">2022-01-04追記 herumiさんのツイートでさらに別の実装を知った</a></li>
     <li><a href="#アルゴリズム">アルゴリズム</a>
       <ul>
@@ -85,6 +86,19 @@
 <p><a href="https://twitter.com/kazuho/status/1610109662346752002">kazuhoさんのツイート</a>とソースを見て、本題のパーセンタイル値をインクリメンタルに更新する方法の前に、
 <a href="https://github.com/h2o/h2o/blob/0f08b675c8244fc4552a93e9b35271ecf5e0f8fa/deps/libgkc/gkc.c#L109-L127"><code>static uint64_t ullog2(uint64_t x)</code></a>というuint64の整数のlog2を高速に計算する関数に興味がわいて調べてみたのでメモです。</p>
 <p>試したコードは<a href="https://github.com/hnakamur/log2_experiment">hnakamur/log2_experiment</a>に置いてます。</p>
+<h2 id="2022-01-10追記-その後さらに更新しました">2022-01-10追記 その後さらに更新しました</h2>
+<p>2022-01-04追記の説明、今から見ると自分でもよくわかりませんが、<code>x=0</code>では呼ばないという前提で以下のように変えました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ILog2 calculates log2 of a uint64 value.
+</span></span></span><span class="line"><span class="cl"><span class="c1">// Ported from
+</span></span></span><span class="line"><span class="cl"><span class="c1">// https://github.com/h2o/h2o/pull/3177/files
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">ILog2</span><span class="p">(</span><span class="nx">x</span> <span class="kt">uint64</span><span class="p">)</span> <span class="kt">int64</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="mi">63</span> <span class="o">-</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">bits</span><span class="p">.</span><span class="nf">LeadingZeros64</span><span class="p">(</span><span class="nx">x</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>元の<code>x |= (x &gt;&gt; 1)</code>などを並べたコードも条件分岐がないというのが利点とあったので、上のコードも条件分岐無しのほうが良いかなということで。</p>
+<p>なお、<code>bits.LeadingZeros64(x)</code>も <code>__builtin_clzll(x)</code>も<code>x=0</code>のときは64になるのは同じでした。上の関数は<code>x=0</code>では呼ばない前提です。</p>
+<p><a href="https://twitter.com/herumi/status/1610586811860127745">herumiさんとのその後のやり取り</a>で、倍精度浮動小数点数での<code>math.Log(float64)</code>のほうが正しくないケースがあると教えていただきました。</p>
+<p>そこで<a href="https://www.mpfr.org/">The GNU MPFR Library</a>というライブラリを使って<a href="https://github.com/hnakamur/log2_experiment/blob/47873251e237dc5fdf43cdf20500aadc4ae9d3dd/c/ilog2_ref.c">ilog2_ref.c</a>でlog2をfloat64より高精度で計算して<code>63 - __builtin_clzll(x)</code>と比べてみた<a href="https://github.com/hnakamur/log2_experiment/blob/47873251e237dc5fdf43cdf20500aadc4ae9d3dd/c/ilog2_test.c">ilog2_test.c</a>ところ、<code>x&gt;=1</code>について<a href="https://github.com/hnakamur/log2_experiment/blob/47873251e237dc5fdf43cdf20500aadc4ae9d3dd/c/ilog2_test.c#L77-L89">check_fn</a>で指定した入力値については全て一致することが確認できました。そして、テストしてない値についても<code>__builtin_clzll(x)</code>が同じ値になればそこから先は同じなので、<code>x&gt;=1</code>については大丈夫だという確信が持てました。</p>
+<p>Goの<code>bits.LeadingZeros64(x)</code>は<code>__builtin_clzll(x)</code>と同等なのでこちらも大丈夫です。念のため<a href="https://github.com/hnakamur/log2_experiment/blob/47873251e237dc5fdf43cdf20500aadc4ae9d3dd/c/ilog2_ref.c">ilog2_ref.c</a>の出力と突き合わせる<a href="https://github.com/hnakamur/log2_experiment/blob/47873251e237dc5fdf43cdf20500aadc4ae9d3dd/log2_test.go">テスト</a>も書いて確認しました。</p>
 <h2 id="2022-01-04追記-herumiさんのツイートでさらに別の実装を知った">2022-01-04追記 herumiさんのツイートでさらに別の実装を知った</h2>
 <ul>
 <li><a href="https://twitter.com/herumi/status/1610248792254844929">一旦doubleに変換する方式</a></li>
