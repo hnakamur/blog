@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.109.0">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>AWS SigV4のCのライブラリを見つけた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2023. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>AWS SigV4のCのライブラリを見つけた</h1>
+  <time datetime=2023-01-10T22:44:43&#43;0900 class="post-date">2023-01-10</time>
+  <nav id="TableOfContents"></nav>
+  <p>AWS SigV4のCのライブラリを見つけたというメモです。</p>
+<p>レポジトリは<a href="https://github.com/aws/SigV4-for-AWS-IoT-embedded-sdk">aws/SigV4-for-AWS-IoT-embedded-sdk: AWS library to sign AWS HTTP requests with Signature Version 4 Signing Process.</a>でorganizationがawsなので公式ライブラリです。</p>
+<p><a href="https://github.com/aws/SigV4-for-AWS-IoT-embedded-sdk#reference-examples">Reference examples</a>からリンクされている<a href="https://github.com/aws/aws-iot-device-sdk-embedded-C/tree/main/demos/http">HTTP demos</a>にサンプルコードがあるとのことでちらっと見てみました。</p>
+<p><a href="https://github.com/aws/aws-iot-device-sdk-embedded-C/blob/c70269486b3fdcb6d6e85e999059d0bd35e732cd/demos/http/http_demo_s3_download/http_demo_s3_download.c#L1383-L1411">http_demo_s3_download.c#L1383-L1411</a>あたりが主な部分のようです。</p>
+<p>私としてはAWS S3互換の他のオブジェクトストレージでも使えるのか、つまり、エンドポイントやリージョンが変更できるかが気になるところです。</p>
+<p><a href="https://github.com/aws/aws-iot-device-sdk-embedded-C/blob/c70269486b3fdcb6d6e85e999059d0bd35e732cd/demos/http/http_demo_s3_download/http_demo_s3_download.c#L106-L109">http_demo_s3_download.c#L106-L109</a>を見ると<code>AWS_S3_BUCKET_REGION</code>をビルド時に渡すようになっています。</p>
+<p><a href="https://github.com/aws/aws-iot-device-sdk-embedded-C/blob/c70269486b3fdcb6d6e85e999059d0bd35e732cd/demos/http/http_demo_s3_download/http_demo_s3_download.c#L162-L167">http_demo_s3_download.c#L162-L167</a>では<code>AWS_S3_BUCKET_REGION</code>を参照して<code>AWS_S3_ENDPOINT</code>というのを定義しています。</p>
+<p><a href="https://github.com/aws/aws-iot-device-sdk-embedded-C/blob/c70269486b3fdcb6d6e85e999059d0bd35e732cd/demos/http/http_demo_s3_download/http_demo_s3_download.c#L528-L542">http_demo_s3_download.c#L528-L542</a>で<code>SigV4Parameters_t sigv4Params</code>の値を設定する際に<code>AWS_S3_BUCKET_REGION</code>を参照しているのでリージョンの値は変更できそうです。</p>
+<p><code>AWS_S3_ENDPOINT</code>のほうは<code>connectToS3Server</code>という関数内の<a href="https://github.com/aws/aws-iot-device-sdk-embedded-C/blob/c70269486b3fdcb6d6e85e999059d0bd35e732cd/demos/http/http_demo_s3_download/http_demo_s3_download.c#L936-L937">http_demo_s3_download.c#L936-L937</a>で参照していて接続先の指定に使っているだけのようなのでこちらも変更できそうです。</p>
+<p><a href="https://docs.aws.amazon.com/ja_jp/general/latest/gr/sigv4_signing.html">署名バージョン 4 を使用した AWS リクエストへの署名 - AWS 全般のリファレンス</a>と<a href="https://docs.aws.amazon.com/ja_jp/general/latest/gr/sigv4-calculate-signature.html">タスク 3: AWS 署名バージョン 4 の署名を計算する - AWS 全般のリファレンス</a>を見ても署名の計算の際にリージョンは使っていますが、エンドポイントは使ってないのでやはり大丈夫そうです。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'G-KMMXGG2Z56', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
