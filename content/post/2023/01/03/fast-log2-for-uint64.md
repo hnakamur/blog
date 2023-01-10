@@ -1,7 +1,7 @@
 ---
 title: "uint64で高速にLog2を計算する方法を知った"
 date: 2023-01-03T17:09:58+09:00
-lastmod: 2023-01-04T04:06:00+09:00
+lastmod: 2023-01-10T21:19:00+09:00
 ---
 ## はじめに
 
@@ -9,6 +9,28 @@ lastmod: 2023-01-04T04:06:00+09:00
 [`static uint64_t ullog2(uint64_t x)`](https://github.com/h2o/h2o/blob/0f08b675c8244fc4552a93e9b35271ecf5e0f8fa/deps/libgkc/gkc.c#L109-L127)というuint64の整数のlog2を高速に計算する関数に興味がわいて調べてみたのでメモです。
 
 試したコードは[hnakamur/log2_experiment](https://github.com/hnakamur/log2_experiment)に置いてます。
+
+## 2022-01-10追記 その後さらに更新しました
+
+2022-01-04追記の説明、今から見ると自分でもよくわかりませんが、`x=0`では呼ばないという前提で以下のように変えました。
+
+```go
+// ILog2 calculates log2 of a uint64 value.
+// Ported from
+// https://github.com/h2o/h2o/pull/3177/files
+func ILog2(x uint64) int64 {
+	return 63 - int64(bits.LeadingZeros64(x))
+}
+```
+元の`x |= (x >> 1)`などを並べたコードも条件分岐がないというのが利点とあったので、上のコードも条件分岐無しのほうが良いかなということで。
+
+なお、`bits.LeadingZeros64(x)`も `__builtin_clzll(x)`も`x=0`のときは64になるのは同じでした。上の関数は`x=0`では呼ばない前提です。
+
+[herumiさんとのその後のやり取り](https://twitter.com/herumi/status/1610586811860127745)で、倍精度浮動小数点数での`math.Log(float64)`のほうが正しくないケースがあると教えていただきました。
+
+そこで[The GNU MPFR Library](https://www.mpfr.org/)というライブラリを使って[ilog2_ref.c](https://github.com/hnakamur/log2_experiment/blob/47873251e237dc5fdf43cdf20500aadc4ae9d3dd/c/ilog2_ref.c)でlog2をfloat64より高精度で計算して`63 - __builtin_clzll(x)`と比べてみた[ilog2_test.c](https://github.com/hnakamur/log2_experiment/blob/47873251e237dc5fdf43cdf20500aadc4ae9d3dd/c/ilog2_test.c)ところ、`x>=1`について[check_fn](https://github.com/hnakamur/log2_experiment/blob/47873251e237dc5fdf43cdf20500aadc4ae9d3dd/c/ilog2_test.c#L77-L89)で指定した入力値については全て一致することが確認できました。そして、テストしてない値についても`__builtin_clzll(x)`が同じ値になればそこから先は同じなので、`x>=1`については大丈夫だという確信が持てました。
+
+Goの`bits.LeadingZeros64(x)`は`__builtin_clzll(x)`と同等なのでこちらも大丈夫です。念のため[ilog2_ref.c](https://github.com/hnakamur/log2_experiment/blob/47873251e237dc5fdf43cdf20500aadc4ae9d3dd/c/ilog2_ref.c)の出力と突き合わせる[テスト](https://github.com/hnakamur/log2_experiment/blob/47873251e237dc5fdf43cdf20500aadc4ae9d3dd/log2_test.go)も書いて確認しました。
 
 ## 2022-01-04追記 herumiさんのツイートでさらに別の実装を知った
 
