@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.111.2">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>LMDBをGoとnginxとtrafficserver上のLuaJITから使ってみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2023. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>LMDBをGoとnginxとtrafficserver上のLuaJITから使ってみた</h1>
+  <time datetime=2023-04-03T21:21:25&#43;0900 class="post-date">2023-04-03</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#lmdb">LMDB</a></li>
+    <li><a href="#nginx--luajit-用のモジュール">nginx + LuaJIT 用のモジュール</a></li>
+    <li><a href="#nginx-と-trafficserver-の-luajit-から使えるラッパーライブラリを自作してみた">nginx と trafficserver の LuaJIT から使えるラッパーライブラリを自作してみた</a>
+      <ul>
+        <li><a href="#ログ出力について">ログ出力について</a></li>
+        <li><a href="#mdb_env-型のインスタンスを保持するグローバル変数">MDB_env *型のインスタンスを保持するグローバル変数</a></li>
+      </ul>
+    </li>
+    <li><a href="#goでは-githubcombmatsuolmdb-go-を使いました">Goでは github.com/bmatsuo/lmdb-go を使いました</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="https://hnakamur.github.io/blog/2023/01/01/ats-ngx-lua-shdict/#%E3%83%99%E3%83%BC%E3%82%B9%E3%82%A2%E3%83%89%E3%83%AC%E3%82%B9%E3%81%8B%E3%82%89%E3%81%AE%E3%82%AA%E3%83%95%E3%82%BB%E3%83%83%E3%83%88%E3%82%92%E6%9B%B8%E3%81%8F%E3%82%88%E3%81%86%E3%81%AB%E6%94%B9%E5%A4%89%E3%81%97%E3%81%A6%E5%AF%BE%E5%BF%9C">Apache Traffic Serverとnginxで使えるLuaJIT用shared dictを作ってみた · hnakamur&rsquo;s blog</a>ものの、実際には使わないままでした。</p>
+<h2 id="lmdb">LMDB</h2>
+<p>その後、ライブラリとして使えるキーバリューストアを調べて<a href="https://www.symas.com/lmdb">LMDB (Lightning Memory-Mapped Database)</a>にたどり着きました。
+説明を読むとOpenLDAP用に開発されたとのことですが、<a href="https://www.symas.com/symas-lmdb-tech-info">Symas LMDB Tech Info</a>の Other Projects を見ると他にも多数のプロジェクトから利用されています。
+<a href="https://www.openldap.org/software/repo.html">OpenLDAP, Source Repository</a>にリポジトリのリンクがあり、GitHubにも読み取り専用の<a href="https://github.com/LMDB/lmdb">ミラー</a>があります。</p>
+<h2 id="nginx--luajit-用のモジュール">nginx + LuaJIT 用のモジュール</h2>
+<p>さらに、nginx + LuaJIT 用のモジュール <a href="https://github.com/Kong/lua-resty-lmdb">Kong/lua-resty-lmdb</a> もあり、それについての記事が <a href="https://jp.konghq.com/blog/new-storage-engine-for-kong-hybrid-and-db-less-deployments">【日本語訳ブログ】Kong Hybrid 展開と DB レス展開のための新しいストレージ エンジン - KongHQ</a> にありました。まずは、こちらを試してみたのですが、私は trafficserver の LuaJIT からも LMDB を使いたいのでラッパーライブラリを自作することにしました。</p>
+<h2 id="nginx-と-trafficserver-の-luajit-から使えるラッパーライブラリを自作してみた">nginx と trafficserver の LuaJIT から使えるラッパーライブラリを自作してみた</h2>
+<ul>
+<li>レポジトリ: <a href="https://github.com/hnakamur/ngx-ats-lmdb">https://github.com/hnakamur/ngx-ats-lmdb</a></li>
+<li>Ubuntu 用 deb パッケージのソースレポジトリ: <a href="https://github.com/hnakamur/ngx-ats-lmdb-deb">https://github.com/hnakamur/ngx-ats-lmdb-deb</a></li>
+</ul>
+<p>このラッパーライブラリは、nginx のモジュールや trafficserver のプラグインとしては作っていません。
+そうではなく、 C 言語で書いた LMDB の薄いラッパーの共有ライブラリとそれを使った LuaJIT 用の Lua のライブラリで構成されています。
+この Lua のライブラリをロードできるように適宜 <a href="http://www.lua.org/manual/5.1/manual.html#pdf-package.path">package.path</a> を設定して使う想定です。</p>
+<p>LuaJIT 単体から利用する例が <a href="https://github.com/hnakamur/ngx-ats-lmdb/blob/005c1ec5d2558f34c4857ded1e0a78c5731158a7/nal_lmdb_stderr_ex.lua">nal_lmdb_stderr_ex.lua</a> にあります。
+1行目の</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">lmdb</span> <span class="o">=</span> <span class="n">require</span> <span class="s2">&#34;nal_lmdb_stderr&#34;</span>
+</span></span></code></pre></div><p>の <code>&quot;nal_lmdb_stderr&quot;</code> のところを、nginxで使う場合は <code>&quot;nal_lmdb_ngx&quot;</code>、trafficserverで使う場合は <code>&quot;nal_lmdb_ats&quot;</code> に変える必要があります。</p>
+<p>また、 <code>lmdb.env_init</code> の呼び出しは nginx の場合は <a href="https://github.com/openresty/lua-nginx-module#init_by_lua_file">init_worker_by_lua</a> ではなく <a href="https://github.com/openresty/lua-nginx-module#init_worker_by_lua_file">init_worker_by_lua</a> で行う必要があります。trafficserver の <a href="https://docs.trafficserver.apache.org/en/9.2.x/admin-guide/plugins/lua.en.html">Lua プラグイン</a> では <code>__init__</code> 関数内で行います。</p>
+<h3 id="ログ出力について">ログ出力について</h3>
+<p><code>nal_lmdb_{stderr,ngx,ats}</code> の違いは <a href="https://github.com/hnakamur/ngx-ats-lmdb/tree/005c1ec5d2558f34c4857ded1e0a78c5731158a7/lib/log">lib/log/</a> ディレクトリのログ出力の実装だけです。stderrでは標準エラー出力にログ出力し、nginxではnginxのログ出力APIを呼び出してエラーログファイルに出力し、trafficserverではtrafficserverのログ出力APIを呼び出してtrafficserverのログファイルに出力するようになっています。</p>
+<p>nginxのログ出力APIはnginxのソースコードをコピーして改変したサブセットを <a href="https://github.com/hnakamur/ngx-ats-lmdb/tree/005c1ec5d2558f34c4857ded1e0a78c5731158a7/lib/log">lib/log/</a> ディレクトリに置いてあります。もし将来 nginx のログ出力API周りの実装が変更された場合は、こちらも追随する必要があります。</p>
+<h3 id="mdb_env-型のインスタンスを保持するグローバル変数">MDB_env *型のインスタンスを保持するグローバル変数</h3>
+<p><a href="https://github.com/hnakamur/ngx-ats-lmdb/blob/005c1ec5d2558f34c4857ded1e0a78c5731158a7/src/nal_lmdb.c#L8-L20">src/nal_lmdb.c#L8-L20</a> で <code>MDB_env *</code> 型のインスタンスを保持する <code>nal_env_t</code> 型とその型のグローバル変数を定義しています。そしてこのグローバル変数は<a href="https://manpages.ubuntu.com/manpages/jammy/en/man3/pthread_once.3.html">pthread_once</a>で一度だけ初期化するようにしています。</p>
+<p>これは LMDB の <a href="https://github.com/LMDB/lmdb/blob/3947014aed7ffe39a79991fa7fb5b234da47ad1a/libraries/liblmdb/intro.doc#L49-L52">intro.doc#L49-L52</a> の説明を読んでそのようにしています。</p>
+<p>そもそも共有ライブラリ内にグローバル変数を定義して良いのかというのが私はよくわかってなかったのですが、<a href="https://stackoverflow.com/questions/39394971/can-i-declare-a-global-variable-in-a-shared-library">c - can I declare a global variable in a shared library? - Stack Overflow</a>によるとオペレーティングシステムに依存する話らしいです。とりあえず Ubuntu で試してみた感じでは、これで期待通り動いているようです。が、また軽く動作確認しただけなので今後問題が発覚する可能性はあり得ます。</p>
+<h2 id="goでは-githubcombmatsuolmdb-go-を使いました">Goでは github.com/bmatsuo/lmdb-go を使いました</h2>
+<p>最初 <a href="https://github.com/armon/gomdb">https://github.com/armon/gomdb</a> を試してみたのですが、サンプルコードを書いてビルドするとエラーが出たので、 <a href="https://github.com/bmatsuo/lmdb-go">https://github.com/bmatsuo/lmdb-go</a> にしました。
+<a href="https://pkg.go.dev/github.com/bmatsuo/lmdb-go/lmdb">lmdb package - github.com/bmatsuo/lmdb-go/lmdb - Go Packages</a> に分かりやすい説明があり <a href="https://pkg.go.dev/github.com/bmatsuo/lmdb-go/lmdb#example-package">Example</a> と <a href="https://pkg.go.dev/github.com/bmatsuo/lmdb-go/lmdb#example-package-Worker">Example (Worker)</a> をベースに少し改変するだけで、私がやりたいことは実現できて簡単で良かったです。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'G-KMMXGG2Z56', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
