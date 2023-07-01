@@ -90,7 +90,7 @@ date: 2023-07-01T14:28:11+09:00
 
 あと、要件として、書き込みは1箇所のみで良いけど、読み取りは1台のサーバー上の複数プロセスから行いたいというのがあるのを思い出しました。するとメモリマップトファイルを使う方式のほうがありがたいわけです。キャッシュなどのデータ構造をメモリ上に持つ方式だとプロセスごとにコピーを持つことになるので。あ、でもプロセスごとに別のキーを参照するケースが多い場合は別々にメモリ上にキャッシュ持つほうが、キャッシュのヒット率が高いという可能性はあるのか。
 
-[Are You Sure You Want to Use MMAP in Your Database Management System? (CIDR 2022)](https://db.cs.cmu.edu/mmap-cidr2022/)が気になるところですが、[mmapbench/mmapbench.cpp at main · viktorleis/mmapbench · GitHub](https://github.com/viktorleis/mmapbench/blob/e1f594532c16565e8f3cf3da3b33ddd75bf1db42/mmapbench.cpp#L110)を見ると、ファイルサイズ2TiBと巨大な場合の話なので、そこまで大きくなければ大丈夫なのではないかと思いたいところですが、どうなんでしょうね。
+[Are You Sure You Want to Use MMAP in Your Database Management System? (CIDR 2022)](https://db.cs.cmu.edu/mmap-cidr2022/)が気になるところですが、[mmapbench/mmapbench.cpp at main · viktorleis/mmapbench · GitHub](https://github.com/viktorleis/mmapbench/blob/e1f594532c16565e8f3cf3da3b33ddd75bf1db42/mmapbench.cpp#L110)を見ると、ファイルサイズ2TiBと巨大な場合の話なので、そこまで大きくなければ大丈夫なのではないかと思いたいところですが、どうなんでしょうね。上のページの動画に出てきた Buffer Pool の動画のリンク [05 - Buffer Pools (CMU Intro to Database Systems / Fall 2021) - YouTube](https://www.youtube.com/watch?v=Moz2AgC9hG4) も貼っておきます。
 
 あと、[Glauber Costa](https://twitter.com/glcst)さんの2020年の記事 [Modern storage is plenty fast. It is the APIs that are bad. | by Glauber Costa | ITNEXT](https://itnext.io/modern-storage-is-plenty-fast-it-is-the-apis-that-are-bad-6a68319fbc1a) も気になったのでメモ。
 
