@@ -93,3 +93,5 @@ date: 2023-07-01T14:28:11+09:00
 [Are You Sure You Want to Use MMAP in Your Database Management System? (CIDR 2022)](https://db.cs.cmu.edu/mmap-cidr2022/)が気になるところですが、[mmapbench/mmapbench.cpp at main · viktorleis/mmapbench · GitHub](https://github.com/viktorleis/mmapbench/blob/e1f594532c16565e8f3cf3da3b33ddd75bf1db42/mmapbench.cpp#L110)を見ると、ファイルサイズ2TiBと巨大な場合の話なので、そこまで大きくなければ大丈夫なのではないかと思いたいところですが、どうなんでしょうね。
 
 あと、[Glauber Costa](https://twitter.com/glcst)さんの2020年の記事 [Modern storage is plenty fast. It is the APIs that are bad. | by Glauber Costa | ITNEXT](https://itnext.io/modern-storage-is-plenty-fast-it-is-the-apis-that-are-bad-6a68319fbc1a) も気になったのでメモ。
+
+上の記事からリンクされている [Direct I/O writes: the best way to improve your credit score. | by Glauber Costa | ITNEXT](https://itnext.io/direct-i-o-writes-the-best-way-to-improve-your-credit-score-bd6c19cdfe46) も興味深かったです。
