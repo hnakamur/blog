@@ -93,7 +93,7 @@ func (n *notifier) Close() {
 
 https://github.com/golang/go/blob/go1.11.5/src/internal/poll/sendfile_linux.go#L28
 
-```go {linenos=}
+```go {linenos=""}
 // Copyright 2011 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -151,7 +151,7 @@ https://github.com/golang/go/blob/go1.11.5/src/net/sendfile_linux.go#L35
 で呼ばれています。
 コードを見るとsendfileが使われるのは `r io.Reader` が `*os.File` か `*os.File` をラップした `*io.LimitedReader` のときだけだということがわかります。
 
-```go {linenos=,linenostart=13}
+```go {linenos="",linenostart="13"}
 // sendFile copies the contents of r to c using the sendfile
 // system call to minimize copies.
 //
@@ -186,7 +186,7 @@ func sendFile(c *netFD, r io.Reader) (written int64, err error, handled bool) {
 sendFile関数は `net/tcp.TCPConn` のreadFrom関数から呼ばれています。
 https://github.com/golang/go/blob/go1.11.5/src/net/tcpsock_posix.go#L47-L55
 
-```go {linenos=,linenostart=47}
+```go {linenos="",linenostart="47"}
 func (c *TCPConn) readFrom(r io.Reader) (int64, error) {
         if n, err, handled := splice(c.fd, r); handled {
      	   return n, err
@@ -201,7 +201,7 @@ func (c *TCPConn) readFrom(r io.Reader) (int64, error) {
 `net/tcp.TCPConn` のreadFrom関数は同じく `net/tcp.TCPConn` のReadFrom関数から呼ばれています。
 https://github.com/golang/go/blob/go1.11.5/src/net/tcpsock.go#L98-L108
 
-```go {linenos=,linenostart=98}
+```go {linenos="",linenostart="98"}
 // ReadFrom implements the io.ReaderFrom ReadFrom method.
 func (c *TCPConn) ReadFrom(r io.Reader) (int64, error) {
         if !c.ok() {
@@ -432,7 +432,7 @@ http.response (http.Responseではなく非公開の方)がReadFromインタフ�
 
 https://github.com/golang/go/blob/go1.11.5/src/net/http/server.go#L566-L611
 
-```go {linenos=,linenostart=566}
+```go {linenos="",linenostart="566"}
 // ReadFrom is here to optimize copying from an *os.File regular file
 // to a *net.TCPConn with sendfile.
 func (w *response) ReadFrom(src io.Reader) (n int64, err error) {
@@ -486,7 +486,7 @@ https://github.com/golang/go/blob/go1.11.5/src/net/http/server.go#L551-L564
 の実装を見ると、先程のinternal/poll.SendFileと同様
 `src io.Reader` が `*os.File` か `*os.File` をラップした `*io.LimitedReader` のときだけtrueを返すことがわかります。
 
-```go {linenos=,linenostart=511}
+```go {linenos="",linenostart="511"}
 func srcIsRegularFile(src io.Reader) (isRegular bool, err error) {
         switch v := src.(type) {
         case *os.File:
@@ -521,7 +521,7 @@ https://github.com/golang/go/blob/go1.11.5/src/net/http/server.go#L1402
 
 [send_file_http.go#L10-L49](https://github.com/hnakamur/readwhilewrite/blob/68a26aa56e8f0f07a5c5301494128ccfc37b365c/send_file_http.go#L10-L49)
 
-```go {linenos=,linenostart=10}
+```go {linenos="",linenostart="10"}
 // SendFileHTTP serves a file as a HTTP response while fw is writing to the same file.
 //
 // Once it gets an EOF, it waits more writes by the writer. If the ctx is done while
@@ -572,7 +572,7 @@ Writerからの書き込みを待っている間に処理を中断できるよ�
 
 [send_file_http_test.go#L17-L71](https://github.com/hnakamur/readwhilewrite/blob/68a26aa56e8f0f07a5c5301494128ccfc37b365c/send_file_http_test.go#L17-L71)
 
-```go {linenos=,linenostart=17}
+```go {linenos="",linenostart="17"}
 ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 ```
 
