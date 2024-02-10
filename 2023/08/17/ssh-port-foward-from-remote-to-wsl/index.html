@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.122.0">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>LAN内のリモートマシンからWSLに多段ssh &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>LAN内のリモートマシンからWSLに多段ssh</h1>
+  <time datetime=2023-08-17T18:43:48&#43;0900 class="post-date">2023-08-17</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#多段sshの設定">多段sshの設定</a></li>
+    <li><a href="#wslの設定">WSLの設定</a>
+      <ul>
+        <li><a href="#etcwslconf-を作成し-systemdtrue-を追加">/etc/wsl.conf を作成し systemd=true を追加</a></li>
+        <li><a href="#openssh-serverをインストールして自動起動を有効化">openssh-serverをインストールして自動起動を有効化</a></li>
+      </ul>
+    </li>
+    <li><a href="#windowsの設定">Windowsの設定</a>
+      <ul>
+        <li><a href="#cprogramdatasshsshd_config-の最後の2行をコメントアウト">C:\ProgramData\ssh\sshd_config の最後の2行をコメントアウト</a></li>
+        <li><a href="#opensshサーバの起動と自動起動の有効化">OpenSSHサーバの起動と自動起動の有効化</a></li>
+        <li><a href="#ファイアウォールでopensshへの接続を許可">ファイアウォールでOpenSSHへの接続を許可</a></li>
+      </ul>
+    </li>
+    <li><a href="#wake-on-lan-の設定">Wake on LAN の設定</a></li>
+    <li><a href="#参考記事">参考記事</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>最近買ったデスクトップPCのWindows 11 HomeのWSL2にLAN内のリモートマシンからsshしたいと思って調べたら、先人の記事でサクッとできたのでメモ。</p>
+<p>WindowsのOpenSSHサーバに接続した後、localhostにsshすることでWSLのOpenSSHサーバに接続するという方式です。</p>
+<h2 id="多段sshの設定">多段sshの設定</h2>
+<p>クライアント側の <code>~/.ssh/config</code> に以下のような設定をします。通常の多段sshの設定ですが、WindowsホストからlocalhostでWSLに接続できるのがミソです。</p>
+<pre tabindex="0"><code>Host ggear
+  Hostname localhost
+  User hnakamur
+  ForwardAgent yes
+  ProxyCommand ssh -W %h:%p ggearwin
+
+Host ggearwin
+  Hostname 192.168.2.11
+  User hnaka
+  ForwardAgent yes
+
+ServerAliveInterval 15
+</code></pre><h2 id="wslの設定">WSLの設定</h2>
+<h3 id="etcwslconf-を作成し-systemdtrue-を追加">/etc/wsl.conf を作成し systemd=true を追加</h3>
+<pre tabindex="0"><code>[boot]
+systemd=true
+</code></pre><h3 id="openssh-serverをインストールして自動起動を有効化">openssh-serverをインストールして自動起動を有効化</h3>
+<pre tabindex="0"><code>sudo apt-get install -y openssh-server
+</code></pre><pre tabindex="0"><code>sudo systemctl enable ssh
+</code></pre><p><code>~/.ssh/authorized_keys</code> に公開鍵を設置します。</p>
+<h2 id="windowsの設定">Windowsの設定</h2>
+<h3 id="cprogramdatasshsshd_config-の最後の2行をコメントアウト">C:\ProgramData\ssh\sshd_config の最後の2行をコメントアウト</h3>
+<p>行頭に <code>#</code> を入れてコメントアウトします。VS Codeで保存しようとすると、右下にポップアップが出るので[Retry as Admin]ボタンを押せば管理者権限で保存してくれました。</p>
+<pre tabindex="0"><code>#Match Group administrators
+#       AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys
+</code></pre><p>この設定があると <code>$HOME/.ssh/authorized_keys</code> に公開鍵を置いても見てくれないとのことです（ここの  <code>$HOME</code> はWindows側のホームディレクトリのこと））。
+接続できるようになった後、一度戻してsshdを再起動してみたのですが接続できなくなりました。</p>
+<p><code>$HOME/.ssh/authorized_keys</code> に公開鍵を設置します。</p>
+<h3 id="opensshサーバの起動と自動起動の有効化">OpenSSHサーバの起動と自動起動の有効化</h3>
+<p>PowerShellを管理者権限で起動して、以下のコマンドを入力。</p>
+<pre tabindex="0"><code>Start-Service sshd
+</code></pre><pre tabindex="0"><code>Set-Service -Name sshd -StartupType &#39;Automatic&#39;
+</code></pre><h3 id="ファイアウォールでopensshへの接続を許可">ファイアウォールでOpenSSHへの接続を許可</h3>
+<p>PowerShellを管理者権限で起動して、以下のコマンドを入力。</p>
+<p>事前の設定確認（未設定時は出力は空）。</p>
+<pre tabindex="0"><code>Get-NetFirewallRule -Name *ssh*
+</code></pre><p>ポートを開ける。</p>
+<pre tabindex="0"><code>New-NetFirewallRule -Name sshd -DisplayName &#39;OpenSSH Server (sshd)&#39; -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22
+</code></pre><p>事後の設定確認。</p>
+<pre tabindex="0"><code>Get-NetFirewallRule -Name *ssh*
+</code></pre><h2 id="wake-on-lan-の設定">Wake on LAN の設定</h2>
+<p>私のPCは有線のネットワークアダプタで接続しています。</p>
+<ol>
+<li>Win + X で開くメニューからデバイスマネージャを起動。</li>
+<li>ネットワークアダプターを開いて対象のネットワークアダプタを選択してダブルクリック。</li>
+<li>「電源の管理」タブに切り替えて以下の2つにチェックがついた状態にする。
+<ul>
+<li>「このデバイスで、コンピュータのスタンバイ状態を解除できるようにする」</li>
+<li>「Magic Packetでのみ、コンピュータのスタンバイ状態を解除できるようにする」</li>
+</ul>
+</li>
+</ol>
+<h2 id="参考記事">参考記事</h2>
+<ul>
+<li><a href="https://news.mynavi.jp/techplus/article/20211020-2097210/4">Windows 11搭載PCを買ったら最初にやっておきたいこと【アプリ編】 | TECH+（テックプラス）</a></li>
+<li><a href="https://qiita.com/tmiki/items/022242af3853cd8e7a6a">【WSL2】WSL2のUbuntuでsshdの自動起動を有効にする【Ubuntu】 - Qiita</a></li>
+<li><a href="https://forest.watch.impress.co.jp/docs/news/1198651.html">「WSL 2」最大の課題であった“localhost”問題が解決 ～「Windows 10」Build 18945 - 窓の杜</a></li>
+<li><a href="https://eizone.info/window-wake-on-lan/">Windows10/ Windows11 の Wake On Lan （WOL）設定 | E.i.Z</a></li>
+</ul>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+
+    
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'G-KMMXGG2Z56', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  </body>
+</html>
