@@ -3,7 +3,7 @@
 <head>
   <link href="https://gmpg.org/xfn/11" rel="profile">
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta name="generator" content="Hugo 0.111.2">
+  <meta name="generator" content="Hugo 0.122.0">
 
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -58,7 +58,7 @@
     </nav>
 
     <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
-    <p>&copy; 2023. All rights reserved. </p>
+    <p>&copy; 2024. All rights reserved. </p>
   </div>
 </aside>
 
@@ -131,7 +131,61 @@ Readerが最初にWriterにsubscribeするとバッファサイズ1のchannelを
 <p>前節で動くものが出来たのでGoで書いたHTTPサーバで使おうと思ったのですが、可能ならLinuxのsendfileシステムコールを使いたいと思い調べてみました。調査したバージョンはGo 1.11.5 です。</p>
 <p>まずGoのソースでsendfileで検索してみると以下の箇所で syscall.Sendfile を呼び出していました。</p>
 <p><a href="https://github.com/golang/go/blob/go1.11.5/src/internal/poll/sendfile_linux.go#L28">https://github.com/golang/go/blob/go1.11.5/src/internal/poll/sendfile_linux.go#L28</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Copyright 2011 The Go Authors. All rights reserved.
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Copyright 2011 The Go Authors. All rights reserved.
 </span></span></span><span class="line"><span class="cl"><span class="c1">// Use of this source code is governed by a BSD-style
 </span></span></span><span class="line"><span class="cl"><span class="c1">// license that can be found in the LICENSE file.
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span>
@@ -181,11 +235,46 @@ Readerが最初にWriterにsubscribeするとバッファサイズ1のchannelを
 </span></span><span class="line"><span class="cl">        <span class="p">}</span>
 </span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">written</span><span class="p">,</span> <span class="nx">err</span>
 </span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p>internal/poll.SendFileは
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>internal/poll.SendFileは
 <a href="https://github.com/golang/go/blob/go1.11.5/src/net/sendfile_linux.go#L35">https://github.com/golang/go/blob/go1.11.5/src/net/sendfile_linux.go#L35</a>
 で呼ばれています。
 コードを見るとsendfileが使われるのは <code>r io.Reader</code> が <code>*os.File</code> か <code>*os.File</code> をラップした <code>*io.LimitedReader</code> のときだけだということがわかります。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// sendFile copies the contents of r to c using the sendfile
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// sendFile copies the contents of r to c using the sendfile
 </span></span></span><span class="line"><span class="cl"><span class="c1">// system call to minimize copies.
 </span></span></span><span class="line"><span class="cl"><span class="c1">//
 </span></span></span><span class="line"><span class="cl"><span class="c1">// if handled == true, sendFile returns the number of bytes copied and any
@@ -214,9 +303,24 @@ Readerが最初にWriterにsubscribeするとバッファサイズ1のchannelを
 </span></span><span class="line"><span class="cl">        <span class="p">}</span>
 </span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">written</span><span class="p">,</span> <span class="nf">wrapSyscallError</span><span class="p">(</span><span class="s">&#34;sendfile&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">),</span> <span class="nx">written</span> <span class="p">&gt;</span> <span class="mi">0</span>
 </span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p>sendFile関数は <code>net/tcp.TCPConn</code> のreadFrom関数から呼ばれています。
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>sendFile関数は <code>net/tcp.TCPConn</code> のreadFrom関数から呼ばれています。
 <a href="https://github.com/golang/go/blob/go1.11.5/src/net/tcpsock_posix.go#L47-L55">https://github.com/golang/go/blob/go1.11.5/src/net/tcpsock_posix.go#L47-L55</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">TCPConn</span><span class="p">)</span> <span class="nf">readFrom</span><span class="p">(</span><span class="nx">r</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="kt">int64</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">TCPConn</span><span class="p">)</span> <span class="nf">readFrom</span><span class="p">(</span><span class="nx">r</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="kt">int64</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span><span class="p">,</span> <span class="nx">handled</span> <span class="o">:=</span> <span class="nf">splice</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">fd</span><span class="p">,</span> <span class="nx">r</span><span class="p">);</span> <span class="nx">handled</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">     	   <span class="k">return</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span>
 </span></span><span class="line"><span class="cl">        <span class="p">}</span>
@@ -225,9 +329,26 @@ Readerが最初にWriterにsubscribeするとバッファサイズ1のchannelを
 </span></span><span class="line"><span class="cl">        <span class="p">}</span>
 </span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nf">genericReadFrom</span><span class="p">(</span><span class="nx">c</span><span class="p">,</span> <span class="nx">r</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p><code>net/tcp.TCPConn</code> のreadFrom関数は同じく <code>net/tcp.TCPConn</code> のReadFrom関数から呼ばれています。
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>net/tcp.TCPConn</code> のreadFrom関数は同じく <code>net/tcp.TCPConn</code> のReadFrom関数から呼ばれています。
 <a href="https://github.com/golang/go/blob/go1.11.5/src/net/tcpsock.go#L98-L108">https://github.com/golang/go/blob/go1.11.5/src/net/tcpsock.go#L98-L108</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ReadFrom implements the io.ReaderFrom ReadFrom method.
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 98
+</span><span class="lnt"> 99
+</span><span class="lnt">100
+</span><span class="lnt">101
+</span><span class="lnt">102
+</span><span class="lnt">103
+</span><span class="lnt">104
+</span><span class="lnt">105
+</span><span class="lnt">106
+</span><span class="lnt">107
+</span><span class="lnt">108
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ReadFrom implements the io.ReaderFrom ReadFrom method.
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">TCPConn</span><span class="p">)</span> <span class="nf">ReadFrom</span><span class="p">(</span><span class="nx">r</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="kt">int64</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">!</span><span class="nx">c</span><span class="p">.</span><span class="nf">ok</span><span class="p">()</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">     	   <span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">EINVAL</span>
@@ -238,7 +359,9 @@ Readerが最初にWriterにsubscribeするとバッファサイズ1のchannelを
 </span></span><span class="line"><span class="cl">        <span class="p">}</span>
 </span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span>
 </span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><h1 id="goのhttpでlinuxのsendfileシステムコールが使われる条件の調査">GoのhttpでLinuxのsendfileシステムコールが使われる条件の調査</h1>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h1 id="goのhttpでlinuxのsendfileシステムコールが使われる条件の調査">GoのhttpでLinuxのsendfileシステムコールが使われる条件の調査</h1>
 <p>前節で動くものが出来たのでGoで書いたHTTPサーバで使おうと思ったのですが、可能ならLinuxのsendfileシステムコールを使いたいと思いました。</p>
 <p>ソースコードを検索して調べるのが大変になってきたので、以下のようなサンプル用のコードを書いて動かして調べることにしました。</p>
 <p>以下の2つの方法を試したので両方メモしておきます。通常は delve を使うほうが楽です。</p>
@@ -420,7 +543,57 @@ Readerが最初にWriterにsubscribeするとバッファサイズ1のchannelを
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">Copy</span><span class="p">(</span><span class="nx">dst</span> <span class="nx">Writer</span><span class="p">,</span> <span class="nx">src</span> <span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="nx">written</span> <span class="kt">int64</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span>
 </span></span></code></pre></div><p>http.response (http.Responseではなく非公開の方)がReadFromインタフェースを実装しています。</p>
 <p><a href="https://github.com/golang/go/blob/go1.11.5/src/net/http/server.go#L566-L611">https://github.com/golang/go/blob/go1.11.5/src/net/http/server.go#L566-L611</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ReadFrom is here to optimize copying from an *os.File regular file
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">566
+</span><span class="lnt">567
+</span><span class="lnt">568
+</span><span class="lnt">569
+</span><span class="lnt">570
+</span><span class="lnt">571
+</span><span class="lnt">572
+</span><span class="lnt">573
+</span><span class="lnt">574
+</span><span class="lnt">575
+</span><span class="lnt">576
+</span><span class="lnt">577
+</span><span class="lnt">578
+</span><span class="lnt">579
+</span><span class="lnt">580
+</span><span class="lnt">581
+</span><span class="lnt">582
+</span><span class="lnt">583
+</span><span class="lnt">584
+</span><span class="lnt">585
+</span><span class="lnt">586
+</span><span class="lnt">587
+</span><span class="lnt">588
+</span><span class="lnt">589
+</span><span class="lnt">590
+</span><span class="lnt">591
+</span><span class="lnt">592
+</span><span class="lnt">593
+</span><span class="lnt">594
+</span><span class="lnt">595
+</span><span class="lnt">596
+</span><span class="lnt">597
+</span><span class="lnt">598
+</span><span class="lnt">599
+</span><span class="lnt">600
+</span><span class="lnt">601
+</span><span class="lnt">602
+</span><span class="lnt">603
+</span><span class="lnt">604
+</span><span class="lnt">605
+</span><span class="lnt">606
+</span><span class="lnt">607
+</span><span class="lnt">608
+</span><span class="lnt">609
+</span><span class="lnt">610
+</span><span class="lnt">611
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ReadFrom is here to optimize copying from an *os.File regular file
 </span></span></span><span class="line"><span class="cl"><span class="c1">// to a *net.TCPConn with sendfile.
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">w</span> <span class="o">*</span><span class="nx">response</span><span class="p">)</span> <span class="nf">ReadFrom</span><span class="p">(</span><span class="nx">src</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int64</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">        <span class="c1">// Our underlying w.conn.rwc is usually a *TCPConn (with its
@@ -466,11 +639,31 @@ Readerが最初にWriterにsubscribeするとバッファサイズ1のchannelを
 </span></span><span class="line"><span class="cl">        <span class="nx">n</span> <span class="o">+=</span> <span class="nx">n0</span>
 </span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">err</span>
 </span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p>573行目で呼ばれている srcIsRegularFile 関数
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>573行目で呼ばれている srcIsRegularFile 関数
 <a href="https://github.com/golang/go/blob/go1.11.5/src/net/http/server.go#L551-L564">https://github.com/golang/go/blob/go1.11.5/src/net/http/server.go#L551-L564</a>
 の実装を見ると、先程のinternal/poll.SendFileと同様
 <code>src io.Reader</code> が <code>*os.File</code> か <code>*os.File</code> をラップした <code>*io.LimitedReader</code> のときだけtrueを返すことがわかります。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">srcIsRegularFile</span><span class="p">(</span><span class="nx">src</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="nx">isRegular</span> <span class="kt">bool</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">511
+</span><span class="lnt">512
+</span><span class="lnt">513
+</span><span class="lnt">514
+</span><span class="lnt">515
+</span><span class="lnt">516
+</span><span class="lnt">517
+</span><span class="lnt">518
+</span><span class="lnt">519
+</span><span class="lnt">520
+</span><span class="lnt">521
+</span><span class="lnt">522
+</span><span class="lnt">523
+</span><span class="lnt">524
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">srcIsRegularFile</span><span class="p">(</span><span class="nx">src</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Reader</span><span class="p">)</span> <span class="p">(</span><span class="nx">isRegular</span> <span class="kt">bool</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">        <span class="k">switch</span> <span class="nx">v</span> <span class="o">:=</span> <span class="nx">src</span><span class="p">.(</span><span class="kd">type</span><span class="p">)</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">        <span class="k">case</span> <span class="o">*</span><span class="nx">os</span><span class="p">.</span><span class="nx">File</span><span class="p">:</span>
 </span></span><span class="line"><span class="cl">     	   <span class="nx">fi</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">v</span><span class="p">.</span><span class="nf">Stat</span><span class="p">()</span>
@@ -484,7 +677,9 @@ Readerが最初にWriterにsubscribeするとバッファサイズ1のchannelを
 </span></span><span class="line"><span class="cl">     	   <span class="k">return</span>
 </span></span><span class="line"><span class="cl">        <span class="p">}</span>
 </span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p>また601行目を見ると <code>w.cw.chunking</code> がtrueの場合はReadFromが使われないことがわかります。</p>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>また601行目を見ると <code>w.cw.chunking</code> がtrueの場合はReadFromが使われないことがわかります。</p>
 <p>これは
 <a href="https://github.com/golang/go/blob/go1.11.5/src/net/http/server.go#L1402">https://github.com/golang/go/blob/go1.11.5/src/net/http/server.go#L1402</a>
 で true に設定されています。長いので引用は省略しますがリンク先を見ると <code>Transfer-Encoding: chunked</code> の場合に対応しています。この上の方を見ると Content-Length を設定しておけばtrueにはならないことがわかります。</p>
@@ -496,7 +691,51 @@ Readerが最初にWriterにsubscribeするとバッファサイズ1のchannelを
 <h1 id="goのhttpでlinuxのsendfileシステムコールを使って書き込み中のファイルを配信するサンプル">GoのhttpでLinuxのsendfileシステムコールを使って書き込み中のファイルを配信するサンプル</h1>
 <p>上記の調査にの結果、io.Readerインタフェースを実装した独自のstructを使うとLinuxのsendfileシステムコールは使われないことがわかりました。そこで github.com/hnakamur/readwhilewrite パッケージに <a href="https://godoc.org/github.com/hnakamur/readwhilewrite#SendFileHTTP">SendFileHTTP</a> という関数を実装しました。</p>
 <p><a href="https://github.com/hnakamur/readwhilewrite/blob/68a26aa56e8f0f07a5c5301494128ccfc37b365c/send_file_http.go#L10-L49">send_file_http.go#L10-L49</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// SendFileHTTP serves a file as a HTTP response while fw is writing to the same file.
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// SendFileHTTP serves a file as a HTTP response while fw is writing to the same file.
 </span></span></span><span class="line"><span class="cl"><span class="c1">//
 </span></span></span><span class="line"><span class="cl"><span class="c1">// Once it gets an EOF, it waits more writes by the writer. If the ctx is done while
 </span></span></span><span class="line"><span class="cl"><span class="c1">// waiting, SendFileHTTP returns. Typically you want to pass r.Context() as ctx for
@@ -536,13 +775,22 @@ Readerが最初にWriterにsubscribeするとバッファサイズ1のchannelを
 </span></span><span class="line"><span class="cl">     	   <span class="p">}</span>
 </span></span><span class="line"><span class="cl">        <span class="p">}</span>
 </span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p>Writerからの書き込みを待っている間に処理を中断できるようにcontext.Contextを渡しています。
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>Writerからの書き込みを待っている間に処理を中断できるようにcontext.Contextを渡しています。
 理想を言うとファイルからの読み込み中にも中断できると良いなと思ったのですが、現状これはできなさそうです。
 妥協案として <a href="https://golang.org/pkg/os/#File.SetDeadline">os/File.SetDeadline()</a> が使えるかとも思ったのですが、ドキュメントを読むと殆どのシステムで通常ファイルにDeadlineを設定するのは非サポートとのことでした。</p>
 <p>使用例としてテストコードから以下に抜粋します。</p>
 <p><a href="https://github.com/hnakamur/readwhilewrite/blob/68a26aa56e8f0f07a5c5301494128ccfc37b365c/send_file_http_test.go#L17-L71">send_file_http_test.go#L17-L71</a></p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">ts</span> <span class="o">:=</span> <span class="nx">httptest</span><span class="p">.</span><span class="nf">NewServer</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nf">HandlerFunc</span><span class="p">(</span><span class="kd">func</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
-</span></span></code></pre></div><pre><code>	   file, err := ioutil.TempFile(&quot;&quot;, &quot;test&quot;)
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">ts</span> <span class="o">:=</span> <span class="nx">httptest</span><span class="p">.</span><span class="nf">NewServer</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nf">HandlerFunc</span><span class="p">(</span><span class="kd">func</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><pre><code>	   file, err := ioutil.TempFile(&quot;&quot;, &quot;test&quot;)
 	   if err != nil {
 		   httpError(w, http.StatusInternalServerError)
 		   return
@@ -609,18 +857,5 @@ Readerが最初にWriterにsubscribeするとバッファサイズ1のchannelを
 
 <script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
     </main>
-
-    
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'G-KMMXGG2Z56', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
-
   </body>
 </html>

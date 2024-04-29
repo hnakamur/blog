@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.122.0">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>ModSecurityについて調べた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>ModSecurityについて調べた</h1>
+  <time datetime=2024-02-10T08:45:09&#43;0900 class="post-date">2024-02-10</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#レポジトリ">レポジトリ</a></li>
+    <li><a href="#2024-01にtrustwaveからowaspへ移管された">2024-01にTrustwaveからOWASPへ移管された</a></li>
+    <li><a href="#core-rule-set-crs">Core Rule Set (CRS)</a></li>
+    <li><a href="#cve-2024-1019の脆弱性">CVE-2024-1019の脆弱性</a></li>
+    <li><a href="#debian-12のmodsecurity関連パッケージ">Debian 12のModSecurity関連パッケージ</a></li>
+    <li><a href="#参考記事">参考記事</a></li>
+  </ul>
+</nav>
+  <h2 id="レポジトリ">レポジトリ</h2>
+<ul>
+<li><a href="https://github.com/owasp-modsecurity/ModSecurity">owasp-modsecurity/ModSecurity: ModSecurity is an open source, cross platform web application firewall (WAF) engine for Apache, IIS and Nginx that is developed by Trustwave&rsquo;s SpiderLabs. It has a robust event-based programming language which provides protection from a range of attacks against web applications and allows for HTTP traffic monitoring, logging and real-time analysis. With over 10,000 deployments world-wide, ModSecurity is the most widely deployed WAF in existence.</a>
+<ul>
+<li>C++, Apache 2.0ライセンス</li>
+<li>What is the difference between this project and the old ModSecurity (v2.x.x)? の項によるとv3のlibmodsecurityはApache依存のv2とは異なりApache非依存のライブラリ</li>
+<li>下のBindingsにPythonとVarnishのバインディングが書かれている。nginx用に<a href="https://github.com/owasp-modsecurity/ModSecurity-nginx">owasp-modsecurity/ModSecurity-nginx: ModSecurity v3 Nginx Connector</a>、Apache用に<a href="https://github.com/owasp-modsecurity/ModSecurity-apache">owasp-modsecurity/ModSecurity-apache: ModSecurity v3 Apache Connector</a>がある。</li>
+<li>READMEにあるコード例は古いようだ。実際のヘッダファイルTransactionクラスのprocessConnectionメソッドのシグネチャは<a href="https://github.com/owasp-modsecurity/ModSecurity/blob/v3.0.12/headers/modsecurity/transaction.h#L342-L343">int processConnection(const char *client, int cPort,
+const char *server, int sPort)</a>となっている。</li>
+<li><a href="https://twitter.com/ivanristic">Ivan Ristic（@ivanristic）さん / X</a>のプロフィールに Chief Scientist at Red Sift. Founder of Hardenize and author of Bulletproof TLS and PKI. Previously, founder of SSL Labs and ModSecurity. とある。</li>
+</ul>
+</li>
+</ul>
+<h2 id="2024-01にtrustwaveからowaspへ移管された">2024-01にTrustwaveからOWASPへ移管された</h2>
+<ul>
+<li><a href="https://www.modsecurity.org/">https://www.modsecurity.org/</a> に2024-01-25にそれまでModSecurityの開発とサポートをしていたTrustwaveからOWASPに移管した旨が書かれいてる。</li>
+<li><a href="https://owasp.org/blog/2024/01/09/ModSecurity.html">Trustwave Transfers ModSecurity Custodianship to OWASP | OWASP Foundation</a>
+<ul>
+<li>移管前からCore Rule SetはOWASPが管理していたとのこと。</li>
+</ul>
+</li>
+<li><a href="https://en.wikipedia.org/wiki/OWASP">OWASP - Wikipedia</a>によると Open Worldwide Application Security Project の略。</li>
+</ul>
+<h2 id="core-rule-set-crs">Core Rule Set (CRS)</h2>
+<ul>
+<li><a href="https://coreruleset.org/">OWASP ModSecurity Core Rule Set – The 1st Line of Defense Against Web Application Attacks</a></li>
+<li>レポジトリ：<a href="https://github.com/coreruleset/coreruleset/">coreruleset/coreruleset: OWASP ModSecurity Core Rule Set (Official Repository)</a></li>
+<li>Xのアカウント：<a href="https://twitter.com/CoreRuleSet">Core Rule Set（@CoreRuleSet）さん / X</a></li>
+<li><a href="https://twitter.com/ModSecurity/status/1755974502113046555">XユーザーのModSecurityさん: 「Congratulations on version 3.1.0 @corazaio!」 / X</a>で知ったが、<a href="https://github.com/corazawaf/coraza">corazawaf/coraza: OWASP Coraza WAF is a golang modsecurity compatible web application firewall library</a>というのもある。Go製、Apache 2.0ライセンス、OWASP Core Rule Set v4と100%互換性ありとのこと。</li>
+</ul>
+<h2 id="cve-2024-1019の脆弱性">CVE-2024-1019の脆弱性</h2>
+<ul>
+<li><a href="https://nvd.nist.gov/vuln/detail/CVE-2024-1019?ref=blog.sicuranext.com">NVD - CVE-2024-1019</a></li>
+<li><a href="https://blog.sicuranext.com/modsecurity-path-confusion-bugs-bypass/">ModSecurity: Path Confusion and really easy bypass on v2 and v3</a></li>
+<li><a href="https://twitter.com/ModSecurity/status/1752372749824045547">Xで@ModSecurityの2024-01-31のポスト</a>によるとバージョン3.0.12で修正。これがOWASP移管後の初リリースとのこと。</li>
+</ul>
+<h2 id="debian-12のmodsecurity関連パッケージ">Debian 12のModSecurity関連パッケージ</h2>
+<ul>
+<li><a href="https://packages.debian.org/search?keywords=modsecurity&amp;searchon=names&amp;suite=bookworm&amp;section=all">modsecurity を名前に含むパッケージを、bookworm スイート、すべてのセクション、すべてのアーキテクチャで検索</a>
+<ul>
+<li>libmodsecurity-dev 3.0.9-1+deb12u1: ModSecurity v3 library component (development files)</li>
+<li>libmodsecurity3 3.0.9-1+deb12u1: ModSecurity v3 library component</li>
+<li>libnginx-mod-http-modsecurity 1.0.3-1+b2: WAF module for Nginx</li>
+<li>modsecurity-crs 3.3.4-1: OWASP ModSecurity Core Rule Set</li>
+</ul>
+</li>
+</ul>
+<h2 id="参考記事">参考記事</h2>
+<ul>
+<li><a href="https://siteguard.jp-secure.com/blog/what-is-oss-modsecurity">ModSecurityとは？オープンソースWAFのメリット・デメリットを解説 | WebセキュリティのEGセキュアソリューションズ</a></li>
+</ul>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>
