@@ -1,7 +1,7 @@
 ---
 title: "LXDとDockerを同時利用するためにiptables設定を調整"
 date: 2022-06-18T15:49:54+09:00
-lastmod: 2022-10-25T02:10:00+09:00
+lastmod: 2024-04-29T02:15:50:00+09:00
 ---
 
 ## はじめに
@@ -203,3 +203,17 @@ PING server2(server2.lxd (fd42:b136:20b6:1c77:216:3eff:feaf:a4fd)) 56 data bytes
 rtt min/avg/max/mdev = 0.048/0.048/0.048/0.000 ms
 ```
 
+## やっぱりiptablesコマンドを使うように戻した (2024-04-29追記)
+
+Debian 12のIncusで同じことを試していたら `sudo nft list table ip filter` や `sudo nft list ruleset` の結果に
+```
+# Warning: table ip filter is managed by iptables-nft, do not touch!
+```
+という警告が出ていることに気づきました。
+
+Dockerがiptablesでルールを追加する結果iptables-nftで管理されているので、
+そこにルールを追加する際もiptablesを使うほうが無難そうということでそちらに戻しました。
+
+設定するスクリプトを
+https://github.com/hnakamur/setup-my-ubuntu-desktop/blob/1d7c4a4cfd2af2dd8ecb20991d03c97f48bd8c53/setup-iptables-for-lxd-with-docker.sh
+に置きました。
