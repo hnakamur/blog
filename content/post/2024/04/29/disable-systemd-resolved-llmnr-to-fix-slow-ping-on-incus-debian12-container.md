@@ -65,8 +65,7 @@ user    0m0.004s
 sys     0m0.000s
 ```
 
-Debian 12コンテナ内で tcpdump を取りながら ping を実行すると、
-DNSの逆引きが遅いことがわかりました。
+Debian 12コンテナ内でtcpdumpを取りながらpingを実行すると、DNSの逆引きが遅いことがわかりました。
 
 ```
 root@debian12:~# time ping -c 1 iij.ad.jp
@@ -157,8 +156,7 @@ https://wiki.archlinux.jp/index.php/Systemd-resolved#LLMNR によると
 
 とのことです。
 
-`/etc/systemd/resolved.conf` を見るとLLMNRはUbuntu 24.04コンテナでは
-デフォルトで無効、Debian 12コンテナではデフォルトで有効でした。
+`/etc/systemd/resolved.conf`を見るとLLMNRはUbuntu 24.04コンテナではデフォルトで無効、Debian 12コンテナではデフォルトで有効でした。
 
 ```
 root@numbat:~# grep '^#LLMNR=' /etc/systemd/resolved.conf
