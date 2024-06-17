@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.122.0">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>多段HTTPプロキシでのAgeヘッダ &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>多段HTTPプロキシでのAgeヘッダ</h1>
+  <time datetime=2024-06-17T21:19:26&#43;0900 class="post-date">2024-06-17</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#request_timeresponse_timeの単位"><code>request_time</code>、<code>response_time</code>の単位</a>
+      <ul>
+        <li><a href="#apache-traffic-serverではrequest_timeresponse_timeは秒単位">Apache Traffic Serverでは<code>request_time</code>、<code>response_time</code>は秒単位</a></li>
+      </ul>
+    </li>
+    <li><a href="#多段プロキシの場合はresponse_delayが多重に効いてくる">多段プロキシの場合は<code>response_delay</code>が多重に効いてくる</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="https://www.rfc-editor.org/rfc/rfc9111">RFC 9111: HTTP Caching</a>の<a href="https://www.rfc-editor.org/rfc/rfc9111#name-calculating-age">4.2.3. Calculating Age</a>ではAgeの計算式は以下のように定義されています。</p>
+<pre tabindex="0"><code>A response&#39;s age can be calculated in two entirely independent ways:
+
+the &#34;apparent_age&#34;: response_time minus date_value, if the implementation&#39;s clock is reasonably well synchronized to the origin server&#39;s clock. If the result is negative, the result is replaced by zero.
+
+the &#34;corrected_age_value&#34;, if all of the caches along the response path implement HTTP/1.1 or greater. A cache MUST interpret this value relative to the time the request was initiated, not the time that the response was received.
+
+  apparent_age = max(0, response_time - date_value);
+
+  response_delay = response_time - request_time;
+  corrected_age_value = age_value + response_delay;
+
+The corrected_age_value MAY be used as the corrected_initial_age. In circumstances where very old cache implementations that might not correctly insert Age are present, corrected_initial_age can be calculated more conservatively as
+
+  corrected_initial_age = max(apparent_age, corrected_age_value);
+
+The current_age of a stored response can then be calculated by adding the time (in seconds) since the stored response was last validated by the origin server to the corrected_initial_age.
+
+  resident_time = now - response_time;
+  current_age = corrected_initial_age + resident_time;
+</code></pre><p>nginxでAgeヘッダをこの仕様に沿って更新するようにパッチを作った後、テストをしているうちにいろいろ気付いたのでメモです。</p>
+<h2 id="request_timeresponse_timeの単位"><code>request_time</code>、<code>response_time</code>の単位</h2>
+<p>まず、<code>date_value</code>は<a href="https://www.rfc-editor.org/rfc/rfc9110.html#name-date">Date</a>、<code>age_value</code>もupstreamの<a href="https://www.rfc-editor.org/rfc/rfc9111#name-age">Age</a>に対応する値なので秒単位です。</p>
+<p><code>corrected_age_value = age_value + response_delay;</code>という式で<code>corrected_age_value</code>も<code>age_value</code>も秒単位なので、<code>response_delay</code>も必然的に秒単位になります。</p>
+<p>一方、<code>request_time</code>と<code>response_time</code>は以下の説明となっていますが、時間の単位は明記されていません。</p>
+<pre tabindex="0"><code>&#34;request_time&#34;
+  The value of the clock at the time of the request that resulted in the stored response.
+&#34;response_time&#34;
+  The value of the clock at the time the response was received.
+</code></pre><p>例えば、<code>request_time</code>が00:00:00.999、<code>response_time</code>が00:00:01.001の場合（日付部分は省略）を考えます。</p>
+<p>ミリ秒単位であれば、<code>response_delay</code>は0.002秒ですが、秒単位に切り捨てると0秒になります。
+秒単位であれば、<code>request_time</code>は00:00:00、<code>response_time</code>は00:00:01となり<code>response_delay</code>は1秒となります。</p>
+<p>このように<code>request_time</code>、<code>response_time</code>の単位を秒単位にするかもっと細かい単位にするかで、<code>response_delay</code>の値が変わってくる場合があるわけです。</p>
+<h3 id="apache-traffic-serverではrequest_timeresponse_timeは秒単位">Apache Traffic Serverでは<code>request_time</code>、<code>response_time</code>は秒単位</h3>
+<p><a href="https://github.com/apache/trafficserver/blob/9.2.4/proxy/http/HttpTransactHeaders.cc#L355-L421">HttpTransactHeaders::calculate_document_age</a>メソッドの引数を見ると<code>request_time</code>と<code>response_time</code>の型はともに<code>ink_time_t</code>でこれは<a href="https://github.com/apache/trafficserver/blob/9.2.4/proxy/http/HttpTransactHeaders.h#L26"><code>time_t</code>に<code>#define</code>されている</a>ので秒単位です。</p>
+<h2 id="多段プロキシの場合はresponse_delayが多重に効いてくる">多段プロキシの場合は<code>response_delay</code>が多重に効いてくる</h2>
+<p><code>client -&gt; child proxy -&gt; parent proxy -&gt; origin server</code>という2段構成を考えます（-&gt;はリクエストの流れの向き）。</p>
+<p>child proxyとparent proxyにともにキャッシュがない初期状態で、以下のようになったとします。</p>
+<pre tabindex="0"><code>00:00:00 chlid proxyの`request_time`
+00:00:00 parent proxyの`request_time`
+00:00:00 origin serverの`date_value`
+00:00:01 parent proxyの`response_time`と`date_value`
+00:00:01 child proxyの`response_time`
+</code></pre><p>parent proxyでは以下のようになります。</p>
+<pre tabindex="0"><code>  apparent_age = max(0, response_time - date_value) = 1
+
+  response_delay = response_time - request_time = 1
+  corrected_age_value = age_value + response_delay = 0 + 1 = 1
+
+  corrected_initial_age = max(apparent_age, corrected_age_value) = 1
+</code></pre><p>child proxyでは以下のようになります。</p>
+<pre tabindex="0"><code>  apparent_age = max(0, response_time - date_value) = 0
+
+  response_delay = response_time - request_time = 1
+  corrected_age_value = age_value + response_delay = 1 + 1 = 2
+
+  corrected_initial_age = max(apparent_age, corrected_age_value) = 2
+</code></pre><p>実際はオリジンからchild proxyまでのレスポンスの転送に1秒しかかかってないのに、Ageは2になってしまいます。</p>
+<p><code>response_delay</code>がラウンドトリップの時間になっていて、child proxyでの値はparent proxyでの値を含んでいる上に、<code>corrected_age_value</code>では<code>response_delay</code>が各hopごとに足されていくので、こういう結果になるわけです。</p>
+<p>改めて考えてみると、以下の計算式が自然な気がします。</p>
+<pre tabindex="0"><code>  response_receiving_delay = response_time - date_value;
+  corrected_initial_age2 = age_value + response_receiving_delay;
+</code></pre><p>冒頭に貼った<a href="https://www.rfc-editor.org/rfc/rfc9111#name-calculating-age">4.2.3. Calculating Age</a>の説明を読むと、originやproxyがすべて正しくAgeヘッダを設定する場合は<code>corrected_age_value</code>を<code>corrected_initial_age</code>として使ってもよい（MAY）とあります。そうだとしても</p>
+<pre tabindex="0"><code>  response_delay = response_time - request_time;
+  corrected_age_value = age_value + response_delay;
+</code></pre><p>で<code>response_delay</code>がupstreamからのレスポンス転送時間ではなくラウンドトリップの時間なので、上の例ではchild proxyのAgeはやはり2になります。</p>
+<p>なぜこういう定義になっているのかは私にはよくわかりません。しかし</p>
+<pre tabindex="0"><code>the &#34;corrected_age_value&#34;, if all of the caches along the response path implement HTTP/1.1 or greater. A cache MUST interpret this value relative to the time the request was initiated, not the time that the response was received.
+</code></pre><p>とリクエスト開始日時からの相対値でなければならない（MUST）と書いてあるので意図的なものであることは間違いなさそうです。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>
