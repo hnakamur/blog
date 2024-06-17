@@ -113,3 +113,4 @@ the "corrected_age_value", if all of the caches along the response path implemen
 ```
 とリクエスト開始日時からの相対値でなければならない（MUST）と書いてあるので意図的なものであることは間違いなさそうです。
 
+一つありそうな理由としてはdownstreamとupstreamでサーバのシステム日時がずれている場合でも問題ないように、`request_time`を起点にしているのかもしれません。こうすると`response_time`と`request_time`が同一のサーバ上のシステム日時なのでサーバ間のずれの問題は回避できるので。
