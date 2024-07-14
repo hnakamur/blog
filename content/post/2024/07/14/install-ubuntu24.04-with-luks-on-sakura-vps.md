@@ -76,3 +76,20 @@ Please unlock disk dm_crypt-1:
 ```
 begin: mounting root file system ... Begin: Running /script/local-top ...  Please unlock disk dm_crypt-1:
 ```
+
+## 再起動後の設定
+### タイムゾーンをJSTに変更
+
+再起動後、以下のコマンドでタイムゾーンをJSTに変更しておきます。
+
+```
+sudo timedatectl set-timezone Asia/Tokyo
+```
+
+### 時刻同期の状態確認
+
+インストーラでsystemd-timesyncdがセットアップされています。以下のコマンドで時刻同期の状態を確認できます。
+
+```
+timedatectl timesync-status
+```
