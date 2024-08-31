@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Embeddableなkey value storeについてのメモ &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Embeddableなkey value storeについてのメモ</h1>
+  <time datetime=2023-07-01T14:28:11&#43;0900 class="post-date">2023-07-01</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#sled">sled</a>
+      <ul>
+        <li><a href="#marble">marble</a></li>
+      </ul>
+    </li>
+    <li><a href="#redb">redb</a></li>
+    <li><a href="#leveldb">LevelDB</a></li>
+    <li><a href="#agatedb">agatedb</a></li>
+    <li><a href="#lmdb">LMDB</a></li>
+    <li><a href="#redbに付属のベンチマークを試してみた">redbに付属のベンチマークを試してみた</a></li>
+    <li><a href="#個人の感想">個人の感想</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>書き込みも読み取りも低遅延なキーバリューストアが欲しいということで調べてみたメモです。ただし、このメモに書いたキーバリューストアがそうであるかは不明です。</p>
+<h2 id="sled">sled</h2>
+<ul>
+<li><a href="https://github.com/spacejam/sled">spacejam/sled: the champagne of beta embedded databases</a></li>
+<li>READMEのperfomanceの項に &ldquo;LSM tree-like write performance with traditional B+ tree-like read performance&rdquo; と書かれていて魅力的。</li>
+<li><a href="https://github.com/spacejam/sled/pull/1424">Remove old io_uring support before rewrite by spacejam · Pull Request #1424 · spacejam/sled</a>でrioへの依存がなくなっていた。
+<ul>
+<li>rioは<a href="https://github.com/spacejam/rio/blob/319f7fb04014aa88540c3539bd97d5a0006a1eb9/Cargo.toml#L6">GPL-3.0でスポンサーにはMIT/Apache-2.0というライセンス</a></li>
+</ul>
+</li>
+</ul>
+<h3 id="marble">marble</h3>
+<ul>
+<li><a href="https://github.com/komora-io/marble">komora-io/marble: garbage-collecting on-disk object store, supporting higher level KV stores and databases.</a></li>
+<li>READMEに &ldquo;Marble is sled&rsquo;s future storage engine.&rdquo; とあった。</li>
+<li><a href="https://github.com/komora-io">https://github.com/komora-io</a> のPeopleはsledの作者の<a href="https://github.com/spacejam">spacejam</a>さん1人。<a href="https://twitter.com/komora_io">Twitterアカウント</a>を見ると所在地はドイツのベルリンらしい。</li>
+</ul>
+<h2 id="redb">redb</h2>
+<ul>
+<li><a href="https://github.com/cberner/redb">cberner/redb: An embedded key-value database in pure Rust</a></li>
+<li><a href="https://www.reddit.com/r/rust/comments/13dtd2y/rfc_redb_embedded_keyvalue_store_nearing_version/">RFC: redb (embedded key-value store) nearing version 1.0 : r/rust</a>で知った。
+<ul>
+<li><a href="https://www.reddit.com/r/rust/comments/13dtd2y/comment/jjm4xfs/?utm_source=share&amp;utm_medium=web3x&amp;utm_name=web3xcss&amp;utm_term=1&amp;utm_content=share_button">作者のコメント</a>によるとしばらく前にmmapを外したとのこと。</li>
+</ul>
+</li>
+<li>この記事はもうすぐ1.0というタイトルだが、 <a href="https://github.com/cberner/redb/releases">https://github.com/cberner/redb/releases</a> を見るとここ数日で 1.0.1, 1.0.2, 1.0.3 とpanicするバグの修正リリースが出ている。</li>
+</ul>
+<h2 id="leveldb">LevelDB</h2>
+<ul>
+<li><a href="https://github.com/google/leveldb">google/leveldb: LevelDB is a fast key-value storage library written at Google that provides an ordered mapping from string keys to string values.</a></li>
+<li>READMEのLimitationsに &ldquo;Only a single process (possibly multi-threaded) can access a particular database at a time.&rdquo; とあった。</li>
+</ul>
+<h2 id="agatedb">agatedb</h2>
+<ul>
+<li><a href="https://github.com/tikv/agatedb">tikv/agatedb: A persistent key-value storage in rust.</a></li>
+<li>READMEによるとTiKVの experimental engine として開発中とのこと。</li>
+</ul>
+<h2 id="lmdb">LMDB</h2>
+<ul>
+<li>
+<p><a href="http://www.lmdb.tech/doc/">LMDB: Lightning Memory-Mapped Database Manager (LMDB)</a></p>
+</li>
+<li>
+<p><a href="https://github.com/LMDB/lmdb">LMDB/lmdb: Read-only mirror of official repo on openldap.org. Issues and pull requests here are ignored. Use OpenLDAP ITS for issues.</a></p>
+</li>
+<li>
+<p>Mozillaで2018年に採用検討したときのドキュメント</p>
+<ul>
+<li><a href="https://mozilla.github.io/firefox-browser-architecture/text/0015-rkv.html">Design Review: Key-Value Storage</a>
+<ul>
+<li>Summaryの冒頭に &ldquo;There is no one-size-fits-all solution for storage.&rdquo; とあった。</li>
+<li>&ldquo;You can get a quite good performance out of the box, without any fuss or configuration like RocksDB.&rdquo; という意見があった。</li>
+</ul>
+</li>
+<li><a href="https://mozilla.github.io/firefox-browser-architecture/text/0017-lmdb-vs-leveldb.html">LMDB vs. LevelDB</a>
+<ul>
+<li>Referencesからリンクされていた2013年の記事 <a href="https://banksco.de/p/lmdb-the-leveldb-killer.html">LMDB: The Leveldb Killer? - by Paul Banks</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="redbに付属のベンチマークを試してみた">redbに付属のベンチマークを試してみた</h2>
+<ul>
+<li>試したバージョン <a href="https://github.com/cberner/redb/tree/v1.0.3">1.0.3</a></li>
+<li><code>cargo bench</code> で実行したベンチマークの結果のうち、<a href="https://github.com/cberner/redb/blob/v1.0.3/benches/lmdb_benchmark.rs">benches/lmdb_benchmark.rs</a>の表の部分を抜粋。</li>
+</ul>
+<pre tabindex="0"><code>+---------------------------+--------+--------+---------+--------+-----------+
+|                           | redb   | lmdb   | rocksdb | sled   | sanakirja |
++============================================================================+
+| bulk load                 | 4080ms | 1417ms | 9710ms  | 7828ms | 29011ms   |              
+|---------------------------+--------+--------+---------+--------+-----------|               
+| individual writes         | 58ms   | 116ms  | 44ms    | 45ms   | 95ms      |               
+|---------------------------+--------+--------+---------+--------+-----------|               
+| batch writes              | 4577ms | 3481ms | 703ms   | 1067ms | 5787ms    |               
+|---------------------------+--------+--------+---------+--------+-----------|               
+| random reads              | 1968ms | 1036ms | 9649ms  | 2591ms | 1132ms    |
+|---------------------------+--------+--------+---------+--------+-----------|
+| random reads              | 1553ms | 917ms  | 9755ms  | 2379ms | 1128ms    |
+|---------------------------+--------+--------+---------+--------+-----------|
+| random range reads        | 3548ms | 1470ms | 14841ms | 6819ms | 1662ms    |    
+|---------------------------+--------+--------+---------+--------+-----------|     
+| random range reads        | 3518ms | 1474ms | 14822ms | 6858ms | 1702ms    |               
+|---------------------------+--------+--------+---------+--------+-----------|               
+| random reads (4 threads)  | 451ms  | 207ms  | 2679ms  | 587ms  | 359ms     |               
+|---------------------------+--------+--------+---------+--------+-----------|               
+| random reads (8 threads)  | 240ms  | 108ms  | 1522ms  | 317ms  | 717ms     |               
+|---------------------------+--------+--------+---------+--------+-----------|               
+| random reads (16 threads) | 161ms  | 71ms   | 1438ms  | 205ms  | 2233ms    |
+|---------------------------+--------+--------+---------+--------+-----------|
+| random reads (32 threads) | 170ms  | 77ms   | 1474ms  | 226ms  | 5345ms    |
+|---------------------------+--------+--------+---------+--------+-----------|
+| removals                  | 3042ms | 972ms  | 4775ms  | 3421ms | 2691ms    |
++---------------------------+--------+--------+---------+--------+-----------+
+</code></pre><h2 id="個人の感想">個人の感想</h2>
+<p>個人的な感想としては、LMDBは individual writes が比較的遅いもののそこまででもないし、readやremovalsは他よりかなり速いので、総合的にはLMDBが良いという印象。</p>
+<p>あと、要件として、書き込みは1箇所のみで良いけど、読み取りは1台のサーバー上の複数プロセスから行いたいというのがあるのを思い出しました。するとメモリマップトファイルを使う方式のほうがありがたいわけです。キャッシュなどのデータ構造をメモリ上に持つ方式だとプロセスごとにコピーを持つことになるので。あ、でもプロセスごとに別のキーを参照するケースが多い場合は別々にメモリ上にキャッシュ持つほうが、キャッシュのヒット率が高いという可能性はあるのか。</p>
+<p><a href="https://db.cs.cmu.edu/mmap-cidr2022/">Are You Sure You Want to Use MMAP in Your Database Management System? (CIDR 2022)</a>が気になるところですが、<a href="https://github.com/viktorleis/mmapbench/blob/e1f594532c16565e8f3cf3da3b33ddd75bf1db42/mmapbench.cpp#L110">mmapbench/mmapbench.cpp at main · viktorleis/mmapbench · GitHub</a>を見ると、ファイルサイズ2TiBと巨大な場合の話なので、そこまで大きくなければ大丈夫なのではないかと思いたいところですが、どうなんでしょうね。上のページの動画に出てきた Buffer Pool の動画のリンク <a href="https://www.youtube.com/watch?v=Moz2AgC9hG4">05 - Buffer Pools (CMU Intro to Database Systems / Fall 2021) - YouTube</a> も貼っておきます。</p>
+<p>あと、<a href="https://twitter.com/glcst">Glauber Costa</a>さんの2020年の記事 <a href="https://itnext.io/modern-storage-is-plenty-fast-it-is-the-apis-that-are-bad-6a68319fbc1a">Modern storage is plenty fast. It is the APIs that are bad. | by Glauber Costa | ITNEXT</a> も気になったのでメモ。</p>
+<p>上の記事からリンクされている <a href="https://itnext.io/direct-i-o-writes-the-best-way-to-improve-your-credit-score-bd6c19cdfe46">Direct I/O writes: the best way to improve your credit score. | by Glauber Costa | ITNEXT</a> も興味深かったです。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

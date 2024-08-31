@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>LuaのGo実装GopherLuaを試してみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>LuaのGo実装GopherLuaを試してみた</h1>
+  <time datetime=2015-06-03T05:29:03&#43;0900 class="post-date">2015-06-03</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#gopherluaの利用例">GopherLuaの利用例</a></li>
+    <li><a href="#まとめ">まとめ</a></li>
+    <li><a href="#2015-06-03-2135-頃追記">2015-06-03 21:35 頃追記</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="http://inforno.net/articles/2015/02/15/gopher-lua-released">inforno :: LuaのGo言語実装を公開しました</a>を以前読んでましたが、試してなかったので試しました。</p>
+<p><a href="http://www.lua.org/about.html">Lua: about</a>の&quot;What is Lua?&ldquo;に</p>
+<blockquote>
+<p>making it ideal for configuration, scripting, and rapid prototyping.</p>
+</blockquote>
+<p>とあるようにLuaは設定ファイルとして使うことも想定されています。</p>
+<p>ということで試してみました。</p>
+<h2 id="gopherluaの利用例">GopherLuaの利用例</h2>
+<p>hello.lua</p>
+<pre tabindex="0"><code>print(&#34;hello&#34;)
+
+a = 2
+b = {
+    c = 4,
+    d = a + 3
+}
+</code></pre><p>main.go</p>
+<pre tabindex="0"><code>package main
+
+import (
+	&#34;fmt&#34;
+
+	&#34;github.com/yuin/gopher-lua&#34;
+)
+
+func main() {
+	l := lua.NewState()
+	defer l.Close()
+
+	if err := l.DoFile(&#34;hello.lua&#34;); err != nil {
+		panic(err)
+	}
+
+	a := l.GetGlobal(&#34;a&#34;)
+	fmt.Printf(&#34;a=%v\n&#34;, a)
+
+	b := l.GetGlobal(&#34;b&#34;).(*lua.LTable)
+	b.ForEach(func(key, value lua.LValue) {
+		fmt.Printf(&#34;b.%v=%v\n&#34;, key, value)
+	})
+}
+</code></pre><p>実行結果</p>
+<pre tabindex="0"><code>$ go run main.go
+hello
+a=2
+b.c=4
+b.d=5
+</code></pre><p>hello.luaに <code>print(&quot;hello&quot;)</code> を入れているのはLuaからの出力を試してみたかったからで、実際に設定ファイルとして使うときは変数設定だけの使い方になるでしょう。</p>
+<p>上記では単に値を出力していますが、変数の値がプリミティブの場合は</p>
+<ul>
+<li><a href="http://godoc.org/github.com/yuin/gopher-lua#LVAsBool">LVAsBool</a></li>
+<li><a href="http://godoc.org/github.com/yuin/gopher-lua#LVAsString">LVAsString</a></li>
+<li><a href="http://godoc.org/github.com/yuin/gopher-lua#LVAsNumber">LVAsNumber</a></li>
+</ul>
+<p>を使えばbool, string, LNumberに変換できます。</p>
+<p><a href="http://godoc.org/github.com/yuin/gopher-lua#LNumber">LNumberの定義</a> を見ると</p>
+<pre tabindex="0"><code>type LNumber float64
+</code></pre><p>となっているので、Goでも数値として扱えます。</p>
+<p>なお、<a href="http://www.lua.org/manual/5.3/manual.html#8.1">Luaは5.3で数値に整数型が追加されています</a>が、<a href="https://github.com/yuin/gopher-lua">gopher-lua</a>はLua 5.1相当なので数値型は64bit浮動小数点数のみです。</p>
+<p>で、table (ハッシュテーブル) 型は <code>lua.LValue</code> から <code>.(*lua.Table)</code> でTableに変換できます。</p>
+<p>ちなみに、<a href="http://www.lua.org/manual/5.1/manual.html#2.2">2.2 – Values and Type - sLua 5.1 Reference Manual</a>にあるようにLuaのtable型は連想配列と整数インデクスでの配列を兼用したデータ型となっています。</p>
+<h2 id="まとめ">まとめ</h2>
+<p>設定ファイルをLuaで書くようにすると、上記の hello.lua で <code>b.d</code> を <code>a + 3</code> としているように変数や式が使えます。</p>
+<p>table型があるのでネストしたデータ構造も表現できます。</p>
+<p>ということで、Goのプログラムの設定ファイルをluaで書いて<a href="https://github.com/yuin/gopher-lua">gopher-lua</a>で解釈するというのは、かなり便利そうですね。今後活用していきたいです。yuinさん、便利なライブラリをありがとうございます！</p>
+<h2 id="2015-06-03-2135-頃追記">2015-06-03 21:35 頃追記</h2>
+<p>作者の方からご指摘頂いたのですが、LValueからTableへの変換方法はREADMEの<a href="https://github.com/yuin/gopher-lua#data-model">Data model</a>に書いてありました。失礼いたしました。</p>
+<p>またLuaを設定ファイルとして使う場合は、そのためのライブラリも書かれているので、そちらを使うほうがよいそうです。
+<a href="http://inforno.net/articles/2015/03/23/gluamapper-released">inforno :: GopherLuaを設定ファイルで使うライブラリを書きました</a>をご参照ください。Goのstructの各フィールドの値をLuaのtableのデータに応じて設定してくれます。ますます便利ですね！</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

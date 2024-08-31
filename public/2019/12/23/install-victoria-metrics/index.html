@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>VictoriaMetricsのインストール &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>VictoriaMetricsのインストール</h1>
+  <time datetime=2019-12-23T00:05:00&#43;0900 class="post-date">2019-12-23</time>
+  <nav id="TableOfContents"></nav>
+  <p>参考: <a href="https://github.com/VictoriaMetrics/VictoriaMetrics">github.com/VictoriaMetrics/VictoriaMetrics</a> の <a href="https://github.com/VictoriaMetrics/VictoriaMetrics#production-build">production build</a></p>
+<p>予め <a href="https://golang.org/dl/">Downloads - The Go Programming Language</a> の手順で Go の最新版をインストールしておきます。</p>
+<p>VictoriaMetrics の git レポジトリを clone して最新版のリリースに切り替えます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">git clone https://github.com/VictoriaMetrics/VictoriaMetrics
+</span></span></span><span class="line"><span class="cl"><span class="go">cd VictoriaMetrics
+</span></span></span><span class="line"><span class="cl"><span class="go">git checkout v1.31.2
+</span></span></span></code></pre></div><p>production 版をビルドし生成された実行ファイルを <code>/usr/local/bin/victoriametrics</code> にインストールします。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">make victoria-metrics-prod
+</span></span></span><span class="line"><span class="cl"><span class="go">sudo install bin/victoria-metrics-prod /usr/local/bin/victoriametrics
+</span></span></span></code></pre></div><p><a href="https://github.com/VictoriaMetrics/VictoriaMetrics#setting-up-service">Setting up service</a> の <a href="https://github.com/VictoriaMetrics/VictoriaMetrics/issues/43">Documentation Addition for Creating a service · Issue #43 · VictoriaMetrics/VictoriaMetrics</a> と <a href="https://github.com/VictoriaMetrics/VictoriaMetrics/blob/v1.31.2/package/victoria-metrics.service">package/victoria-metrics.service</a> を参考に systemd のサービス定義ファイルを作成します。本番運用する際は root ユーザではなく専用のユーザを作るほうが良いと思いますが今回はとりあえず使ってみるだけなので手抜きします。ソースを見た感じでは PID のファイルは作らないようなのと <a href="https://github.com/VictoriaMetrics/VictoriaMetrics/blob/v1.31.2/package/victoria-metrics.service">package/victoria-metrics.service</a> にもないので <code>PIDFile</code> は無しで。</p>
+<p><code>-retentionPeriod</code> は保管したい期間を月単位で指定します。下記の例は 6 か月です。 <a href="https://github.com/VictoriaMetrics/VictoriaMetrics/blob/v1.31.2/lib/storage/table.go#L137">lib/storage/table.go#L137</a> を見ると1か月は31日として換算しています。</p>
+<p>私は graphite 互換でデータを送りたいので <code>-graphiteListenAddr :2003</code> も指定しました。ポートはお好みで。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">cat &lt;&lt;&#39;EOF&#39; | sudo tee /etc/systemd/system/victoriametrics.serivce &gt; /dev/null
+</span></span></span><span class="line"><span class="cl"><span class="go">[Unit]
+</span></span></span><span class="line"><span class="cl"><span class="go">Description=VictoriaMetrics
+</span></span></span><span class="line"><span class="cl"><span class="go">After=network.target
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">[Service]
+</span></span></span><span class="line"><span class="cl"><span class="go">Type=simple
+</span></span></span><span class="line"><span class="cl"><span class="go">StartLimitBurst=5
+</span></span></span><span class="line"><span class="cl"><span class="go">StartLimitInterval=0
+</span></span></span><span class="line"><span class="cl"><span class="go">Restart=on-failure
+</span></span></span><span class="line"><span class="cl"><span class="go">RestartSec=1
+</span></span></span><span class="line"><span class="cl"><span class="go">PIDFile=/run/victoriametrics/victoriametrics.pid
+</span></span></span><span class="line"><span class="cl"><span class="go">ExecStart=/usr/local/bin/victoriametrics -storageDataPath /var/lib/victoriametrics -retentionPeriod 6 -graphiteListenAddr :2003
+</span></span></span><span class="line"><span class="cl"><span class="go">ExecStop=/bin/kill -s SIGTERM $MAINPID
+</span></span></span><span class="line"><span class="cl"><span class="go">LimitNOFILE=65536
+</span></span></span><span class="line"><span class="cl"><span class="go">LimitNPROC=32000
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">[Install]
+</span></span></span><span class="line"><span class="cl"><span class="go">WantedBy=multi-user.target
+</span></span></span><span class="line"><span class="cl"><span class="go">EOF
+</span></span></span></code></pre></div><p>以下では tank1 という zfs ボリュームが既にある想定で tank1/victoriametrics ボリュームを新規作成し /var/lib/victoriametrics にマウントポイントを設定します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo zfs create tank1/victoriametrics
+</span></span></span><span class="line"><span class="cl"><span class="go">sudo zfs set mountpoint=/var/lib/victoriametrics tank1/victoriametrics
+</span></span></span></code></pre></div><p>設定ファイルを反映してサービスを起動します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo systemctl daemon-reload
+</span></span></span><span class="line"><span class="cl"><span class="go">sudo systemctl start victoriametrics
+</span></span></span></code></pre></div>
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>procpsのpgrepのコードリーディング &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>procpsのpgrepのコードリーディング</h1>
+  <time datetime=2017-02-23T18:30:00&#43;0900 class="post-date">2017-02-23</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#pgrepcのコードリーディング">pgrep.cのコードリーディング</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="blog/2017/02/23/pgrep-in-procps-ng-code-reading/">procps-ngのpgrepのコードリーディング</a> に続いて CentOS 6 の pgrep についてもコードリーディングしてみました。
+<code>pgrep</code> を含むパッケージは <code>procps</code> でバージョンは3.2.8でした。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">[root@centos6 ~]#</span> rpm -qf <span class="sb">`</span>which pgrep<span class="sb">`</span>
+</span></span><span class="line"><span class="cl"><span class="go">procps-3.2.8-36.el6.x86_64
+</span></span></span></code></pre></div><p><a href="http://procps.sourceforge.net/"><code>procps`` のプロジェクトページは </code>procps - Home Page</a> で、
+<a href="http://procps.cvs.sourceforge.net/viewvc/procps/">SourceForge.net Repository - [procps] Index of /</a> でソースコードが見られます。</p>
+<p>一方で以下のコマンドで srpm をダウンロードしてそこから <code>pgrep.c</code> を取り出しました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">[root@centos6 ~]#</span> curl -sO http://vault.centos.org/6.8/os/Source/SPackages/procps-3.2.8-36.el6.src.rpm
+</span></span><span class="line"><span class="cl"><span class="gp">[root@centos6 ~]#</span> mkdir procps-srpm
+</span></span><span class="line"><span class="cl"><span class="gp">[root@centos6 ~]#</span> rpm2cpio procps-3.2.8-36.el6.src.rpm <span class="p">|</span> <span class="o">(</span><span class="nb">cd</span> procps-srpm <span class="o">&amp;&amp;</span> cpio -idm --quiet<span class="o">)</span>
+</span></span><span class="line"><span class="cl"><span class="gp">[root@centos6 ~]#</span> tar xf procps-srpm/procps-3.2.8.tar.gz -C procps-srpm
+</span></span></code></pre></div><p><a href="http://procps.cvs.sourceforge.net/viewvc/procps/procps/pgrep.c?view=log">SourceForge.net Repository - [procps] Log of /procps/pgrep.c</a> の各リビジョンと上記で取り出した <a href="http://procps.cvs.sourceforge.net/viewvc/procps/procps/pgrep.c?revision=1.29&amp;view=markup"><code>pgrep.c`` を比較したところ </code>SourceForge.net Repository - [procps] Contents of /procps/pgrep.c revision 1.29</a> と一致していました。</p>
+<h2 id="pgrepcのコードリーディング">pgrep.cのコードリーディング</h2>
+<p><code>main</code> 関数の実装。
+<a href="http://procps.cvs.sourceforge.net/viewvc/procps/procps/pgrep.c?revision=1.29&amp;view=markup#l709">pgrep.c#L709-#L732</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">709
+</span><span class="lnt">710
+</span><span class="lnt">711
+</span><span class="lnt">712
+</span><span class="lnt">713
+</span><span class="lnt">714
+</span><span class="lnt">715
+</span><span class="lnt">716
+</span><span class="lnt">717
+</span><span class="lnt">718
+</span><span class="lnt">719
+</span><span class="lnt">720
+</span><span class="lnt">721
+</span><span class="lnt">722
+</span><span class="lnt">723
+</span><span class="lnt">724
+</span><span class="lnt">725
+</span><span class="lnt">726
+</span><span class="lnt">727
+</span><span class="lnt">728
+</span><span class="lnt">729
+</span><span class="lnt">730
+</span><span class="lnt">731
+</span><span class="lnt">732
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">main</span> <span class="p">(</span><span class="kt">int</span> <span class="n">argc</span><span class="p">,</span> <span class="kt">char</span> <span class="o">*</span><span class="n">argv</span><span class="p">[])</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">union</span> <span class="n">el</span> <span class="o">*</span><span class="n">procs</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">int</span> <span class="n">num</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nf">parse_opts</span> <span class="p">(</span><span class="n">argc</span><span class="p">,</span> <span class="n">argv</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">procs</span> <span class="o">=</span> <span class="nf">select_procs</span> <span class="p">(</span><span class="o">&amp;</span><span class="n">num</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">i_am_pkill</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">int</span> <span class="n">i</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">for</span> <span class="p">(</span><span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">num</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="nf">kill</span> <span class="p">(</span><span class="n">procs</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">num</span><span class="p">,</span> <span class="n">opt_signal</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="k">continue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">errno</span><span class="o">==</span><span class="n">ESRCH</span><span class="p">)</span> <span class="k">continue</span><span class="p">;</span> <span class="c1">// gone now, which is OK
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="nf">fprintf</span> <span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="s">&#34;pkill: %ld - %s</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">				 <span class="n">procs</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">num</span><span class="p">,</span> <span class="nf">strerror</span> <span class="p">(</span><span class="n">errno</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">opt_long</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="nf">output_strlist</span><span class="p">(</span><span class="n">procs</span><span class="p">,</span><span class="n">num</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="k">else</span>
+</span></span><span class="line"><span class="cl">			<span class="nf">output_numlist</span><span class="p">(</span><span class="n">procs</span><span class="p">,</span><span class="n">num</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="o">!</span><span class="n">num</span><span class="p">;</span> <span class="c1">// exit(EXIT_SUCCESS) if match, otherwise exit(EXIT_FAILURE)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>parse_opts</code> 関数の実装。
+<a href="http://procps.cvs.sourceforge.net/viewvc/procps/procps/pgrep.c?revision=1.29&amp;view=markup#l539">pgrep.c#L539-#L706</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">539
+</span><span class="lnt">540
+</span><span class="lnt">541
+</span><span class="lnt">542
+</span><span class="lnt">543
+</span><span class="lnt">544
+</span><span class="lnt">545
+</span><span class="lnt">546
+</span><span class="lnt">547
+</span><span class="lnt">548
+</span><span class="lnt">549
+</span><span class="lnt">550
+</span><span class="lnt">551
+</span><span class="lnt">552
+</span><span class="lnt">553
+</span><span class="lnt">554
+</span><span class="lnt">555
+</span><span class="lnt">556
+</span><span class="lnt">557
+</span><span class="lnt">558
+</span><span class="lnt">559
+</span><span class="lnt">560
+</span><span class="lnt">561
+</span><span class="lnt">562
+</span><span class="lnt">563
+</span><span class="lnt">564
+</span><span class="lnt">565
+</span><span class="lnt">566
+</span><span class="lnt">567
+</span><span class="lnt">568
+</span><span class="lnt">569
+</span><span class="lnt">570
+</span><span class="lnt">571
+</span><span class="lnt">572
+</span><span class="lnt">573
+</span><span class="lnt">574
+</span><span class="lnt">575
+</span><span class="lnt">576
+</span><span class="lnt">577
+</span><span class="lnt">578
+</span><span class="lnt">579
+</span><span class="lnt">580
+</span><span class="lnt">581
+</span><span class="lnt">582
+</span><span class="lnt">583
+</span><span class="lnt">584
+</span><span class="lnt">585
+</span><span class="lnt">586
+</span><span class="lnt">587
+</span><span class="lnt">588
+</span><span class="lnt">589
+</span><span class="lnt">590
+</span><span class="lnt">591
+</span><span class="lnt">592
+</span><span class="lnt">593
+</span><span class="lnt">594
+</span><span class="lnt">595
+</span><span class="lnt">596
+</span><span class="lnt">597
+</span><span class="lnt">598
+</span><span class="lnt">599
+</span><span class="lnt">600
+</span><span class="lnt">601
+</span><span class="lnt">602
+</span><span class="lnt">603
+</span><span class="lnt">604
+</span><span class="lnt">605
+</span><span class="lnt">606
+</span><span class="lnt">607
+</span><span class="lnt">608
+</span><span class="lnt">609
+</span><span class="lnt">610
+</span><span class="lnt">611
+</span><span class="lnt">612
+</span><span class="lnt">613
+</span><span class="lnt">614
+</span><span class="lnt">615
+</span><span class="lnt">616
+</span><span class="lnt">617
+</span><span class="lnt">618
+</span><span class="lnt">619
+</span><span class="lnt">620
+</span><span class="lnt">621
+</span><span class="lnt">622
+</span><span class="lnt">623
+</span><span class="lnt">624
+</span><span class="lnt">625
+</span><span class="lnt">626
+</span><span class="lnt">627
+</span><span class="lnt">628
+</span><span class="lnt">629
+</span><span class="lnt">630
+</span><span class="lnt">631
+</span><span class="lnt">632
+</span><span class="lnt">633
+</span><span class="lnt">634
+</span><span class="lnt">635
+</span><span class="lnt">636
+</span><span class="lnt">637
+</span><span class="lnt">638
+</span><span class="lnt">639
+</span><span class="lnt">640
+</span><span class="lnt">641
+</span><span class="lnt">642
+</span><span class="lnt">643
+</span><span class="lnt">644
+</span><span class="lnt">645
+</span><span class="lnt">646
+</span><span class="lnt">647
+</span><span class="lnt">648
+</span><span class="lnt">649
+</span><span class="lnt">650
+</span><span class="lnt">651
+</span><span class="lnt">652
+</span><span class="lnt">653
+</span><span class="lnt">654
+</span><span class="lnt">655
+</span><span class="lnt">656
+</span><span class="lnt">657
+</span><span class="lnt">658
+</span><span class="lnt">659
+</span><span class="lnt">660
+</span><span class="lnt">661
+</span><span class="lnt">662
+</span><span class="lnt">663
+</span><span class="lnt">664
+</span><span class="lnt">665
+</span><span class="lnt">666
+</span><span class="lnt">667
+</span><span class="lnt">668
+</span><span class="lnt">669
+</span><span class="lnt">670
+</span><span class="lnt">671
+</span><span class="lnt">672
+</span><span class="lnt">673
+</span><span class="lnt">674
+</span><span class="lnt">675
+</span><span class="lnt">676
+</span><span class="lnt">677
+</span><span class="lnt">678
+</span><span class="lnt">679
+</span><span class="lnt">680
+</span><span class="lnt">681
+</span><span class="lnt">682
+</span><span class="lnt">683
+</span><span class="lnt">684
+</span><span class="lnt">685
+</span><span class="lnt">686
+</span><span class="lnt">687
+</span><span class="lnt">688
+</span><span class="lnt">689
+</span><span class="lnt">690
+</span><span class="lnt">691
+</span><span class="lnt">692
+</span><span class="lnt">693
+</span><span class="lnt">694
+</span><span class="lnt">695
+</span><span class="lnt">696
+</span><span class="lnt">697
+</span><span class="lnt">698
+</span><span class="lnt">699
+</span><span class="lnt">700
+</span><span class="lnt">701
+</span><span class="lnt">702
+</span><span class="lnt">703
+</span><span class="lnt">704
+</span><span class="lnt">705
+</span><span class="lnt">706
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">void</span> <span class="nf">parse_opts</span> <span class="p">(</span><span class="kt">int</span> <span class="n">argc</span><span class="p">,</span> <span class="kt">char</span> <span class="o">**</span><span class="n">argv</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">char</span> <span class="n">opts</span><span class="p">[</span><span class="mi">32</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#34;&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">int</span> <span class="n">opt</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">int</span> <span class="n">criteria_count</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="nf">strstr</span> <span class="p">(</span><span class="n">argv</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s">&#34;pkill&#34;</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">i_am_pkill</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">progname</span> <span class="o">=</span> <span class="s">&#34;pkill&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="cm">/* Look for a signal name or number as first argument */</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">argc</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="o">&amp;&amp;</span> <span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="sc">&#39;-&#39;</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="kt">int</span> <span class="n">sig</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="n">sig</span> <span class="o">=</span> <span class="nf">signal_name_to_number</span> <span class="p">(</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">sig</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span> <span class="o">&amp;&amp;</span> <span class="nf">isdigit</span> <span class="p">(</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]))</span>
+</span></span><span class="line"><span class="cl">				<span class="n">sig</span> <span class="o">=</span> <span class="nf">atoi</span> <span class="p">(</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">sig</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="kt">int</span> <span class="n">i</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">				<span class="k">for</span> <span class="p">(</span><span class="n">i</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">argc</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">					<span class="n">argv</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">argv</span><span class="p">[</span><span class="n">i</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">				<span class="o">--</span><span class="n">argc</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">				<span class="n">opt_signal</span> <span class="o">=</span> <span class="n">sig</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="cm">/* These options are for pgrep only */</span>
+</span></span><span class="line"><span class="cl">		<span class="nf">strcat</span> <span class="p">(</span><span class="n">opts</span><span class="p">,</span> <span class="s">&#34;ld:&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">			
+</span></span><span class="line"><span class="cl">	<span class="nf">strcat</span> <span class="p">(</span><span class="n">opts</span><span class="p">,</span> <span class="s">&#34;LF:fnovxP:g:s:u:U:G:t:?V&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="k">while</span> <span class="p">((</span><span class="n">opt</span> <span class="o">=</span> <span class="nf">getopt</span> <span class="p">(</span><span class="n">argc</span><span class="p">,</span> <span class="n">argv</span><span class="p">,</span> <span class="n">opts</span><span class="p">))</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">switch</span> <span class="p">(</span><span class="n">opt</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="c1">//		case &#39;D&#39;:   // FreeBSD: print info about non-matches for debugging
+</span></span></span><span class="line"><span class="cl"><span class="c1">//			break;
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">case</span> <span class="sc">&#39;F&#39;</span><span class="o">:</span>   <span class="c1">// FreeBSD: the arg is a file containing a PID to match
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="n">opt_pidfile</span> <span class="o">=</span> <span class="nf">strdup</span> <span class="p">(</span><span class="n">optarg</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="o">++</span><span class="n">criteria_count</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="sc">&#39;G&#39;</span><span class="o">:</span>   <span class="c1">// Solaris: match rgid/rgroup
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	  		<span class="n">opt_rgid</span> <span class="o">=</span> <span class="nf">split_list</span> <span class="p">(</span><span class="n">optarg</span><span class="p">,</span> <span class="n">conv_gid</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">opt_rgid</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="nf">usage</span> <span class="p">(</span><span class="n">opt</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="o">++</span><span class="n">criteria_count</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="c1">//		case &#39;I&#39;:   // FreeBSD: require confirmation before killing
+</span></span></span><span class="line"><span class="cl"><span class="c1">//			break;
+</span></span></span><span class="line"><span class="cl"><span class="c1">//		case &#39;J&#39;:   // Solaris: match by project ID (name or number)
+</span></span></span><span class="line"><span class="cl"><span class="c1">//			break;
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">case</span> <span class="sc">&#39;L&#39;</span><span class="o">:</span>   <span class="c1">// FreeBSD: fail if pidfile (see -F) not locked
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="n">opt_lock</span><span class="o">++</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="c1">//		case &#39;M&#39;:   // FreeBSD: specify core (OS crash dump) file
+</span></span></span><span class="line"><span class="cl"><span class="c1">//			break;
+</span></span></span><span class="line"><span class="cl"><span class="c1">//		case &#39;N&#39;:   // FreeBSD: specify alternate namelist file (for us, System.map -- but we don&#39;t need it)
+</span></span></span><span class="line"><span class="cl"><span class="c1">//			break;
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">case</span> <span class="sc">&#39;P&#39;</span><span class="o">:</span>   <span class="c1">// Solaris: match by PPID
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	  		<span class="n">opt_ppid</span> <span class="o">=</span> <span class="nf">split_list</span> <span class="p">(</span><span class="n">optarg</span><span class="p">,</span> <span class="n">conv_num</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">opt_ppid</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="nf">usage</span> <span class="p">(</span><span class="n">opt</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="o">++</span><span class="n">criteria_count</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="c1">//		case &#39;S&#39;:   // FreeBSD: don&#39;t ignore the built-in kernel tasks
+</span></span></span><span class="line"><span class="cl"><span class="c1">//			break;
+</span></span></span><span class="line"><span class="cl"><span class="c1">//		case &#39;T&#39;:   // Solaris: match by &#34;task ID&#34; (probably not a Linux task)
+</span></span></span><span class="line"><span class="cl"><span class="c1">//			break;
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">case</span> <span class="sc">&#39;U&#39;</span><span class="o">:</span>   <span class="c1">// Solaris: match by ruid/rgroup
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	  		<span class="n">opt_ruid</span> <span class="o">=</span> <span class="nf">split_list</span> <span class="p">(</span><span class="n">optarg</span><span class="p">,</span> <span class="n">conv_uid</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">opt_ruid</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="nf">usage</span> <span class="p">(</span><span class="n">opt</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="o">++</span><span class="n">criteria_count</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="sc">&#39;V&#39;</span><span class="o">:</span>
+</span></span><span class="line"><span class="cl">			<span class="nf">fprintf</span><span class="p">(</span><span class="n">stdout</span><span class="p">,</span> <span class="s">&#34;%s (%s)</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">progname</span><span class="p">,</span> <span class="n">procps_version</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="nf">exit</span><span class="p">(</span><span class="n">EXIT_SUCCESS</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="c1">//		case &#39;c&#39;:   // Solaris: match by contract ID
+</span></span></span><span class="line"><span class="cl"><span class="c1">//			break;
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">case</span> <span class="sc">&#39;d&#39;</span><span class="o">:</span>   <span class="c1">// Solaris: change the delimiter
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="n">opt_delim</span> <span class="o">=</span> <span class="nf">strdup</span> <span class="p">(</span><span class="n">optarg</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="sc">&#39;f&#39;</span><span class="o">:</span>   <span class="c1">// Solaris: match full process name (as in &#34;ps -f&#34;)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="n">opt_full</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="sc">&#39;g&#39;</span><span class="o">:</span>   <span class="c1">// Solaris: match pgrp
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	  		<span class="n">opt_pgrp</span> <span class="o">=</span> <span class="nf">split_list</span> <span class="p">(</span><span class="n">optarg</span><span class="p">,</span> <span class="n">conv_pgrp</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">opt_pgrp</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="nf">usage</span> <span class="p">(</span><span class="n">opt</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="o">++</span><span class="n">criteria_count</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="c1">//		case &#39;i&#39;:   // FreeBSD: ignore case. OpenBSD: withdrawn. See -I. This sucks.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//			if (opt_case)
+</span></span></span><span class="line"><span class="cl"><span class="c1">//				usage (opt);
+</span></span></span><span class="line"><span class="cl"><span class="c1">//			opt_case = REG_ICASE;
+</span></span></span><span class="line"><span class="cl"><span class="c1">//			break;
+</span></span></span><span class="line"><span class="cl"><span class="c1">//		case &#39;j&#39;:   // FreeBSD: restricted to the given jail ID
+</span></span></span><span class="line"><span class="cl"><span class="c1">//			break;
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">case</span> <span class="sc">&#39;l&#39;</span><span class="o">:</span>   <span class="c1">// Solaris: long output format (pgrep only) Should require -f for beyond argv[0] maybe?
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="n">opt_long</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="sc">&#39;n&#39;</span><span class="o">:</span>   <span class="c1">// Solaris: match only the newest
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="k">if</span> <span class="p">(</span><span class="n">opt_oldest</span><span class="o">|</span><span class="n">opt_negate</span><span class="o">|</span><span class="n">opt_newest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="nf">usage</span> <span class="p">(</span><span class="n">opt</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="n">opt_newest</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="o">++</span><span class="n">criteria_count</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="sc">&#39;o&#39;</span><span class="o">:</span>   <span class="c1">// Solaris: match only the oldest
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="k">if</span> <span class="p">(</span><span class="n">opt_oldest</span><span class="o">|</span><span class="n">opt_negate</span><span class="o">|</span><span class="n">opt_newest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="nf">usage</span> <span class="p">(</span><span class="n">opt</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="n">opt_oldest</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="o">++</span><span class="n">criteria_count</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="sc">&#39;s&#39;</span><span class="o">:</span>   <span class="c1">// Solaris: match by session ID -- zero means self
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	  		<span class="n">opt_sid</span> <span class="o">=</span> <span class="nf">split_list</span> <span class="p">(</span><span class="n">optarg</span><span class="p">,</span> <span class="n">conv_sid</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">opt_sid</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="nf">usage</span> <span class="p">(</span><span class="n">opt</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="o">++</span><span class="n">criteria_count</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="sc">&#39;t&#39;</span><span class="o">:</span>   <span class="c1">// Solaris: match by tty
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	  		<span class="n">opt_term</span> <span class="o">=</span> <span class="nf">split_list</span> <span class="p">(</span><span class="n">optarg</span><span class="p">,</span> <span class="n">conv_str</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">opt_term</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="nf">usage</span> <span class="p">(</span><span class="n">opt</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="o">++</span><span class="n">criteria_count</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="sc">&#39;u&#39;</span><span class="o">:</span>   <span class="c1">// Solaris: match by euid/egroup
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	  		<span class="n">opt_euid</span> <span class="o">=</span> <span class="nf">split_list</span> <span class="p">(</span><span class="n">optarg</span><span class="p">,</span> <span class="n">conv_uid</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">opt_euid</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="nf">usage</span> <span class="p">(</span><span class="n">opt</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="o">++</span><span class="n">criteria_count</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="sc">&#39;v&#39;</span><span class="o">:</span>   <span class="c1">// Solaris: as in grep, invert the matching (uh... applied after selection I think)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="k">if</span> <span class="p">(</span><span class="n">opt_oldest</span><span class="o">|</span><span class="n">opt_negate</span><span class="o">|</span><span class="n">opt_newest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="nf">usage</span> <span class="p">(</span><span class="n">opt</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	  		<span class="n">opt_negate</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// OpenBSD -x, being broken, does a plain string
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">case</span> <span class="sc">&#39;x&#39;</span><span class="o">:</span>   <span class="c1">// Solaris: use ^(regexp)$ in place of regexp (FreeBSD too)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="n">opt_exact</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="c1">//		case &#39;z&#39;:   // Solaris: match by zone ID
+</span></span></span><span class="line"><span class="cl"><span class="c1">//			break;
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">case</span> <span class="sc">&#39;?&#39;</span><span class="o">:</span>
+</span></span><span class="line"><span class="cl">			<span class="nf">usage</span> <span class="p">(</span><span class="n">opt</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span><span class="p">(</span><span class="n">opt_lock</span> <span class="o">&amp;&amp;</span> <span class="o">!</span><span class="n">opt_pidfile</span><span class="p">){</span>
+</span></span><span class="line"><span class="cl">		<span class="nf">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="s">&#34;%s: -L without -F makes no sense</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span><span class="n">progname</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="nf">usage</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span><span class="p">(</span><span class="n">opt_pidfile</span><span class="p">){</span>
+</span></span><span class="line"><span class="cl">		<span class="n">opt_pid</span> <span class="o">=</span> <span class="nf">read_pidfile</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span><span class="p">(</span><span class="o">!</span><span class="n">opt_pid</span><span class="p">){</span>
+</span></span><span class="line"><span class="cl">			<span class="nf">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="s">&#34;%s: pidfile not valid</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span><span class="n">progname</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="nf">usage</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">argc</span> <span class="o">-</span> <span class="n">optind</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="n">opt_pattern</span> <span class="o">=</span> <span class="n">argv</span><span class="p">[</span><span class="n">optind</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">	<span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">argc</span> <span class="o">-</span> <span class="n">optind</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="nf">usage</span> <span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">criteria_count</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nf">fprintf</span> <span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="s">&#34;%s: No matching criteria specified</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">			 <span class="n">progname</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="nf">usage</span> <span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>-f</code> オプションで <code>opt_full = 1;</code> が実行され <code>-l</code> オプションで <code>opt_long = 1;</code> が実行されます。</p>
+<p><code>output_strlist</code> 関数の実装。
+<a href="http://procps.cvs.sourceforge.net/viewvc/procps/procps/pgrep.c?revision=1.29&amp;view=markup#l343">pgrep.c#L343-#L353</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">343
+</span><span class="lnt">344
+</span><span class="lnt">345
+</span><span class="lnt">346
+</span><span class="lnt">347
+</span><span class="lnt">348
+</span><span class="lnt">349
+</span><span class="lnt">350
+</span><span class="lnt">351
+</span><span class="lnt">352
+</span><span class="lnt">353
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">void</span> <span class="nf">output_strlist</span> <span class="p">(</span><span class="k">const</span> <span class="k">union</span> <span class="n">el</span> <span class="o">*</span><span class="kr">restrict</span> <span class="n">list</span><span class="p">,</span> <span class="kt">int</span> <span class="n">num</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// FIXME: escape codes
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="kt">int</span> <span class="n">i</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">delim</span> <span class="o">=</span> <span class="n">opt_delim</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="p">(</span><span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">num</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span><span class="p">(</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="o">==</span><span class="n">num</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="n">delim</span> <span class="o">=</span> <span class="s">&#34;</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="nf">printf</span> <span class="p">(</span><span class="s">&#34;%s%s&#34;</span><span class="p">,</span> <span class="n">list</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">str</span><span class="p">,</span> <span class="n">delim</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>select_procs</code> 関数の実装。
+<a href="http://procps.cvs.sourceforge.net/viewvc/procps/procps/pgrep.c?revision=1.29&amp;view=markup#l416">pgrep.c#L416-#L536</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">416
+</span><span class="lnt">417
+</span><span class="lnt">418
+</span><span class="lnt">419
+</span><span class="lnt">420
+</span><span class="lnt">421
+</span><span class="lnt">422
+</span><span class="lnt">423
+</span><span class="lnt">424
+</span><span class="lnt">425
+</span><span class="lnt">426
+</span><span class="lnt">427
+</span><span class="lnt">428
+</span><span class="lnt">429
+</span><span class="lnt">430
+</span><span class="lnt">431
+</span><span class="lnt">432
+</span><span class="lnt">433
+</span><span class="lnt">434
+</span><span class="lnt">435
+</span><span class="lnt">436
+</span><span class="lnt">437
+</span><span class="lnt">438
+</span><span class="lnt">439
+</span><span class="lnt">440
+</span><span class="lnt">441
+</span><span class="lnt">442
+</span><span class="lnt">443
+</span><span class="lnt">444
+</span><span class="lnt">445
+</span><span class="lnt">446
+</span><span class="lnt">447
+</span><span class="lnt">448
+</span><span class="lnt">449
+</span><span class="lnt">450
+</span><span class="lnt">451
+</span><span class="lnt">452
+</span><span class="lnt">453
+</span><span class="lnt">454
+</span><span class="lnt">455
+</span><span class="lnt">456
+</span><span class="lnt">457
+</span><span class="lnt">458
+</span><span class="lnt">459
+</span><span class="lnt">460
+</span><span class="lnt">461
+</span><span class="lnt">462
+</span><span class="lnt">463
+</span><span class="lnt">464
+</span><span class="lnt">465
+</span><span class="lnt">466
+</span><span class="lnt">467
+</span><span class="lnt">468
+</span><span class="lnt">469
+</span><span class="lnt">470
+</span><span class="lnt">471
+</span><span class="lnt">472
+</span><span class="lnt">473
+</span><span class="lnt">474
+</span><span class="lnt">475
+</span><span class="lnt">476
+</span><span class="lnt">477
+</span><span class="lnt">478
+</span><span class="lnt">479
+</span><span class="lnt">480
+</span><span class="lnt">481
+</span><span class="lnt">482
+</span><span class="lnt">483
+</span><span class="lnt">484
+</span><span class="lnt">485
+</span><span class="lnt">486
+</span><span class="lnt">487
+</span><span class="lnt">488
+</span><span class="lnt">489
+</span><span class="lnt">490
+</span><span class="lnt">491
+</span><span class="lnt">492
+</span><span class="lnt">493
+</span><span class="lnt">494
+</span><span class="lnt">495
+</span><span class="lnt">496
+</span><span class="lnt">497
+</span><span class="lnt">498
+</span><span class="lnt">499
+</span><span class="lnt">500
+</span><span class="lnt">501
+</span><span class="lnt">502
+</span><span class="lnt">503
+</span><span class="lnt">504
+</span><span class="lnt">505
+</span><span class="lnt">506
+</span><span class="lnt">507
+</span><span class="lnt">508
+</span><span class="lnt">509
+</span><span class="lnt">510
+</span><span class="lnt">511
+</span><span class="lnt">512
+</span><span class="lnt">513
+</span><span class="lnt">514
+</span><span class="lnt">515
+</span><span class="lnt">516
+</span><span class="lnt">517
+</span><span class="lnt">518
+</span><span class="lnt">519
+</span><span class="lnt">520
+</span><span class="lnt">521
+</span><span class="lnt">522
+</span><span class="lnt">523
+</span><span class="lnt">524
+</span><span class="lnt">525
+</span><span class="lnt">526
+</span><span class="lnt">527
+</span><span class="lnt">528
+</span><span class="lnt">529
+</span><span class="lnt">530
+</span><span class="lnt">531
+</span><span class="lnt">532
+</span><span class="lnt">533
+</span><span class="lnt">534
+</span><span class="lnt">535
+</span><span class="lnt">536
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">static</span> <span class="k">union</span> <span class="n">el</span> <span class="o">*</span> <span class="nf">select_procs</span> <span class="p">(</span><span class="kt">int</span> <span class="o">*</span><span class="n">num</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">PROCTAB</span> <span class="o">*</span><span class="n">ptp</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">proc_t</span> <span class="n">task</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">unsigned</span> <span class="kt">long</span> <span class="kt">long</span> <span class="n">saved_start_time</span><span class="p">;</span>      <span class="c1">// for new/old support
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="kt">pid_t</span> <span class="n">saved_pid</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>                      <span class="c1">// for new/old support
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="kt">int</span> <span class="n">matches</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">int</span> <span class="n">size</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">regex_t</span> <span class="o">*</span><span class="n">preg</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">pid_t</span> <span class="n">myself</span> <span class="o">=</span> <span class="nf">getpid</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="k">union</span> <span class="n">el</span> <span class="o">*</span><span class="n">list</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">char</span> <span class="n">cmd</span><span class="p">[</span><span class="mi">4096</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">ptp</span> <span class="o">=</span> <span class="nf">do_openproc</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="n">preg</span> <span class="o">=</span> <span class="nf">do_regcomp</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">opt_newest</span><span class="p">)</span> <span class="n">saved_start_time</span> <span class="o">=</span>  <span class="mi">0ULL</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">opt_oldest</span><span class="p">)</span> <span class="n">saved_start_time</span> <span class="o">=</span> <span class="o">~</span><span class="mi">0ULL</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">opt_newest</span><span class="p">)</span> <span class="n">saved_pid</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">opt_oldest</span><span class="p">)</span> <span class="n">saved_pid</span> <span class="o">=</span> <span class="n">INT_MAX</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="nf">memset</span><span class="p">(</span><span class="o">&amp;</span><span class="n">task</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="k">sizeof</span> <span class="p">(</span><span class="n">task</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">	<span class="k">while</span><span class="p">(</span><span class="nf">readproc</span><span class="p">(</span><span class="n">ptp</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">task</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">int</span> <span class="n">match</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">task</span><span class="p">.</span><span class="n">XXXID</span> <span class="o">==</span> <span class="n">myself</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="k">continue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">opt_newest</span> <span class="o">&amp;&amp;</span> <span class="n">task</span><span class="p">.</span><span class="n">start_time</span> <span class="o">&lt;</span> <span class="n">saved_start_time</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="n">match</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">opt_oldest</span> <span class="o">&amp;&amp;</span> <span class="n">task</span><span class="p">.</span><span class="n">start_time</span> <span class="o">&gt;</span> <span class="n">saved_start_time</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="n">match</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">opt_ppid</span> <span class="o">&amp;&amp;</span> <span class="o">!</span> <span class="nf">match_numlist</span> <span class="p">(</span><span class="n">task</span><span class="p">.</span><span class="n">ppid</span><span class="p">,</span> <span class="n">opt_ppid</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">			<span class="n">match</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">opt_pid</span> <span class="o">&amp;&amp;</span> <span class="o">!</span> <span class="nf">match_numlist</span> <span class="p">(</span><span class="n">task</span><span class="p">.</span><span class="n">tgid</span><span class="p">,</span> <span class="n">opt_pid</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">			<span class="n">match</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">opt_pgrp</span> <span class="o">&amp;&amp;</span> <span class="o">!</span> <span class="nf">match_numlist</span> <span class="p">(</span><span class="n">task</span><span class="p">.</span><span class="n">pgrp</span><span class="p">,</span> <span class="n">opt_pgrp</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">			<span class="n">match</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">opt_euid</span> <span class="o">&amp;&amp;</span> <span class="o">!</span> <span class="nf">match_numlist</span> <span class="p">(</span><span class="n">task</span><span class="p">.</span><span class="n">euid</span><span class="p">,</span> <span class="n">opt_euid</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">			<span class="n">match</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">opt_ruid</span> <span class="o">&amp;&amp;</span> <span class="o">!</span> <span class="nf">match_numlist</span> <span class="p">(</span><span class="n">task</span><span class="p">.</span><span class="n">ruid</span><span class="p">,</span> <span class="n">opt_ruid</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">			<span class="n">match</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">opt_rgid</span> <span class="o">&amp;&amp;</span> <span class="o">!</span> <span class="nf">match_numlist</span> <span class="p">(</span><span class="n">task</span><span class="p">.</span><span class="n">rgid</span><span class="p">,</span> <span class="n">opt_rgid</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">			<span class="n">match</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">opt_sid</span> <span class="o">&amp;&amp;</span> <span class="o">!</span> <span class="nf">match_numlist</span> <span class="p">(</span><span class="n">task</span><span class="p">.</span><span class="n">session</span><span class="p">,</span> <span class="n">opt_sid</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">			<span class="n">match</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">opt_term</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">task</span><span class="p">.</span><span class="n">tty</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="n">match</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="kt">char</span> <span class="n">tty</span><span class="p">[</span><span class="mi">256</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">				<span class="nf">dev_to_tty</span> <span class="p">(</span><span class="n">tty</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">tty</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">					    <span class="n">task</span><span class="p">.</span><span class="n">tty</span><span class="p">,</span> <span class="n">task</span><span class="p">.</span><span class="n">XXXID</span><span class="p">,</span> <span class="n">ABBREV_DEV</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">				<span class="n">match</span> <span class="o">=</span> <span class="nf">match_strlist</span> <span class="p">(</span><span class="n">tty</span><span class="p">,</span> <span class="n">opt_term</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">opt_long</span> <span class="o">||</span> <span class="p">(</span><span class="n">match</span> <span class="o">&amp;&amp;</span> <span class="n">opt_pattern</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">opt_full</span> <span class="o">&amp;&amp;</span> <span class="n">task</span><span class="p">.</span><span class="n">cmdline</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">				<span class="kt">int</span> <span class="n">bytes</span> <span class="o">=</span> <span class="k">sizeof</span> <span class="p">(</span><span class="n">cmd</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">				<span class="cm">/* make sure it is always NUL-terminated */</span>
+</span></span><span class="line"><span class="cl">				<span class="n">cmd</span><span class="p">[</span><span class="n">bytes</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">				<span class="cm">/* make room for SPC in loop below */</span>
+</span></span><span class="line"><span class="cl">				<span class="o">--</span><span class="n">bytes</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">				<span class="nf">strncpy</span> <span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">task</span><span class="p">.</span><span class="n">cmdline</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">bytes</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">				<span class="n">bytes</span> <span class="o">-=</span> <span class="nf">strlen</span> <span class="p">(</span><span class="n">task</span><span class="p">.</span><span class="n">cmdline</span><span class="p">[</span><span class="n">i</span><span class="o">++</span><span class="p">]);</span>
+</span></span><span class="line"><span class="cl">				<span class="k">while</span> <span class="p">(</span><span class="n">task</span><span class="p">.</span><span class="n">cmdline</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&amp;&amp;</span> <span class="n">bytes</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">					<span class="nf">strncat</span> <span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="s">&#34; &#34;</span><span class="p">,</span> <span class="n">bytes</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">					<span class="nf">strncat</span> <span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">task</span><span class="p">.</span><span class="n">cmdline</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">bytes</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">					<span class="n">bytes</span> <span class="o">-=</span> <span class="nf">strlen</span> <span class="p">(</span><span class="n">task</span><span class="p">.</span><span class="n">cmdline</span><span class="p">[</span><span class="n">i</span><span class="o">++</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">				<span class="p">}</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="nf">strcpy</span> <span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">task</span><span class="p">.</span><span class="n">cmd</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">match</span> <span class="o">&amp;&amp;</span> <span class="n">opt_pattern</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="nf">regexec</span> <span class="p">(</span><span class="n">preg</span><span class="p">,</span> <span class="n">cmd</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="n">match</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">match</span> <span class="o">^</span> <span class="n">opt_negate</span><span class="p">)</span> <span class="p">{</span>	<span class="cm">/* Exclusive OR is neat */</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">opt_newest</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="k">if</span> <span class="p">(</span><span class="n">saved_start_time</span> <span class="o">==</span> <span class="n">task</span><span class="p">.</span><span class="n">start_time</span> <span class="o">&amp;&amp;</span>
+</span></span><span class="line"><span class="cl">				    <span class="n">saved_pid</span> <span class="o">&gt;</span> <span class="n">task</span><span class="p">.</span><span class="n">XXXID</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">					<span class="k">continue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">				<span class="n">saved_start_time</span> <span class="o">=</span> <span class="n">task</span><span class="p">.</span><span class="n">start_time</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">				<span class="n">saved_pid</span> <span class="o">=</span> <span class="n">task</span><span class="p">.</span><span class="n">XXXID</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">				<span class="n">matches</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">opt_oldest</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="k">if</span> <span class="p">(</span><span class="n">saved_start_time</span> <span class="o">==</span> <span class="n">task</span><span class="p">.</span><span class="n">start_time</span> <span class="o">&amp;&amp;</span>
+</span></span><span class="line"><span class="cl">				    <span class="n">saved_pid</span> <span class="o">&lt;</span> <span class="n">task</span><span class="p">.</span><span class="n">XXXID</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">					<span class="k">continue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">				<span class="n">saved_start_time</span> <span class="o">=</span> <span class="n">task</span><span class="p">.</span><span class="n">start_time</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">				<span class="n">saved_pid</span> <span class="o">=</span> <span class="n">task</span><span class="p">.</span><span class="n">XXXID</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">				<span class="n">matches</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">matches</span> <span class="o">==</span> <span class="n">size</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="n">size</span> <span class="o">=</span> <span class="n">size</span> <span class="o">*</span> <span class="mi">5</span> <span class="o">/</span> <span class="mi">4</span> <span class="o">+</span> <span class="mi">4</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">				<span class="n">list</span> <span class="o">=</span> <span class="nf">realloc</span><span class="p">(</span><span class="n">list</span><span class="p">,</span> <span class="n">size</span> <span class="o">*</span> <span class="k">sizeof</span> <span class="o">*</span><span class="n">list</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">				<span class="k">if</span> <span class="p">(</span><span class="n">list</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">					<span class="nf">exit</span> <span class="p">(</span><span class="n">EXIT_FATAL</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">opt_long</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="kt">char</span> <span class="n">buff</span><span class="p">[</span><span class="mi">5096</span><span class="p">];</span>  <span class="c1">// FIXME
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>				<span class="nf">sprintf</span> <span class="p">(</span><span class="n">buff</span><span class="p">,</span> <span class="s">&#34;%d %s&#34;</span><span class="p">,</span> <span class="n">task</span><span class="p">.</span><span class="n">XXXID</span><span class="p">,</span> <span class="n">cmd</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">				<span class="n">list</span><span class="p">[</span><span class="n">matches</span><span class="o">++</span><span class="p">].</span><span class="n">str</span> <span class="o">=</span> <span class="nf">strdup</span> <span class="p">(</span><span class="n">buff</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="n">list</span><span class="p">[</span><span class="n">matches</span><span class="o">++</span><span class="p">].</span><span class="n">num</span> <span class="o">=</span> <span class="n">task</span><span class="p">.</span><span class="n">XXXID</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">		<span class="nf">memset</span> <span class="p">(</span><span class="o">&amp;</span><span class="n">task</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="k">sizeof</span> <span class="p">(</span><span class="n">task</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">closeproc</span> <span class="p">(</span><span class="n">ptp</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="o">*</span><span class="n">num</span> <span class="o">=</span> <span class="n">matches</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">list</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>stat2proc</code> 関数の実装。
+<a href="http://procps.cvs.sourceforge.net/viewvc/procps/procps/proc/readproc.c?revision=1.56&amp;view=markup#l336">proc/readproc.c#L336-#L356</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">336
+</span><span class="lnt">337
+</span><span class="lnt">338
+</span><span class="lnt">339
+</span><span class="lnt">340
+</span><span class="lnt">341
+</span><span class="lnt">342
+</span><span class="lnt">343
+</span><span class="lnt">344
+</span><span class="lnt">345
+</span><span class="lnt">346
+</span><span class="lnt">347
+</span><span class="lnt">348
+</span><span class="lnt">349
+</span><span class="lnt">350
+</span><span class="lnt">351
+</span><span class="lnt">352
+</span><span class="lnt">353
+</span><span class="lnt">354
+</span><span class="lnt">355
+</span><span class="lnt">356
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// Reads /proc/*/stat files, being careful not to trip over processes with
+</span></span></span><span class="line"><span class="cl"><span class="c1">// names like &#34;:-) 1 2 3 4 5 6&#34;.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">static</span> <span class="kt">void</span> <span class="nf">stat2proc</span><span class="p">(</span><span class="k">const</span> <span class="kt">char</span><span class="o">*</span> <span class="n">S</span><span class="p">,</span> <span class="kt">proc_t</span> <span class="o">*</span><span class="kr">restrict</span> <span class="n">P</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">unsigned</span> <span class="n">num</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">char</span><span class="o">*</span> <span class="n">tmp</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nf">ENTER</span><span class="p">(</span><span class="mh">0x160</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cm">/* fill in default values for older kernels */</span>
+</span></span><span class="line"><span class="cl">    <span class="n">P</span><span class="o">-&gt;</span><span class="n">processor</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">P</span><span class="o">-&gt;</span><span class="n">rtprio</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">P</span><span class="o">-&gt;</span><span class="n">sched</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">P</span><span class="o">-&gt;</span><span class="n">nlwp</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">S</span> <span class="o">=</span> <span class="nf">strchr</span><span class="p">(</span><span class="n">S</span><span class="p">,</span> <span class="sc">&#39;(&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">tmp</span> <span class="o">=</span> <span class="nf">strrchr</span><span class="p">(</span><span class="n">S</span><span class="p">,</span> <span class="sc">&#39;)&#39;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">num</span> <span class="o">=</span> <span class="n">tmp</span> <span class="o">-</span> <span class="n">S</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span><span class="p">(</span><span class="nf">unlikely</span><span class="p">(</span><span class="n">num</span> <span class="o">&gt;=</span> <span class="k">sizeof</span> <span class="n">P</span><span class="o">-&gt;</span><span class="n">cmd</span><span class="p">))</span> <span class="n">num</span> <span class="o">=</span> <span class="k">sizeof</span> <span class="n">P</span><span class="o">-&gt;</span><span class="n">cmd</span> <span class="o">-</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">memcpy</span><span class="p">(</span><span class="n">P</span><span class="o">-&gt;</span><span class="n">cmd</span><span class="p">,</span> <span class="n">S</span><span class="p">,</span> <span class="n">num</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">P</span><span class="o">-&gt;</span><span class="n">cmd</span><span class="p">[</span><span class="n">num</span><span class="p">]</span> <span class="o">=</span> <span class="sc">&#39;\0&#39;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">S</span> <span class="o">=</span> <span class="n">tmp</span> <span class="o">+</span> <span class="mi">2</span><span class="p">;</span>                 <span class="c1">// skip &#34;) &#34;
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>ということで <code>/proc/${PID}/stat</code> の出力の <code>(</code> と <code>)</code> の間が <code>task.cmd</code> に設定され、 <code>-f</code> を指定しない場合はこれがマッチの対象になります。
+<code>-f</code> を設定した場合はコマンドライン全体がマッチの対象になります。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

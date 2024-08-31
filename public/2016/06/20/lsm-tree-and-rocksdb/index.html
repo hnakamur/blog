@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>LSM-TreeとRocksDB、TiDB、CockroachDBが気になる &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>LSM-TreeとRocksDB、TiDB、CockroachDBが気になる</h1>
+  <time datetime=2016-06-20T22:23:54&#43;0900 class="post-date">2016-06-20</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#lsm-tree">LSM Tree</a></li>
+    <li><a href="#influxdbの事例">InfluxDBの事例</a></li>
+    <li><a href="#tidbの事例">TiDBの事例</a></li>
+    <li><a href="#cockroachdbの事例">CockroachDBの事例</a></li>
+    <li><a href="#lsm-treeの実装はいろいろあるがrocksdbが良いらしい">LSM Treeの実装はいろいろあるがRocksDBが良いらしい</a></li>
+    <li><a href="#おわりに">おわりに</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>キーバリューストアについて調べていたらLSM-Treeというデータ構造とRocksDBが気になったということで調査メモです。ただし、それぞれの技術詳細を調査したり自分で検証してみたというメモではないです。</p>
+<p>そうではなく、いろんな記事で言及されていたり、ソフトウェアで採用されているのが気になったというだけの浅いメモです。が、脳内バッファからあふれる量になったので自分用に軽くまとめ。</p>
+<h2 id="lsm-tree">LSM Tree</h2>
+<p>Log-structured merge-treeを略してLSM Treeと呼ぶそうです。概要は<a href="https://en.wikipedia.org/wiki/Log-structured_merge-tree">Log-structured merge-tree - Wikipedia</a>を参照してください。</p>
+<p>CockroachDBのデザインドキュメントの<a href="https://github.com/cockroachdb/cockroach/blob/master/docs/design.md#read-vs-write-optimization-spectrum">Read vs. Write Optimization Spectrum</a>によると、B+ Treeというデータ構造は書き込みより読み取りが多いケースに最適化されているが、LSM Treeのほうは書き込みが多いケースに最適化されているそうです。</p>
+<p>一方、LSM Treeのほうはディスク使用量は肥大化しがちで定期的にコンパクションする必要があって、コンパクションには負荷がかかるので、この方式を各実装で工夫しているという話を何処かで読んだんですがリンクを紛失してしまいました。</p>
+<h2 id="influxdbの事例">InfluxDBの事例</h2>
+<p><a href="https://docs.influxdata.com/influxdb/v0.13/concepts/storage_engine/">InfluxData | Documentation | Storage Engine</a>によるとInfluxDBのストレージエンジンは以下の変遷を辿ったそうです。</p>
+<ol>
+<li>LSM Treeの実装の1つである<a href="https://github.com/google/leveldb">LevelDB</a>を採用</li>
+<li>B+Treeの実装の1つである<a href="https://github.com/boltdb/bolt">BoltDB</a>を採用</li>
+<li>LSM Treeに似た独自のデータ構造でストレージエンジンを自作</li>
+</ol>
+<h2 id="tidbの事例">TiDBの事例</h2>
+<p><a href="https://github.com/pingcap/tidb">pingcap/tidb: TiDB is a distributed NewSQL database compatible with MySQL protocol</a></p>
+<ul>
+<li>TiDB自体はGoで書かれている。</li>
+<li>MySQLのプロトコルを解釈できる。</li>
+<li>MySQLで使用できるSQLのサブセットを実装している。</li>
+<li>TiDBはRustで書かれRaftアルゴリズムを使った分散トランザクション対応のキーバリューデータベース <a href="https://github.com/pingcap/tikv">TiKV</a>を使っている。
+<ul>
+<li><a href="https://github.com/pingcap/tidb#what-is-tidb">What is TiDB?</a>にはGolevelDB, LevelDB, RocksDB, LMDB, BoltDBに対応しているとあるのですが、TiDBの開発者のLi Shenさんによるとgoleveldbはローカルストレージとしてのみ利用可能で、分散環境ではTiKVを使っているそうです。</li>
+<li>TiKVのストレージエンジンはLSM Treeの実装である<a href="http://rocksdb.org/">RocksDB</a>を採用。Li ShenさんによるとTiDBの開発チームはRocsDBのチームとも連絡をとっているそうです。</li>
+<li>TiKV用の<a href="https://github.com/pingcap/tidb/blob/master/store/tikv/txn.go">Goのクライアント</a>もある。</li>
+</ul>
+</li>
+<li>現在バリバリ開発中。<a href="https://github.com/pingcap/tidb/blob/master/docs/ROADMAP.md">ロードマップ</a></li>
+<li>TiDBの紹介記事: <a href="https://www.infiniteloop.co.jp/blog/2016/05/install-tidb/">MySQL は分散DBの夢を見るか、Google F1 論文を実装した TiDB を使ってみた | 株式会社インフィニットループ技術ブログ</a></li>
+<li>TiDBの起源についてのブログ記事。<a href="http://0xffff.me/thoughts-behind-tidb-part-1/">Thoughts behind TiDB - Part I</a>。私は中国語読めないのでGoogle翻訳で英語にして読みました。</li>
+</ul>
+<h2 id="cockroachdbの事例">CockroachDBの事例</h2>
+<p><a href="https://github.com/cockroachdb/cockroach">cockroachdb/cockroach: A Scalable, Survivable, Strongly-Consistent SQL Database</a></p>
+<p>名前の由来: <a href="https://github.com/cockroachdb/cockroach/wiki#why-the-name-cockroach">Why the name Cockroach?</a></p>
+<ul>
+<li>CoackroachDBはGoで書かれている。</li>
+<li>PostgreSQLのプロトコルを解釈できる。</li>
+<li>PostgreSQLで使用できるSQLのサブセットを実装している。</li>
+<li>ストレージエンジンは<a href="http://rocksdb.org/">RocksDB</a>を採用。</li>
+<li>現在バリバリ開発中。
+<ul>
+<li>バージョン1.0に向けてベータ版を頻繁に出している。 <a href="https://github.com/cockroachdb/cockroach/releases">Releases</a></li>
+<li><a href="https://github.com/cockroachdb/cockroach/wiki">ロードマップ</a></li>
+</ul>
+</li>
+<li>デザインドキュメント <a href="https://github.com/cockroachdb/cockroach#design">Design overview</a>, <a href="https://github.com/cockroachdb/cockroach/blob/master/docs/design.md">full design doc</a>と<a href="https://www.cockroachlabs.com/docs/frequently-asked-questions.html">Frequently Asked Questions</a>がとても充実しています
+<ul>
+<li><a href="https://github.com/cockroachdb/cockroach/blob/master/docs/design.md#lock-free-distributed-transactions">Lock-Free Distributed Transactions</a>にCockroachDBの分散トランザクションの設計について解説があります。</li>
+</ul>
+</li>
+</ul>
+<h2 id="lsm-treeの実装はいろいろあるがrocksdbが良いらしい">LSM Treeの実装はいろいろあるがRocksDBが良いらしい</h2>
+<p>InfluxDBの開発元influxdataのブログのベンチマーク記事 <a href="https://influxdata.com/blog/benchmarking-leveldb-vs-rocksdb-vs-hyperleveldb-vs-lmdb-performance-for-influxdb/">Benchmarking LevelDB vs. RocksDB vs. HyperLevelDB vs. LMDB Performance for InfluxDB | InfluxData</a>でも値の書き込みとクエリ実行の性能が良いのはRocksDBとなっています。</p>
+<p><a href="http://smalldatum.blogspot.jp/2015/04/comparing-leveldb-and-rocksdb-take-2.html">Small Datum: Comparing LevelDB and RocksDB, take 2</a>にRocksDBとLevelDBのベンチマークがありますが、RocksDBのほうが良い感じです。</p>
+<p>上記の通りTiDBでもCockroachDBでもRocksDBを採用していますし、現在のところ有望そうです。</p>
+<p><a href="http://rocksdb.blogspot.jp/2013/11/the-history-of-rocksdb.html">Rocksdb: The History of RocksDB</a>にRocksDBを開始した頃の話が書かれていました。</p>
+<p><a href="https://github.com/facebook/rocksdb/wiki/RocksDB-FAQ">RocksDB FAQ</a>の &ldquo;Q: What&rsquo;s the maximum key and value sizes supported?&rdquo; によると、RocksDBは大きなサイズのキー用にはデザインされておらず、推奨されるキーと値の最大サイズはそれぞれ8MBと3GBとのことです。</p>
+<h2 id="おわりに">おわりに</h2>
+<p>書き込みが多いケースに向いているキーバリューストアであるRocksDBと、RocksDBをつかて分散トランザクションを実現しているデータベースであるTiDBとCockroachDBの今後に注目したいと思います。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

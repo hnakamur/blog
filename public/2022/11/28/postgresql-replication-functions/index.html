@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>PostgreSQLのレプリケーション関連の関数についてメモ &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>PostgreSQLのレプリケーション関連の関数についてメモ</h1>
+  <time datetime=2022-11-28T21:25:10&#43;0900 class="post-date">2022-11-28</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#9274recovery-control-functionshttpswwwpostgresqlorgdocs15functions-adminhtmlfunctions-recovery-control"><a href="https://www.postgresql.org/docs/15/functions-admin.html#FUNCTIONS-RECOVERY-CONTROL">9.27.4. Recovery Control Functions</a></a></li>
+    <li><a href="#9273backup-control-functionshttpswwwpostgresqlorgdocs15functions-adminhtmlfunctions-admin-backup"><a href="https://www.postgresql.org/docs/15/functions-admin.html#FUNCTIONS-ADMIN-BACKUP">9.27.3. Backup Control Functions</a></a></li>
+    <li><a href="#282the-cumulative-statistics-systemhttpswwwpostgresqlorgdocscurrentmonitoring-statshtml"><a href="https://www.postgresql.org/docs/current/monitoring-stats.html">28.2. The Cumulative Statistics System</a></a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="https://gihyo.jp/dp/ebook/2022/978-4-297-13207-1">［改訂3版］内部構造から学ぶPostgreSQL ―設計・運用計画の鉄則 | Gihyo Digital Publishing</a> の「11.5.2：プライマリ／スタンバイの監視」を読んで知ったPostgreSQLのレプリケーション関連の関数についてコードリーディングしたメモです。</p>
+<h2 id="9274recovery-control-functionshttpswwwpostgresqlorgdocs15functions-adminhtmlfunctions-recovery-control"><a href="https://www.postgresql.org/docs/15/functions-admin.html#FUNCTIONS-RECOVERY-CONTROL">9.27.4. Recovery Control Functions</a></h2>
+<ul>
+<li><code>pg_is_in_recovery</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/access/transam/xlogfuncs.c#L540-L547">src/backend/access/transam/xlogfuncs.c#L540-L547</a>
+<ul>
+<li><code>RecoveryInProgress</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/access/transam/xlog.c#L5769-L5803">src/backend/access/transam/xlog.c#L5769-L5803</a></li>
+</ul>
+</li>
+<li><code>pg_last_wal_receive_lsn</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/access/transam/xlogfuncs.c#L281-L298">src/backend/access/transam/xlogfuncs.c#L281-L298)
+</a>
+<ul>
+<li><code>GetWalRcvFlushRecPtr</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/replication/walreceiverfuncs.c#L323-L346">src/backend/replication/walreceiverfuncs.c#L323-L346</a>
+<ul>
+<li><code>recptr = walrcv-&gt;flushedUpto;</code></li>
+<li><code>WalRcvData</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/include/replication/walreceiver.h#L56-L161">src/include/replication/walreceiver.h#L56-L161</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/* Shared memory area for management of walreceiver process */</span>
+</span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="k">struct</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="c1">//…(略)…
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * receiveStart and receiveStartTLI indicate the first byte position and
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * timeline that will be received. When startup process starts the
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * walreceiver, it sets these to the point where it wants the streaming to
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * begin.
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 */</span>
+</span></span><span class="line"><span class="cl">	<span class="n">XLogRecPtr</span>	<span class="n">receiveStart</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">TimeLineID</span>	<span class="n">receiveStartTLI</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * flushedUpto-1 is the last byte position that has already been received,
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * and receivedTLI is the timeline it came from.  At the first startup of
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * walreceiver, these are set to receiveStart and receiveStartTLI. After
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * that, walreceiver updates these whenever it flushes the received WAL to
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * disk.
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 */</span>
+</span></span><span class="line"><span class="cl">	<span class="n">XLogRecPtr</span>	<span class="n">flushedUpto</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">TimeLineID</span>	<span class="n">receivedTLI</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="c1">//…(略)…
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span> <span class="n">WalRcvData</span><span class="p">;</span>
+</span></span></code></pre></div><ul>
+<li><code>pg_last_wal_replay_lsn</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/access/transam/xlogfuncs.c#L300-L317">src/backend/access/transam/xlogfuncs.c#L300-L317</a>
+<ul>
+<li><code>GetXLogReplayRecPtr</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/access/transam/xlogrecovery.c#L4469-L4488">src/backend/access/transam/xlogrecovery.c#L4469-L4488</a>
+<ul>
+<li><code>recptr = XLogRecoveryCtl-&gt;lastReplayedEndRecPtr;</code></li>
+<li><code>XLogRecoveryCtlData</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/access/transam/xlogrecovery.c#L299-L360">src/backend/access/transam/xlogrecovery.c#L299-L360</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * Shared-memory state for WAL recovery.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
+</span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="k">struct</span> <span class="n">XLogRecoveryCtlData</span>
+</span></span><span class="line"><span class="cl"><span class="c1">//…(略)…
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * Last record successfully replayed.
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 */</span>
+</span></span><span class="line"><span class="cl">	<span class="n">XLogRecPtr</span>	<span class="n">lastReplayedReadRecPtr</span><span class="p">;</span> <span class="cm">/* start position */</span>
+</span></span><span class="line"><span class="cl">	<span class="n">XLogRecPtr</span>	<span class="n">lastReplayedEndRecPtr</span><span class="p">;</span>	<span class="cm">/* end+1 position */</span>
+</span></span><span class="line"><span class="cl">	<span class="n">TimeLineID</span>	<span class="n">lastReplayedTLI</span><span class="p">;</span>	<span class="cm">/* timeline */</span>
+</span></span></code></pre></div><h2 id="9273backup-control-functionshttpswwwpostgresqlorgdocs15functions-adminhtmlfunctions-admin-backup"><a href="https://www.postgresql.org/docs/15/functions-admin.html#FUNCTIONS-ADMIN-BACKUP">9.27.3. Backup Control Functions</a></h2>
+<ul>
+<li><code>pg_current_wal_flush_lsn</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/access/transam/xlogfuncs.c#L260-L279">src/backend/access/transam/xlogfuncs.c#L260-L279</a>
+<ul>
+<li><code>GetFlushRecPtr</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/access/transam/xlog.c#L5935-L5957">src/backend/access/transam/xlog.c#L5935-L5957</a>
+<ul>
+<li><code>LogwrtResult = XLogCtl-&gt;LogwrtResult;</code></li>
+<li><code>return LogwrtResult.Flush;</code></li>
+<li><code>XLogCtlData</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/access/transam/xlog.c#L452-L556">src/backend/access/transam/xlog.c#L452-L556</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><code>pg_current_wal_insert_lsn</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/access/transam/xlogfuncs.c#L239-L258">src/backend/access/transam/xlogfuncs.c#L239-L258</a>
+<ul>
+<li><code>GetXLogInsertRecPtr</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/access/transam/xlog.c#L8819-L8833">src/backend/access/transam/xlog.c#L8819-L8833</a>
+<ul>
+<li><code>XLogCtlInsert *Insert = &amp;XLogCtl-&gt;Insert;</code></li>
+<li><code>current_bytepos = Insert-&gt;CurrBytePos;</code></li>
+<li><code>XLogCtlInsert</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/access/transam/xlog.c#L396-L450">src/backend/access/transam/xlog.c#L396-L450</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><code>pg_current_wal_lsn</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/access/transam/xlogfuncs.c#L216-L237">src/backend/access/transam/xlogfuncs.c#L216-L237</a>
+<ul>
+<li><code>GetXLogWriteRecPtr</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/access/transam/xlog.c#L8835-L8846">src/backend/access/transam/xlog.c#L8835-L8846</a>
+<ul>
+<li><code>LogwrtResult = XLogCtl-&gt;LogwrtResult;</code></li>
+<li><code>return LogwrtResult.Write;</code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p><code>XLogCtlInsert</code> の <code>CurrBytePos</code> フィールド <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/access/transam/xlog.c#L396-L411">postgres/xlog.c at REL_15_1 · postgres/postgres</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * Shared state data for WAL insertion.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
+</span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="k">struct</span> <span class="n">XLogCtlInsert</span>
+</span></span><span class="line"><span class="cl"><span class="c1">//…(略)…
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * CurrBytePos is the end of reserved WAL. The next record will be
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * inserted at that position. PrevBytePos is the start position of the
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * previously inserted (or rather, reserved) record - it is copied to the
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * prev-link of the next record. These are stored as &#34;usable byte
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * positions&#34; rather than XLogRecPtrs (see XLogBytePosToRecPtr()).
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 */</span>
+</span></span><span class="line"><span class="cl">	<span class="n">uint64</span>		<span class="n">CurrBytePos</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">uint64</span>		<span class="n">PrevBytePos</span><span class="p">;</span>
+</span></span></code></pre></div><p><code>XLogCtlData</code> の <code>LogwrtResult</code> フィールド <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/access/transam/xlog.c#L476-L480">src/backend/access/transam/xlog.c#L476-L480</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * Total shared-memory state for XLOG.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
+</span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="k">struct</span> <span class="n">XLogCtlData</span>
+</span></span><span class="line"><span class="cl"><span class="c1">//…(略)…
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * Protected by info_lck and WALWriteLock (you must hold either lock to
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * read it, but both to update)
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 */</span>
+</span></span><span class="line"><span class="cl">	<span class="n">XLogwrtResult</span> <span class="n">LogwrtResult</span><span class="p">;</span>
+</span></span></code></pre></div><p><code>XLogwrtResult</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/access/transam/xlog.c#L328-L332">src/backend/access/transam/xlog.c#L328-L332</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">typedef</span> <span class="k">struct</span> <span class="n">XLogwrtResult</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">XLogRecPtr</span>	<span class="n">Write</span><span class="p">;</span>			<span class="cm">/* last byte + 1 written out */</span>
+</span></span><span class="line"><span class="cl">	<span class="n">XLogRecPtr</span>	<span class="n">Flush</span><span class="p">;</span>			<span class="cm">/* last byte + 1 flushed */</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span> <span class="n">XLogwrtResult</span><span class="p">;</span>
+</span></span></code></pre></div><h2 id="282the-cumulative-statistics-systemhttpswwwpostgresqlorgdocscurrentmonitoring-statshtml"><a href="https://www.postgresql.org/docs/current/monitoring-stats.html">28.2. The Cumulative Statistics System</a></h2>
+<ul>
+<li><code>pg_stat_replication</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/catalog/system_views.sql#L871-L895">src/backend/catalog/system_views.sql#L871-L895</a>
+<ul>
+<li><code>pg_stat_get_wal_senders</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/replication/walsender.c#L3466-L3628">src/backend/replication/walsender.c#L3466-L3628</a></li>
+</ul>
+</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * Returns activity of walsenders, including pids and xlog locations sent to
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * standby servers.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
+</span></span><span class="line"><span class="cl"><span class="n">Datum</span>
+</span></span><span class="line"><span class="cl"><span class="nf">pg_stat_get_wal_senders</span><span class="p">(</span><span class="n">PG_FUNCTION_ARGS</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="c1">//…(略)…
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">for</span> <span class="p">(</span><span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">max_wal_senders</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">WalSnd</span>	   <span class="o">*</span><span class="n">walsnd</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">WalSndCtl</span><span class="o">-&gt;</span><span class="n">walsnds</span><span class="p">[</span><span class="n">i</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">		<span class="n">XLogRecPtr</span>	<span class="n">sentPtr</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">XLogRecPtr</span>	<span class="n">write</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">XLogRecPtr</span>	<span class="n">flush</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">XLogRecPtr</span>	<span class="n">apply</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="c1">//…(略)…
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="n">sentPtr</span> <span class="o">=</span> <span class="n">walsnd</span><span class="o">-&gt;</span><span class="n">sentPtr</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">state</span> <span class="o">=</span> <span class="n">walsnd</span><span class="o">-&gt;</span><span class="n">state</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">write</span> <span class="o">=</span> <span class="n">walsnd</span><span class="o">-&gt;</span><span class="n">write</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">flush</span> <span class="o">=</span> <span class="n">walsnd</span><span class="o">-&gt;</span><span class="n">flush</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">apply</span> <span class="o">=</span> <span class="n">walsnd</span><span class="o">-&gt;</span><span class="n">apply</span><span class="p">;</span>
+</span></span></code></pre></div><p><code>WalSnd</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/include/replication/walsender_private.h#L31-L81">src/include/replication/walsender_private.h#L31-L81</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * Each walsender has a WalSnd struct in shared memory.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * This struct is protected by its &#39;mutex&#39; spinlock field, except that some
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * members are only written by the walsender process itself, and thus that
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * process is free to read those members without holding spinlock.  pid and
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * needreload always require the spinlock to be held for all accesses.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
+</span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="k">struct</span> <span class="n">WalSnd</span>
+</span></span><span class="line"><span class="cl"><span class="c1">//…(略)…
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * The xlog locations that have been written, flushed, and applied by
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * standby-side. These may be invalid if the standby-side has not offered
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * values yet.
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 */</span>
+</span></span><span class="line"><span class="cl">	<span class="n">XLogRecPtr</span>	<span class="n">write</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">XLogRecPtr</span>	<span class="n">flush</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">XLogRecPtr</span>	<span class="n">apply</span><span class="p">;</span>
+</span></span></code></pre></div><ul>
+<li><code>pg_stat_wal_receiver</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/catalog/system_views.sql#L910-L928">src/backend/catalog/system_views.sql#L910-L928</a>
+<ul>
+<li><code>pg_stat_get_wal_receiver</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/replication/walreceiver.c#L1335-L1469">src/backend/replication/walreceiver.c#L1335-L1469</a>
+<ul>
+<li><code>WalRcvData *WalRcv = NULL;</code> <a href="https://github.com/postgres/postgres/blob/REL_15_1/src/backend/replication/walreceiverfuncs.c#L34">src/backend/replication/walreceiverfuncs.c#L34</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * Returns activity of WAL receiver, including pid, state and xlog locations
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * received from the WAL sender of another server.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
+</span></span><span class="line"><span class="cl"><span class="n">Datum</span>
+</span></span><span class="line"><span class="cl"><span class="nf">pg_stat_get_wal_receiver</span><span class="p">(</span><span class="n">PG_FUNCTION_ARGS</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="c1">//…(略)…
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">receive_start_lsn</span> <span class="o">=</span> <span class="n">WalRcv</span><span class="o">-&gt;</span><span class="n">receiveStart</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">receive_start_tli</span> <span class="o">=</span> <span class="n">WalRcv</span><span class="o">-&gt;</span><span class="n">receiveStartTLI</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">flushed_lsn</span> <span class="o">=</span> <span class="n">WalRcv</span><span class="o">-&gt;</span><span class="n">flushedUpto</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">received_tli</span> <span class="o">=</span> <span class="n">WalRcv</span><span class="o">-&gt;</span><span class="n">receivedTLI</span><span class="p">;</span>
+</span></span></code></pre></div>
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

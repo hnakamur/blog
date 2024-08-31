@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>tcpdumpとss -antpを同時に実行するシェルスクリプトの例 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>tcpdumpとss -antpを同時に実行するシェルスクリプトの例</h1>
+  <time datetime=2019-12-23T22:20:00&#43;0900 class="post-date">2019-12-23</time>
+  <nav id="TableOfContents"></nav>
+  <p>仕事で調査の時に書いた <code>tcpdump</code> と <code>ss -antp</code> を同時に実行するスクリプトの例をメモ。</p>
+<ul>
+<li>tcpdump で複数のポートを調べたいときはtcpdumpを複数起動せずにportをorで繋いで複数指定。</li>
+<li>tcpdump で取得時は余計な名前解決をして遅くならないように <code>-n</code> を指定。</li>
+<li>tcpdump の取得結果はファイルに書いておいて、後でファイルから読み込んでじっくり見る。</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="cp">#!/bin/sh
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="k">if</span> <span class="o">[</span> <span class="nv">$#</span> -ne <span class="m">1</span> <span class="o">]</span><span class="p">;</span> <span class="k">then</span>
+</span></span><span class="line"><span class="cl">  <span class="nb">echo</span> <span class="s2">&#34;Usage: tcpdump-and-ss-antp.sh logprefix&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="nb">exit</span> <span class="m">1</span>
+</span></span><span class="line"><span class="cl"><span class="k">fi</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nv">logprefix</span><span class="o">=</span><span class="s2">&#34;</span><span class="nv">$1</span><span class="s2">&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="nv">pids</span><span class="o">=</span><span class="s2">&#34;&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">ss_antp_loop<span class="o">()</span> <span class="o">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">while</span> :<span class="p">;</span> <span class="k">do</span>
+</span></span><span class="line"><span class="cl">    date +%FT%T.%N
+</span></span><span class="line"><span class="cl">    ss -antp
+</span></span><span class="line"><span class="cl">    sleep 0.5
+</span></span><span class="line"><span class="cl">  <span class="k">done</span>
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">stop_background_processes<span class="o">()</span> <span class="o">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nb">echo</span> killing <span class="nv">$pids</span>
+</span></span><span class="line"><span class="cl">  <span class="nb">kill</span> <span class="nv">$pids</span>
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># 2=SIGINT</span>
+</span></span><span class="line"><span class="cl"><span class="nb">trap</span> stop_background_processes <span class="m">2</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nv">host</span><span class="o">=</span><span class="k">$(</span>hostname<span class="k">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">ss_antp_loop &gt; /tmp/<span class="si">${</span><span class="nv">logprefix</span><span class="si">}</span>-<span class="si">${</span><span class="nv">host</span><span class="si">}</span>-ss-antp.log <span class="p">&amp;</span>
+</span></span><span class="line"><span class="cl"><span class="nv">pids</span><span class="o">=</span><span class="s2">&#34;</span><span class="nv">$pids</span><span class="s2"> </span><span class="nv">$!</span><span class="s2">&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">tcpdump -n -vvv -i any -w /tmp/<span class="si">${</span><span class="nv">logprefix</span><span class="si">}</span>-<span class="si">${</span><span class="nv">host</span><span class="si">}</span>-tcpdump.log tcp port <span class="s1">&#39;(80 or 443 or 8080 or 9090)&#39;</span> <span class="p">&amp;</span>
+</span></span><span class="line"><span class="cl"><span class="nv">pids</span><span class="o">=</span><span class="s2">&#34;</span><span class="nv">$pids</span><span class="s2"> </span><span class="nv">$!</span><span class="s2">&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nb">echo</span> background <span class="nv">pids</span><span class="o">=</span><span class="nv">$pids</span>
+</span></span><span class="line"><span class="cl"><span class="nb">wait</span>
+</span></span></code></pre></div><p>複数台のサーバで同時に調査するときは上記のようなスクリプトを各サーバに配置してポートを適宜調整。</p>
+<p>curl実行用のスクリプト。</p>
+<ul>
+<li>独自リクエストIDヘッダにナノ秒単位のタイムスタンプを設定。</li>
+<li>date コマンドでもナノ秒単位で開始時間を記録。</li>
+<li>bash 内蔵の time コマンドで所要時間を記録。</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="cp">#!/bin/sh
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="k">if</span> <span class="o">[</span> <span class="nv">$#</span> -ne <span class="m">1</span> <span class="o">]</span><span class="p">;</span> <span class="k">then</span>
+</span></span><span class="line"><span class="cl">  <span class="nb">echo</span> <span class="s2">&#34;Usage: </span><span class="nv">$0</span><span class="s2"> logprefix&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="nb">exit</span> <span class="m">1</span>
+</span></span><span class="line"><span class="cl"><span class="k">fi</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nv">logprefix</span><span class="o">=</span><span class="s2">&#34;</span><span class="nv">$1</span><span class="s2">&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nv">url</span><span class="o">=</span>http://example.com
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">date +%FT%T.%N <span class="p">|</span> tee -a <span class="si">${</span><span class="nv">logprefix</span><span class="si">}</span>-curl.log
+</span></span><span class="line"><span class="cl"><span class="nb">time</span> curl -sSv -o /dev/null -H <span class="s2">&#34;X-Req-ID: </span><span class="k">$(</span>date +%FT%T.%N<span class="k">)</span><span class="s2">&#34;</span> <span class="nv">$url</span> 2&gt;<span class="p">&amp;</span><span class="m">1</span> <span class="p">|</span> tee -a <span class="si">${</span><span class="nv">logprefix</span><span class="si">}</span>-curl.log
+</span></span><span class="line"><span class="cl">sleep <span class="m">5</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">date +%FT%T.%N <span class="p">|</span> tee -a <span class="si">${</span><span class="nv">logprefix</span><span class="si">}</span>-curl.log
+</span></span><span class="line"><span class="cl"><span class="nb">time</span> curl -sSv -o /dev/null -H <span class="s2">&#34;X-Req-ID: </span><span class="k">$(</span>date +%FT%T.%N<span class="k">)</span><span class="s2">&#34;</span> <span class="nv">$url</span> 2&gt;<span class="p">&amp;</span><span class="m">1</span> <span class="p">|</span> tee -a <span class="si">${</span><span class="nv">logprefix</span><span class="si">}</span>-curl.log
+</span></span><span class="line"><span class="cl">sleep <span class="m">5</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">date +%FT%T.%N <span class="p">|</span> tee -a <span class="si">${</span><span class="nv">logprefix</span><span class="si">}</span>-curl.log
+</span></span><span class="line"><span class="cl"><span class="nb">time</span> curl -sSv -o /dev/null -H <span class="s2">&#34;X-Req-ID: </span><span class="k">$(</span>date +%FT%T.%N<span class="k">)</span><span class="s2">&#34;</span> <span class="nv">$url</span> 2&gt;<span class="p">&amp;</span><span class="m">1</span> <span class="p">|</span> tee -a <span class="si">${</span><span class="nv">logprefix</span><span class="si">}</span>-curl.log
+</span></span></code></pre></div><p>実行するときはtmuxで複数ペインで表示して以下のような感じでコマンドラインを入力した後、全ペインでキー入力同期をオンにしてEnterを押して同時に開始。curlのスクリプトが終わったら少し待ってから Ctrl-C で止める。その後キー入力同期をオフにする。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">#</span> クライアント
+</span></span><span class="line"><span class="cl"><span class="gp">$</span> sleep 1<span class="p">;</span> curlのスクリプト
+</span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="gp">#</span> サーバ1
+</span></span><span class="line"><span class="cl"><span class="gp">$</span> tcpdumpのスクリプト
+</span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="gp">#</span> サーバ2
+</span></span><span class="line"><span class="cl"><span class="gp">$</span> tcpdumpのスクリプト
+</span></span></code></pre></div><p>複数ペインのキーの同期オン・オフは <code>~/.tmux.conf</code> に以下のように設定しています。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl"># Synchronize panes
+</span></span><span class="line"><span class="cl">set-option -g synchronize-panes off
+</span></span><span class="line"><span class="cl">bind e setw synchronize-panes on
+</span></span><span class="line"><span class="cl">bind E setw synchronize-panes off
+</span></span></code></pre></div><p>tcpdump ファイルで http プロトコルのダンプを見るときは <code>-A</code> で ASCII でパケットの内容を表示するとリクエストとレスポンスがそのまま見れて便利。バイナリのプロトコルの場合は <code>-A</code> の代わりに <code>-X</code> を使うと16進ダンプが見れる。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">tcpdump -n -A -r tcpdumpのダンプファイル
+</span></span></span></code></pre></div><p>上記で読み込んだヘッダの例。</p>
+<ul>
+<li>先頭は時刻の時分秒とマイクロ秒。</li>
+<li>次が送信元IPアドレスとポートと送信先IPアドレスとポート。エフェメラルポートの場合は <code>ss -antp</code> のログと突き合せればどのプロセスかわかる。</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">09:57:20.260518 IP 192.0.2.1.34042 &gt; 192.0.2.2.80: Flags [P.], seq 1:154, ack 1, win 229, options [nop,nop,TS val 2026493290 ecr 2786517801], length 153: HTTP: GET /hello.png HTTP/1.1
+</span></span></code></pre></div>
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

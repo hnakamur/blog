@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>CentOS 7用にPython2最新版のrpmを作ってみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>CentOS 7用にPython2最新版のrpmを作ってみた</h1>
+  <time datetime=2015-12-19T11:51:30&#43;0900 class="post-date">2015-12-19</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#python2の最新版rpmの利用方法">Python2の最新版rpmの利用方法</a>
+      <ul>
+        <li><a href="#インストール手順">インストール手順</a></li>
+        <li><a href="#使い方">使い方</a></li>
+      </ul>
+    </li>
+    <li><a href="#python2の最新版rpmを作った時のメモ">Python2の最新版rpmを作った時のメモ</a>
+      <ul>
+        <li><a href="#software-collectionsのメタパッケージ">Software Collectionsのメタパッケージ</a></li>
+        <li><a href="#software-collectionsのメタパッケージのビルド">Software Collectionsのメタパッケージのビルド</a></li>
+        <li><a href="#python本体のパッケージのビルド">Python本体のパッケージのビルド</a></li>
+        <li><a href="#python本体のspecファイルのパッチ更新">Python本体のspecファイルのパッチ更新</a></li>
+      </ul>
+    </li>
+    <li><a href="#おわりに">おわりに</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="/blog/2015/12/16/calling_copr_api_with_curl/">coprのAPIをcurlで呼び出す · hnakamur&rsquo;s blog at github</a>にも書きましたが、CentOS 7のPythonは古くてhttps通信時にInsecurePlatformWarningが出てしまいます。</p>
+<p>そこで、<a href="https://www.softwarecollections.org/repos/rhscl/python27/epel-7-x86_64/python27-python-2.7.8-3.el7/">Software CollectionsのPython27のpythonパッケージ</a>を改変してPython2の最新版2.7.11のrpmを作ってみました。
+<a href="https://www.softwarecollections.org/en/">Software Collections</a>のrpmをベースにしていますので、CentOS 7にインストールされているPythonとは共存可能となっています。</p>
+<h2 id="python2の最新版rpmの利用方法">Python2の最新版rpmの利用方法</h2>
+<p>先に利用方法を書いておきます。</p>
+<h3 id="インストール手順">インストール手順</h3>
+<p>dockerのcentos:7コンテナにインストールする例で説明します。まず以下のコマンドでコンテナを起動します。</p>
+<pre tabindex="0"><code>docker run -it centos:7 /bin/bash
+</code></pre><p>次に以下のコマンドを実行してPython2をインストールします。</p>
+<pre tabindex="0"><code>curl -sL -o /etc/yum.repos.d/hnakamur-hnscl-python2.repo https://copr.fedoraproject.org/coprs/hnakamur/hnscl-python2/repo/epel-7/hnakamur-hnscl-python2-epel-7.repo
+curl -sL -o /etc/yum.repos.d/hnakamur-hnscl-python2-python.repo https://copr.fedoraproject.org/coprs/hnakamur/hnscl-python2-python/repo/epel-7/hnakamur-hnscl-python2-python-epel-7.repo
+yum -y install hn-python2-python
+</code></pre><h3 id="使い方">使い方</h3>
+<p>以下のコマンドでPython2最新版用のシェルを起動します。</p>
+<pre tabindex="0"><code>scl enable hn-python2 bash
+</code></pre><p>あとは通常通りpythonコマンドを実行すればOKです。</p>
+<pre tabindex="0"><code># which python
+/opt/hn/hn-python2/root/usr/bin/python
+# python -V
+Python 2.7.11
+</code></pre><p>使い終わったら <code>exit</code> で上記で起動したシェルを抜けてください。</p>
+<p>ちなみに、Software Collectionsで提供されているPython 2.7のインストール方法は<a href="https://www.softwarecollections.org/en/scls/rhscl/python27/">Python 2.7 — Software Collections</a>です。</p>
+<h2 id="python2の最新版rpmを作った時のメモ">Python2の最新版rpmを作った時のメモ</h2>
+<p>以下はrpmを作った時のメモです。<a href="https://www.softwarecollections.org/en/docs/guide/">Packaging Guide — Software Collections</a>を読みながら試行錯誤してrpmを作りました。</p>
+<h3 id="software-collectionsのメタパッケージ">Software Collectionsのメタパッケージ</h3>
+<p><a href="https://www.softwarecollections.org/en/docs/guide/#sect-Package_Layout">Packaging Guide — Software Collections</a>で説明されていますが、Software Collectionsではメタパッケージというのを作成します。</p>
+<p>例えば今回ベースにしたPython 2.7だと<a href="https://www.softwarecollections.org/repos/rhscl/python27/epel-7-x86_64/python27-1.1-20.el7/">python27</a>というのがメタパッケージで、　Python2本体のパッケージは<a href="https://www.softwarecollections.org/repos/rhscl/python27/epel-7-x86_64/python27-python-2.7.8-3.el7/">Software CollectionsのPython27のpythonパッケージ</a>です。</p>
+<p>Software Collectionsを自作する場合は、パッケージ名が衝突しないように「組織名-」という接頭辞をつけるようにと<a href="https://www.softwarecollections.org/en/docs/guide/#sect-The_Software_Collections_Prefix">2.4. The Software Collection Prefix</a>に書かれています。公式のソフトウェアコレクションは接頭辞無しで <code>python27</code> のようなコレクション名になっています。</p>
+<p>また、<a href="https://www.softwarecollections.org/en/docs/guide/#sect-The_File_System_Hierarchy">2.2. The File System Hierarchy</a>に書かれているように、ソフトウェアコレクションのrpmに含まれるファイルは <code>/opt/提供者名/ソフトウェアコレクション名/</code> というディレクトリ構成を取ります。公式のソフトウェアコレクションは <code>/opt/rh/ソフトウェアコレクション名/</code> というディレクトリになっています。rhはredhatの略だと思います。</p>
+<p>今回は <code>hn-python2</code> というメタパッケージ名とし、ディレクトリは <code>/opt/hn/python2/</code> としました。</p>
+<h3 id="software-collectionsのメタパッケージのビルド">Software Collectionsのメタパッケージのビルド</h3>
+<p>ビルド用のファイルは<a href="https://github.com/hnakamur/hnscl-python2-rpm">hnakamur/hnscl-python2-rpm</a>に置いてあります。</p>
+<p><a href="https://www.softwarecollections.org/en/docs/guide/#sect-The_Software_Collection_Root_Directory">2.3. The Software Collection Root Directory</a>によるとspecファイルに以下のように書けばよいそうです。providerの箇所は提供者ごとの値に変えます。</p>
+<pre tabindex="0"><code>%global _scl_prefix /opt/provider
+</code></pre><p>ですが、実際に試してみるとこの設定だけだと、ビルドされたrpm内のファイルパスだったりファイルの中身に <code>/opt/rh/</code> というパスが残ってしまいました。試行錯誤の結果以下のように書くことで全て <code>/opt/hn/</code> に変わりました。</p>
+<p><a href="https://github.com/hnakamur/hnscl-python2-rpm/blob/06a6fa366bd485d722139f0637ce2def364eaef3/SPECS/hn-python2.spec#L1-L22">hn-python2-spec</a></p>
+<pre tabindex="0"><code>%global scl_name_prefix hn-
+%global scl_name_base python
+%global scl_name_version 2
+%global scl %{scl_name_prefix}%{scl_name_base}%{scl_name_version}
+
+# NOTE: You must set _scl_prefix before &#39;%scl_package %scl&#39;.
+%global _scl_prefix /opt/hn
+# NOTE: The following variables must be re-evaluated after changing _scl_prefix above.
+# I got these settings after trials and errors.
+# I don&#39;t know this is the right way to set directories with my _scl_prefix.
+%global _scl_scripts            %{_scl_prefix}/%{scl}
+%global _scl_root               %{_scl_prefix}/%{scl}/root
+%global _prefix                 %{_scl_root}/usr
+%global _sysconfdir             %{_scl_root}/etc
+%global _sharedstatedir         %{_scl_root}/var/lib
+%global _localstatedir          %{_scl_root}/var
+%global _datadir                %{_scl_root}/share
+%global _docdir                 %{_datadir}/doc
+%global _mandir                 %{_datadir}/man
+
+
+%scl_package %scl
+...(snip)...
+</code></pre><h3 id="python本体のパッケージのビルド">Python本体のパッケージのビルド</h3>
+<p>ビルド用のファイルは<a href="https://github.com/hnakamur/hnscl-python2-python-rpm">hnakamur/hnscl-python2-python-rpm</a>に置いてあります。</p>
+<p>インストールディレクトリを <code>/opt/hn/</code> 以下にするため、試行錯誤した結果specファイルに以下のように書けばOKでした。</p>
+<p><a href="https://github.com/hnakamur/hnscl-python2-python-rpm/blob/3a13fe74587d6beca871d28a68149a2273488672/SPECS/python.spec#L1-L31">python.spec</a></p>
+<pre tabindex="0"><code>%global scl_name_prefix hn-
+%global scl_name_base python
+%global scl_name_version 2
+%global scl %{scl_name_prefix}%{scl_name_base}%{scl_name_version}
+
+# NOTE: You must set _scl_prefix before &#39;%scl_package %scl&#39;.
+%global _scl_prefix /opt/hn
+# NOTE: The following variables must be re-evaluated after changing _scl_prefix above.
+%global _scl_scripts            %{_scl_prefix}/%{scl}
+%global _scl_root               %{_scl_prefix}/%{scl}/root
+%global _prefix                 %{_scl_root}/usr
+%global _sysconfdir             %{_scl_root}/etc
+%global _sharedstatedir         %{_scl_root}/var/lib
+%global _localstatedir          %{_scl_root}/var
+
+%global _includedir             %{_prefix}/include
+%if &#34;%{_lib}&#34; == &#34;lib64&#34;
+%global _libdir                 %{_prefix}/lib64
+%else
+%global _libdir                 %{_prefix}/lib
+%endif
+%global _datadir                %{_prefix}/share
+%global _docdir                 %{_prefix}/share/doc
+%global _datarootdir            %{_prefix}/share
+%global _infodir                %{_prefix}/share/info
+%global _mandir                 %{_prefix}/share/man
+%global _defaultdocdir          %{_prefix}/share/doc
+
+%global _exec_prefix            %{_prefix}
+%global _bindir                 %{_exec_prefix}/bin
+%global _sbindir                %{_exec_prefix}/sbin
+...(snip)...
+</code></pre><h3 id="python本体のspecファイルのパッチ更新">Python本体のspecファイルのパッチ更新</h3>
+<p><a href="https://github.com/hnakamur/hnscl-python2-python-rpm/blob/3a13fe74587d6beca871d28a68149a2273488672/SPECS/python.spec">python.spec</a>には約60個のパッチが含まれています。</p>
+<p>Pythonのソースのバージョンを上げたのでパッチが当たらなくなるケースが出てきました。patchを実行した時に生成される <code>*.rej</code> ファイルを見て、なんとなくこんな感じだろという軽いノリでパッチを一通り更新しました。</p>
+<p>作業手順は<a href="/blog/2015/12/16/how_to_debug_errors_in_rpm_build_using_mock/">mockを使ったrpmビルドが失敗した時の調査方法 · hnakamur&rsquo;s blog at github</a>に書いた手順で、mockのchroot環境内でパッチを修正して <code>rpmbuild -bp specファイル名</code> でパッチを当てるというのをひたすら繰り返した感じです。</p>
+<p>パッチ1つごとの修正を<a href="https://github.com/hnakamur/hnscl-python2-python-rpm/commits/master">Commits · hnakamur/hnscl-python2-python-rpm</a>のだいたい1つのコミットにしています。ただ、後からさらに修正が必要だったものは別コミットになっていますが。</p>
+<p>また、CentOSのPythonのspecファイルではリリースビルドとデバッグビルドを作ってテストも実行するようになっています。これがかなり時間がかるので、ビルドが通らない段階では<a href="https://github.com/hnakamur/hnscl-python2-python-rpm/commit/ebb31040e3e5bfe0ceb62cd4eb67793bd1a333b0">リリースビルドだけにしてテストは実行しないようにしていました</a>。ビルドが落ち着いてきたところで<a href="https://github.com/hnakamur/hnscl-python2-python-rpm/commit/8a293e3dbd25f6cb6638b00efc07ce5cf962a397">この変更をgit revert</a>してビルド・テストするようにしました。</p>
+<h2 id="おわりに">おわりに</h2>
+<p><a href="https://www.softwarecollections.org/repos/rhscl/python27/epel-7-x86_64/python27-python-2.7.8-3.el7/">Software CollectionsのPython27のpythonパッケージ</a>を改変して作ったPython2の最新版2.7.11のrpmについて説明しました。</p>
+<p>CentOS 7でもPython2の最新版が手軽に利用可能になるので、ぜひご活用ください。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

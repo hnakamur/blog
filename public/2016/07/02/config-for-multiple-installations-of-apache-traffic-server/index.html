@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>1台のサーバに異なる設定でApache Traffic Serverを複数立ち上げるためのビルド設定 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>1台のサーバに異なる設定でApache Traffic Serverを複数立ち上げるためのビルド設定</h1>
+  <time datetime=2016-07-02T01:00:00&#43;0900 class="post-date">2016-07-02</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#起動オプションではやりたいことは出来なさそうでした">起動オプションではやりたいことは出来なさそうでした</a></li>
+    <li><a href="#ts_rootという環境変数を発見">TS_ROOTという環境変数を発見</a></li>
+    <li><a href="#configureオプションの指定方法">configureオプションの指定方法</a></li>
+    <li><a href="#私が使っているディレクトリ構成">私が使っているディレクトリ構成</a></li>
+    <li><a href="#コマンド実行時の環境変数指定">コマンド実行時の環境変数指定</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>Apache Traffic Serverには<a href="https://docs.trafficserver.apache.org/en/latest/admin-guide/configuration/hierachical-caching.en.html">Hierarchical Caching</a>という機能があって、キャッシュを親と子の2階層にすることが出来ます。</p>
+<p>CentOSで1つのサーバに親と子の2つのTraffic Server 6.1.1を異なる設定で起動するような構成にしたかったのですが、本家のrpmでは出来ないようでした。
+ソースを見ていたらconfigureオプションをうまく指定すれば可能だとわかり、カスタムrpmを作りました。</p>
+<p>rpmのspecファイルは<a href="https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec">apache-traffic-server-rpm/trafficserver.spec</a>、ビルドしたrpmは <a href="https://copr.fedorainfracloud.org/coprs/hnakamur/apache-traffic-server-6/">hnakamur/apache-traffic-server-6 Copr</a> で公開しています。</p>
+<h2 id="起動オプションではやりたいことは出来なさそうでした">起動オプションではやりたいことは出来なさそうでした</h2>
+<p>カスタムrpmを作る前に、本家のrpmを使いつつコマンドラインオプションや環境変数の設定によってやりたいことが実現できないか調べてみたのですが、出来なさそうでした。</p>
+<p>バージョン6.1.1のソースを見た時のメモです。</p>
+<p>まず、 <code>traffic_server</code> コマンドには <code>-conf_dir</code> というオプションがあります。ソースは <a href="https://github.com/apache/trafficserver/blob/6.1.1/proxy/Main.cc#L206">proxy/Main.cc</a> です。<a href="https://docs.trafficserver.apache.org/en/6.1.x/appendices/command-line/traffic_server.en.html">traffic_serverのドキュメント</a>には記載がありません。</p>
+<p>一方、 <code>traffic_manager</code> コマンドには <code>-tsArgs</code> というオプションがあります。 ソースは <a href="https://github.com/apache/trafficserver/blob/6.1.1/cmd/traffic_manager/traffic_manager.cc#L453">cmd/traffic_manager/traffic_manager.cc</a> で <a href="https://docs.trafficserver.apache.org/en/6.1.x/appendices/command-line/traffic_manager.en.html#cmdoption-traffic_manager--tsArgs">traffic_managerのドキュメント</a> にも説明はありませんが載っています。</p>
+<p>しかし、 <code>traffic_cop</code> コマンドが <code>traffic_manager</code> コマンドを起動する際には <code>-tsArgs</code> オプションは指定していません。ソースは <a href="https://github.com/apache/trafficserver/blob/6.1.1/cmd/traffic_cop/traffic_cop.cc#L758">cmd/traffic_cop/traffic_cop.cc</a> です。 <a href="https://docs.trafficserver.apache.org/en/6.1.x/appendices/command-line/traffic_cop.en.html">traffic_cop</a> のドキュメントを見ても traffic_manager にオプションを渡すためのオプションは無いようです。</p>
+<p>rpmでインストールされるサービス起動スクリプトだと <code>traffic_cop</code> →　<code>traffic_manger</code> →　<code>traffic_sever</code> という呼び出し関係になるので、こ <code>traffic_server</code>   に <code>-conf_dir</code> オプションを渡すことは出来なさそうです。</p>
+<h2 id="ts_rootという環境変数を発見">TS_ROOTという環境変数を発見</h2>
+<p><a href="https://github.com/apache/trafficserver/blob/6.1.1/lib/ts/Layout.cc#L146-L187">lib/ts/Layout.cc</a> で <code>TS_ROOT</code> という環境変数を参照しているのを見つけました。</p>
+<pre tabindex="0"><code>Layout::Layout(const char *_prefix)
+{
+  if (_prefix) {
+    prefix = ats_strdup(_prefix);
+  } else {
+    char *env_path;
+    char path[PATH_NAME_MAX];
+    int len;
+
+    if ((env_path = getenv(&#34;TS_ROOT&#34;))) {
+      len = strlen(env_path);
+      if ((len + 1) &gt; PATH_NAME_MAX) {
+        ink_error(&#34;TS_ROOT environment variable is too big: %d, max %d\n&#34;, len, PATH_NAME_MAX - 1);
+        return;
+      }
+      ink_strlcpy(path, env_path, sizeof(path));
+      while (len &gt; 1 &amp;&amp; path[len - 1] == &#39;/&#39;) {
+        path[len - 1] = &#39;\0&#39;;
+        --len;
+      }
+    } else {
+      // Use compile time --prefix
+      ink_strlcpy(path, TS_BUILD_PREFIX, sizeof(path));
+    }
+
+    prefix = ats_strdup(path);
+  }
+  exec_prefix = layout_relative(prefix, TS_BUILD_EXEC_PREFIX);
+  bindir = layout_relative(prefix, TS_BUILD_BINDIR);
+  sbindir = layout_relative(prefix, TS_BUILD_SBINDIR);
+  sysconfdir = layout_relative(prefix, TS_BUILD_SYSCONFDIR);
+  datadir = layout_relative(prefix, TS_BUILD_DATADIR);
+  includedir = layout_relative(prefix, TS_BUILD_INCLUDEDIR);
+  libdir = layout_relative(prefix, TS_BUILD_LIBDIR);
+  libexecdir = layout_relative(prefix, TS_BUILD_LIBEXECDIR);
+  localstatedir = layout_relative(prefix, TS_BUILD_LOCALSTATEDIR);
+  runtimedir = layout_relative(prefix, TS_BUILD_RUNTIMEDIR);
+  logdir = layout_relative(prefix, TS_BUILD_LOGDIR);
+  mandir = layout_relative(prefix, TS_BUILD_MANDIR);
+  infodir = layout_relative(prefix, TS_BUILD_INFODIR);
+  cachedir = layout_relative(prefix, TS_BUILD_CACHEDIR);
+}
+</code></pre><p><a href="https://github.com/apache/trafficserver/blob/6.1.1/lib/ts/Layout.cc#L51-L70">layout_relative関数の定義</a> と <a href="https://github.com/apache/trafficserver/blob/d6906e2a59858005d09018994262562b03ca24e9/lib/ts/ink_file.cc#L132-L323">ink_filepath_merge関数の定義</a> を見ると、 layout_relative の第2引数が <code>/</code> で始まっていると第2引数がそのまま使われ、 <code>/</code> で始まっていないと第1引数と第2引数を必要に応じて <code>/</code> を挟んで連結した値になることがわかりました。</p>
+<p><code>TS_BUILD_SYSCONFDIR</code> などは<a href="https://github.com/apache/trafficserver/blob/6.1.1/lib/ts/ink_config.h.in#L110-L125">trafficserver/ink_config.h.in</a> で定義されていました。</p>
+<pre tabindex="0"><code>/* Various &#34;build&#34; defines */
+#define TS_BUILD_PREFIX &#34;@prefix@&#34;
+#define TS_BUILD_EXEC_PREFIX &#34;@rel_exec_prefix@&#34;
+#define TS_BUILD_BINDIR &#34;@rel_bindir@&#34;
+#define TS_BUILD_SBINDIR &#34;@rel_sbindir@&#34;
+#define TS_BUILD_SYSCONFDIR &#34;@rel_sysconfdir@&#34;
+#define TS_BUILD_DATADIR &#34;@rel_datadir@&#34;
+#define TS_BUILD_INCLUDEDIR &#34;@rel_includedir@&#34;
+#define TS_BUILD_LIBDIR &#34;@rel_libdir@&#34;
+#define TS_BUILD_LIBEXECDIR &#34;@rel_libexecdir@&#34;
+#define TS_BUILD_LOCALSTATEDIR &#34;@rel_localstatedir@&#34;
+#define TS_BUILD_RUNTIMEDIR &#34;@rel_runtimedir@&#34;
+#define TS_BUILD_LOGDIR &#34;@rel_logdir@&#34;
+#define TS_BUILD_MANDIR &#34;@rel_mandir@&#34;
+#define TS_BUILD_CACHEDIR &#34;@rel_cachedir@&#34;
+#define TS_BUILD_INFODIR &#34;@rel_infodir@&#34;
+</code></pre><p><code>rel_*</code> という値は <code>configure</code> 実行時にbuild/common.m4の <a href="https://github.com/apache/trafficserver/blob/5a0952b01d01ef927a65fc44bac5f68c345747aa/build/common.m4#L252-L263">TS_SUBST_LAYOUT_PATH</a> で設定されるようです。</p>
+<pre tabindex="0"><code>dnl
+dnl TS_SUBST_LAYOUT_PATH
+dnl Export (via TS_SUBST) the various path-related variables that
+dnl trafficserver will use while generating scripts and
+dnl the default config file.
+AC_DEFUN([TS_SUBST_LAYOUT_PATH], [
+  TS_EXPAND_VAR(exp_$1, [$]$1)
+  TS_PATH_RELATIVE(rel_$1, [$]exp_$1, ${prefix})
+  TS_SUBST(exp_$1)
+  TS_SUBST(rel_$1)
+  TS_SUBST($1)
+])
+</code></pre><p>ここから呼ばれる <a href="https://github.com/apache/trafficserver/blob/5a0952b01d01ef927a65fc44bac5f68c345747aa/build/common.m4#L223-L241">TS_PATH_RELATIVE</a> で実際の値が作られます。</p>
+<pre tabindex="0"><code>dnl
+dnl Removes the value of $3 from the string in $2, strips of any leading
+dnl slashes, and returns the value in $1.
+dnl
+dnl Example:
+dnl orig_path=&#34;${prefix}/bar&#34;
+dnl TS_PATH_RELATIVE(final_path, $orig_path, $prefix)
+dnl    $final_path now contains &#34;bar&#34;
+AC_DEFUN([TS_PATH_RELATIVE], [
+ats_stripped=`echo $2 | sed -e &#34;s#^$3##&#34;`
+# check if the stripping was successful
+if test &#34;x$2&#34; != &#34;x${ats_stripped}&#34;; then
+# it was, so strip of any leading slashes
+    $1=&#34;`echo ${ats_stripped} | sed -e &#39;s#^/*##&#39;`&#34;
+else
+# it wasn&#39;t so return the original
+    $1=&#34;$2&#34;
+fi
+])
+</code></pre><p>ということで、例えば <code>sysconfdir</code> の値が <code>prefix</code> の値で始まっていれば <code>rel_sysconfdir</code> は <code>prefix</code> からの相対パスになり、そうでなければ <code>sysconfdir</code> そのままになるということがわかりました。</p>
+<h2 id="configureオプションの指定方法">configureオプションの指定方法</h2>
+<p>上記を踏まえて、私が作成した <a href="https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec">/trafficserver.spec</a> では <a href="https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec#L1">1行目</a>で</p>
+<pre tabindex="0"><code>%define _prefix /opt/trafficserver
+</code></pre><p>と設定し、 <a href="https://github.com/hnakamur/apache-traffic-server-rpm/blob/d1688aec09f6761841bbc638938577cae49beccd/SPECS/trafficserver.spec#L85-L94">85〜94行目</a> で以下のような configure オプションを指定しています。</p>
+<pre tabindex="0"><code>%configure \
+  --enable-layout=opt \
+  --sysconfdir=%{_prefix}%{_sysconfdir} \
+  --localstatedir=%{_prefix}%{_localstatedir} \
+  --libexecdir=%{_prefix}/%{_lib}/plugins \
+  --with-tcl=/usr/%{_lib} \
+  --enable-luajit \
+  --with-user=ats --with-group=ats \
+  --disable-silent-rules \
+  --enable-experimental-plugins
+</code></pre><p>これでビルドしたtrafficserverを実行する際に、環境変数TS_ROOTを設定することで以下のようなディレクトリを参照することが出来ました。</p>
+<ul>
+<li>sysconfdir: ${TS_ROOT}/etc</li>
+<li>localstatedir: ${TS_ROOT}/var/run</li>
+<li>libexecdir: ${TS_ROOT}/lib64/plugins</li>
+</ul>
+<h2 id="私が使っているディレクトリ構成">私が使っているディレクトリ構成</h2>
+<p>実際には以下のようなシンボリックリンクを貼って使っています。</p>
+<ul>
+<li>1段目
+<ul>
+<li>/opt/trafficserver-first/etc -&gt; /etc/trafficserver-first</li>
+<li>/opt/trafficserver-first/bin -&gt; /opt/trafficserver/bin</li>
+<li>/opt/trafficserver-first/lib64 -&gt; /opt/trafficserver/lib64</li>
+<li>/opt/trafficserver-first/var/cache -&gt; /var/cache/trafficserver-first</li>
+<li>/opt/trafficserver-first/var/logs -&gt; /var/log/trafficserver-first</li>
+<li>/opt/trafficserver-first/var/run -&gt; /var/run/trafficserver-first</li>
+</ul>
+</li>
+<li>2段目
+<ul>
+<li>/opt/trafficserver-second/etc -&gt; /etc/trafficserver-second</li>
+<li>/opt/trafficserver-second/bin -&gt; /opt/trafficserver/bin</li>
+<li>/opt/trafficserver-second/lib64 -&gt; /opt/trafficserver/lib64</li>
+<li>/opt/trafficserver-second/var/cache -&gt; /var/cache/trafficserver-second</li>
+<li>/opt/trafficserver-second/var/logs -&gt; /var/log/trafficserver-second</li>
+<li>/opt/trafficserver-second/var/run -&gt; /var/run/trafficserver-second</li>
+</ul>
+</li>
+</ul>
+<h2 id="コマンド実行時の環境変数指定">コマンド実行時の環境変数指定</h2>
+<p>コマンドを実行するときはPATHを通すかフルパスで指定するだけではなく、 TS_ROOT 環境変数も指定する必要があります。</p>
+<p>例えば、1段目のキャッシュを全クリアするときは <a href="https://docs.trafficserver.apache.org/en/6.1.x/admin-guide/storage/index.en.html#clearing-the-cache">Clearing the Cache</a> の説明では <code>traffic_server -Cclear</code> ですが、このrpmの場合は</p>
+<pre tabindex="0"><code>TS_ROOT=/opt/trafficserver-first /opt/trafficserver-first/bin/traffic_server -Cclear
+</code></pre><p>と実行する必要があります。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

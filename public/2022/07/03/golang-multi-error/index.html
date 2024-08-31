@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Go言語でMultiErrorというのを考えてみたが微妙かも &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Go言語でMultiErrorというのを考えてみたが微妙かも</h1>
+  <time datetime=2022-07-03T10:40:10&#43;0900 class="post-date">2022-07-03</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#multierror-というのを考えてみた">MultiError というのを考えてみた</a></li>
+    <li><a href="#ioeof-はラップしないほうが良い">io.EOF はラップしないほうが良い</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>Go の標準ライブラリの <a href="https://pkg.go.dev/database/sql@go1.18.3">database/sql</a> パッケージや
+サードパーティライブラリの <a href="https://pkg.go.dev/github.com/jmoiron/sqlx">github.com/jmoiron/sqlx</a> でトランザクションを使う際に、成功したらコミット、失敗したらロールバックというのを毎回書くのは面倒だし、書き漏れが出そうなので避けたいです。</p>
+<p>で、 WithTx みたいな名前の関数を用意して、引数のコールバック関数がエラーを返さない場合はコミット、エラーを返す場合はロールバックするように書いて使っています。</p>
+<p>このときコールバック関数がエラーを返したときのロールバックでエラーが起きたときにどう処理するかが悩ましいところです。アプリケーションだとログに書けば良いのですが、ライブラリではログは書かずにエラーを返してアプリケーション側でログを書くのが理想かなと思います。ログの出力方法や形式はアプリケーションによりまちまちなので。</p>
+<h2 id="multierror-というのを考えてみた">MultiError というのを考えてみた</h2>
+<p>そこで、 MultiError というのを考えてみました。</p>
+<p><code>NewMultiError(errors ...error) *MultiError</code> 関数で作成します。
+error インタフェースを満たすため <code>Error() String</code> メソッドが必要ですが、これは全てのエラーのメッセージを <code>|</code> で連結した文字列を返すようにします。 <code>,</code> や <code>;</code> だと個々のエラーのメッセージに含まれてそうなので違う文字列にしました。</p>
+<p>最初のエラーがメインで、残りは付随するサブ的なものと捉えて <code>Unwrap() error</code> は最初のエラーを返すようにしています。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">MultiError</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">errors</span> <span class="p">[]</span><span class="kt">error</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">NewMultiError</span><span class="p">(</span><span class="nx">errors</span> <span class="o">...</span><span class="kt">error</span><span class="p">)</span> <span class="o">*</span><span class="nx">MultiError</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">errors</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nb">panic</span><span class="p">(</span><span class="s">&#34;one or more errors needed&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nf">ShouldNotWrapError</span><span class="p">(</span><span class="nx">errors</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nb">panic</span><span class="p">(</span><span class="s">&#34;error like io.EOF shoud not be wrapped&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="o">&amp;</span><span class="nx">MultiError</span><span class="p">{</span><span class="nx">errors</span><span class="p">:</span> <span class="nx">errors</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">ShouldNotWrapError</span><span class="p">(</span><span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="kt">bool</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">err</span> <span class="o">==</span> <span class="nx">io</span><span class="p">.</span><span class="nx">EOF</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">MultiError</span><span class="p">)</span> <span class="nf">Error</span><span class="p">()</span> <span class="kt">string</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="kd">var</span> <span class="nx">b</span> <span class="nx">strings</span><span class="p">.</span><span class="nx">Builder</span>
+</span></span><span class="line"><span class="cl">  <span class="k">for</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">e</span><span class="p">.</span><span class="nx">errors</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">i</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">b</span><span class="p">.</span><span class="nf">WriteString</span><span class="p">(</span><span class="s">&#34; | &#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">b</span><span class="p">.</span><span class="nf">WriteString</span><span class="p">(</span><span class="nx">err</span><span class="p">.</span><span class="nf">Error</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">b</span><span class="p">.</span><span class="nf">String</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">MultiError</span><span class="p">)</span> <span class="nf">Unwrap</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">e</span><span class="p">.</span><span class="nx">errors</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">MultiError</span><span class="p">)</span> <span class="nf">Errors</span><span class="p">()</span> <span class="p">[]</span><span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">errors2</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">error</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">errors</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">  <span class="nb">copy</span><span class="p">(</span><span class="nx">errors2</span><span class="p">,</span> <span class="nx">e</span><span class="p">.</span><span class="nx">errors</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">errors2</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>これを使って <code>WithTx</code> と <code>WithTxContext</code> というのを書いてみるとこんな感じです。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">WithTx</span><span class="p">(</span><span class="nx">db</span> <span class="o">*</span><span class="nx">sqlx</span><span class="p">.</span><span class="nx">DB</span><span class="p">,</span> <span class="nx">cb</span> <span class="kd">func</span><span class="p">(</span><span class="nx">tx</span> <span class="o">*</span><span class="nx">sqlx</span><span class="p">.</span><span class="nx">Tx</span><span class="p">)</span> <span class="kt">error</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">tx</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">Beginx</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="nx">err</span> <span class="p">=</span> <span class="nf">cb</span><span class="p">(</span><span class="nx">tx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err2</span> <span class="o">:=</span> <span class="nx">tx</span><span class="p">.</span><span class="nf">Rollback</span><span class="p">();</span> <span class="nx">err2</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">if</span> <span class="p">!</span><span class="nf">ShouldNotWrapError</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nf">NewMultiError</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">err2</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">      <span class="c1">// We have to log err2 here since err should not be wrapped.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;rollback: %s&#34;</span><span class="p">,</span> <span class="nx">err2</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">tx</span><span class="p">.</span><span class="nf">Commit</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">WithTxContext</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">db</span> <span class="o">*</span><span class="nx">sqlx</span><span class="p">.</span><span class="nx">DB</span><span class="p">,</span> <span class="nx">opts</span> <span class="o">*</span><span class="nx">sql</span><span class="p">.</span><span class="nx">TxOptions</span><span class="p">,</span> <span class="nx">cb</span> <span class="kd">func</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">tx</span> <span class="o">*</span><span class="nx">sqlx</span><span class="p">.</span><span class="nx">Tx</span><span class="p">)</span> <span class="kt">error</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">tx</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">BeginTxx</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">opts</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="nx">err</span> <span class="p">=</span> <span class="nf">cb</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">tx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err2</span> <span class="o">:=</span> <span class="nx">ctx</span><span class="p">.</span><span class="nf">Err</span><span class="p">();</span> <span class="nx">err2</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">if</span> <span class="p">!</span><span class="nf">ShouldNotWrapError</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nf">NewMultiError</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">err2</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">      <span class="c1">// We have to log err2 here since err should not be wrapped.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;context: %s&#34;</span><span class="p">,</span> <span class="nx">err2</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err2</span> <span class="o">:=</span> <span class="nx">tx</span><span class="p">.</span><span class="nf">Rollback</span><span class="p">();</span> <span class="nx">err2</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">if</span> <span class="p">!</span><span class="nf">ShouldNotWrapError</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nf">NewMultiError</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">err2</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">      <span class="c1">// We have to log err2 here since err should not be wrapped.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="nx">log</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;rollback: %s&#34;</span><span class="p">,</span> <span class="nx">err2</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">tx</span><span class="p">.</span><span class="nf">Commit</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>実は sql 関連で <code>context.Context</code> 付きのメソッドは存在は知ってましたが使ったことはなかったので、 <code>WithTxContext</code> は今初めて書いてみたところで正しいかは不明です。<a href="https://pkg.go.dev/database/sql@go1.18.3#DB.BeginTx">database/sql.DB.BeginTx</a> によると context がキャンセルされたときはロールバックされるとあるのでたぶんこれで良いはず。</p>
+<h2 id="ioeof-はラップしないほうが良い">io.EOF はラップしないほうが良い</h2>
+<p><a href="https://pkg.go.dev/errors@go1.18.3#Is">errors.Is</a> 登場以前の <code>if err == io.EOF</code> のようなコードが巷に多数あることを考えると、 <code>io.EOF</code> はラップしないようにすべきです。</p>
+<p>その場合は仕方がないのでログに書くようにしています。
+上のコードでは <a href="https://pkg.go.dev/log@go1.18.3#Printf">log.Printf</a> で書いていますが、アプリケーションに応じて変更する必要があります。</p>
+<p><code>WithTx</code> をライブラリとして提供するなら、そこをカスタマイズできるような仕組みを用意したほうが良さそうです。
+が、構造化ログライブラリとかも考えると API を考えるのは大変そうな気がします。</p>
+<p><a href="https://go-proverbs.github.io/">Go Proverbs</a> の <a href="https://www.youtube.com/watch?v=PAAkCSZUG1c&amp;t=9m28s">A little copying is better than a little dependency.</a> を考えるとこれくらいのコードならアプリケーション側にコピーして使うほうが良さそうな気がします。
+ただ、それなら Rollback のようなエラーの後処理のエラーは MutliError 使わずに常にその場でログ出力で良さそうな気もします。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

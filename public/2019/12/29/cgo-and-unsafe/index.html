@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>cgoとunsafeについてのメモ &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>cgoとunsafeについてのメモ</h1>
+  <time datetime=2019-12-29T03:00:00&#43;0900 class="post-date">2019-12-29</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#cgo">cgo</a></li>
+    <li><a href="#unsafe">unsafe</a></li>
+    <li><a href="#malloc">malloc</a></li>
+  </ul>
+</nav>
+  <h2 id="背景">背景</h2>
+<p>まず大前提として cgo や unsafe を使ったプログラムは Go の将来のバージョンで動く保証がないので極力避けるべきです（unsafeについては<a href="https://golang.org/doc/go1compat">Go 1 and the Future of Go Programs - The Go Programming Language</a>で明示的に互換性保証の対象外と書かれています。cgo は <a href="https://golang.org/doc/go1.12#cgo">Go 1.12 Release Notes - The Go Programming Language</a> に変更された実例があります）。</p>
+<p>が、現実には cgo や unsafe を使いたいケースがあります。</p>
+<p>一番の理由は C で書かれた資産が既にあってそれを使いたい場合です。安全性や保守性では Go に移植するほうが望ましいですが、難しかったり性能が出ない場合もあります。例えば <a href="https://github.com/VictoriaMetrics/VictoriaMetrics">VictoriaMetrics</a> の <a href="https://github.com/VictoriaMetrics/VictoriaMetrics/commit/5cb8d9774308031b13f9d0feb2c8c6d7d0d87026">all: use gozstd instead of pure Go zstd for GOARCH=amd64</a> というコミットでは pure go の zstd を cgo の zstd に切り替えています。</p>
+<p>また、別の理由として省メモリなデータ構造を作りたいというのがあります。 Go の slice や interface のサイズが気になったので以下のコードで調べてみました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span> <span class="nx">main</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="s">&#34;fmt&#34;</span>
+</span></span><span class="line"><span class="cl">    <span class="s">&#34;unsafe&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;slice          size=%d\n&#34;</span><span class="p">,</span> <span class="nx">unsafe</span><span class="p">.</span><span class="nf">Sizeof</span><span class="p">([]</span><span class="kt">byte</span><span class="p">{}))</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">var</span> <span class="nx">a</span> <span class="kd">interface</span><span class="p">{}</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;interface      size=%d\n&#34;</span><span class="p">,</span> <span class="nx">unsafe</span><span class="p">.</span><span class="nf">Sizeof</span><span class="p">(</span><span class="nx">a</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">var</span> <span class="nx">p</span> <span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;unsafe.Pointer size=%d\n&#34;</span><span class="p">,</span> <span class="nx">unsafe</span><span class="p">.</span><span class="nf">Sizeof</span><span class="p">(</span><span class="nx">p</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>amd64 の Linux 環境では以下のような結果になりました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> go run main.go
+</span></span><span class="line"><span class="cl"><span class="go">slice          size=24
+</span></span></span><span class="line"><span class="cl"><span class="go">interface      size=16
+</span></span></span><span class="line"><span class="cl"><span class="go">unsafe.Pointer size=8
+</span></span></span></code></pre></div><p>slice は長さ (len) とキャパシテイ (cap) とポインタがそれぞれ 8 バイトで計 24 バイト、
+interface は型の種別とポインタがそれぞれ 8 バイトで計 16 バイトということだと思います。</p>
+<p>C 言語だと union や <a href="https://en.wikipedia.org/wiki/Tagged_pointer">Tagged pointer - Wikipedia</a> のような手法を使えるので差が開きます。</p>
+<p>CPU のキャッシュラインに載るようなサイズのデータ構造を設計するといった文脈では
+このサイズのハンディキャップは気になるところです。</p>
+<p>と思っていた時に <a href="https://github.com/VictoriaMetrics/fastcache">VictoriaMetrics/fastcache</a>  の <a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/malloc_mmap.go">malloc_mmap.go</a> のコードを見ると GC を介さずにメモリを割り当てるために <code>syscall.Mmap</code> を使っていました（mmap はファイルをメモリアドレス空間にマップするのが本来の使い方ですがファイルにマップしない使い方も出来ます）。</p>
+<p>なるほどこういう手もあるのかと感心しました。で、この機会に cgo と unsafe についてまとめておこうとこの記事を書きました。</p>
+<h2 id="cgo">cgo</h2>
+<ul>
+<li><a href="https://github.com/golang/go/wiki/cgo">cgo · golang/go Wiki</a>
+<ul>
+<li><a href="https://golang.org/cmd/cgo/">cgo - The Go Programming Language</a></li>
+<li><a href="https://blog.golang.org/c-go-cgo">C? Go? Cgo! - The Go Blog</a></li>
+</ul>
+</li>
+<li><a href="https://www.youtube.com/watch?v=PAAkCSZUG1c&amp;t=7m36s">Go Proverbs</a>
+<ul>
+<li><a href="https://www.youtube.com/watch?v=PAAkCSZUG1c&amp;t=11m53s">Cgo must always be guarded with build tags.</a></li>
+<li><a href="https://www.youtube.com/watch?v=PAAkCSZUG1c&amp;t=12m37s">Cgo is not Go.</a></li>
+<li><a href="https://www.youtube.com/watch?v=PAAkCSZUG1c&amp;t=13m49s">With the unsafe package there are no guarantees.</a></li>
+</ul>
+</li>
+<li><a href="https://dave.cheney.net/2016/01/18/cgo-is-not-go">cgo is not Go | Dave Cheney</a>
+<ul>
+<li><a href="https://www.reddit.com/r/golang/comments/41hk4b/cgo_is_not_go/">cgo is not Go : golang @reddit</a></li>
+</ul>
+</li>
+<li><a href="https://speakerdeck.com/filosottile/why-cgo-is-slow-at-capitalgo-2018">Why cgo is slow @ CapitalGo 2018 - Speaker Deck</a>
+<ul>
+<li>Go から C の関数を呼び出すのもその逆も遅いので、細かい粒度ではなく大きな粒度で呼ぶようにし回数を減らすのが良い。</li>
+</ul>
+</li>
+<li><a href="https://about.sourcegraph.com/go/gophercon-2018-adventures-in-cgo-performance">GopherCon 2018 - Adventures in Cgo Performance</a></li>
+<li><a href="https://www.cockroachlabs.com/blog/the-cost-and-complexity-of-cgo/">The Cost and Complexity of Cgo | Cockroach Labs</a></li>
+<li><a href="https://blog.madewithdrew.com/post/statically-linking-c-to-go/">Statically Linking C to Go · Made with Drew</a>
+<ul>
+<li>Linux では以下のようにビルドすればスタティックビルドできる（file.go は適宜変更）。</li>
+</ul>
+</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">go build --ldflags &#39;-extldflags &#34;-static&#34;&#39; file.go
+</span></span></span></code></pre></div><h2 id="unsafe">unsafe</h2>
+<ul>
+<li><a href="https://golang.org/pkg/unsafe/">unsafe - The Go Programming Language</a></li>
+<li><a href="https://golang.org/ref/spec#Package_unsafe">Package unsafe</a> section in The Go Language Specification</li>
+<li><a href="https://stackoverflow.com/questions/22195919/does-go-guarantee-constant-addresses">garbage collection - Does Go guarantee constant addresses? - Stack Overflow</a>
+<ul>
+<li>もし GC がメモリを移動した場合 ポインタ型と <code>unsafe.Pointer</code> の変数の値は更新されるとのこと。</li>
+<li>ただし <a href="https://golang.org/pkg/unsafe/#Pointer">unsafe.Pointer</a> のドキュメントには GC がメモリを移動しても <code>uintptr</code> の変数の値を更新しないことしか書かれていない。が <code>uintptr</code> と別に <code>unsafe.Pointer</code> が用意されていることを考えると <code>unsafe.Pointer</code> のアドレスは GC によって更新されるのは当てにしてもよさそう。</li>
+</ul>
+</li>
+</ul>
+<h2 id="malloc">malloc</h2>
+<p>確実にメモリのアドレスが GC によって移動されないようにするには mmap か malloc を使う手がある。</p>
+<ul>
+<li>
+<p><a href="https://www.reddit.com/r/golang/comments/2tifyv/go_gc_and_mmap/">Go GC and mmap : golang</a></p>
+<ul>
+<li>mmap や malloc で割り当てたメモリは GC の対象外。</li>
+<li>GC で使うメモリ領域は予約されていて、 malloc など GC 以外で割り当てたメモリは別の領域になる。</li>
+</ul>
+</li>
+<li>
+<p><a href="https://github.com/golang/go/issues/18889">cmd/cgo: link error when binding C.malloc to a Go variable · Issue #18889 · golang/go</a></p>
+<ul>
+<li><code>C.malloc</code> は <code>_CMalloc</code> というビルトインのラッパ関数に置き換えられる。 <a href="https://github.com/golang/go/blob/go1.13.5/src/cmd/cgo/out.go#L1698">ビルトインのラッパ関数一覧</a></li>
+<li><code>C.malloc</code> をラップしているのは以下の2つの理由のため。
+<ol>
+<li><code>#include &lt;stdlib.h&gt;</code> を書かなくても <code>C.malloc</code> を使えるようにするため。</li>
+<li><code>C.malloc</code> が <code>nil</code> を決して返さないようにするため。</li>
+</ol>
+</li>
+</ul>
+</li>
+</ul>
+<p><code>#include &lt;stdlib.h&gt;</code> は <code>C.malloc</code> では不要だが <code>C.free</code> を使う場合には必要。</p>
+<p><code>C.malloc</code> が <code>nil</code> を返さないと保証されているのは <a href="https://golang.org/cmd/cgo/#hdr-Go_references_to_C">cgo - The Go Programming Language</a> の最後に記載があった。なので <code>C.malloc</code> の戻り値の <code>nil</code> チェックは不要。</p>
+<p>malloc と free を使うサンプルコード。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// +build cgo
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kn">package</span> <span class="nx">main</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// #include &lt;stdlib.h&gt;
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kn">import</span> <span class="s">&#34;C&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="s">&#34;fmt&#34;</span>
+</span></span><span class="line"><span class="cl">    <span class="s">&#34;log&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">run</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">log</span><span class="p">.</span><span class="nf">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">run</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">data</span> <span class="o">:=</span> <span class="nx">C</span><span class="p">.</span><span class="nf">malloc</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">defer</span> <span class="nx">C</span><span class="p">.</span><span class="nf">free</span><span class="p">(</span><span class="nx">data</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="o">*</span><span class="p">(</span><span class="o">*</span><span class="kt">int64</span><span class="p">)(</span><span class="nx">data</span><span class="p">)</span> <span class="p">=</span> <span class="mi">1234</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">a</span> <span class="o">:=</span> <span class="o">*</span><span class="p">(</span><span class="o">*</span><span class="kt">int64</span><span class="p">)(</span><span class="nx">data</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;a=%d\n&#34;</span><span class="p">,</span> <span class="nx">a</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>スタティックビルド。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> go build --ldflags <span class="s1">&#39;-extldflags &#34;-static&#34;&#39;</span> -o main
+</span></span></code></pre></div><p>スタティックバイナリになったことを確認。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> ldd main
+</span></span><span class="line"><span class="cl"><span class="go">        not a dynamic executable
+</span></span></span></code></pre></div><p><code>C.malloc</code> を使う場合は細切れに割り当てるのではなく上記の
+<a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/malloc_mmap.go">malloc_mmap.go</a> のように <a href="https://en.wikipedia.org/wiki/Region-based_memory_management">Region-based memory management - Wikipedia</a> 方式が良さそうです。
+手動メモリ管理の手間をなるべく減らすのとメモリ断片化を防ぐ意味で。</p>
+<p>ただ GC の負荷が許容範囲内なら <a href="https://golang.org/pkg/builtin/#make">make</a> で <code>[]byte</code> をメモリ割り当てして <code>unsafe.Pointer</code> で参照するほうがメモリ管理を GC に任せられるので良いです。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>ngx_http_limit_req_moduleのコードリーディング &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>ngx_http_limit_req_moduleのコードリーディング</h1>
+  <time datetime=2017-08-17T09:38:00&#43;0900 class="post-date">2017-08-17</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#leaky-bucket">leaky bucket</a></li>
+    <li><a href="#nginxの実装">nginxの実装</a>
+      <ul>
+        <li><a href="#rateとlimitの値を読み取る">rateとlimitの値を読み取る</a></li>
+        <li><a href="#nginxのlimit_reqのleaky-bucket">nginxのlimit_reqのleaky bucket</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="http://nginx.org/en/docs/http/ngx_http_limit_req_module.html">Module ngx_http_limit_req_module</a>
+を使おうと思ってコードを読んでみたのでメモです。</p>
+<h2 id="leaky-bucket">leaky bucket</h2>
+<p>上記のドキュメントに &ldquo;leaky bucket&rdquo; を使ってリクエスト数の制御を行っていると書かれています。</p>
+<p>leaky bucketについては
+<a href="http://www.geeksforgeeks.org/leaky-bucket-algorithm/">Leaky Bucket Algorithm| Computer Networks - GeeksforGeeks</a>
+の説明が具体例もあってわかりやすかったです。</p>
+<h2 id="nginxの実装">nginxの実装</h2>
+<h3 id="rateとlimitの値を読み取る">rateとlimitの値を読み取る</h3>
+<p>設定からrateとlimitを読み取るコードは以下の部分です。内部的には秒間リクエスト数を1000倍して管理しています。</p>
+<p><a href="https://github.com/nginx/nginx/blob/release-1.13.4/src/http/modules/ngx_http_limit_req_module.c#L792-L828">ngx_http_limit_req_module.c#L792-L828</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">if</span> <span class="p">(</span><span class="nf">ngx_strncmp</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">data</span><span class="p">,</span> <span class="s">&#34;rate=&#34;</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">len</span> <span class="o">=</span> <span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">len</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">p</span> <span class="o">=</span> <span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">data</span> <span class="o">+</span> <span class="n">len</span> <span class="o">-</span> <span class="mi">3</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="nf">ngx_strncmp</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="s">&#34;r/s&#34;</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">scale</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">len</span> <span class="o">-=</span> <span class="mi">3</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="nf">ngx_strncmp</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="s">&#34;r/m&#34;</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">scale</span> <span class="o">=</span> <span class="mi">60</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">len</span> <span class="o">-=</span> <span class="mi">3</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">rate</span> <span class="o">=</span> <span class="nf">ngx_atoi</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">data</span> <span class="o">+</span> <span class="mi">5</span><span class="p">,</span> <span class="n">len</span> <span class="o">-</span> <span class="mi">5</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">rate</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">ngx_conf_log_error</span><span class="p">(</span><span class="n">NGX_LOG_EMERG</span><span class="p">,</span> <span class="n">cf</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                           <span class="s">&#34;invalid rate </span><span class="se">\&#34;</span><span class="s">%V</span><span class="se">\&#34;</span><span class="s">&#34;</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">]);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">NGX_CONF_ERROR</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">continue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nf">ngx_conf_log_error</span><span class="p">(</span><span class="n">NGX_LOG_EMERG</span><span class="p">,</span> <span class="n">cf</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                   <span class="s">&#34;invalid parameter </span><span class="se">\&#34;</span><span class="s">%V</span><span class="se">\&#34;</span><span class="s">&#34;</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">]);</span>
+</span></span><span class="line"><span class="cl"><span class="k">return</span> <span class="n">NGX_CONF_ERROR</span><span class="p">;</span>
+</span></span></code></pre></div><pre><code>}
+
+if (name.len == 0) {
+    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                       &quot;\&quot;%V\&quot; must have \&quot;zone\&quot; parameter&quot;,
+                       &amp;cmd-&gt;name);
+    return NGX_CONF_ERROR;
+}
+
+ctx-&gt;rate = rate * 1000 / scale;
+</code></pre>
+<p><a href="https://github.com/nginx/nginx/blob/release-1.13.4/src/http/modules/ngx_http_limit_req_module.c#L885-L937">ngx_http_limit_req_module.c#L885-L937</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">if</span> <span class="p">(</span><span class="nf">ngx_strncmp</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">data</span><span class="p">,</span> <span class="s">&#34;burst=&#34;</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">burst</span> <span class="o">=</span> <span class="nf">ngx_atoi</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">data</span> <span class="o">+</span> <span class="mi">6</span><span class="p">,</span> <span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">len</span> <span class="o">-</span> <span class="mi">6</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">burst</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">ngx_conf_log_error</span><span class="p">(</span><span class="n">NGX_LOG_EMERG</span><span class="p">,</span> <span class="n">cf</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                           <span class="s">&#34;invalid burst rate </span><span class="se">\&#34;</span><span class="s">%V</span><span class="se">\&#34;</span><span class="s">&#34;</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">]);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">NGX_CONF_ERROR</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">continue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="p">(</span><span class="nf">ngx_strcmp</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">data</span><span class="p">,</span> <span class="s">&#34;nodelay&#34;</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">nodelay</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">continue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nf">ngx_conf_log_error</span><span class="p">(</span><span class="n">NGX_LOG_EMERG</span><span class="p">,</span> <span class="n">cf</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                   <span class="s">&#34;invalid parameter </span><span class="se">\&#34;</span><span class="s">%V</span><span class="se">\&#34;</span><span class="s">&#34;</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">]);</span>
+</span></span><span class="line"><span class="cl"><span class="k">return</span> <span class="n">NGX_CONF_ERROR</span><span class="p">;</span>
+</span></span></code></pre></div><pre><code>}
+
+if (shm_zone == NULL) {
+    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                       &quot;\&quot;%V\&quot; must have \&quot;zone\&quot; parameter&quot;,
+                       &amp;cmd-&gt;name);
+    return NGX_CONF_ERROR;
+}
+
+limits = lrcf-&gt;limits.elts;
+
+if (limits == NULL) {
+    if (ngx_array_init(&amp;lrcf-&gt;limits, cf-&gt;pool, 1,
+                       sizeof(ngx_http_limit_req_limit_t))
+        != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+}
+
+for (i = 0; i &lt; lrcf-&gt;limits.nelts; i++) {
+    if (shm_zone == limits[i].shm_zone) {
+        return &quot;is duplicate&quot;;
+    }
+}
+
+limit = ngx_array_push(&amp;lrcf-&gt;limits);
+if (limit == NULL) {
+    return NGX_CONF_ERROR;
+}
+
+limit-&gt;shm_zone = shm_zone;
+limit-&gt;burst = burst * 1000;
+</code></pre>
+<h3 id="nginxのlimit_reqのleaky-bucket">nginxのlimit_reqのleaky bucket</h3>
+<p>nginxの実装は（おそらく軽く動かすために）ちょっと変わった方法をとっていて、タイマーで定期的に許容できる量を更新していくのではなく、以下のように前回のアクセスから今回のアクセスまでの時間にレートを掛けて引くという方式を取っています。</p>
+<p><a href="https://github.com/nginx/nginx/blob/release-1.13.4/src/http/modules/ngx_http_limit_req_module.c#L400-L412">ngx_http_limit_req_module.c#L400-L412</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="n">ms</span> <span class="o">=</span> <span class="p">(</span><span class="kt">ngx_msec_int_t</span><span class="p">)</span> <span class="p">(</span><span class="n">now</span> <span class="o">-</span> <span class="n">lr</span><span class="o">-&gt;</span><span class="n">last</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">excess</span> <span class="o">=</span> <span class="n">lr</span><span class="o">-&gt;</span><span class="n">excess</span> <span class="o">-</span> <span class="n">ctx</span><span class="o">-&gt;</span><span class="n">rate</span> <span class="o">*</span> <span class="nf">ngx_abs</span><span class="p">(</span><span class="n">ms</span><span class="p">)</span> <span class="o">/</span> <span class="mi">1000</span> <span class="o">+</span> <span class="mi">1000</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="p">(</span><span class="n">excess</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">excess</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="o">*</span><span class="n">ep</span> <span class="o">=</span> <span class="n">excess</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="p">((</span><span class="kt">ngx_uint_t</span><span class="p">)</span> <span class="n">excess</span> <span class="o">&gt;</span> <span class="n">limit</span><span class="o">-&gt;</span><span class="n">burst</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">NGX_BUSY</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>もし2つのアクセスがほぼ同時にあったとすると <code>now - lr-&gt;last</code> の部分がほぼ <code>0</code> になります。
+すると <code>excess = lr-&gt;excess - ctx-&gt;rate * ngx_abs(ms) / 1000 + 1000;</code> は
+<code>excess = lr-&gt;excess + 1000;</code> とほぼ同じことになります。</p>
+<p>その下の if 文で <code>excess</code> がマイナスの場合は0にしています。
+<code>lr-&gt;excess</code> を設定する箇所はここでは省略しますが、前回の <code>excess</code> の値になっています。
+ということでほぼ同時にアクセスがあると <code>excess = lr-&gt;excess + 1000;</code> の結果、 <code>excess</code> は
+1000より大きな値になります。</p>
+<p>すると <code>limit-&gt;burst</code> が 0 だと <code>NGX_BUSY</code> を返してリミットに引っかかることになります。
+同時にアクセスがあっただけでひっかかるのは困るので <code>burst</code> を良い感じに調整して設定しておく必要があります。</p>
+<p>また上記の <code>excess</code> の式でわかるように <code>rate</code> の設定値は秒間リクエスト数と言っても、秒単位で制御しているわけではないので、正確な値というよりおおよその目安として考えておいたほうが良いと思います。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

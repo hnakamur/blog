@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>bboltのコードリーディング &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>bboltのコードリーディング</h1>
+  <time datetime=2020-01-02T11:00:00&#43;0900 class="post-date">2020-01-02</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#bbolt-での-btree-のリバランス">bbolt での B+Tree のリバランス</a>
+      <ul>
+        <li><a href="#分割の際のノードの充填率">分割の際のノードの充填率</a></li>
+        <li><a href="#ノードのマージの条件">ノードのマージの条件</a></li>
+      </ul>
+    </li>
+    <li><a href="#ページバッファ">ページバッファ</a></li>
+    <li><a href="#ファイルへの書き込み">ファイルへの書き込み</a>
+      <ul>
+        <li><a href="#db-の-init-メソッドの実装"><code>DB</code> の <code>Init</code> メソッドの実装</a></li>
+        <li><a href="#tx-の-write-メソッド"><code>tx</code> の <code>write</code> メソッド</a></li>
+        <li><a href="#tx-の-writemeta-メソッド"><code>Tx</code> の <code>writeMeta</code> メソッド</a></li>
+        <li><a href="#fdatasync-関数"><code>fdatasync</code> 関数</a></li>
+        <li><a href="#fdatasync-関数が呼ばれる条件"><code>fdatasync</code> 関数が呼ばれる条件</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="https://github.com/etcd-io/bbolt">etcd-io/bbolt: An embedded key/value database for Go.</a> は B+Tree を使った Go で書かれたキーバリューストアです。</p>
+<p><a href="https://github.com/etcd-io/bbolt#project-status">Project Status</a> を見ると開発のフェーズとしては安定期に入っていて、 API、ファイルフォーマットともに stable になっています。高負荷なプロダクション環境でも使用されていて 1TB といった大きなサイズでも使われているそうです。</p>
+<p><a href="https://godoc.org/go.etcd.io/bbolt?importers">bbolt importers - GoDoc</a> を見ると
+<a href="https://github.com/etcd-io/etcd">etcd-io/etcd: Distributed reliable key-value store for the most critical data of a distributed system</a> など様々なプロジェクトで使用されています。</p>
+<h2 id="bbolt-での-btree-のリバランス">bbolt での B+Tree のリバランス</h2>
+<h3 id="分割の際のノードの充填率">分割の際のノードの充填率</h3>
+<p><code>Bucket</code> 型
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/bucket.go#L28-L43">bucket.go#L28-L43</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Bucket represents a collection of key/value pairs inside the database.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">Bucket</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="o">*</span><span class="nx">bucket</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">tx</span>       <span class="o">*</span><span class="nx">Tx</span>                <span class="c1">// the associated transaction
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">buckets</span>  <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="o">*</span><span class="nx">Bucket</span> <span class="c1">// subbucket cache
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">page</span>     <span class="o">*</span><span class="nx">page</span>              <span class="c1">// inline page reference
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">rootNode</span> <span class="o">*</span><span class="nx">node</span>              <span class="c1">// materialized node for the root page.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">nodes</span>    <span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="o">*</span><span class="nx">node</span>     <span class="c1">// node cache
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// Sets the threshold for filling nodes when they split. By default,
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// the bucket will fill to 50% but it can be useful to increase this
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// amount if you know that your write workloads are mostly append-only.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// This is non-persisted across transactions so it must be set in every Tx.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">FillPercent</span> <span class="kt">float64</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>Bucket</code> の <code>FillPercent</code> でノード分割時の充填率を0.1～1.0の間で制御可能（下記参照）。
+キーが単調増加するような追加パターンの場合は 1.0 に近い値にすると、無駄な分割が少なくノードのページの利用効率も上がる。
+トランザクション毎に指定する必要がある。</p>
+<p><code>FillPercent</code> の利用箇所は <code>node</code> 型の <code>splitTwo</code> メソッド1か所のみ。
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/node.go#L271-L310">node.go#L271-L310</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// splitTwo breaks up a node into two smaller nodes, if appropriate.
+</span></span></span><span class="line"><span class="cl"><span class="c1">// This should only be called from the split() function.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">n</span> <span class="o">*</span><span class="nx">node</span><span class="p">)</span> <span class="nf">splitTwo</span><span class="p">(</span><span class="nx">pageSize</span> <span class="kt">int</span><span class="p">)</span> <span class="p">(</span><span class="o">*</span><span class="nx">node</span><span class="p">,</span> <span class="o">*</span><span class="nx">node</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// Ignore the split if the page doesn&#39;t have at least enough nodes for
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// two pages or if the nodes can fit in a single page.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">n</span><span class="p">.</span><span class="nx">inodes</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="p">(</span><span class="nx">minKeysPerPage</span><span class="o">*</span><span class="mi">2</span><span class="p">)</span> <span class="o">||</span> <span class="nx">n</span><span class="p">.</span><span class="nf">sizeLessThan</span><span class="p">(</span><span class="nx">pageSize</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">n</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Determine the threshold before starting a new node.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kd">var</span> <span class="nx">fillPercent</span> <span class="p">=</span> <span class="nx">n</span><span class="p">.</span><span class="nx">bucket</span><span class="p">.</span><span class="nx">FillPercent</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">fillPercent</span> <span class="p">&lt;</span> <span class="nx">minFillPercent</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fillPercent</span> <span class="p">=</span> <span class="nx">minFillPercent</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="nx">fillPercent</span> <span class="p">&gt;</span> <span class="nx">maxFillPercent</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fillPercent</span> <span class="p">=</span> <span class="nx">maxFillPercent</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">threshold</span> <span class="o">:=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">float64</span><span class="p">(</span><span class="nx">pageSize</span><span class="p">)</span> <span class="o">*</span> <span class="nx">fillPercent</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="c1">//…(略)…
+</span></span></span></code></pre></div><p>充填率の定数定義
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/bucket.go#L19-L22">bucket.go#L19-L22</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">const</span> <span class="p">(</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">minFillPercent</span> <span class="p">=</span> <span class="mf">0.1</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">maxFillPercent</span> <span class="p">=</span> <span class="mf">1.0</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span></code></pre></div><h3 id="ノードのマージの条件">ノードのマージの条件</h3>
+<p><code>node</code> 型の <code>rebalance</code> メソッド。
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/node.go#L407-L508">node.go#L407-L508</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// rebalance attempts to combine the node with sibling nodes if the node fill
+</span></span></span><span class="line"><span class="cl"><span class="c1">// size is below a threshold or if there are not enough keys.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">n</span> <span class="o">*</span><span class="nx">node</span><span class="p">)</span> <span class="nf">rebalance</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">!</span><span class="nx">n</span><span class="p">.</span><span class="nx">unbalanced</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">n</span><span class="p">.</span><span class="nx">unbalanced</span> <span class="p">=</span> <span class="kc">false</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Update statistics.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">n</span><span class="p">.</span><span class="nx">bucket</span><span class="p">.</span><span class="nx">tx</span><span class="p">.</span><span class="nx">stats</span><span class="p">.</span><span class="nx">Rebalance</span><span class="o">++</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Ignore if node is above threshold (25%) and has enough keys.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kd">var</span> <span class="nx">threshold</span> <span class="p">=</span> <span class="nx">n</span><span class="p">.</span><span class="nx">bucket</span><span class="p">.</span><span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span> <span class="o">/</span> <span class="mi">4</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">n</span><span class="p">.</span><span class="nf">size</span><span class="p">()</span> <span class="p">&gt;</span> <span class="nx">threshold</span> <span class="o">&amp;&amp;</span> <span class="nb">len</span><span class="p">(</span><span class="nx">n</span><span class="p">.</span><span class="nx">inodes</span><span class="p">)</span> <span class="p">&gt;</span> <span class="nx">n</span><span class="p">.</span><span class="nf">minKeys</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Root node has special handling.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">n</span><span class="p">.</span><span class="nx">parent</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// If root node is a branch and only has one node then collapse it.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="p">!</span><span class="nx">n</span><span class="p">.</span><span class="nx">isLeaf</span> <span class="o">&amp;&amp;</span> <span class="nb">len</span><span class="p">(</span><span class="nx">n</span><span class="p">.</span><span class="nx">inodes</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="c1">// Move root&#39;s child up.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="nx">child</span> <span class="o">:=</span> <span class="nx">n</span><span class="p">.</span><span class="nx">bucket</span><span class="p">.</span><span class="nf">node</span><span class="p">(</span><span class="nx">n</span><span class="p">.</span><span class="nx">inodes</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="nx">pgid</span><span class="p">,</span> <span class="nx">n</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">n</span><span class="p">.</span><span class="nx">isLeaf</span> <span class="p">=</span> <span class="nx">child</span><span class="p">.</span><span class="nx">isLeaf</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">n</span><span class="p">.</span><span class="nx">inodes</span> <span class="p">=</span> <span class="nx">child</span><span class="p">.</span><span class="nx">inodes</span><span class="p">[:]</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">n</span><span class="p">.</span><span class="nx">children</span> <span class="p">=</span> <span class="nx">child</span><span class="p">.</span><span class="nx">children</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">      <span class="c1">// Reparent all child nodes being moved.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">inode</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">n</span><span class="p">.</span><span class="nx">inodes</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">child</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">n</span><span class="p">.</span><span class="nx">bucket</span><span class="p">.</span><span class="nx">nodes</span><span class="p">[</span><span class="nx">inode</span><span class="p">.</span><span class="nx">pgid</span><span class="p">];</span> <span class="nx">ok</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">          <span class="nx">child</span><span class="p">.</span><span class="nx">parent</span> <span class="p">=</span> <span class="nx">n</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">      <span class="c1">// Remove old child.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="nx">child</span><span class="p">.</span><span class="nx">parent</span> <span class="p">=</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">      <span class="nb">delete</span><span class="p">(</span><span class="nx">n</span><span class="p">.</span><span class="nx">bucket</span><span class="p">.</span><span class="nx">nodes</span><span class="p">,</span> <span class="nx">child</span><span class="p">.</span><span class="nx">pgid</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">child</span><span class="p">.</span><span class="nf">free</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// If node has no keys then just remove it.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">n</span><span class="p">.</span><span class="nf">numChildren</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">n</span><span class="p">.</span><span class="nx">parent</span><span class="p">.</span><span class="nf">del</span><span class="p">(</span><span class="nx">n</span><span class="p">.</span><span class="nx">key</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">n</span><span class="p">.</span><span class="nx">parent</span><span class="p">.</span><span class="nf">removeChild</span><span class="p">(</span><span class="nx">n</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nb">delete</span><span class="p">(</span><span class="nx">n</span><span class="p">.</span><span class="nx">bucket</span><span class="p">.</span><span class="nx">nodes</span><span class="p">,</span> <span class="nx">n</span><span class="p">.</span><span class="nx">pgid</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">n</span><span class="p">.</span><span class="nf">free</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">n</span><span class="p">.</span><span class="nx">parent</span><span class="p">.</span><span class="nf">rebalance</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="nf">_assert</span><span class="p">(</span><span class="nx">n</span><span class="p">.</span><span class="nx">parent</span><span class="p">.</span><span class="nf">numChildren</span><span class="p">()</span> <span class="p">&gt;</span> <span class="mi">1</span><span class="p">,</span> <span class="s">&#34;parent must have at least 2 children&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Destination node is right sibling if idx == 0, otherwise left sibling.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kd">var</span> <span class="nx">target</span> <span class="o">*</span><span class="nx">node</span>
+</span></span><span class="line"><span class="cl">  <span class="kd">var</span> <span class="nx">useNextSibling</span> <span class="p">=</span> <span class="p">(</span><span class="nx">n</span><span class="p">.</span><span class="nx">parent</span><span class="p">.</span><span class="nf">childIndex</span><span class="p">(</span><span class="nx">n</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">useNextSibling</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">target</span> <span class="p">=</span> <span class="nx">n</span><span class="p">.</span><span class="nf">nextSibling</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">target</span> <span class="p">=</span> <span class="nx">n</span><span class="p">.</span><span class="nf">prevSibling</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// If both this node and the target node are too small then merge them.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">useNextSibling</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Reparent all child nodes being moved.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">inode</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">target</span><span class="p">.</span><span class="nx">inodes</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">if</span> <span class="nx">child</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">n</span><span class="p">.</span><span class="nx">bucket</span><span class="p">.</span><span class="nx">nodes</span><span class="p">[</span><span class="nx">inode</span><span class="p">.</span><span class="nx">pgid</span><span class="p">];</span> <span class="nx">ok</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">child</span><span class="p">.</span><span class="nx">parent</span><span class="p">.</span><span class="nf">removeChild</span><span class="p">(</span><span class="nx">child</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">child</span><span class="p">.</span><span class="nx">parent</span> <span class="p">=</span> <span class="nx">n</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">child</span><span class="p">.</span><span class="nx">parent</span><span class="p">.</span><span class="nx">children</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">child</span><span class="p">.</span><span class="nx">parent</span><span class="p">.</span><span class="nx">children</span><span class="p">,</span> <span class="nx">child</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// Copy over inodes from target and remove target.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">n</span><span class="p">.</span><span class="nx">inodes</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">n</span><span class="p">.</span><span class="nx">inodes</span><span class="p">,</span> <span class="nx">target</span><span class="p">.</span><span class="nx">inodes</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">n</span><span class="p">.</span><span class="nx">parent</span><span class="p">.</span><span class="nf">del</span><span class="p">(</span><span class="nx">target</span><span class="p">.</span><span class="nx">key</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">n</span><span class="p">.</span><span class="nx">parent</span><span class="p">.</span><span class="nf">removeChild</span><span class="p">(</span><span class="nx">target</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nb">delete</span><span class="p">(</span><span class="nx">n</span><span class="p">.</span><span class="nx">bucket</span><span class="p">.</span><span class="nx">nodes</span><span class="p">,</span> <span class="nx">target</span><span class="p">.</span><span class="nx">pgid</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">target</span><span class="p">.</span><span class="nf">free</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Reparent all child nodes being moved.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">inode</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">n</span><span class="p">.</span><span class="nx">inodes</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">if</span> <span class="nx">child</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">n</span><span class="p">.</span><span class="nx">bucket</span><span class="p">.</span><span class="nx">nodes</span><span class="p">[</span><span class="nx">inode</span><span class="p">.</span><span class="nx">pgid</span><span class="p">];</span> <span class="nx">ok</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">child</span><span class="p">.</span><span class="nx">parent</span><span class="p">.</span><span class="nf">removeChild</span><span class="p">(</span><span class="nx">child</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">child</span><span class="p">.</span><span class="nx">parent</span> <span class="p">=</span> <span class="nx">target</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">child</span><span class="p">.</span><span class="nx">parent</span><span class="p">.</span><span class="nx">children</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">child</span><span class="p">.</span><span class="nx">parent</span><span class="p">.</span><span class="nx">children</span><span class="p">,</span> <span class="nx">child</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// Copy over inodes to target and remove node.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">target</span><span class="p">.</span><span class="nx">inodes</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">target</span><span class="p">.</span><span class="nx">inodes</span><span class="p">,</span> <span class="nx">n</span><span class="p">.</span><span class="nx">inodes</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">n</span><span class="p">.</span><span class="nx">parent</span><span class="p">.</span><span class="nf">del</span><span class="p">(</span><span class="nx">n</span><span class="p">.</span><span class="nx">key</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">n</span><span class="p">.</span><span class="nx">parent</span><span class="p">.</span><span class="nf">removeChild</span><span class="p">(</span><span class="nx">n</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nb">delete</span><span class="p">(</span><span class="nx">n</span><span class="p">.</span><span class="nx">bucket</span><span class="p">.</span><span class="nx">nodes</span><span class="p">,</span> <span class="nx">n</span><span class="p">.</span><span class="nx">pgid</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">n</span><span class="p">.</span><span class="nf">free</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Either this node or the target node was deleted from the parent so rebalance it.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">n</span><span class="p">.</span><span class="nx">parent</span><span class="p">.</span><span class="nf">rebalance</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>ノードの充填率が25%より大きくかつノード内のキー数が <code>minKeys</code> メソッドの戻り値より大きい場合はノードのリバランスは行わない。</p>
+<p><code>node</code> 型の <code>minKeys</code> メソッド。
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/node.go#L31-L37">node.go#L31-L37</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// minKeys returns the minimum number of inodes this node should have.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">n</span> <span class="o">*</span><span class="nx">node</span><span class="p">)</span> <span class="nf">minKeys</span><span class="p">()</span> <span class="kt">int</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">n</span><span class="p">.</span><span class="nx">isLeaf</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="mi">1</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="mi">2</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>最小のキー数はリーフノードは1、リーフでないノードは2。</p>
+<p>ついでに <code>node</code> の <code>rebalance</code> メソッドの呼び出し元も調べる。
+<code>Bucket</code> の <code>rebalance</code> メソッド。
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/bucket.go#L630-L638">bucket.go#L630-L638</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// rebalance attempts to balance all nodes.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">Bucket</span><span class="p">)</span> <span class="nf">rebalance</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">n</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">b</span><span class="p">.</span><span class="nx">nodes</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">n</span><span class="p">.</span><span class="nf">rebalance</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">child</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">b</span><span class="p">.</span><span class="nx">buckets</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">child</span><span class="p">.</span><span class="nf">rebalance</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>Tx</code> の <code>Commit</code> メソッド。
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/tx.go#L138-L223">tx.go#L138-L223</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Commit writes all changes to disk and updates the meta page.
+</span></span></span><span class="line"><span class="cl"><span class="c1">// Returns an error if a disk write error occurs, or if Commit is
+</span></span></span><span class="line"><span class="cl"><span class="c1">// called on a read-only transaction.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">tx</span> <span class="o">*</span><span class="nx">Tx</span><span class="p">)</span> <span class="nf">Commit</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nf">_assert</span><span class="p">(!</span><span class="nx">tx</span><span class="p">.</span><span class="nx">managed</span><span class="p">,</span> <span class="s">&#34;managed tx commit not allowed&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">tx</span><span class="p">.</span><span class="nx">db</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">ErrTxClosed</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">!</span><span class="nx">tx</span><span class="p">.</span><span class="nx">writable</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">ErrTxNotWritable</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// TODO(benbjohnson): Use vectorized I/O to write out dirty pages.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// Rebalance nodes which have had deletions.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kd">var</span> <span class="nx">startTime</span> <span class="p">=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">tx</span><span class="p">.</span><span class="nx">root</span><span class="p">.</span><span class="nf">rebalance</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">tx</span><span class="p">.</span><span class="nx">stats</span><span class="p">.</span><span class="nx">Rebalance</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">tx</span><span class="p">.</span><span class="nx">stats</span><span class="p">.</span><span class="nx">RebalanceTime</span> <span class="o">+=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Since</span><span class="p">(</span><span class="nx">startTime</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// spill data onto dirty pages.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">startTime</span> <span class="p">=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">tx</span><span class="p">.</span><span class="nx">root</span><span class="p">.</span><span class="nf">spill</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">tx</span><span class="p">.</span><span class="nf">rollback</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">tx</span><span class="p">.</span><span class="nx">stats</span><span class="p">.</span><span class="nx">SpillTime</span> <span class="o">+=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Since</span><span class="p">(</span><span class="nx">startTime</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Free the old root bucket.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">tx</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="nx">root</span><span class="p">.</span><span class="nx">root</span> <span class="p">=</span> <span class="nx">tx</span><span class="p">.</span><span class="nx">root</span><span class="p">.</span><span class="nx">root</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Free the old freelist because commit writes out a fresh freelist.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">tx</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="nx">freelist</span> <span class="o">!=</span> <span class="nx">pgidNoFreelist</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">freelist</span><span class="p">.</span><span class="nf">free</span><span class="p">(</span><span class="nx">tx</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="nx">txid</span><span class="p">,</span> <span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nf">page</span><span class="p">(</span><span class="nx">tx</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="nx">freelist</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">!</span><span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">NoFreelistSync</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">err</span> <span class="o">:=</span> <span class="nx">tx</span><span class="p">.</span><span class="nf">commitFreelist</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">tx</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="nx">freelist</span> <span class="p">=</span> <span class="nx">pgidNoFreelist</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Write dirty pages to disk.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">startTime</span> <span class="p">=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">tx</span><span class="p">.</span><span class="nf">write</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">tx</span><span class="p">.</span><span class="nf">rollback</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// If strict mode is enabled then perform a consistency check.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// Only the first consistency error is reported in the panic.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">StrictMode</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">ch</span> <span class="o">:=</span> <span class="nx">tx</span><span class="p">.</span><span class="nf">Check</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">var</span> <span class="nx">errs</span> <span class="p">[]</span><span class="kt">string</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">err</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">ch</span>
+</span></span><span class="line"><span class="cl">      <span class="k">if</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">break</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">errs</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">errs</span><span class="p">,</span> <span class="nx">err</span><span class="p">.</span><span class="nf">Error</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">errs</span><span class="p">)</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nb">panic</span><span class="p">(</span><span class="s">&#34;check fail: &#34;</span> <span class="o">+</span> <span class="nx">strings</span><span class="p">.</span><span class="nf">Join</span><span class="p">(</span><span class="nx">errs</span><span class="p">,</span> <span class="s">&#34;\n&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Write meta to disk.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">tx</span><span class="p">.</span><span class="nf">writeMeta</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">tx</span><span class="p">.</span><span class="nf">rollback</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">tx</span><span class="p">.</span><span class="nx">stats</span><span class="p">.</span><span class="nx">WriteTime</span> <span class="o">+=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Since</span><span class="p">(</span><span class="nx">startTime</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Finalize the transaction.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">tx</span><span class="p">.</span><span class="nb">close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Execute commit handlers now that the locks have been removed.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">fn</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">tx</span><span class="p">.</span><span class="nx">commitHandlers</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">fn</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h2 id="ページバッファ">ページバッファ</h2>
+<p><code>Open</code> 関数
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/db.go#L175-L303">db.go#L175-L303</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Open creates and opens a database at the given path.
+</span></span></span><span class="line"><span class="cl"><span class="c1">// If the file does not exist then it will be created automatically.
+</span></span></span><span class="line"><span class="cl"><span class="c1">// Passing in nil options will cause Bolt to open the database with the default options.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">Open</span><span class="p">(</span><span class="nx">path</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">mode</span> <span class="nx">os</span><span class="p">.</span><span class="nx">FileMode</span><span class="p">,</span> <span class="nx">options</span> <span class="o">*</span><span class="nx">Options</span><span class="p">)</span> <span class="p">(</span><span class="o">*</span><span class="nx">DB</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">db</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">DB</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">opened</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// Set default options if no options are provided.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">options</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">options</span> <span class="p">=</span> <span class="nx">DefaultOptions</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">db</span><span class="p">.</span><span class="nx">NoSync</span> <span class="p">=</span> <span class="nx">options</span><span class="p">.</span><span class="nx">NoSync</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">db</span><span class="p">.</span><span class="nx">NoGrowSync</span> <span class="p">=</span> <span class="nx">options</span><span class="p">.</span><span class="nx">NoGrowSync</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">db</span><span class="p">.</span><span class="nx">MmapFlags</span> <span class="p">=</span> <span class="nx">options</span><span class="p">.</span><span class="nx">MmapFlags</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">db</span><span class="p">.</span><span class="nx">NoFreelistSync</span> <span class="p">=</span> <span class="nx">options</span><span class="p">.</span><span class="nx">NoFreelistSync</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">db</span><span class="p">.</span><span class="nx">FreelistType</span> <span class="p">=</span> <span class="nx">options</span><span class="p">.</span><span class="nx">FreelistType</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Set default values for later DB operations.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">db</span><span class="p">.</span><span class="nx">MaxBatchSize</span> <span class="p">=</span> <span class="nx">DefaultMaxBatchSize</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">db</span><span class="p">.</span><span class="nx">MaxBatchDelay</span> <span class="p">=</span> <span class="nx">DefaultMaxBatchDelay</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">db</span><span class="p">.</span><span class="nx">AllocSize</span> <span class="p">=</span> <span class="nx">DefaultAllocSize</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="nx">flag</span> <span class="o">:=</span> <span class="nx">os</span><span class="p">.</span><span class="nx">O_RDWR</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">options</span><span class="p">.</span><span class="nx">ReadOnly</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">flag</span> <span class="p">=</span> <span class="nx">os</span><span class="p">.</span><span class="nx">O_RDONLY</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">db</span><span class="p">.</span><span class="nx">readOnly</span> <span class="p">=</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="nx">db</span><span class="p">.</span><span class="nx">openFile</span> <span class="p">=</span> <span class="nx">options</span><span class="p">.</span><span class="nx">OpenFile</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">db</span><span class="p">.</span><span class="nx">openFile</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">db</span><span class="p">.</span><span class="nx">openFile</span> <span class="p">=</span> <span class="nx">os</span><span class="p">.</span><span class="nx">OpenFile</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Open data file and separate sync handler for metadata writes.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">db</span><span class="p">.</span><span class="nx">path</span> <span class="p">=</span> <span class="nx">path</span>
+</span></span><span class="line"><span class="cl">  <span class="kd">var</span> <span class="nx">err</span> <span class="kt">error</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">db</span><span class="p">.</span><span class="nx">file</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">openFile</span><span class="p">(</span><span class="nx">db</span><span class="p">.</span><span class="nx">path</span><span class="p">,</span> <span class="nx">flag</span><span class="p">|</span><span class="nx">os</span><span class="p">.</span><span class="nx">O_CREATE</span><span class="p">,</span> <span class="nx">mode</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">_</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nb">close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Lock file so that other processes using Bolt in read-write mode cannot
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// use the database  at the same time. This would cause corruption since
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// the two processes would write meta pages and free pages separately.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// The database file is locked exclusively (only one process can grab the lock)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// if !options.ReadOnly.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// The database file is locked using the shared lock (more than one process may
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// hold a lock at the same time) otherwise (options.ReadOnly is set).
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">flock</span><span class="p">(</span><span class="nx">db</span><span class="p">,</span> <span class="p">!</span><span class="nx">db</span><span class="p">.</span><span class="nx">readOnly</span><span class="p">,</span> <span class="nx">options</span><span class="p">.</span><span class="nx">Timeout</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">_</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nb">close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Default values for test hooks
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">db</span><span class="p">.</span><span class="nx">ops</span><span class="p">.</span><span class="nx">writeAt</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nx">file</span><span class="p">.</span><span class="nx">WriteAt</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span> <span class="p">=</span> <span class="nx">options</span><span class="p">.</span><span class="nx">PageSize</span><span class="p">;</span> <span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Set the default page size to the OS page size.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span> <span class="p">=</span> <span class="nx">defaultPageSize</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Initialize the database if it doesn&#39;t exist.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">info</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nx">file</span><span class="p">.</span><span class="nf">Stat</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">_</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nb">close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="nx">info</span><span class="p">.</span><span class="nf">Size</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Initialize new files with meta pages.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">init</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="c1">// clean up file descriptor on initialization fail
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="nx">_</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nb">close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Read the first meta page to determine the page size.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="kd">var</span> <span class="nx">buf</span> <span class="p">[</span><span class="mh">0x1000</span><span class="p">]</span><span class="kt">byte</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// If we can&#39;t read the page size, but can read a page, assume
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// it&#39;s the same as the OS or one given -- since that&#39;s how the
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// page size was chosen in the first place.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// If the first page is invalid and this OS uses a different
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// page size than what the database was created with then we
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// are out of luck and cannot access the database.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// TODO: scan for next page
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="nx">bw</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nx">file</span><span class="p">.</span><span class="nf">ReadAt</span><span class="p">(</span><span class="nx">buf</span><span class="p">[:],</span> <span class="mi">0</span><span class="p">);</span> <span class="nx">err</span> <span class="o">==</span> <span class="kc">nil</span> <span class="o">&amp;&amp;</span> <span class="nx">bw</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="nx">buf</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">if</span> <span class="nx">m</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">pageInBuffer</span><span class="p">(</span><span class="nx">buf</span><span class="p">[:],</span> <span class="mi">0</span><span class="p">).</span><span class="nf">meta</span><span class="p">();</span> <span class="nx">m</span><span class="p">.</span><span class="nf">validate</span><span class="p">()</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span> <span class="p">=</span> <span class="nb">int</span><span class="p">(</span><span class="nx">m</span><span class="p">.</span><span class="nx">pageSize</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">_</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nb">close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">ErrInvalid</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Initialize page pool.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">db</span><span class="p">.</span><span class="nx">pagePool</span> <span class="p">=</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">Pool</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">New</span><span class="p">:</span> <span class="kd">func</span><span class="p">()</span> <span class="kd">interface</span><span class="p">{}</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">},</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Memory map the data file.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">mmap</span><span class="p">(</span><span class="nx">options</span><span class="p">.</span><span class="nx">InitialMmapSize</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">_</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nb">close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">db</span><span class="p">.</span><span class="nx">readOnly</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">db</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="nx">db</span><span class="p">.</span><span class="nf">loadFreelist</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Flush freelist when transitioning from no sync to sync so
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// NoFreelistSync unaware boltdb can open the db later.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="p">!</span><span class="nx">db</span><span class="p">.</span><span class="nx">NoFreelistSync</span> <span class="o">&amp;&amp;</span> <span class="p">!</span><span class="nx">db</span><span class="p">.</span><span class="nf">hasSyncedFreelist</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">tx</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">Begin</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">tx</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">err</span> <span class="p">=</span> <span class="nx">tx</span><span class="p">.</span><span class="nf">Commit</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">_</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nb">close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Mark the database as opened and return.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">return</span> <span class="nx">db</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>flock</code> の <code>unix</code> (<code>+build !windows,!plan9,!solaris,!aix</code>)での実装。
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/bolt_unix.go#L12-L42">bolt_unix.go#L12-L42</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// flock acquires an advisory lock on a file descriptor.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">flock</span><span class="p">(</span><span class="nx">db</span> <span class="o">*</span><span class="nx">DB</span><span class="p">,</span> <span class="nx">exclusive</span> <span class="kt">bool</span><span class="p">,</span> <span class="nx">timeout</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Duration</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="kd">var</span> <span class="nx">t</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">timeout</span> <span class="o">!=</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">t</span> <span class="p">=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">fd</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nx">file</span><span class="p">.</span><span class="nf">Fd</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">flag</span> <span class="o">:=</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">LOCK_NB</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">exclusive</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">flag</span> <span class="o">|=</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">LOCK_EX</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">flag</span> <span class="o">|=</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">LOCK_SH</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">for</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Attempt to obtain an exclusive lock.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">err</span> <span class="o">:=</span> <span class="nx">syscall</span><span class="p">.</span><span class="nf">Flock</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nx">fd</span><span class="p">),</span> <span class="nx">flag</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">EWOULDBLOCK</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// If we timed out then return an error.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="nx">timeout</span> <span class="o">!=</span> <span class="mi">0</span> <span class="o">&amp;&amp;</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Since</span><span class="p">(</span><span class="nx">t</span><span class="p">)</span> <span class="p">&gt;</span> <span class="nx">timeout</span><span class="o">-</span><span class="nx">flockRetryTimeout</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="nx">ErrTimeout</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// Wait for a bit and try again.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">time</span><span class="p">.</span><span class="nf">Sleep</span><span class="p">(</span><span class="nx">flockRetryTimeout</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><ul>
+<li><code>syscall.Flock</code> を呼んで <code>syscall.EWOULDBLOCK</code> が返ってきたときは以下のようにリトライ。</li>
+<li><code>timeout</code> が <code>0</code> だったときは <code>flockRetryTimeout</code> の間隔で成功するか <code>syscall.EWOULDBLOCK</code> 以外のエラーになるまでリトライ。</li>
+<li><code>timeout</code> が <code>0</code> 以外のときは <code>flock</code> の開始から <code>timeout</code> の間までは <code>flockRetryTimeout</code> の間隔でリトライ。</li>
+</ul>
+<p><code>defaultPageSize</code> 変数
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/db.go#L40-L41">db.go#L40-L41</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// default page size for db is set to the OS page size.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">var</span> <span class="nx">defaultPageSize</span> <span class="p">=</span> <span class="nx">os</span><span class="p">.</span><span class="nf">Getpagesize</span><span class="p">()</span>
+</span></span></code></pre></div><p>オプションでページサイズを指定しなかったときは OS のページサイズが使用される。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span> <span class="p">=</span> <span class="nx">options</span><span class="p">.</span><span class="nx">PageSize</span><span class="p">;</span> <span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Set the default page size to the OS page size.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span> <span class="p">=</span> <span class="nx">defaultPageSize</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span></code></pre></div><p>ページプール。ページサイズのバイト列を <code>sync.Pool</code> のオブジェクトプールで管理・再利用する。</p>
+<pre tabindex="0"><code>  // Initialize page pool.
+  db.pagePool = sync.Pool{
+    New: func() interface{} {
+      return make([]byte, db.pageSize)
+    },
+  }
+</code></pre><p><code>DB</code> の <code>mmap</code> メソッド
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/db.go#L326-L378">db.go#L326-L378</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// mmap opens the underlying memory-mapped file and initializes the meta references.
+</span></span></span><span class="line"><span class="cl"><span class="c1">// minsz is the minimum size that the new mmap can be.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">db</span> <span class="o">*</span><span class="nx">DB</span><span class="p">)</span> <span class="nf">mmap</span><span class="p">(</span><span class="nx">minsz</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">db</span><span class="p">.</span><span class="nx">mmaplock</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="k">defer</span> <span class="nx">db</span><span class="p">.</span><span class="nx">mmaplock</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="nx">info</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nx">file</span><span class="p">.</span><span class="nf">Stat</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;mmap stat error: %s&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="nx">info</span><span class="p">.</span><span class="nf">Size</span><span class="p">())</span> <span class="p">&lt;</span> <span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span><span class="o">*</span><span class="mi">2</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;file size too small&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Ensure the size is at least the minimum size.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kd">var</span> <span class="nx">size</span> <span class="p">=</span> <span class="nb">int</span><span class="p">(</span><span class="nx">info</span><span class="p">.</span><span class="nf">Size</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">size</span> <span class="p">&lt;</span> <span class="nx">minsz</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">size</span> <span class="p">=</span> <span class="nx">minsz</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">size</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">mmapSize</span><span class="p">(</span><span class="nx">size</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Dereference all mmap references before unmapping.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">db</span><span class="p">.</span><span class="nx">rwtx</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">db</span><span class="p">.</span><span class="nx">rwtx</span><span class="p">.</span><span class="nx">root</span><span class="p">.</span><span class="nf">dereference</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Unmap existing data before continuing.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">munmap</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Memory-map the data file as a byte slice.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">mmap</span><span class="p">(</span><span class="nx">db</span><span class="p">,</span> <span class="nx">size</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Save references to the meta pages.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">db</span><span class="p">.</span><span class="nx">meta0</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">page</span><span class="p">(</span><span class="mi">0</span><span class="p">).</span><span class="nf">meta</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">db</span><span class="p">.</span><span class="nx">meta1</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">page</span><span class="p">(</span><span class="mi">1</span><span class="p">).</span><span class="nf">meta</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Validate the meta pages. We only return an error if both meta pages fail
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// validation, since meta0 failing validation means that it wasn&#39;t saved
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// properly -- but we can recover using meta1. And vice-versa.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">err0</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nx">meta0</span><span class="p">.</span><span class="nf">validate</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">err1</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nx">meta1</span><span class="p">.</span><span class="nf">validate</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">err0</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">&amp;&amp;</span> <span class="nx">err1</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err0</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>DB</code> の <code>mmapSize</code> メソッド
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/db.go#L388-L423">db.go#L388-L423</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// mmapSize determines the appropriate size for the mmap given the current size
+</span></span></span><span class="line"><span class="cl"><span class="c1">// of the database. The minimum size is 32KB and doubles until it reaches 1GB.
+</span></span></span><span class="line"><span class="cl"><span class="c1">// Returns an error if the new mmap size is greater than the max allowed.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">db</span> <span class="o">*</span><span class="nx">DB</span><span class="p">)</span> <span class="nf">mmapSize</span><span class="p">(</span><span class="nx">size</span> <span class="kt">int</span><span class="p">)</span> <span class="p">(</span><span class="kt">int</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// Double the size from 32KB until 1GB.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="nb">uint</span><span class="p">(</span><span class="mi">15</span><span class="p">);</span> <span class="nx">i</span> <span class="o">&lt;=</span> <span class="mi">30</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">size</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="o">&lt;&lt;</span><span class="nx">i</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="nx">i</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Verify the requested size is not above the maximum allowed.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">size</span> <span class="p">&gt;</span> <span class="nx">maxMapSize</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;mmap too large&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// If larger than 1GB then grow by 1GB at a time.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">sz</span> <span class="o">:=</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">size</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">remainder</span> <span class="o">:=</span> <span class="nx">sz</span> <span class="o">%</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">maxMmapStep</span><span class="p">);</span> <span class="nx">remainder</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">sz</span> <span class="o">+=</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">maxMmapStep</span><span class="p">)</span> <span class="o">-</span> <span class="nx">remainder</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Ensure that the mmap size is a multiple of the page size.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// This should always be true since we&#39;re incrementing in MBs.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">pageSize</span> <span class="o">:=</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="nx">sz</span> <span class="o">%</span> <span class="nx">pageSize</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">sz</span> <span class="p">=</span> <span class="p">((</span><span class="nx">sz</span> <span class="o">/</span> <span class="nx">pageSize</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="nx">pageSize</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// If we&#39;ve exceeded the max size then only grow up to the max size.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">sz</span> <span class="p">&gt;</span> <span class="nx">maxMapSize</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">sz</span> <span class="p">=</span> <span class="nx">maxMapSize</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="nx">sz</span><span class="p">),</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><ul>
+<li>最低 32KiB から 1GiB まで倍倍で増やして引数 <code>size</code> 以上になったらその値を返す。</li>
+<li><code>size</code> が <code>maxMmapStep</code> (amd64の場合は256TiB) より多い場合はエラー。</li>
+<li>256TiB 以下の場合は 1GiB 単位に切り上げ。</li>
+<li>1GiB 単位に切り上げた後ページサイズ単位で切り上げ。</li>
+<li>切り上げた結果が <code>maxMmapStep</code> より大きい場合は <code>maxMmapStep</code> にする。</li>
+</ul>
+<p>amd64 での <code>maxMapSize</code> 定数
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/bolt_amd64.go#L3-L4">bolt_amd64.go#L3-L4</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// maxMapSize represents the largest mmap size supported by Bolt.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">const</span> <span class="nx">maxMapSize</span> <span class="p">=</span> <span class="mh">0xFFFFFFFFFFFF</span> <span class="c1">// 256TB
+</span></span></span></code></pre></div><p><code>mmap</code> 関数 (<code>+build !windows,!plan9,!solaris,!aix</code>)
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/bolt_unix.go#L49-L69">bolt_unix.go#L49-L69</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// mmap memory maps a DB&#39;s data file.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">mmap</span><span class="p">(</span><span class="nx">db</span> <span class="o">*</span><span class="nx">DB</span><span class="p">,</span> <span class="nx">sz</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// Map the data file to memory.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">b</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">syscall</span><span class="p">.</span><span class="nf">Mmap</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nx">db</span><span class="p">.</span><span class="nx">file</span><span class="p">.</span><span class="nf">Fd</span><span class="p">()),</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">sz</span><span class="p">,</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">PROT_READ</span><span class="p">,</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">MAP_SHARED</span><span class="p">|</span><span class="nx">db</span><span class="p">.</span><span class="nx">MmapFlags</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Advise the kernel that the mmap is accessed randomly.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">err</span> <span class="p">=</span> <span class="nf">madvise</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">MADV_RANDOM</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">&amp;&amp;</span> <span class="nx">err</span> <span class="o">!=</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">ENOSYS</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Ignore not implemented error in kernel because it still works.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">return</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;madvise: %s&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Save the original byte slice and convert to a byte array pointer.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">db</span><span class="p">.</span><span class="nx">dataref</span> <span class="p">=</span> <span class="nx">b</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">db</span><span class="p">.</span><span class="nx">data</span> <span class="p">=</span> <span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nx">maxMapSize</span><span class="p">]</span><span class="kt">byte</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">db</span><span class="p">.</span><span class="nx">datasz</span> <span class="p">=</span> <span class="nx">sz</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><ul>
+<li><code>Open</code> 関数内で開いたファイル <code>db.file</code> に対して <code>syscall.Mmap</code> でメモリマッピングしている。 参考: <a href="https://manpages.ubuntu.com/manpages/bionic/en/man2/mmap.2.html">mmap (2)</a></li>
+<li><code>syscall.PROT_READ</code> を指定しているので読み取りのみ（書き込みは mmap 経由ではなくファイル書き込みで実装している。下記参照）</li>
+<li><code>madvise</code> で <code>syscall.MADV_RANDOM</code> を指定しランダムにアクセスされることをカーネルにアドヴァイスしている。</li>
+<li><code>syscallMmap</code> したメモリ領域を <code>db.dataref</code> に保存。これは <code>syscall.Munmap</code> を呼ぶときにのみ使用。</li>
+<li>またそれを <code>unsafe.Pointer</code> 経由で <code>*[maxMapSize]byte</code> 型にキャストしたものを <code>db.data</code> に保存。</li>
+</ul>
+<p><code>madvise</code> 関数。
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/bolt_unix.go#L86-L93">bolt_unix.go#L86-L93</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// NOTE: This function is copied from stdlib because it is not available on darwin.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">madvise</span><span class="p">(</span><span class="nx">b</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">advice</span> <span class="kt">int</span><span class="p">)</span> <span class="p">(</span><span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">_</span><span class="p">,</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">e1</span> <span class="o">:=</span> <span class="nx">syscall</span><span class="p">.</span><span class="nf">Syscall</span><span class="p">(</span><span class="nx">syscall</span><span class="p">.</span><span class="nx">SYS_MADVISE</span><span class="p">,</span> <span class="nb">uintptr</span><span class="p">(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">b</span><span class="p">[</span><span class="mi">0</span><span class="p">])),</span> <span class="nb">uintptr</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nx">b</span><span class="p">)),</span> <span class="nb">uintptr</span><span class="p">(</span><span class="nx">advice</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">e1</span> <span class="o">!=</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">err</span> <span class="p">=</span> <span class="nx">e1</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>db.data</code> の利用箇所は <code>DB</code> の <code>Info</code> メソッドと <code>page</code> メソッド。
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/db.go#L877-L887">db.go#L877-L887</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// This is for internal access to the raw data bytes from the C cursor, use
+</span></span></span><span class="line"><span class="cl"><span class="c1">// carefully, or not at all.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">db</span> <span class="o">*</span><span class="nx">DB</span><span class="p">)</span> <span class="nf">Info</span><span class="p">()</span> <span class="o">*</span><span class="nx">Info</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="o">&amp;</span><span class="nx">Info</span><span class="p">{</span><span class="nb">uintptr</span><span class="p">(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">db</span><span class="p">.</span><span class="nx">data</span><span class="p">[</span><span class="mi">0</span><span class="p">])),</span> <span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// page retrieves a page reference from the mmap based on the current page size.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">db</span> <span class="o">*</span><span class="nx">DB</span><span class="p">)</span> <span class="nf">page</span><span class="p">(</span><span class="nx">id</span> <span class="nx">pgid</span><span class="p">)</span> <span class="o">*</span><span class="nx">page</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">pos</span> <span class="o">:=</span> <span class="nx">id</span> <span class="o">*</span> <span class="nf">pgid</span><span class="p">(</span><span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="p">(</span><span class="o">*</span><span class="nx">page</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">db</span><span class="p">.</span><span class="nx">data</span><span class="p">[</span><span class="nx">pos</span><span class="p">]))</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>Info</code> メソッドのコメントには C カーソルからの生のデータバイト列とあるが、コードを見ると最初のページを <code>Info</code> 型としてアクセスしている。</p>
+<p><code>Info</code> 型
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/db.go#L1109-L1112">db.go#L1109-L1112</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Info</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">Data</span>     <span class="kt">uintptr</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">PageSize</span> <span class="kt">int</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>型定義を見ると実際のアプリケーションではあまり使い道無さそう。</p>
+<h2 id="ファイルへの書き込み">ファイルへの書き込み</h2>
+<p><code>Open</code> 関数内で <code>db.ops.writeAt</code> に <code>db.file</code> (<code>*os.File</code> 型)の <code>WriteAt</code> メソッド <a href="https://golang.org/pkg/os/#File.WriteAt">(*os.File).WriteAt</a> を指定している。
+<code>db.file.WriteAt</code> を直接使用しないのはテストの際に <code>db.ops.writeAt</code> を差し替えるため。
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/db.go#L228-L229">db.go#L228-L229</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl">  <span class="c1">// Default values for test hooks
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">db</span><span class="p">.</span><span class="nx">ops</span><span class="p">.</span><span class="nx">writeAt</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nx">file</span><span class="p">.</span><span class="nx">WriteAt</span>
+</span></span></code></pre></div><p><code>db.ops.writeAt</code> の利用箇所は以下の3か所。</p>
+<ul>
+<li><code>DB</code> の <code>Init</code> メソッド <a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/db.go#L425-L467">db.go#L425-L467</a></li>
+<li><code>tx</code> の <code>write</code> メソッド <a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/tx.go#L513-L584">tx.go#L513-L584</a></li>
+<li><code>tx</code> の <code>writeMeta</code> メソッド <a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/tx.go#L586-L607">tx.go#L586-L607</a></li>
+</ul>
+<h3 id="db-の-init-メソッドの実装"><code>DB</code> の <code>Init</code> メソッドの実装</h3>
+<p><code>DB</code> の <code>Init</code> メソッドは <code>Open</code> 関数内でファイルを <code>os.O_CREATE</code> フラグありで開いて作成したとき (ファイルサイズが 0 だったかで判定) に呼ばれる。</p>
+<p><a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/db.go#L425-L467">db.go#L425-L467</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// init creates a new database file and initializes its meta pages.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">db</span> <span class="o">*</span><span class="nx">DB</span><span class="p">)</span> <span class="nf">init</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// Create two meta pages on a buffer.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">buf</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span><span class="o">*</span><span class="mi">4</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="mi">2</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">p</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">pageInBuffer</span><span class="p">(</span><span class="nx">buf</span><span class="p">[:],</span> <span class="nf">pgid</span><span class="p">(</span><span class="nx">i</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">p</span><span class="p">.</span><span class="nx">id</span> <span class="p">=</span> <span class="nf">pgid</span><span class="p">(</span><span class="nx">i</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">p</span><span class="p">.</span><span class="nx">flags</span> <span class="p">=</span> <span class="nx">metaPageFlag</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// Initialize the meta page.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">m</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nf">meta</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">m</span><span class="p">.</span><span class="nx">magic</span> <span class="p">=</span> <span class="nx">magic</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">m</span><span class="p">.</span><span class="nx">version</span> <span class="p">=</span> <span class="nx">version</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">m</span><span class="p">.</span><span class="nx">pageSize</span> <span class="p">=</span> <span class="nb">uint32</span><span class="p">(</span><span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">m</span><span class="p">.</span><span class="nx">freelist</span> <span class="p">=</span> <span class="mi">2</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">m</span><span class="p">.</span><span class="nx">root</span> <span class="p">=</span> <span class="nx">bucket</span><span class="p">{</span><span class="nx">root</span><span class="p">:</span> <span class="mi">3</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">m</span><span class="p">.</span><span class="nx">pgid</span> <span class="p">=</span> <span class="mi">4</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">m</span><span class="p">.</span><span class="nx">txid</span> <span class="p">=</span> <span class="nf">txid</span><span class="p">(</span><span class="nx">i</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">m</span><span class="p">.</span><span class="nx">checksum</span> <span class="p">=</span> <span class="nx">m</span><span class="p">.</span><span class="nf">sum64</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Write an empty freelist at page 3.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">p</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">pageInBuffer</span><span class="p">(</span><span class="nx">buf</span><span class="p">[:],</span> <span class="nf">pgid</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">p</span><span class="p">.</span><span class="nx">id</span> <span class="p">=</span> <span class="nf">pgid</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">p</span><span class="p">.</span><span class="nx">flags</span> <span class="p">=</span> <span class="nx">freelistPageFlag</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">p</span><span class="p">.</span><span class="nx">count</span> <span class="p">=</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Write an empty leaf page at page 4.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">p</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">pageInBuffer</span><span class="p">(</span><span class="nx">buf</span><span class="p">[:],</span> <span class="nf">pgid</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">p</span><span class="p">.</span><span class="nx">id</span> <span class="p">=</span> <span class="nf">pgid</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">p</span><span class="p">.</span><span class="nx">flags</span> <span class="p">=</span> <span class="nx">leafPageFlag</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">p</span><span class="p">.</span><span class="nx">count</span> <span class="p">=</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Write the buffer to our data file.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nx">ops</span><span class="p">.</span><span class="nf">writeAt</span><span class="p">(</span><span class="nx">buf</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">fdatasync</span><span class="p">(</span><span class="nx">db</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><ul>
+<li>先頭4ページの内容をセットアップしてファイルに書き込む。</li>
+<li>最初の2ページはメタデータ、3ページ目は空のフリーリスト、4ページ目は空のリーフページ。</li>
+</ul>
+<h3 id="tx-の-write-メソッド"><code>tx</code> の <code>write</code> メソッド</h3>
+<p><a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/tx.go#L513-L584">tx.go#L513-L584</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// write writes any dirty pages to disk.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">tx</span> <span class="o">*</span><span class="nx">Tx</span><span class="p">)</span> <span class="nf">write</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// Sort pages by id.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">pages</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="nx">pages</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nx">tx</span><span class="p">.</span><span class="nx">pages</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">  <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">p</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">tx</span><span class="p">.</span><span class="nx">pages</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">pages</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">pages</span><span class="p">,</span> <span class="nx">p</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// Clear out page cache early.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">tx</span><span class="p">.</span><span class="nx">pages</span> <span class="p">=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="o">*</span><span class="nx">page</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">sort</span><span class="p">.</span><span class="nf">Sort</span><span class="p">(</span><span class="nx">pages</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Write pages to disk in order.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">p</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">pages</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">size</span> <span class="o">:=</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">overflow</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">offset</span> <span class="o">:=</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">id</span><span class="p">)</span> <span class="o">*</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// Write out page in &#34;max allocation&#34; sized chunks.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">ptr</span> <span class="o">:=</span> <span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nx">maxAllocSize</span><span class="p">]</span><span class="kt">byte</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="nx">p</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="c1">// Limit our write to our max allocation size.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="nx">sz</span> <span class="o">:=</span> <span class="nx">size</span>
+</span></span><span class="line"><span class="cl">      <span class="k">if</span> <span class="nx">sz</span> <span class="p">&gt;</span> <span class="nx">maxAllocSize</span><span class="o">-</span><span class="mi">1</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">sz</span> <span class="p">=</span> <span class="nx">maxAllocSize</span> <span class="o">-</span> <span class="mi">1</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">      <span class="c1">// Write chunk to disk.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="nx">buf</span> <span class="o">:=</span> <span class="nx">ptr</span><span class="p">[:</span><span class="nx">sz</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">      <span class="k">if</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">ops</span><span class="p">.</span><span class="nf">writeAt</span><span class="p">(</span><span class="nx">buf</span><span class="p">,</span> <span class="nx">offset</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">      <span class="c1">// Update statistics.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="nx">tx</span><span class="p">.</span><span class="nx">stats</span><span class="p">.</span><span class="nx">Write</span><span class="o">++</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">      <span class="c1">// Exit inner for loop if we&#39;ve written all the chunks.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="nx">size</span> <span class="o">-=</span> <span class="nx">sz</span>
+</span></span><span class="line"><span class="cl">      <span class="k">if</span> <span class="nx">size</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">break</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">      <span class="c1">// Otherwise move offset forward and move pointer to next chunk.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="nx">offset</span> <span class="o">+=</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">sz</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">ptr</span> <span class="p">=</span> <span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nx">maxAllocSize</span><span class="p">]</span><span class="kt">byte</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">ptr</span><span class="p">[</span><span class="nx">sz</span><span class="p">]))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Ignore file sync if flag is set on DB.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="p">!</span><span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">NoSync</span> <span class="o">||</span> <span class="nx">IgnoreNoSync</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">fdatasync</span><span class="p">(</span><span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Put small pages back to page pool.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">p</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">pages</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Ignore page sizes over 1 page.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// These are allocated using make() instead of the page pool.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">overflow</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">continue</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nx">buf</span> <span class="o">:=</span> <span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nx">maxAllocSize</span><span class="p">]</span><span class="kt">byte</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="nx">p</span><span class="p">))[:</span><span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// See https://go.googlesource.com/go/+/f03c9202c43e0abb130669852082117ca50aa9b1
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">buf</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">buf</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span> <span class="p">=</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">pagePool</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="nx">buf</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><ul>
+<li>このコードから判断するとオーバーフローページがある(<code>p.overflow</code> が 0 より大きい)場合はメモリ上で連続して配置されているようだ。</li>
+<li><code>maxAllocSize</code> 定数が 2GiB-1byte なので最大で 2GiB-2byte の塊で書き出す。</li>
+</ul>
+<p><code>maxAllocSize</code> 定数
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/bolt_amd64.go#L6-L7">bolt_amd64.go#L6-L7</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// maxAllocSize is the size used when creating array pointers.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">const</span> <span class="nx">maxAllocSize</span> <span class="p">=</span> <span class="mh">0x7FFFFFFF</span>
+</span></span></code></pre></div><p><code>maxAllocSize</code> は2GiB-1byte。</p>
+<p><code>pages</code> 型
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/page.go#L90-L94">page.go#L90-L94</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">pages</span> <span class="p">[]</span><span class="o">*</span><span class="nx">page</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="nx">pages</span><span class="p">)</span> <span class="nf">Len</span><span class="p">()</span> <span class="kt">int</span>           <span class="p">{</span> <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="nx">s</span><span class="p">)</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="nx">pages</span><span class="p">)</span> <span class="nf">Swap</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span> <span class="nx">j</span> <span class="kt">int</span><span class="p">)</span>      <span class="p">{</span> <span class="nx">s</span><span class="p">[</span><span class="nx">i</span><span class="p">],</span> <span class="nx">s</span><span class="p">[</span><span class="nx">j</span><span class="p">]</span> <span class="p">=</span> <span class="nx">s</span><span class="p">[</span><span class="nx">j</span><span class="p">],</span> <span class="nx">s</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="nx">pages</span><span class="p">)</span> <span class="nf">Less</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span> <span class="nx">j</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">bool</span> <span class="p">{</span> <span class="k">return</span> <span class="nx">s</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nx">id</span> <span class="p">&lt;</span> <span class="nx">s</span><span class="p">[</span><span class="nx">j</span><span class="p">].</span><span class="nx">id</span> <span class="p">}</span>
+</span></span></code></pre></div><p>ページIDの昇順でソートできるようにしてある。</p>
+<p><code>Tx</code> 型
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/tx.go#L16-L41">tx.go#L16-L41</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Tx represents a read-only or read/write transaction on the database.
+</span></span></span><span class="line"><span class="cl"><span class="c1">// Read-only transactions can be used for retrieving values for keys and creating cursors.
+</span></span></span><span class="line"><span class="cl"><span class="c1">// Read/write transactions can create and remove buckets and create and remove keys.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// IMPORTANT: You must commit or rollback transactions when you are done with
+</span></span></span><span class="line"><span class="cl"><span class="c1">// them. Pages can not be reclaimed by the writer until no more transactions
+</span></span></span><span class="line"><span class="cl"><span class="c1">// are using them. A long running read transaction can cause the database to
+</span></span></span><span class="line"><span class="cl"><span class="c1">// quickly grow.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">Tx</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">writable</span>       <span class="kt">bool</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">managed</span>        <span class="kt">bool</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">db</span>             <span class="o">*</span><span class="nx">DB</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">meta</span>           <span class="o">*</span><span class="nx">meta</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">root</span>           <span class="nx">Bucket</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">pages</span>          <span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="o">*</span><span class="nx">page</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">stats</span>          <span class="nx">TxStats</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">commitHandlers</span> <span class="p">[]</span><span class="kd">func</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// WriteFlag specifies the flag for write-related methods like WriteTo().
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// Tx opens the database file with the specified flag to copy the data.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// By default, the flag is unset, which works well for mostly in-memory
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// workloads. For databases that are much larger than available RAM,
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// set the flag to syscall.O_DIRECT to avoid trashing the page cache.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">WriteFlag</span> <span class="kt">int</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>Tx</code> 型の <code>pages</code> フィールドは <code>map[pgid]*page</code> 型。</p>
+<p><code>Tx</code> 型の <code>page</code> メソッド
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/tx.go#L609-L621">tx.go#L609-L621</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// page returns a reference to the page with a given id.
+</span></span></span><span class="line"><span class="cl"><span class="c1">// If page has been written to then a temporary buffered page is returned.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">tx</span> <span class="o">*</span><span class="nx">Tx</span><span class="p">)</span> <span class="nf">page</span><span class="p">(</span><span class="nx">id</span> <span class="nx">pgid</span><span class="p">)</span> <span class="o">*</span><span class="nx">page</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// Check the dirty pages first.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">tx</span><span class="p">.</span><span class="nx">pages</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">p</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">tx</span><span class="p">.</span><span class="nx">pages</span><span class="p">[</span><span class="nx">id</span><span class="p">];</span> <span class="nx">ok</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="nx">p</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Otherwise return directly from the mmap.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">return</span> <span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nf">page</span><span class="p">(</span><span class="nx">id</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>のコメントによると <code>Tx</code> の <code>pages</code> フィールドにはダーティページ（ページの内容を変更したのでファイルに書き戻す必要があるページ）が保持されている。</p>
+<h3 id="tx-の-writemeta-メソッド"><code>Tx</code> の <code>writeMeta</code> メソッド</h3>
+<p><a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/tx.go#L586-L607">tx.go#L586-L607</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// writeMeta writes the meta to the disk.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">tx</span> <span class="o">*</span><span class="nx">Tx</span><span class="p">)</span> <span class="nf">writeMeta</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// Create a temporary buffer for the meta page.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">buf</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">p</span> <span class="o">:=</span> <span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nf">pageInBuffer</span><span class="p">(</span><span class="nx">buf</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">tx</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="nf">write</span><span class="p">(</span><span class="nx">p</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Write the meta page to file.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">ops</span><span class="p">.</span><span class="nf">writeAt</span><span class="p">(</span><span class="nx">buf</span><span class="p">,</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">id</span><span class="p">)</span><span class="o">*</span><span class="nb">int64</span><span class="p">(</span><span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span><span class="p">));</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">!</span><span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">NoSync</span> <span class="o">||</span> <span class="nx">IgnoreNoSync</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">fdatasync</span><span class="p">(</span><span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Update statistics.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">tx</span><span class="p">.</span><span class="nx">stats</span><span class="p">.</span><span class="nx">Write</span><span class="o">++</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>DB</code> の <code>pageInBuffer</code> メソッド
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/db.go#L889-L892">db.go#L889-L892</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// pageInBuffer retrieves a page reference from a given byte array based on the current page size.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">db</span> <span class="o">*</span><span class="nx">DB</span><span class="p">)</span> <span class="nf">pageInBuffer</span><span class="p">(</span><span class="nx">b</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">id</span> <span class="nx">pgid</span><span class="p">)</span> <span class="o">*</span><span class="nx">page</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="p">(</span><span class="o">*</span><span class="nx">page</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">b</span><span class="p">[</span><span class="nx">id</span><span class="o">*</span><span class="nf">pgid</span><span class="p">(</span><span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span><span class="p">)]))</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>pgid</code> 型
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/page.go#L28">page.go#L28</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">pgid</span> <span class="kt">uint64</span>
+</span></span></code></pre></div><p><code>page</code> 型
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/page.go#L30-L36">page.go#L30-L36</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">page</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">id</span>       <span class="nx">pgid</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">flags</span>    <span class="kt">uint16</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">count</span>    <span class="kt">uint16</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">overflow</span> <span class="kt">uint32</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">ptr</span>      <span class="kt">uintptr</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h3 id="fdatasync-関数"><code>fdatasync</code> 関数</h3>
+<p><code>fdatasync</code> 関数の Linux 用実装
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/bolt_linux.go#L7-L10">bolt_linux.go#L7-L10</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// fdatasync flushes written data to a file descriptor.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">fdatasync</span><span class="p">(</span><span class="nx">db</span> <span class="o">*</span><span class="nx">DB</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">syscall</span><span class="p">.</span><span class="nf">Fdatasync</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nx">db</span><span class="p">.</span><span class="nx">file</span><span class="p">.</span><span class="nf">Fd</span><span class="p">()))</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><ul>
+<li>参考: <a href="https://manpages.ubuntu.com/manpages/bionic/en/man2/fdatasync.2.html">fsync(2), fdatasync(2)</a></li>
+</ul>
+<h4 id="参考-osfilesync-メソッド">参考: <code>(*os.File).Sync</code> メソッド</h4>
+<p>参考: <a href="https://golang.org/pkg/os/#File.Sync">(*os.File).Sync</a> メソッドは <code>fsync</code> 。
+<a href="https://github.com/golang/go/blob/go1.13.5/src/os/file_posix.go#L106-L117">os/file_posix.go#L106-L117</a></p>
+<p><code>os.File</code> 型
+<a href="https://github.com/golang/go/blob/go1.13.5/src/os/types.go#L15-L18">os/types.go#L15-L18</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// File represents an open file descriptor.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">File</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="o">*</span><span class="nx">file</span> <span class="c1">// os specific
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></div><p>unix での <code>file</code> 型
+<a href="https://github.com/golang/go/blob/go1.13.5/src/os/file_unix.go#L45-L56">os/file_unix.go#L45-L56</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// file is the real representation of *File.
+</span></span></span><span class="line"><span class="cl"><span class="c1">// The extra level of indirection ensures that no clients of os
+</span></span></span><span class="line"><span class="cl"><span class="c1">// can overwrite this data, which could cause the finalizer
+</span></span></span><span class="line"><span class="cl"><span class="c1">// to close the wrong file descriptor.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">file</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">pfd</span>         <span class="nx">poll</span><span class="p">.</span><span class="nx">FD</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">name</span>        <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">dirinfo</span>     <span class="o">*</span><span class="nx">dirInfo</span> <span class="c1">// nil unless directory being read
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">nonblock</span>    <span class="kt">bool</span>     <span class="c1">// whether we set nonblocking mode
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">stdoutOrErr</span> <span class="kt">bool</span>     <span class="c1">// whether this is stdout or stderr
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">appendMode</span>  <span class="kt">bool</span>     <span class="c1">// whether file is opened for appending
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></div><p><code>internal/poll.FD</code> 型の <code>Fsync</code> メソッド
+<a href="https://github.com/golang/go/blob/go1.13.5/src/internal/poll/fd_fsync_posix.go#L11-L18">internal/poll/fd_fsync_posix.go#L11-L18</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Fsync wraps syscall.Fsync.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">fd</span> <span class="o">*</span><span class="nx">FD</span><span class="p">)</span> <span class="nf">Fsync</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">fd</span><span class="p">.</span><span class="nf">incref</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">defer</span> <span class="nx">fd</span><span class="p">.</span><span class="nf">decref</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">syscall</span><span class="p">.</span><span class="nf">Fsync</span><span class="p">(</span><span class="nx">fd</span><span class="p">.</span><span class="nx">Sysfd</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h3 id="fdatasync-関数が呼ばれる条件"><code>fdatasync</code> 関数が呼ばれる条件</h3>
+<ul>
+<li><code>Tx</code> の <code>write</code> メソッドと <code>writeMeta</code> メソッドでは <code>!tx.db.NoSync || IgnoreNoSync</code> のときは呼ばれる。</li>
+<li><code>Tx</code> の <code>commit</code> メソッドでは常に呼ばれる。</li>
+</ul>
+<p><code>IgnoreNoSync</code> 変数。 OS が OpenBSD の場合は <code>true</code> 。
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/db.go#L27-L31">db.go#L27-L31</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// IgnoreNoSync specifies whether the NoSync field of a DB is ignored when
+</span></span></span><span class="line"><span class="cl"><span class="c1">// syncing changes to a file.  This is required as some operating systems,
+</span></span></span><span class="line"><span class="cl"><span class="c1">// such as OpenBSD, do not have a unified buffer cache (UBC) and writes
+</span></span></span><span class="line"><span class="cl"><span class="c1">// must be synchronized using the msync(2) syscall.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">const</span> <span class="nx">IgnoreNoSync</span> <span class="p">=</span> <span class="nx">runtime</span><span class="p">.</span><span class="nx">GOOS</span> <span class="o">==</span> <span class="s">&#34;openbsd&#34;</span>
+</span></span></code></pre></div><p><code>db.Nosync</code> フィールドは <code>Open</code> 関数で <code>options.NoSync</code> で設定される。
+<a href="https://github.com/etcd-io/bbolt/blob/v1.3.3/db.go#L186">db.go#L186</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl">  <span class="nx">db</span><span class="p">.</span><span class="nx">NoSync</span> <span class="p">=</span> <span class="nx">options</span><span class="p">.</span><span class="nx">NoSync</span>
+</span></span></code></pre></div><p>今回はここまで。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

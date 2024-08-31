@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Ubuntu 18.04でVPN切断後にホスト名解決が動くようにするための回避策 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Ubuntu 18.04でVPN切断後にホスト名解決が動くようにするための回避策</h1>
+  <time datetime=2018-05-06T20:35:00&#43;0900 class="post-date">2018-05-06</time>
+  <nav id="TableOfContents"></nav>
+  <h1 id="はじめに">はじめに</h1>
+<p><a href="/blog/2018/03/31/l2tp-vpn-on-ubuntu-17.10/">Ubuntu 17.10でL2TPのVPN接続を試してみた</a> でVPN切断後にホスト名解決が動かなくなるのでWifiを一旦オフにしてオンにしていたのですが、それよりはマシな回避策を見つけたのでメモです。</p>
+<h1 id="回避策の設定手順">回避策の設定手順</h1>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">cat &lt;&lt;&#39;EOF&#39; | sudo tee /etc/NetworkManager/dispatcher.d/02-workaround-for-vpn-down &gt; /dev/null
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="gp">#</span>!/bin/sh -e
+</span></span><span class="line"><span class="cl"><span class="go">interface=$1 status=$2
+</span></span></span><span class="line"><span class="cl"><span class="go">case $status in
+</span></span></span><span class="line"><span class="cl"><span class="go">    vpn-down)
+</span></span></span><span class="line"><span class="cl"><span class="go">        logger -t workaround-for-vpn restarting systemd-resolved after vpn-down
+</span></span></span><span class="line"><span class="cl"><span class="go">        systemctl restart systemd-resolved
+</span></span></span><span class="line"><span class="cl"><span class="go">        logger -t workaround-for-vpn restarted systemd-resolved after vpn-down: status=$?
+</span></span></span><span class="line"><span class="cl"><span class="go">        ;;
+</span></span></span><span class="line"><span class="cl"><span class="go">esac
+</span></span></span><span class="line"><span class="cl"><span class="go">EOF
+</span></span></span><span class="line"><span class="cl"><span class="go">sudo chmod +x /etc/NetworkManager/dispatcher.d/02-workaround-for-vpn-down
+</span></span></span></code></pre></div><h1 id="回避策の説明">回避策の説明</h1>
+<p>Ubuntu 18.04ではサーバー、デスクトップともに <code>/etc/resolv.conf</code> には <code>nameserver 127.0.0.53</code> という設定があるだけでした。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl"># This file is managed by man:systemd-resolved(8). Do not edit.
+</span></span><span class="line"><span class="cl">#
+</span></span><span class="line"><span class="cl"># This is a dynamic resolv.conf file for connecting local clients to the
+</span></span><span class="line"><span class="cl"># internal DNS stub resolver of systemd-resolved. This file lists all
+</span></span><span class="line"><span class="cl"># configured search domains.
+</span></span><span class="line"><span class="cl">#
+</span></span><span class="line"><span class="cl"># Run &#34;systemd-resolve --status&#34; to see details about the uplink DNS servers
+</span></span><span class="line"><span class="cl"># currently in use.
+</span></span><span class="line"><span class="cl">#
+</span></span><span class="line"><span class="cl"># Third party programs must not access this file directly, but only through the
+</span></span><span class="line"><span class="cl"># symlink at /etc/resolv.conf. To manage man:resolv.conf(5) in a different way,
+</span></span><span class="line"><span class="cl"># replace this symlink by a static file or a different symlink.
+</span></span><span class="line"><span class="cl">#
+</span></span><span class="line"><span class="cl"># See man:systemd-resolved.service(8) for details about the supported modes of
+</span></span><span class="line"><span class="cl"># operation for /etc/resolv.conf.
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">nameserver 127.0.0.53
+</span></span></code></pre></div><p>これで、
+<a href="http://manpages.ubuntu.com/manpages/bionic/en/man8/systemd-resolved.8.html">systemd-resolved (8)</a>
+というサービスと
+<a href="http://manpages.ubuntu.com/manpages/bionic/en/man1/systemd-resolve.1.html">systemd-resolve (1)</a>
+というコマンドの存在を知りました。</p>
+<p>で、VPN切断前後で <code>systemd-resolve --status</code> や <code>systemd-resolve ホスト名</code> などを試していたのですが、ふと systemd-resolved を再起動してみたらどうかと思って試してみたら、うまくいったという感じです。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

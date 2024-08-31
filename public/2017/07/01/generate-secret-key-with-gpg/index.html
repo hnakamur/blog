@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>gpgで秘密鍵を作成する &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>gpgで秘密鍵を作成する</h1>
+  <time datetime=2017-07-01T17:40:00&#43;0900 class="post-date">2017-07-01</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#検証用のlxdコンテナとユーザ作成">検証用のLXDコンテナとユーザ作成</a></li>
+    <li><a href="#gpgで秘密鍵の作成">gpgで秘密鍵の作成</a></li>
+    <li><a href="#秘密鍵のエクスポート">秘密鍵のエクスポート</a></li>
+    <li><a href="#秘密鍵のインポート">秘密鍵のインポート</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>gpgの秘密鍵はdebパッケージを署名するために以前作成していたのですが、ググって適当に済ませていたので手順をメモしておきます。</p>
+<p><a href="http://irtfweb.ifa.hawaii.edu/~lockhart/gpg/">GPG Cheat Sheet</a> のチートシートが便利です。他にも参考にしていたページがあったかもしれませんが忘れました。</p>
+<h2 id="検証用のlxdコンテナとユーザ作成">検証用のLXDコンテナとユーザ作成</h2>
+<p>Ubuntu 16.04 xenialの自宅サーバで既に秘密鍵を作成済みでそちらは触りたくないので、LXDのコンテナでxenialの環境を作って試しました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">lxc launch images:ubuntu/xenial debuild
+</span></span></span><span class="line"><span class="cl"><span class="go">lxc exec debuild bash
+</span></span></span></code></pre></div><p>コンテナ内では以下のコマンドで <code>build</code> というユーザを作ってそれで試しました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">root@debuild:~# useradd -m build
+</span></span></span></code></pre></div><p><code>-m</code> はホームディレクトリを作成するオプションです。
+<code>adduser</code> コマンドだとオプション無しでホームディレクトリも作ってくれますが、こちらは対話式でパスワードの設定も求められます。</p>
+<p>以下のコマンドでユーザを切り替えます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">root@debuild:~# su - build
+</span></span></span></code></pre></div><h2 id="gpgで秘密鍵の作成">gpgで秘密鍵の作成</h2>
+<p>gpgはインストール済みなので、あとは <code>gpg --gen-key</code> コマンドを実行するだけです。
+RSAの4096bitにして有効期限は1年にします。</p>
+<p><a href="https://www.lambdanote.com/products/tls">プロフェッショナルSSL/TLS（紙書籍＋電子書籍） – 技術書出版と販売のラムダノート</a> を読んでからは秘密鍵の有効期限を3年とか無期限とかは止めたほうが良いと思うようになったので1年にしています。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">build@debuild:~$ gpg --gen-key
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg (GnuPG) 1.4.20; Copyright (C) 2015 Free Software Foundation, Inc.
+</span></span></span><span class="line"><span class="cl"><span class="go">This is free software: you are free to change and redistribute it.
+</span></span></span><span class="line"><span class="cl"><span class="go">There is NO WARRANTY, to the extent permitted by law.
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">gpg: directory `/home/build/.gnupg&#39; created
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg: new configuration file `/home/build/.gnupg/gpg.conf&#39; created
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg: WARNING: options in `/home/build/.gnupg/gpg.conf&#39; are not yet active during this run
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg: keyring `/home/build/.gnupg/secring.gpg&#39; created
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg: keyring `/home/build/.gnupg/pubring.gpg&#39; created
+</span></span></span><span class="line"><span class="cl"><span class="go">Please select what kind of key you want:
+</span></span></span><span class="line"><span class="cl"><span class="go">   (1) RSA and RSA (default)
+</span></span></span><span class="line"><span class="cl"><span class="go">   (2) DSA and Elgamal
+</span></span></span><span class="line"><span class="cl"><span class="go">   (3) DSA (sign only)
+</span></span></span><span class="line"><span class="cl"><span class="go">   (4) RSA (sign only)
+</span></span></span><span class="line"><span class="cl"><span class="go">Your selection? 1 ←入力
+</span></span></span><span class="line"><span class="cl"><span class="go">RSA keys may be between 1024 and 4096 bits long.
+</span></span></span><span class="line"><span class="cl"><span class="go">What keysize do you want? (2048) 4096 ←入力
+</span></span></span><span class="line"><span class="cl"><span class="go">Requested keysize is 4096 bits
+</span></span></span><span class="line"><span class="cl"><span class="go">Please specify how long the key should be valid.
+</span></span></span><span class="line"><span class="cl"><span class="go">         0 = key does not expire
+</span></span></span><span class="line"><span class="cl"><span class="go">      &lt;n&gt;  = key expires in n days
+</span></span></span><span class="line"><span class="cl"><span class="go">      &lt;n&gt;w = key expires in n weeks
+</span></span></span><span class="line"><span class="cl"><span class="go">      &lt;n&gt;m = key expires in n months
+</span></span></span><span class="line"><span class="cl"><span class="go">      &lt;n&gt;y = key expires in n years
+</span></span></span><span class="line"><span class="cl"><span class="go">Key is valid for? (0) 1y # ←入力
+</span></span></span><span class="line"><span class="cl"><span class="go">Key expires at Sun 01 Jul 2018 05:14:28 AM UTC
+</span></span></span><span class="line"><span class="cl"><span class="go">Is this correct? (y/N) y ←入力
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">You need a user ID to identify your key; the software constructs the user ID
+</span></span></span><span class="line"><span class="cl"><span class="go">from the Real Name, Comment and Email Address in this form:
+</span></span></span><span class="line"><span class="cl"><span class="go">    &#34;Heinrich Heine (Der Dichter) &lt;heinrichh@duesseldorf.de&gt;&#34;
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">Real name: Hiroaki Nakamura ←入力
+</span></span></span><span class="line"><span class="cl"><span class="go">Email address: hnakamur@gmail.com ←入力
+</span></span></span><span class="line"><span class="cl"><span class="go">Comment: ←適宜入力
+</span></span></span><span class="line"><span class="cl"><span class="go">You selected this USER-ID:
+</span></span></span><span class="line"><span class="cl"><span class="go">    &#34;Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;&#34;
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">Change (N)ame, (C)omment, (E)mail or (O)kay/(Q)uit? O ←入力
+</span></span></span><span class="line"><span class="cl"><span class="go">You need a Passphrase to protect your secret key.
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">Enter passphrase: 設定したいパスフレーズを入力
+</span></span></span><span class="line"><span class="cl"><span class="go">Repeat passphrase: パスフレーズを再入力
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">We need to generate a lot of random bytes. It is a good idea to perform
+</span></span></span><span class="line"><span class="cl"><span class="go">some other action (type on the keyboard, move the mouse, utilize the
+</span></span></span><span class="line"><span class="cl"><span class="go">disks) during the prime generation; this gives the random number
+</span></span></span><span class="line"><span class="cl"><span class="go">generator a better chance to gain enough entropy.
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">Not enough random bytes available.  Please do some other work to give
+</span></span></span><span class="line"><span class="cl"><span class="go">the OS a chance to collect more entropy! (Need 233 more bytes)
+</span></span></span><span class="line"><span class="cl"><span class="go">.+++++
+</span></span></span><span class="line"><span class="cl"><span class="go">.........+++++
+</span></span></span><span class="line"><span class="cl"><span class="go">We need to generate a lot of random bytes. It is a good idea to perform
+</span></span></span><span class="line"><span class="cl"><span class="go">some other action (type on the keyboard, move the mouse, utilize the
+</span></span></span><span class="line"><span class="cl"><span class="go">disks) during the prime generation; this gives the random number
+</span></span></span><span class="line"><span class="cl"><span class="go">generator a better chance to gain enough entropy.
+</span></span></span><span class="line"><span class="cl"><span class="go">...+++++
+</span></span></span><span class="line"><span class="cl"><span class="go">................+++++
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg: /home/build/.gnupg/trustdb.gpg: trustdb created
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg: key DCD07C7F marked as ultimately trusted
+</span></span></span><span class="line"><span class="cl"><span class="go">public and secret key created and signed.
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">gpg: checking the trustdb
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg: 3 marginal(s) needed, 1 complete(s) needed, PGP trust model
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg: depth: 0  valid:   1  signed:   0  trust: 0-, 0q, 0n, 0m, 0f, 1u
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg: next trustdb check due at 2018-07-01
+</span></span></span><span class="line"><span class="cl"><span class="go">pub   4096R/DCD07C7F 2017-07-01 [expires: 2018-07-01]
+</span></span></span><span class="line"><span class="cl"><span class="go">      Key fingerprint = 7114 B54F 36B5 4D85 1872  86B7 189B BBB3 DCD0 7C7F
+</span></span></span><span class="line"><span class="cl"><span class="go">uid                  Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+</span></span></span><span class="line"><span class="cl"><span class="go">sub   4096R/D2DA0362 2017-07-01 [expires: 2018-07-01]
+</span></span></span></code></pre></div><p>途中で <code>Not enough random bytes available.</code> と言われて止まったので、調べてみると
+<a href="https://serverfault.com/questions/214605/gpg-does-not-have-enough-entropy/214618#214618">linux - GPG does not have enough entropy - Server Fault</a> という方法が紹介されていました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo apt install rng-tools
+</span></span></span><span class="line"><span class="cl"><span class="go">sudo rngd -r /dev/urandom
+</span></span></span></code></pre></div><p>試してみたのですが、コンテナの中で実行しても相変わらず止まったままで、コンテナの親ホストで実行すると、コンテナの <code>gpg --gen-key</code> のほうで <code>.+++++</code> と出力されて進むようになりました。</p>
+<h2 id="秘密鍵のエクスポート">秘密鍵のエクスポート</h2>
+<p>他の環境に秘密鍵をコピーしたり、秘密鍵をバックアップするためにエクスポートしておきます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">build@debuild:~$ gpg --export-secret-key -a &#39;Hiroaki Nakamura&#39; &gt; gpg-hnakamur-secret.key.pem
+</span></span></span></code></pre></div><p>生成されたPEMファイルの先頭と終端はこんな感じでした。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">build@debuild:~$ head -4 gpg-hnakamur-secret.key.pem
+</span></span></span><span class="line"><span class="cl"><span class="go">-----BEGIN PGP PRIVATE KEY BLOCK-----
+</span></span></span><span class="line"><span class="cl"><span class="go">Version: GnuPG v1
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">lQdGBFlXL+kBEACmCvShw49DAEGD/hdZ3aAOYK3aYyOJ61uinvih1VyjndxDefLJ
+</span></span></span></code></pre></div><p>.. code-block:: console</p>
+<pre><code>build@debuild:~$ tail -4 gpg-hnakamur-secret.key.pem
+Ej4RU9NnoFQBvSRS+lwRZNp09igV6myNK6/lajF8oHkzH2Nvlz6bYf6OX1m27Cqk
+zVo=
+=6LVK
+-----END PGP PRIVATE KEY BLOCK-----
+</code></pre>
+<h2 id="秘密鍵のインポート">秘密鍵のインポート</h2>
+<p>別のコンテナ <code>debuild2</code> とその中にユーザを作り、そちらに上記の秘密鍵をコピーしてインポートも試してみました。</p>
+<p>冒頭のチートシートでは <code>--allow-secret-key-import</code> オプションを指定しているけど obsolete と言われるとあったので、そちらは指定せずに <code>--import</code> オプションのみ指定してみたら無事インポートできました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">build@debuild2:~$ gpg --import gpg-hnakamur-secret.key.pem
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg: directory `/home/build/.gnupg&#39; created
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg: new configuration file `/home/build/.gnupg/gpg.conf&#39; created
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg: WARNING: options in `/home/build/.gnupg/gpg.conf&#39; are not yet active during this run
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg: keyring `/home/build/.gnupg/secring.gpg&#39; created
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg: keyring `/home/build/.gnupg/pubring.gpg&#39; created
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg: key DCD07C7F: secret key imported
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg: /home/build/.gnupg/trustdb.gpg: trustdb created
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg: key DCD07C7F: public key &#34;Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;&#34; imported
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg: Total number processed: 1
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg:               imported: 1  (RSA: 1)
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg:       secret keys read: 1
+</span></span></span><span class="line"><span class="cl"><span class="go">gpg:   secret keys imported: 1
+</span></span></span></code></pre></div><p>一覧を確認してみるとインポートした鍵が一覧に出ていました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">build@debuild2:~$ gpg --list-key
+</span></span></span><span class="line"><span class="cl"><span class="go">/home/build/.gnupg/pubring.gpg
+</span></span></span><span class="line"><span class="cl"><span class="go">------------------------------
+</span></span></span><span class="line"><span class="cl"><span class="go">pub   4096R/DCD07C7F 2017-07-01 [expires: 2018-07-01]
+</span></span></span><span class="line"><span class="cl"><span class="go">uid                  Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+</span></span></span><span class="line"><span class="cl"><span class="go">sub   4096R/D2DA0362 2017-07-01 [expires: 2018-07-01]
+</span></span></span></code></pre></div>
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

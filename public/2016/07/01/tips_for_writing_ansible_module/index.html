@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>lxd_containerというAnsibleモジュールを書いたときに学んだtips &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>lxd_containerというAnsibleモジュールを書いたときに学んだtips</h1>
+  <time datetime=2016-07-01T22:44:12&#43;0900 class="post-date">2016-07-01</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#モジュールでデバッグ出力は出来ないのでデバッグ情報は戻り値のjsonに入れる">モジュールでデバッグ出力は出来ないのでデバッグ情報は戻り値のJSONに入れる</a></li>
+    <li><a href="#コードフォーマットのチェック">コードフォーマットのチェック</a></li>
+    <li><a href="#ansibleモジュールのチェック">Ansibleモジュールのチェック</a></li>
+    <li><a href="#サードパーティのrequestsを使うとansiblemodule_utilsurlsを使うべきというエラーが出る">サードパーティのrequestsを使うとansible.module_utils.urlsを使うべきというエラーが出る</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>lxd_containerというAnsibleのモジュールを書いたときに学んだtipsのメモです。</p>
+<h2 id="モジュールでデバッグ出力は出来ないのでデバッグ情報は戻り値のjsonに入れる">モジュールでデバッグ出力は出来ないのでデバッグ情報は戻り値のJSONに入れる</h2>
+<p><a href="https://groups.google.com/d/msg/ansible-devel/s0iSb7phnqY/UB9vaLFJAwAJ">ansible-dev MLでの投稿</a>によるとモジュールは何も出力できないとのことなので、デバッグ情報は戻り値のJSONに入れる必要があります。</p>
+<p>Ansible 2.1からはAnsibleModuleクラスでは <code>_verbosity</code>、それ以外では <code>_ansible_verbosity</code> で <code>-v</code>, <code>-vv</code>, <code>-vvv</code>, <code>-vvvv</code> を指定した場合の <code>v</code> の個数が取得できるので、それに応じて戻り値のJSONにデバッグ情報を含めるかどうか制御することが出来ます。値は <code>-v</code> を指定しない場合は 0 で、 <code>-vvvv</code> だと4という感じです。</p>
+<h2 id="コードフォーマットのチェック">コードフォーマットのチェック</h2>
+<p><a href="https://github.com/ansible/ansible-modules-extras/pull/2208#discussion_r62996064">Ansibleのコミッタの方からのコメント</a> で <code>pep8</code> というツールでコードフォーマットのチェックを行っているということを知りました。</p>
+<pre tabindex="0"><code>pep8 -r --ignore=E501,E221,W291,W391,E302,E251,E203,W293,E231,E303,E201,E225,E261,E241,E402 *.py
+</code></pre><p>という感じで使います。 pep8はUbuntu 16.04 では <code>sudo apt install pep8</code> でインストールできました。</p>
+<h2 id="ansibleモジュールのチェック">Ansibleモジュールのチェック</h2>
+<p><a href="https://github.com/ansible/ansible-modules-extras">ansible/ansible-modules-extras</a> にプルリクエストを送ると Travis CI でチェックが走るのですが、そのチェックの1つで <code>ansible-validate-modules</code> というコマンドが使われていました。</p>
+<p>いろいろチェックしているようなのですが、例えばモジュール内にYAMLで書いたドキュメントの書式が間違っていると <code>ansible-validate-modules</code> エラーになりました。コミットをプッシュしてからエラーになると面倒なのでローカルで先にチェックしておくのが良いです。</p>
+<p>私はPythonのvirtualenv環境内で <code>pip install ansible-testing</code> でインストールしました。</p>
+<pre tabindex="0"><code>ansible-validate-modules 対象ディレクトリ
+</code></pre><p>でチェックできます。</p>
+<h2 id="サードパーティのrequestsを使うとansiblemodule_utilsurlsを使うべきというエラーが出る">サードパーティのrequestsを使うとansible.module_utils.urlsを使うべきというエラーが出る</h2>
+<p><a href="http://docs.python-requests.org/en/master/">Requests: HTTP for Humans</a>を使っているとansible-validate-modulesが <code>ansible.module_utils.urls</code> を使うべきという<a href="https://github.com/ansible/ansible-modules-extras/pull/2208#issuecomment-228027653">エラーを出してきます</a>。</p>
+<p>今回書いたlxd_containerモジュールは<a href="https://github.com/lxc/lxd/blob/master/doc/rest-api.md">LXD REST API</a>を使うのですが (1) Unixドメインソケットでの通信、(2) クライアント証明書を使ったhttps通信の2つが必要です。が <code>ansible.module_utils.urls</code> での実現方法がわからなかったので、今回はPython2標準ライブラリのhttplibを使って実装しました。</p>
+<p>サードパーティのライブラリを使わず標準ライブラリを使うことで、lxd_containerモジュールを使うときに依存するライブラリを入れる手間が発生しないので結果的には良かったと思います。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

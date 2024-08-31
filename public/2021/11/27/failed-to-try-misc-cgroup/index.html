@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Misc Cgroup を試そうと調べてみたけど手持ちのCPUが非対応でした &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Misc Cgroup を試そうと調べてみたけど手持ちのCPUが非対応でした</h1>
+  <time datetime=2021-11-27T21:56:08&#43;0900 class="post-date">2021-11-27</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#misc-cgroup-についての調査メモ">Misc Cgroup についての調査メモ</a></li>
+    <li><a href="#amd-の-sev-secure-encrypted-virtualization-について調査">AMD の (SEV Secure Encrypted Virtualization) について調査</a></li>
+    <li><a href="#関連-amd-secure-memory-encryption-sme-は-515-からデフォルト無効になったらしい">関連: AMD Secure Memory Encryption (SME) は 5.15 からデフォルト無効になったらしい</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="https://twitter.com/ten_forward/status/1464396509055635456">https://twitter.com/ten_forward/status/1464396509055635456</a>
+のスレッドを見て Misc Cgroup を試してみようかと調べてみたけど手持ちのハードウェアは非対応で試せなかったというメモです。</p>
+<h2 id="misc-cgroup-についての調査メモ">Misc Cgroup についての調査メモ</h2>
+<p>検索すると cgroup v1 のドキュメント <a href="https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v1/misc.html">Misc controller — The Linux Kernel documentation</a> がヒットしました。</p>
+<p><a href="https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html">Control Group v2 — The Linux Kernel documentation</a> の <a href="https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html#misc">Misc</a> を参照せよとのことです。</p>
+<p>カーネルのビルドコンフィグで <code>CONFIG_CGROUP_MISC</code> が有効になっている必要があるとのこと。</p>
+<p><a href="https://qiita.com/takeoverjp/items/6f4f30cf634307fe25cc">このKernel、どんなKernel？ - Qiita</a> によると Ubuntu では <code>/boot/config-X.Y.Z</code> ファイルでカーネルビルドコンフィグが確認できるとのこと。</p>
+<pre tabindex="0"><code>$ grep CONFIG_CGROUP_MISC /boot/config-5.11.0-40-generic
+</code></pre><p>で確認するとヒット無しでした。</p>
+<p>さらに検索してみると <a href="https://www.phoronix.com/scan.php?page=news_item&amp;px=Linux-5.13-Misc-Cgroup-Control">Linux 5.13 Introducing Misc Cgroup Controller - Phoronix</a> で Misc Cgroup はカーネル 5.13 以降で使えるというのを知りました。</p>
+<p>そこで <a href="https://wiki.ubuntu.com/Kernel/MainlineBuilds">Kernel/MainlineBuilds - Ubuntu Wiki</a> の手順に沿って mainline のカーネル 5.15.5 を入れてみました。以下のようにカーネルのビルドコンフィグで <code>CONFIG_CGROUP_MISC</code> が有効になっていることを確認できました。</p>
+<pre tabindex="0"><code>$ grep CONFIG_CGROUP_MISC /boot/config-5.15.5-051505-generic
+CONFIG_CGROUP_MISC=y
+</code></pre><p><a href="https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html#mounting">Mounting</a> によると cgroup v1 と違って cgroup v2 は単一の階層しか持たないとのことです。</p>
+<p>以下のコマンドを実行すると Ubntu では <code>/sys/fs/cgroup/unified</code> に cgroup2 がマウントされているようです。</p>
+<pre tabindex="0"><code>$ mount | grep cgroup2
+cgroup2 on /sys/fs/cgroup/unified type cgroup2 (rw,nosuid,nodev,noexec,relatime,nsdelegate)
+</code></pre><p><a href="https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html#misc">Misc</a> を見た感じ <code>misc.capacity</code>, <code>misc.current</code>, <code>misc.max</code> というファイルがあるらしい。ということで確認してみましたが私の環境ではありませんでした。</p>
+<pre tabindex="0"><code>$ ls /sys/fs/cgroup/unified/misc*
+ls: cannot access &#39;/sys/fs/cgroup/unified/misc*&#39;: No such file or directory
+</code></pre><p><code>include/linux/misc_cgroup.h</code> に <code>enum misc_res_type</code> があるということで見てみると以下のようになっていました。
+<a href="https://github.com/torvalds/linux/blob/v5.15/include/linux/misc_cgroup.h#L11-L22">include/linux/misc_cgroup.h#L11-L22</a></p>
+<pre tabindex="0"><code>/**
+ * Types of misc cgroup entries supported by the host.
+ */
+enum misc_res_type {
+#ifdef CONFIG_KVM_AMD_SEV
+  /* AMD SEV ASIDs resource */
+  MISC_CG_RES_SEV,
+  /* AMD SEV-ES ASIDs resource */
+  MISC_CG_RES_SEV_ES,
+#endif
+  MISC_CG_RES_TYPES
+};
+</code></pre><p>kernel/cgroup/misc.c のほうも見てみると
+<a href="https://github.com/torvalds/linux/blob/v5.15/kernel/cgroup/misc.c#L19-L27">linux/misc.c#L19-L27</a>
+に以下のように書かれていました。</p>
+<pre tabindex="0"><code>/* Miscellaneous res name, keep it in sync with enum misc_res_type */
+static const char *const isc_res_name[] = {
+#ifdef CONFIG_KVM_AMD_SEV
+  /* AMD SEV ASIDs resource */
+  &#34;sev&#34;,
+  /* AMD SEV-ES ASIDs resource */
+  &#34;sev_es&#34;,
+#endif
+};
+</code></pre><p>ということで AMD の SEV と SEV-ES というものがあるらしいです。</p>
+<h2 id="amd-の-sev-secure-encrypted-virtualization-について調査">AMD の (SEV Secure Encrypted Virtualization) について調査</h2>
+<p>検索すると以下のページが見つかりました。</p>
+<ul>
+<li><a href="https://developer.amd.com/sev/">AMD Secure Encrypted Virtualization (SEV) - AMD</a></li>
+<li><a href="https://www.kernel.org/doc/html/latest/virt/kvm/amd-memory-encryption.html">Secure Encrypted Virtualization (SEV) — The Linux Kernel documentation</a></li>
+<li><a href="https://access.redhat.com/documentation/ja-jp/red_hat_openstack_platform/16.1/html/configuring_the_compute_service_for_instance_creation/configuring-amd-sev-compute-nodes-to-provide-memory-encryption-for-instances">第10章 インスタンスのメモリーを暗号化するための AMD SEV コンピュートノードの設定 Red Hat OpenStack Platform 16.1 | Red Hat Customer Portal</a></li>
+</ul>
+<p>上の Red Hat のページによると「AMD EPYC™ 7002 Series (「Rome」) から利用」できるそうです。</p>
+<p>一方 <a href="https://github.com/AMDESE/AMDSEV/issues/1">What processors support SEV? · Issue #1 · AMDESE/AMDSEV</a> では EPYC のみというコメントや Ryzen PRO も OK と情報が錯綜しています。また AMD Ryzen 7 4800H で lscpu の出力に <code>sev</code> と <code>sev_es</code> が含まれるというコメントもありました。</p>
+<p>残念ながら私の ThinkCentre M75q Tiny Gen2 の Ryzen PRO 4750GE は lscpu の出力に <code>sev</code> も <code>sev_es</code> も含まれていませんでした。</p>
+<p>AMD の <a href="https://www.amd.com/en/products/specifications/processors/">Processor Specifications | AMD</a>
+から <a href="https://www.amd.com/en/product/9081">AMD Ryzen™ 7 4800H | AMD</a> と <a href="https://www.amd.com/en/product/10256">AMD Ryzen™ 7 PRO 4750GE | AMD</a> を見たのですが仮想化技術についての記載は見当たりません。</p>
+<p><a href="https://www.cpuagent.com/cpu/amd-ryzen-7-4800h/specs/nvidia-geforce-rtx-2080-ti?res=1&amp;quality=ultra">AMD Ryzen 7 4800H Full Specifications - CPUAgent</a> では AMD Ryzen 7 4800H Virtualization Technologies が AMD-V, SEV となっていました。 が <a href="https://gadgetversus.com/processor/amd-ryzen-embedded-v1605b-vs-amd-ryzen-7-4800h/">AMD Ryzen Embedded V1605B vs AMD Ryzen 7 4800H - GadgetVersus</a> では AMD Ryzen Embedded V1605B の Crypto engine は Advanced Encryption Standard, Secure Memory Encryption, Secure Encrypted Virtualization と SEV も入っていますが 4800H のほうはハイフンとなってました。ただ AES は入っているはずのにハイフンなのでこのサイトでの 4800H のデータが情報不足な可能性もありそうです。</p>
+<p>なお Linux の AMD SEV 対応については <a href="https://www.phoronix.com/scan.php?page=search&amp;q=AMD+SEV">AMD SEV - Phoronix</a> の検索結果で Phoronix の記事一覧が見られるのでここをチェックするのがよさそうです。</p>
+<p>SEV が使える CPU があれば <a href="https://docs.ovh.com/asia/en/dedicated/enable-and-use-amd-sme-sev/">AMD SME/SEV on Ubuntu 20 | OVH Guides</a> の手順を参考に SME (Secure Memory Encryption) と SEV (Secure Encrypted Virtualization) を有効にできそうです。</p>
+<h2 id="関連-amd-secure-memory-encryption-sme-は-515-からデフォルト無効になったらしい">関連: AMD Secure Memory Encryption (SME) は 5.15 からデフォルト無効になったらしい</h2>
+<p><a href="https://www.phoronix.com/scan.php?page=news_item&amp;px=Linux-SME-No-Default-Use">Linux To No Longer Enable AMD SME Usage By Default Due To Problems With Some Hardware - Phoronix</a></p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

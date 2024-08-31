@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>LXDコンテナで固定IPアドレスを使うための設定 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>LXDコンテナで固定IPアドレスを使うための設定</h1>
+  <time datetime=2016-05-07T18:01:51&#43;0900 class="post-date">2016-05-07</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#2016-08-12-追記">2016-08-12 追記</a></li>
+    <li><a href="#設定まとめ">設定まとめ</a></li>
+    <li><a href="#調査メモ">調査メモ</a>
+      <ul>
+        <li><a href="#lxdのブリッジインターフェースとdnsmasqの設定ファイル">LXDのブリッジインターフェースとdnsmasqの設定ファイル</a></li>
+        <li><a href="#lxd-bridgeserviceの設定変更はreloadではなくrestartが必要">lxd-bridge.serviceの設定変更はreloadではなくrestartが必要</a></li>
+        <li><a href="#dnsmasqの再起動後コンテナの再起動が必要">dnsmasqの再起動後、コンテナの再起動が必要</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+  <h2 id="2016-08-12-追記">2016-08-12 追記</h2>
+<p><code>lxd-bridge</code> サービスを再起動せずに固定IPアドレス設定を更新できるようにするための設定方法を <a href="/blog/2016/08/12/update-lxd-dnsmasq-dhcp-hosts-config-with-sighup/">LXDのdnsmasqの固定IP設定をSIGHUPで更新する · hnakamur&rsquo;s blog at github</a> に書きました。こちらのほうがお勧めです。</p>
+<h2 id="設定まとめ">設定まとめ</h2>
+<p>自分が後から参照することを想定して先に設定方法をまとめます。</p>
+<p>LXDコンテナで固定IPアドレスを使うためには以下の設定が必要です。なお、設定にはroot権限が必要です。</p>
+<p>まず <code>/etc/dnsmasq.conf</code> に以下のようにコンテナ名に対するIPアドレスを指定します。</p>
+<pre tabindex="0"><code>dhcp-host=cent01,10.64.177.101
+dhcp-host=cent02,10.64.177.102
+</code></pre><p><code>lxd-bridge</code> サービスを再起動します。</p>
+<pre tabindex="0"><code>sudo systemctl restart lxd-bridge
+</code></pre><p>IPアドレスを変更したコンテナを再起動します。</p>
+<pre tabindex="0"><code>lxc restart cent01
+lxc restart cent02
+</code></pre><h2 id="調査メモ">調査メモ</h2>
+<p>以下は調査メモです。</p>
+<p>まず <a href="https://github.com/lxc/lxd/issues/1168">Persistent IP for Containers · Issue #1168 · lxc/lxd</a> に固定IPアドレスを使うための情報がありました。LXDで特にサポートはないが、各コンテナでDHCPを使わずに静的IPアドレスを使用するか、あるいはホストのDHCPサーバ側で設定すれば実現できるとのことです。</p>
+<p>各コンテナで静的IPアドレスを使う方法も試してみたのですが、ホストのコンテナ内から別のコンテナをコンテナ名で参照しようとすると変更前のIPアドレスで通信しようとしてしまいうまく行きませんでした。</p>
+<p>これを実現するにはホストのDHCPサーバに各コンテナのIPアドレスを把握してもらう必要があるので、後者のDHCPサーバ側で設定するほうが良いです。</p>
+<h3 id="lxdのブリッジインターフェースとdnsmasqの設定ファイル">LXDのブリッジインターフェースとdnsmasqの設定ファイル</h3>
+<p><a href="https://insights.ubuntu.com/2016/04/07/lxd-networking-lxdbr0-explained/">LXD networking: lxdbr0 explained | Ubuntu Insights</a>と<a href="https://gist.github.com/cronnelly/98345100afe21840267270da3283b371">lxcbr0 is being replaced by lxdbr0</a>によると、 LXCでは <code>lxcbr0</code> というブリッジインターフェースを使っていましたが、LXDでは <code>lxdbr0</code> と別のインターフェースを使うように変更されたそうです。</p>
+<p>これらの記事を見るとLXCの <code>lxcbr0</code> はインストール時に固定のアドレスネットワークが設定されて環境によっては既存のネットワークと衝突するという問題があったので、LXD の <code>lxdbr0</code> ではインストール時にはIPv4やIPv6のサブネットは設定せずに <code>sudo lxd init</code> を実行したときに設定するように変更されたということのようです。</p>
+<p><code>sudo lxd init</code> で生成した <code>lxdbr0</code> 用の設定は <code>/etc/default/lxd-bridge</code> に保存されています。
+ファイルの先頭に書かれていますが、変更したい場合は直接編集せずに <code>dpkg-reconfigure -p medium lxd</code> を実行するのが良いそうです。</p>
+<pre tabindex="0"><code>$ cat /etc/default/lxd-bridge
+# WARNING: This file is generated by a debconf template!
+# It is recommended to update it by using &#34;dpkg-reconfigure -p medium lxd&#34;
+
+# Whether to setup a new bridge or use an existing one
+USE_LXD_BRIDGE=&#34;true&#34;
+
+# Bridge name
+# This is still used even if USE_LXD_BRIDGE is set to false
+# set to an empty value to fully disable
+LXD_BRIDGE=&#34;lxdbr0&#34;
+
+# Update the &#34;default&#34; LXD profile
+UPDATE_PROFILE=&#34;true&#34;
+
+# Path to an extra dnsmasq configuration file
+LXD_CONFILE=&#34;&#34;
+
+# DNS domain for the bridge
+LXD_DOMAIN=&#34;lxd&#34;
+
+# IPv4
+## IPv4 address (e.g. 10.0.8.1)
+LXD_IPV4_ADDR=&#34;10.16.29.1&#34;
+
+## IPv4 netmask (e.g. 255.255.255.0)
+LXD_IPV4_NETMASK=&#34;255.255.255.0&#34;
+
+## IPv4 network (e.g. 10.0.8.0/24)
+LXD_IPV4_NETWORK=&#34;10.16.29.1/24&#34;
+
+## IPv4 DHCP range (e.g. 10.0.8.2,10.0.8.254)
+LXD_IPV4_DHCP_RANGE=&#34;10.16.29.2,10.16.29.254&#34;
+
+## IPv4 DHCP number of hosts (e.g. 250)
+LXD_IPV4_DHCP_MAX=&#34;252&#34;
+
+## NAT IPv4 traffic
+LXD_IPV4_NAT=&#34;true&#34;
+
+# IPv6
+## IPv6 address (e.g. 2001:470:b368:4242::1)
+LXD_IPV6_ADDR=&#34;fd94:d372:e27f:2987::1&#34;
+
+## IPv6 CIDR mask (e.g. 64)
+LXD_IPV6_MASK=&#34;64&#34;
+
+## IPv6 network (e.g. 2001:470:b368:4242::/64)
+LXD_IPV6_NETWORK=&#34;fd94:d372:e27f:2987::1/64&#34;
+
+## NAT IPv6 traffic
+LXD_IPV6_NAT=&#34;true&#34;
+
+# Run a minimal HTTP PROXY server
+LXD_IPV6_PROXY=&#34;false&#34;
+</code></pre><p>このブリッジインタフェースを有効にするには <code>lxd-bridge.service</code> を開始します。サービスの定義ファイルは以下のようになっていました。</p>
+<pre tabindex="0"><code>$ cat /lib/systemd/system/lxd-bridge.service
+[Unit]
+Description=LXD - network bridge
+Documentation=man:lxd(1)
+Before=lxd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/lxd/lxd-bridge.start
+ExecStop=/usr/lib/lxd/lxd-bridge stop
+</code></pre><p><code>ExecStart</code> に指定しているスクリプトの中身は以下のようになっていました。</p>
+<pre tabindex="0"><code>$ cat /usr/lib/lxd/lxd-bridge.start
+#!/bin/sh -e
+
+[ ! -e /etc/default/lxd-bridge ] &amp;&amp; exit 0
+
+. /etc/default/lxd-bridge
+
+# Start by bringing up the bridge
+/usr/lib/lxd/lxd-bridge start
+
+# Switch LXD in setup mode if needed
+if [ &#34;${UPDATE_PROFILE:-true}&#34; = &#34;true&#34; ] &amp;&amp; [ -e &#34;/var/lib/lxd&#34; ] &amp;&amp; \
+    ([ ! -e &#34;/var/lib/lxd-bridge/timestamp&#34; ] || \
+     [ &#34;/etc/default/lxd-bridge&#34; -nt &#34;/var/lib/lxd-bridge/timestamp&#34; ]); then
+
+    mkdir -p /var/lib/lxd-bridge
+    touch /var/lib/lxd-bridge/timestamp
+
+    touch /var/lib/lxd/.setup_mode
+fi
+
+exit 0
+</code></pre><p>ここから呼ばれる <code>/usr/lib/lxd/lxd-bridge</code> を見てみると、initスクリプトになっていて <code>iptables</code>, <code>ip6tables</code>, <code>dnsmasq</code> を実行するようになっていました。また <code>/usr/lib/lxd/lxd-bridge</code> は上記の <code>/etc/default/lxd-bridge</code> を読み込むようになっています。</p>
+<p>起動された <code>dnsmasq</code> を <code>ps</code> で見ると以下のようなコマンドラインになっていました。</p>
+<p>$ ps auxww | grep [d]nsmasq
+lxd       2134  0.0  0.0  49984   388 ?        S    09:48   0:00 dnsmasq -s lxd -S /lxd/ -u lxd &ndash;strict-order &ndash;bind-interfaces &ndash;pid-file=/run/lxd-bridge//dnsmasq.pid &ndash;dhcp-no-override &ndash;except-interface=lo &ndash;interface=lxdbr0 &ndash;dhcp-leasefile=/var/lib/lxd-bridge//dnsmasq.lxdbr0.leases &ndash;dhcp-authoritative &ndash;listen-address 10.16.29.1 &ndash;dhcp-range 10.16.29.2,10.16.29.254 &ndash;dhcp-lease-max=252 &ndash;dhcp-range=fd94:d372:e27f:2987::1,ra-only &ndash;listen-address fd94:d372:e27f:2987::1</p>
+<p><code>/usr/lib/lxd/lxd-bridge</code> を見ると <code>/etc/default/lxd-bridge</code> の <code>LXD_CONFILE</code> にファイル名を指定しておけば <code>dnsmasq</code> の <code>--conf-file</code> オプションを使ってそのファイルを読み込むように書かれています。この方法を使おうかと思ったのですが、一方で <code>/etc/default/lxd-bridge</code> の設定にかかわらず <code>--dhcp-authoritative</code> オプションが常に指定されるように書かれています。</p>
+<p><code>man dnsmasq</code> によると <code>--dhcp-authoritative</code> オプションはネットワーク内に他にDHCPサーバが無く唯一のDHCPになっているときに指定するオプションとのことです。ホストで稼働する <code>dnsmasq</code> が1つという前提であれば、デフォルトの設定ファイル <code>/etc/dnsmasq.conf</code> を作ってそこに設定を書くほうが手っ取り早いので、そうすることにしました。</p>
+<h3 id="lxd-bridgeserviceの設定変更はreloadではなくrestartが必要">lxd-bridge.serviceの設定変更はreloadではなくrestartが必要</h3>
+<p><code>sudo systemctl reload lxd-bridge</code> を実行してみると以下のようなエラーが出て失敗しました。</p>
+<pre tabindex="0"><code>$ sudo systemctl reload lxd-bridge
+Failed to reload lxd-bridge.service: Job type reload is not applicable for unit lxd-bridge.service.
+See system logs and &#39;systemctl status lxd-bridge.service&#39; for details.
+$ sudo systemctl status lxd-bridge
+● lxd-bridge.service - LXD - network bridge
+   Loaded: loaded (/lib/systemd/system/lxd-bridge.service; static; vendor preset: enabled)
+   Active: active (exited) since 土 2016-05-07 13:06:06 JST; 6h ago
+     Docs: man:lxd(1)
+  Process: 3704 ExecStop=/usr/lib/lxd/lxd-bridge stop (code=exited, status=0/SUCCESS)
+  Process: 3723 ExecStart=/usr/lib/lxd/lxd-bridge.start (code=exited, status=0/SUCCESS)
+ Main PID: 3723 (code=exited, status=0/SUCCESS)
+    Tasks: 1 (limit: 512)
+   Memory: 412.0K
+      CPU: 1.293s
+   CGroup: /system.slice/lxd-bridge.service
+           └─3755 dnsmasq -s lxd -S /lxd/ -u lxd --strict-order --bind-interfaces --pid-file=/run/lxd-bridge//dnsmasq.pid --dhcp-no-override --except-interface=lo --interface=lxdbr0 --dhcp-leasefile=/var/lib/lxd-bridge//dnsmasq.lxdbr0.leases --dhcp-authoritative --lis
+ 5月 07 18:56:28 express dnsmasq-dhcp[3755]: not giving name cent02 to the DHCP lease of 10.155.92.102 because the name exists in /etc/hosts with address 10.155.92.201
+ 5月 07 19:06:21 express dnsmasq-dhcp[3755]: DHCPREQUEST(lxdbr0) 10.155.92.102 00:16:3e:59:21:d7
+ 5月 07 19:06:21 express dnsmasq-dhcp[3755]: DHCPACK(lxdbr0) 10.155.92.102 00:16:3e:59:21:d7 cent02
+ 5月 07 19:06:21 express dnsmasq-dhcp[3755]: not giving name cent02 to the DHCP lease of 10.155.92.102 because the name exists in /etc/hosts with address 10.155.92.201
+ 5月 07 19:23:24 express dnsmasq-dhcp[3755]: DHCPREQUEST(lxdbr0) 10.155.92.101 00:16:3e:5f:01:7e
+ 5月 07 19:23:24 express dnsmasq-dhcp[3755]: DHCPACK(lxdbr0) 10.155.92.101 00:16:3e:5f:01:7e cent01
+ 5月 07 19:23:24 express dnsmasq-dhcp[3755]: not giving name cent02 to the DHCP lease of 10.155.92.102 because the name exists in /etc/hosts with address 10.155.92.201
+ 5月 07 19:33:08 express dnsmasq-dhcp[3755]: DHCPREQUEST(lxdbr0) 10.155.92.102 00:16:3e:59:21:d7
+ 5月 07 19:33:08 express dnsmasq-dhcp[3755]: DHCPACK(lxdbr0) 10.155.92.102 00:16:3e:59:21:d7 cent02
+ 5月 07 19:33:08 express dnsmasq-dhcp[3755]: not giving name cent02 to the DHCP lease of 10.155.92.102 because the name exists in /etc/hosts with address 10.155.92.201
+</code></pre><p>ということで、設定ファイルを変更反映するにも <code>sudo systemctl restart lxd-bridge</code> のように再起動する必要があります。</p>
+<h3 id="dnsmasqの再起動後コンテナの再起動が必要">dnsmasqの再起動後、コンテナの再起動が必要</h3>
+<p>dnsmasqを再起動しただけではコンテナのIPアドレスは変わらないのでネットワークを再起動する必要がありました。</p>
+<pre tabindex="0"><code>lxc exec cent01 systemctl restart network
+lxc exec cent02 systemctl restart network
+</code></pre><p>コンテナごと再起動でも良いと思います。</p>
+<pre tabindex="0"><code>lxc restart cent01
+lxc restart cent02
+</code></pre><p>何回か試してみたところ、作っただけで特に何もしてないコンテナだとネットワーク再起動よりコンテナ自体を再起動するほうが速かったです。</p>
+<pre tabindex="0"><code>$ time lxc exec cent02 systemctl restart network
+
+real    0m2.878s
+user    0m0.008s
+sys     0m0.000s
+$ time lxc restart cent02
+
+real    0m1.236s
+user    0m0.004s
+sys     0m0.004s
+</code></pre>
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

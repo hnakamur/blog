@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>LXD で privileged な CentOS 7コンテナを作る &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>LXD で privileged な CentOS 7コンテナを作る</h1>
+  <time datetime=2016-10-22T18:54:49&#43;0900 class="post-date">2016-10-22</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#2016-10-23-追記">2016-10-23 追記</a></li>
+  </ul>
+</nav>
+  <p>小ネタのメモです。</p>
+<p>先日 LXD 2.0.5 で CentOS 7 コンテナを起動して <code>journalctl -xe</code> を実行すると以下のようなエラーが出ていました。</p>
+<pre tabindex="0"><code>Oct 22 09:53:58 centos systemd-sysctl[36]: Failed to write &#39;16&#39; to &#39;/proc/sys/kernel/sysrq&#39;: Permission denied
+Oct 22 09:53:58 centos systemd-sysctl[36]: Failed to write &#39;1&#39; to &#39;/proc/sys/fs/protected_hardlinks&#39;: Permission denied
+Oct 22 09:53:58 centos systemd-sysctl[36]: Failed to write &#39;1&#39; to &#39;/proc/sys/kernel/core_uses_pid&#39;: Permission denied
+Oct 22 09:53:58 centos systemd-sysctl[36]: Failed to write &#39;1&#39; to &#39;/proc/sys/fs/protected_symlinks&#39;: Permission denied
+Oct 22 09:53:58 centos systemd-remount-fs[35]: /bin/mount for / exited with exit status 32.
+</code></pre><p>コンテナ作成時に以下のように config で <code>security.privileged</code> を true に設定しておけば出なくなりました。</p>
+<pre tabindex="0"><code>lxc launch -c security.privileged=true images:centos/7/amd64 コンテナ名
+</code></pre><p>設定の確認は以下のコマンドで行います。</p>
+<pre tabindex="0"><code>$ lxc config show コンテナ名
+name: centos
+profiles:
+- default
+config:
+  security.privileged: &#34;true&#34;
+  volatile.base_image: d2a0b3cf928778ad1582ee1feb39a0bbcd57edce01a60868f04e78d959886d71
+  volatile.eth0.hwaddr: 00:16:3e:b2:dc:5e
+  volatile.last_state.idmap: &#39;[]&#39;
+devices:
+  root:
+    path: /
+    type: disk
+ephemeral: false
+</code></pre><p>もっと限定した設定でも対応可能かもしれませんが、とりあえずこれで。</p>
+<h2 id="2016-10-23-追記">2016-10-23 追記</h2>
+<p>security.privileged を true にするのは良くないと指摘されました。</p>
+<blockquote class="twitter-tweet"><p lang="en" dir="ltr">Don&#39;t do that! This errors are actually bugs ( see <a href="https://t.co/5IuFQzMI9u">https://t.co/5IuFQzMI9u</a> + <a href="https://t.co/4ypMXS5FTq">https://t.co/4ypMXS5FTq</a> ), so report them to CentOS</p>&mdash; Marqin🏳️‍⚧️ (@theMarqin) <a href="https://twitter.com/theMarqin/status/789838146083098625?ref_src=twsrc%5Etfw">October 22, 2016</a></blockquote>
+<script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+
+<p>CentOS にバグ報告というのはよくわからなかったので、LXDにイシューを立ててみました。
+<a href="https://github.com/lxc/lxd/issues/2544">CentOS 7 container gets errors like systemd-sysctl[36]: Failed to write &lsquo;16&rsquo; to &lsquo;/proc/sys/kernel/sysrq&rsquo;: Permission denied · Issue #2544 · lxc/lxd</a></p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

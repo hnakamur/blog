@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>AnsibleのLXDコネクションプラグインを試してみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>AnsibleのLXDコネクションプラグインを試してみた</h1>
+  <time datetime=2016-05-07T20:32:13&#43;0900 class="post-date">2016-05-07</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#インストール手順">インストール手順</a></li>
+    <li><a href="#使ってみる">使ってみる</a></li>
+  </ul>
+</nav>
+  <p>LXDを使うとなるとAnsibleのLXDコネクションプラグインが欲しいなと思って<a href="https://github.com/ansible/ansible">ansible/ansibleのgithubのレポジトリ</a>を眺めていたら <a href="https://github.com/ansible/ansible/blob/fca5ba153e9258d6a9a28c418d8339d507eee81c/lib/ansible/plugins/connection/lxd.py">lib/ansible/plugins/connection/lxd.py</a> に既に作られていることに気付きました。</p>
+<p>ソースを見ると <code>lxc</code> コマンドを使った実装になっていました。aptでインストールしたansible 2.0.0.2にこのファイルだけ追加して使えないか試してみたのですが、 <code>AttributeError: 'PlayContext' object has no attribute 'executable'</code> というエラーが出て使えませんでした。</p>
+<p>そこでvirtualenvで環境を作ってpipでgithubのmasterのansibleをインストールして試してみました。</p>
+<h2 id="インストール手順">インストール手順</h2>
+<p>インストール手順は以下の通りです。
+まず、virtualenv環境でAnsibleをインストールするのに必要なパッケージをインストールします。</p>
+<pre tabindex="0"><code>sudo apt update
+sudo apt install -y virtualenv build-essential python-dev libffi-dev libssl-dev
+</code></pre><p>作業ディレクトリを作ってそこに移動し、virtualenvで環境を作ってansibleをインストールします。</p>
+<pre tabindex="0"><code>mkdir ~/ansible-lxd-example
+cd ~/ansible-lxd-example
+virtualenv venv
+. venv/bin/activate
+pip install git+https://github.com/ansible/ansible
+</code></pre><h2 id="使ってみる">使ってみる</h2>
+<p>以下のような設定ファイルとテスト用のプレイブックを作りました。</p>
+<pre tabindex="0"><code>$ cat ansible.cfg
+[defaults]
+inventory = hosts
+$ cat hosts
+[containers]
+cent01 ansible_connection=lxd
+cent02 ansible_connection=lxd
+$ cat test.yml
+---
+- hosts: containers
+  remote_user: root
+  tasks:
+    - debug: msg=ipv4_address={{ ansible_default_ipv4.address }}
+</code></pre><p>実行してみると、問題なく動作しました。</p>
+<pre tabindex="0"><code>$ ansible-playbook test.yml
+
+PLAY [containers] **************************************************************
+
+TASK [setup] *******************************************************************
+ok: [cent01]
+ok: [cent02]
+
+TASK [debug] *******************************************************************
+ok: [cent01] =&gt; {
+    &#34;msg&#34;: &#34;ipv4_address=10.155.92.101&#34;
+}
+ok: [cent02] =&gt; {
+    &#34;msg&#34;: &#34;ipv4_address=10.155.92.103&#34;
+}
+
+PLAY RECAP *********************************************************************
+cent01                     : ok=2    changed=0    unreachable=0    failed=0
+cent02                     : ok=2    changed=0    unreachable=0    failed=0
+</code></pre>
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

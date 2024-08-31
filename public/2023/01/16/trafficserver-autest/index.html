@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Apache Traffic Serverのautest.sh &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Apache Traffic Serverのautest.sh</h1>
+  <time datetime=2023-01-16T16:45:13&#43;0900 class="post-date">2023-01-16</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#dockerでipv6を使う">DockerでIPv6を使う</a></li>
+    <li><a href="#autestのレポジトリ">autestのレポジトリ</a></li>
+    <li><a href="#trafficserverのjenkinsでのautest">trafficserverのJenkinsでのautest</a></li>
+    <li><a href="#autestshの--sandboxオプションを指定すると失敗したテストのログなどが残る">autest.shの&ndash;sandboxオプションを指定すると失敗したテストのログなどが残る</a></li>
+    <li><a href="#テスト失敗のログ">テスト失敗のログ</a></li>
+    <li><a href="#sandbox内のディレクトリファイル構成">sandbox内のディレクトリ・ファイル構成</a></li>
+    <li><a href="#sandboxのディレクトリでのテストの再実行">sandboxのディレクトリでのテストの再実行</a></li>
+    <li><a href="#以下細かいメモ">以下細かいメモ</a>
+      <ul>
+        <li><a href="#ncはncatパッケージのを使う">ncはncatパッケージのを使う</a></li>
+        <li><a href="#pipenvはautestではrootユーザで実行">pipenvはautestではrootユーザで実行</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="https://github.com/apache/trafficserver/releases/tag/9.2.0-rc0">trafficserver 9.2.0-rc0</a>の<a href="https://github.com/apache/trafficserver/tree/9.2.0-rc0/tests">tests</a>ディレクトリのautest.shを実行する際のメモです。</p>
+<p><a href="https://trafficserver.apache.org/">Apache Traffic Server</a>の<a href="https://the-asf.slack.com/">The ASF Slack</a>で<a href="https://github.com/masaori335">masaori335</a>さんにいろいろ教えていただきました。ありがとうございました！</p>
+<p>Docker上のUbuntu 22.04 LTSと20.04 LTSでautest.shを動かす手順を
+<a href="https://github.com/hnakamur/trafficserver-run-autest-docker">GitHub - hnakamur/trafficserver-run-autest-docker</a>
+においています。</p>
+<h2 id="dockerでipv6を使う">DockerでIPv6を使う</h2>
+<p>autestのテストでIPv6が必要になるので、DockerでIPv6を使えるようにする必要があります。以下のページを参考にしました。</p>
+<ol>
+<li><a href="https://docs.docker.com/config/daemon/ipv6/">Enable IPv6 support | Docker Documentation</a></li>
+<li><a href="https://medium.com/@skleeschulte/how-to-enable-ipv6-for-docker-containers-on-ubuntu-18-04-c68394a219a2">Enable IPv6 for Docker containers on Ubuntu 18.04 | Medium</a>
+3, <a href="https://mahori.jp/docker-ipv6/">DockerでIPv6化 – mahori blog</a></li>
+</ol>
+<p>1の公式ドキュメントでは<a href="https://ja.wikipedia.org/wiki/IPv6%E3%82%A2%E3%83%89%E3%83%AC%E3%82%B9">IPv6アドレス - Wikipedia</a>の<a href="https://ja.wikipedia.org/wiki/IPv6%E3%82%A2%E3%83%89%E3%83%AC%E3%82%B9#.E6.96.87.E6.9B.B8.E8.A8.98.E8.BF.B0.E7.94.A8.E3.82.A2.E3.83.89.E3.83.AC.E3.82.B9.E3.83.97.E3.83.AC.E3.83.95.E3.82.A3.E3.83.83.E3.82.AF.E3.82.B9">文書記述用アドレスプレフィックス</a>のアドレスの<code>/32</code>を<code>/64</code>にしたアドレスが使われています。</p>
+<p>実際にどういうアドレスを使えばよいかですが、2のドキュメントによるとグローバルのIPv6アドレスを使うと設定は簡単ですが、インターネットからDockerコンテナにアクセスできてしまうとのことでした。</p>
+<p>そこで2と3のページを参考に<code>/etc/docker/daemon.json</code>は以下のようにしました。</p>
+<pre tabindex="0"><code>{
+  &#34;ipv6&#34;: true,
+  &#34;fixed-cidr-v6&#34;: &#34;fd6d:6168:6f72:6900::/64&#34;
+}
+</code></pre><p>その後dockerサービスを再起動します。</p>
+<pre tabindex="0"><code>sudo systemctl restart docker
+</code></pre><p>最後にIPv6のNATを設定します。</p>
+<pre tabindex="0"><code>ip6tables -t nat -A POSTROUTING -s fd6d:6168:6f72:6900::/64 ! -o docker0 -j MASQUERADE
+</code></pre><p>その後</p>
+<pre tabindex="0"><code>docker network inspect bridge
+</code></pre><p>で確認するとIPAMのConfigにIPv4とIPv6のエントリが出てきました。</p>
+<pre tabindex="0"><code>            &#34;Config&#34;: [
+                {
+                    &#34;Subnet&#34;: &#34;172.17.0.0/16&#34;,
+                    &#34;Gateway&#34;: &#34;172.17.0.1&#34;
+                },
+                {
+                    &#34;Subnet&#34;: &#34;fd6d:6168:6f72:6900::/64&#34;
+                }
+            ]
+</code></pre><p>この後、コンテナを作成して <code>docker inspect &lt;コンテナID&gt;</code> で確認するとNetworkSettingsのGlobalIPv6AddressにIPv6アドレスがついていました。</p>
+<h2 id="autestのレポジトリ">autestのレポジトリ</h2>
+<p>PyPIのプロジェクトは<a href="https://pypi.org/project/autest/">autest · PyPI</a>で、ソースレポジトリは<a href="https://bitbucket.org/autestsuite/reusable-gold-testing-system/src/master/">autestsuite / reusable-gold-testing-system — Bitbucket</a>です。</p>
+<p>今回はautestのソースまでは見ていませんが、一応メモ。</p>
+<h2 id="trafficserverのjenkinsでのautest">trafficserverのJenkinsでのautest</h2>
+<p><a href="https://github.com/apache/trafficserver-ci">apache/trafficserver-ci</a>にCI用のレポジトリがあります。</p>
+<p>9.2.xのautestの実行結果は
+<a href="https://ci.trafficserver.apache.org/view/9.2.x/job/9.2.x/job/autest/">https://ci.trafficserver.apache.org/view/9.2.x/job/9.2.x/job/autest/</a>
+で見られます。</p>
+<p>実行するテストを分けて4つのジョブを並列で実行しています。左のジョブ一覧で<code>9.2.x 0of4</code>のリンクをクリック後、左メニューの<code>Pipeline Steps</code>を押すとパイプラインが見られます。configureとmakeをしている箇所を見て<a href="https://github.com/apache/trafficserver-ci">apache/trafficserver-ci</a>で検索すると
+<a href="https://github.com/apache/trafficserver-ci/blob/377c7232f3b90a0189a72ccd792da3de5b407b0d/jenkins/github/autest.pipeline">jenkins/github/autest.pipeline</a>に対応するようです。</p>
+<p>先頭のagentのdockerの箇所を見ると<code>image 'ci.trafficserver.apache.org/ats/rockylinux:8'</code>となっていて、
+<a href="https://github.com/apache/trafficserver-ci/tree/377c7232f3b90a0189a72ccd792da3de5b407b0d/docker/rockylinux8">docker/rockylinux8/</a>の<a href="https://github.com/apache/trafficserver-ci">docker/rockylinux8/Dockerfile</a>に対応しているようです。</p>
+<h2 id="autestshの--sandboxオプションを指定すると失敗したテストのログなどが残る">autest.shの&ndash;sandboxオプションを指定すると失敗したテストのログなどが残る</h2>
+<p><code>-C none</code>(<a href="https://autestsuite.bitbucket.io/usage/cli.html">Command Line options — AuTest 1.4.0 documentation</a>参照)をつけると成功したテストのログなども残ります。</p>
+<p><code>-f テスト名</code>で実行するテストをフィルタリングできます。テスト名はファイル名に対応しています。例えば<code>chunked_encoding</code>というテストなら</p>
+<pre tabindex="0"><code>~/ghq/github.com/apache/trafficserver-9.2.0-rc0$ find ./tests -name &#39;chunked_encoding.test.py&#39;
+./tests/gold_tests/chunked_encoding/chunked_encoding.test.py
+</code></pre><p>のように探します。</p>
+<h2 id="テスト失敗のログ">テスト失敗のログ</h2>
+<p>例としてchunked_encodingが失敗したログを見てみます。</p>
+<p>テストのファイルは<a href="https://github.com/apache/trafficserver/blob/9.2.0-rc0/tests/gold_tests/chunked_encoding/chunked_encoding.test.py">tests/gold_tests/chunked_encoding/chunked_encoding.test.py</a>です。<code>tr = Test.AddTestRun()</code>が5回出てくるので5つのステップが追加されています(<a href="https://autestsuite.bitbucket.io/basics/general_design.html#local-objects-types">Local objects types</a>の<code>TestRun</code>がステップに対応)。</p>
+<p>テストのログで見ると以下のようになっていて<code>.</code>が成功したステップで<code>F</code>が失敗したステップです。</p>
+<pre tabindex="0"><code>Running Test chunked_encoding:....F Failed
+</code></pre><p>ログの後ろの方に成功/失敗の詳細が出力されています。</p>
+<pre tabindex="0"><code> Test: chunked_encoding: Failed
+    File: chunked_encoding.test.py
+    Directory: /src/trafficserver/tests/gold_tests/chunked_encoding
+   Setting up : recycling port: 61178, queue size: 999 - Passed
+…(略)…
+   Run: 4-tr: Failed
+     Setting up : Copying &#39;server4.sh&#39; to &#39;None&#39; - Passed
+     Setting up : Copying &#39;case4.sh&#39; to &#39;None&#39; - Passed
+     Time-Out : TestRun finishes within expected time - Passed
+        Reason: Returned value: 1.1100995540618896 &lt; 5.0
+     Starting TestRun 4-tr : No Issues found - Passed
+        Reason: Started!
+     Process: Default: Failed
+       Test : Checking that ReturnCode == 0 - Failed
+          Reason: Returned Value 1 != 0
+       Time-Out : Process finishes within expected time - Passed
+          Reason: Returned value: 1.0053956508636475 &lt; 600.0
+       file /src/autest-sandbox/chunked_encoding/_output/4-tr-Default/stream.all.txt : Response should not include content length - Passed
+          Reason: Contents of /src/autest-sandbox/chunked_encoding/_output/4-tr-Default/stream.all.txt excludes expression
+</code></pre><p>今回は<code>Run: 4-tr</code>がFailedで、詳細は<code>Test : Checking that ReturnCode == 0</code>であるべきところが1が返ってきたため失敗となったことがわかります。</p>
+<h2 id="sandbox内のディレクトリファイル構成">sandbox内のディレクトリ・ファイル構成</h2>
+<p>例えば <code>--sandbox /src/autest-sandbox -C none -f chunked_encoding</code>をつけて実行した場合、<code>/src/autest-sandbox/chunked_encoding/</code>に以下のようにディレクトリが残ります。</p>
+<pre tabindex="0"><code># ls -F /src/autest-sandbox/chunked_encoding/
+_output/  case4.sh  outserver4  server/  server2/  server3/  server4.sh  smuggle-client*  ts/
+</code></pre><p><code>server</code>, <code>server2</code>, <code>server3</code>, <code>ts</code>フォルダは<a href="https://github.com/apache/trafficserver/blob/9.2.0-rc0/tests/gold_tests/chunked_encoding/chunked_encoding.test.py#L104-L108">tests/gold_tests/chunked_encoding/chunked_encoding.test.py#L104-L108</a>の<code>StartBefore</code>で起動しているオリジンサーバとtrafficserverにプロセスに対応します。</p>
+<pre tabindex="0"><code>tr.Processes.Default.StartBefore(server)
+tr.Processes.Default.StartBefore(server2)
+tr.Processes.Default.StartBefore(server3)
+# Delay on readiness of our ssl ports
+tr.Processes.Default.StartBefore(Test.Processes.ts)
+</code></pre><p><code>ts/</code>フォルダにはtrafficserverの設定ファイルやログファイルが含まれています。</p>
+<pre tabindex="0"><code># ls -F /src/autest-sandbox/chunked_encoding/ts/
+bin/  cache/  config/  log/  plugin/  runtime/  ssl/  storage/
+</code></pre><p><code>_output/</code>フォルダは以下のようになっています。</p>
+<pre tabindex="0"><code># # ls -F /src/autest-sandbox/chunked_encoding/_output/
+0-tr-Default/  4-tr-Default/              chunked_encoding-ts/
+1-tr-Default/  chunked_encoding-server/   condition-CheckOutput-86fe/
+2-tr-Default/  chunked_encoding-server2/
+3-tr-Default/  chunked_encoding-server3/
+</code></pre><p>例えば<code>0-tr-Default</code>フォルダの下は以下のようなファイルが入っています。</p>
+<pre tabindex="0"><code># ls /src/autest-sandbox/chunked_encoding/_output/0-tr-Default/                                                                    
+command.txt  stream.all.txt    stream.error.txt   stream.stdout.txt   stream.warning.txt
+replay.sh    stream.debug.txt  stream.stderr.txt  stream.verbose.txt
+</code></pre><h2 id="sandboxのディレクトリでのテストの再実行">sandboxのディレクトリでのテストの再実行</h2>
+<p><code>replay.sh</code>でリプレイ実行できます。実行パーミションがついていないので<code>bash</code>をつけて実行する必要があります。</p>
+<p>まず<code>docker run --rm -it イメージ名 bash</code>でコンテナを起動しつつ入って</p>
+<pre tabindex="0"><code>cd /src/autest-sandbox/chunked_encoding
+bash _output/chunked_encoding-server/replay.sh
+</code></pre><p>でオリジンサーバ<code>server</code>を起動します。</p>
+<p>別の端末で<code>docker exec -it $(docker ps -lq) bash</code>で同じコンテナに入って</p>
+<pre tabindex="0"><code>cd /src/autest-sandbox/chunked_encoding
+bash _output/chunked_encoding-server2/replay.sh
+</code></pre><p>で<code>server2</code>を起動します。</p>
+<p>別の端末で<code>docker exec -it $(docker ps -lq) bash</code>で同じコンテナに入って</p>
+<pre tabindex="0"><code>cd /src/autest-sandbox/chunked_encoding
+bash _output/chunked_encoding-server3/replay.sh
+</code></pre><p>で<code>server3</code>を起動します。</p>
+<p>別の端末で<code>docker exec -it $(docker ps -lq) bash</code>で同じコンテナに入って</p>
+<pre tabindex="0"><code>cd /src/autest-sandbox/chunked_encoding
+bash _output/chunked_encoding-ts/replay.sh
+</code></pre><p>でtrafficserverを起動します。</p>
+<p>さらに別の端末で<code>docker exec -it $(docker ps -lq) bash</code>で同じコンテナに入って</p>
+<pre tabindex="0"><code>cd /src/autest-sandbox/chunked_encoding
+seq 0 4 | xargs -I {} bash _output/{}-tr-Default/replay.sh
+</code></pre><p>でテストを実行します。</p>
+<p>以下のような出力になりました。</p>
+<pre tabindex="0"><code># seq 0 4 | xargs -I {} bash _output/{}-tr-Default/replay.sh
+…(略)…
+microserverapachetrafficserver*   Trying 127.0.0.1:61179...                                  
+* Connected to 127.0.0.1 (127.0.0.1) port 61179 (#0)                                         
+&gt; POST / HTTP/1.1                             
+&gt; Host: www.yetanotherexample.com
+&gt; User-Agent: curl/7.81.0
+&gt; Accept: */*                                 
+&gt; Transfer-Encoding: chunked
+&gt; Content-Type: application/x-www-form-urlencoded                                            
+&gt;                                             
+* Mark bundle as not supporting multiuse
+&lt; HTTP/1.1 200 OK                             
+&lt; Server: ATS/9.2.0                           
+&lt; Date: Mon, 16 Jan 2023 11:18:25 GMT
+&lt; Age: 0                                      
+&lt; Transfer-Encoding: chunked
+&lt; Connection: keep-alive
+&lt;                                             
+* Connection #0 to host 127.0.0.1 left intact
+microserverapachetrafficserverNcat: bind to :::61178: Address already in use. QUITTING.      
+using address: 127.0.0.1 and port: 61181
+Send request                                  
+Received 128 bytes HTTP/1.1 200 
+Date: Mon, 16 Jan 2023 11:18:27 GMT
+Age: 1                                        
+Transfer-Encoding: chunked
+Connection: close                             
+Server: ATS/9.2.0                             
+
+
+Received 25 bytes F                           
+123456789012345                               
+0                                             
+
+
+./case4.sh: 20: kill: No such process
+</code></pre><p><code>bind to :::61178: Address already in use. QUITTING.</code>のエラーが問題のようです。</p>
+<p>61178で検索してみると</p>
+<pre tabindex="0"><code># grep -r 61178 .                       
+./ts/config/remap.config:map / http://127.0.0.1:61178
+./ts/log/traffic.out:[Jan 16 08:47:38.876] [ET_NET 15] DEBUG: &lt;URL.cc:1730 (url_describe)&gt; (http)       PORT: &#34;61178&#34;, PORT_LEN: 5, PORT_NUM: 61178
+…(略)…
+./ts/log/traffic.out:[Jan 16 11:18:27.004] [ET_NET 0] DEBUG: &lt;HttpSessionManager.cc:491 (removeSession)&gt; (http_ss) Remove session 0x7f51680b9740 127.0.0.1:61178 m_fqdn_pool size=1 m_ip_p
+ool_size=1
+./outserver4:Host: 127.0.0.1:61178
+./_output/4-tr-Default/command.txt:Command= sh ./case4.sh 61181 61178
+./_output/4-tr-Default/replay.sh:sh ./case4.sh 61181 61178
+</code></pre><p><code>case4.sh</code>の中身は以下のようになっていました。</p>
+<pre tabindex="0"><code># cat case4.sh 
+…(略)…
+nc -l ${2} -o outserver4 -c &#34;sh ./server4.sh&#34; &amp;
+sleep 1
+./smuggle-client 127.0.0.1 ${1}
+kill %1
+</code></pre><p>ここでncが61178番ポートでリッスンするようです。</p>
+<p>しばらく待ってから再度テストのステップを実行してみると、出力が変わりました。</p>
+<pre tabindex="0"><code># seq 0 4 | xargs -I {} bash _output/{}-tr-Default/replay.sh
+…(略)…
+microserverapachetrafficserver*   Trying 127.0.0.1:61179...
+* Connected to 127.0.0.1 (127.0.0.1) port 61179 (#0)
+&gt; POST / HTTP/1.1
+&gt; Host: www.yetanotherexample.com
+&gt; User-Agent: curl/7.81.0
+&gt; Accept: */*
+&gt; Content-Length: 11
+&gt; Content-Type: application/x-www-form-urlencoded
+&gt; 
+* Mark bundle as not supporting multiuse
+&lt; HTTP/1.1 200 OK
+&lt; Server: ATS/9.2.0
+&lt; Date: Mon, 16 Jan 2023 11:22:39 GMT
+&lt; Age: 0
+&lt; Transfer-Encoding: chunked
+&lt; Connection: keep-alive
+&lt; 
+* Connection #0 to host 127.0.0.1 left intact
+microserverapachetrafficserver*   Trying 127.0.0.1:61179...
+* Connected to 127.0.0.1 (127.0.0.1) port 61179 (#0)
+&gt; POST / HTTP/1.1
+&gt; Host: www.yetanotherexample.com
+&gt; User-Agent: curl/7.81.0
+&gt; Accept: */*
+&gt; Transfer-Encoding: chunked
+&gt; Content-Type: application/x-www-form-urlencoded
+&gt; 
+* Mark bundle as not supporting multiuse
+&lt; HTTP/1.1 200 OK
+&lt; Server: ATS/9.2.0
+&lt; Date: Mon, 16 Jan 2023 11:22:39 GMT
+&lt; Age: 0
+&lt; Transfer-Encoding: chunked
+&lt; Connection: keep-alive
+&lt; 
+* Connection #0 to host 127.0.0.1 left intact
+microserverapachetrafficserverusing address: 127.0.0.1 and port: 61181
+Send request
+Received 128 bytes HTTP/1.1 200 
+Date: Mon, 16 Jan 2023 11:22:40 GMT
+Age: 0
+Transfer-Encoding: chunked
+Connection: close
+Server: ATS/9.2.0
+
+
+Received 25 bytes F
+123456789012345
+0
+
+
+./case4.sh: 20: kill: No such process
+
+root@f16ca3320b70:/src/autest-sandbox/chunked_encoding# echo $?
+123
+</code></pre><pre tabindex="0"><code># pgrep -f &#39;(traffic_server|microserver)&#39; | xargs -r ps uwwf -p
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+nobody       145  3.1  0.1 2024184 85840 pts/4   Sl+  11:18   0:21 traffic_server --bind_stderr /src/autest-sandbox/chunked_encoding/ts/log/traffic.out --bind_stdout /src/autest-sandbox/chunked_encoding/ts/log/traffic.out
+root          94  0.0  0.0 173012 15824 pts/2    Sl+  11:13   0:00 /root/.local/share/virtualenvs/tests-L5-scKRl/bin/python /root/.local/share/virtualenvs/tests-L5-scKRl/bin/microserver --data-dir /src/autest-sandbox/chunked_encoding/server3 --ip_address 127.0.0.1 --lookupkey {PATH} --port 61187
+root          79  0.0  0.0 173456 17316 pts/1    Sl+  11:12   0:00 /root/.local/share/virtualenvs/tests-L5-scKRl/bin/python /root/.local/share/virtualenvs/tests-L5-scKRl/bin/microserver --data-dir /src/autest-sandbox/chunked_encoding/server2 --ip_address 127.0.0.1 --lookupkey {PATH} --ssl --key /src/trafficserver/tests/gold_tests/autest-site/../../tools/microserver/ssl/server.pem --cert /src/trafficserver/tests/gold_tests/autest-site/../../tools/microserver/ssl/server.crt --s_port 61186
+root          76  0.0  0.0 173012 15364 pts/0    Sl+  11:12   0:00 /root/.local/share/virtualenvs/tests-L5-scKRl/bin/python /root/.local/share/virtualenvs/tests-L5-scKRl/bin/microserver --data-dir /src/autest-sandbox/chunked_encoding/server --ip_address 127.0.0.1 --lookupkey {PATH} --port 61185
+</code></pre><p>そこで</p>
+<pre tabindex="0"><code># nc -l 61178 -o outserver4 -c &#34;sh ./server4.sh&#34;                                                                                  
+</code></pre><p>と実行して、さらに別の端末を起動して<code>./smuggle-client 127.0.0.1 61181</code>を実行すると</p>
+<pre tabindex="0"><code># ./smuggle-client 127.0.0.1 61181
+using address: 127.0.0.1 and port: 61181
+Send request
+Received 128 bytes HTTP/1.1 200 
+Date: Mon, 16 Jan 2023 11:32:27 GMT
+Age: 0
+Transfer-Encoding: chunked
+Connection: close
+Server: ATS/9.2.0
+
+
+Received 25 bytes F
+123456789012345
+0
+</code></pre><p>となり、<code>nc</code>のほうは終了していました。どちらも<code>echo $?</code>で確認すると終了コードは0でした。</p>
+<p>ncの引数に指定している<code>server4.sh</code>と<code>outserver4</code>は以下のような内容でした。</p>
+<pre tabindex="0"><code># tail -2 server4.sh 
+printf &#34;HTTP/1.1 200\r\nTransfer-encoding: chunked\r\n\r\n&#34;
+printf &#34;F\r\n123456789012345\r\n0\r\n\r\n&#34;
+</code></pre><pre tabindex="0"><code># cat outserver4
+GET / HTTP/1.1
+Host: 127.0.0.1:61178
+Client-ip: 127.0.0.1
+X-Forwarded-For: 127.0.0.1
+Via: https/1.1 traffic_server[7bb817a4-f398-4af8-b7a7-529823a85330] (ApacheTrafficServer/9.2.0)
+Transfer-Encoding: chunked
+
+0
+
+HTTP/1.1 200
+Transfer-encoding: chunked
+
+F
+123456789012345
+0
+</code></pre><pre tabindex="0"><code># cat case4.sh 
+…(略)…
+nc -l ${2} -o outserver4 -c &#34;sh ./server4.sh&#34; &amp;
+sleep 1
+./smuggle-client 127.0.0.1 ${1}
+kill %1
+</code></pre><p>を見返すと、smuggle-clientが終了してkillする前にncが終了して<code>kill: No such process</code>になったようです。</p>
+<h2 id="以下細かいメモ">以下細かいメモ</h2>
+<h3 id="ncはncatパッケージのを使う">ncはncatパッケージのを使う</h3>
+<p>今日知ったのですがUbuntuのncは、netcat-openbsd、netcat-traditional、ncatというパッケージがあり、<code>-w</code>オプションの挙動が違います。
+trafficserverのautestではncatを使う必要があります。</p>
+<p>ncatでは<code>-w</code>は接続タイムアウトですが、他2つでは接続と通信合わせてのタイムアウトです。
+<code>-w 1</code>として標準入力から送信するリクエストを流し込むとncatはレスポンスを受け取るとすぐ終了しますが、他2つではレスポンスを受け取っても1秒経たないと終了しませんでした(テストではサーバ側は<code>Connection: keep-alive</code>を返すようになっていました)。</p>
+<p>ncatを使え、以上なのですが、ついでにメモ。</p>
+<p>netcat-openbsdだと<code>-N</code> (Shutdown the network socket after EOF stdin)を指定すればすぐ終了しました。netcat-traditionalだと<code>-q secs</code> (quit after EOF on stdin and delay of secs)というのがありました。試してみると<code>-q 0</code>だとレスポンスが全く表示されず、<code>-q 1</code>だとレスポンスは表示されるが1秒待つことなくすぐ終了しました。</p>
+<p>trafficserverのautestではncの<code>-o</code>を使いますが、netcat-openbsdのncは<code>-o</code>は非対応です。netcat-traditionalにはあります。</p>
+<h3 id="pipenvはautestではrootユーザで実行">pipenvはautestではrootユーザで実行</h3>
+<p><a href="https://pipenv.pypa.io/en/latest/">Pipenv: Python Dev Workflow for Humans — pipenv 2022.12.20.dev0 documentation</a>によると</p>
+<pre tabindex="0"><code>pip install --user pipenv
+</code></pre><p>と一般ユーザでインストールするのが推奨とのことです。</p>
+<p>ただ、それでautestを実行するとroot権限が必要なテストをスキップする旨のメッセージが出たためrootでインストールしてrootで実行するようにしました。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

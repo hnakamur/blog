@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>GPGのプライマリーキーとサブキーを作成 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>GPGのプライマリーキーとサブキーを作成</h1>
+  <time datetime=2022-08-06T19:49:49&#43;0900 class="post-date">2022-08-06</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#lxd-でオフラインのコンテナを作成して起動">LXD でオフラインのコンテナを作成して起動</a></li>
+    <li><a href="#コンテナの中に入って-gpg-のプライマリーキーを作成">コンテナの中に入って GPG のプライマリーキーを作成</a></li>
+    <li><a href="#顔写真の登録">顔写真の登録</a></li>
+    <li><a href="#プライマリーキーの執行証明書を作成">プライマリーキーの執行証明書を作成</a></li>
+    <li><a href="#ホストマシンに-paperkey-をインストール">ホストマシンに Paperkey をインストール</a></li>
+    <li><a href="#失効証明書を印刷">失効証明書を印刷</a></li>
+    <li><a href="#秘密鍵を印刷">秘密鍵を印刷</a></li>
+    <li><a href="#usb-メモリにバックアップ">USB メモリにバックアップ</a></li>
+    <li><a href="#作業用コンテナ内からサブキーをエクスポートしてホストマシンにインポート">作業用コンテナ内からサブキーをエクスポートしてホストマシンにインポート</a></li>
+    <li><a href="#サブキーのフィンガープリントの確認方法">サブキーのフィンガープリントの確認方法</a></li>
+    <li><a href="#作業用のコンテナを削除">作業用のコンテナを削除</a></li>
+    <li><a href="#パスワード入力のモーダルダイアログを-gui-から-tui-に変更">パスワード入力のモーダルダイアログを GUI から TUI に変更</a></li>
+    <li><a href="#サブキーのパスワード変更">サブキーのパスワード変更</a></li>
+    <li><a href="#github-に署名用の副鍵を登録">GitHub に署名用の副鍵を登録</a></li>
+    <li><a href="#git-でコミットに署名する設定">git でコミットに署名する設定</a></li>
+    <li><a href="#コミットまたはタグがどの鍵で署名されているかを確認">コミットまたはタグがどの鍵で署名されているかを確認</a></li>
+    <li><a href="#公開鍵をキーサーバにアップロード">公開鍵をキーサーバにアップロード</a></li>
+    <li><a href="#自分の鍵を信頼する">自分の鍵を信頼する</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>以下の記事を参考にGPGのプライマリーキーとサブキーを作成してGitのコミットの署名をやってみたメモです。
+脱線多めですが、自分用の記録ということで。</p>
+<ul>
+<li><a href="https://wiki.archlinux.jp/index.php/GnuPG">GnuPG - ArchWiki</a></li>
+<li><a href="http://joemphilips.com/post/gpg_memo/">GPGで自分用の秘密鍵を1つに統一する · JoeMPhilips</a></li>
+<li><a href="https://weblog.shuuji3.xyz/post/2020-05-05-generate-and-sign-with-ed15519-gpg-key/">ED25519のGPGキーを生成してコミットに署名する - Weblog by shuuji3</a></li>
+<li><a href="https://qiita.com/usamik26/items/6b816db27b7661611d59">GitのコミットにGnuPGで署名する - Qiita</a></li>
+</ul>
+<h2 id="lxd-でオフラインのコンテナを作成して起動">LXD でオフラインのコンテナを作成して起動</h2>
+<p><a href="https://discuss.linuxcontainers.org/t/how-to-switch-off-networking-for-a-container/6174">How to switch off networking for a container? - LXD - Linux Containers Forum</a> によると eth0 をコンテナから削除すればオフラインで実行できるとのことなので、これでやってみました。</p>
+<p>通常はコンテナの作成と起動は <code>lxc launch</code> サブコマンドを使いますが、今回は <code>lxc init</code> で停止状態のまま作成して、eth0 を削除してから起動します(<code>lxc init</code> はなぜか <code>lxc help</code> のサブコマンド一覧には載っていません)。と思ったのですが、試してみたらインスタンスから直接eth0を削除するのはうまく行かなかったので eth0 無しのプロファイルを作成することにしました。</p>
+<p>ここでは offline というプロファイル名にします。 default のプロファイルをコピーして作成し、 eth0 を削除して description を Offline LXD profile に変更します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">lxc profile copy default offline
+</span></span><span class="line"><span class="cl">lxc profile device remove offline eth0 
+</span></span><span class="line"><span class="cl">lxc profile show offline <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  <span class="p">|</span> sed <span class="s1">&#39;s/^description:.*/description: Offline LXD profile/&#39;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  <span class="p">|</span> lxc profile edit offline
+</span></span></code></pre></div><p>作成した offline プロファイルの内容を確認します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">$ lxc profile show offline
+</span></span><span class="line"><span class="cl">config: <span class="o">{}</span>
+</span></span><span class="line"><span class="cl">description: Offline LXD profile
+</span></span><span class="line"><span class="cl">devices:
+</span></span><span class="line"><span class="cl">  root:
+</span></span><span class="line"><span class="cl">    path: /
+</span></span><span class="line"><span class="cl">    pool: default
+</span></span><span class="line"><span class="cl">    type: disk
+</span></span><span class="line"><span class="cl">name: offline
+</span></span><span class="line"><span class="cl">used_by: <span class="o">[]</span>
+</span></span></code></pre></div><p>上記で作成した offline プロファイルを使用してインスタンスを作成・起動します。プロファイルを使うことにしたので <code>lxc init</code> で一旦作成してから <code>lxc start</code> で起動する必要はないので、いつもどおり <code>lxc launch</code> で作成と起動します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">lxc launch ubuntu:22.04 my-gpg-master -p offline
+</span></span></code></pre></div><p>実行してみると以下のようなメッセージが表示されました。ネットワークが全くアタッチされていないということで、期待通りです。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">$ lxc launch ubuntu:22.04 my-gpg-master -p offline
+</span></span><span class="line"><span class="cl">Creating my-gpg-master
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">The instance you are starting doesn<span class="err">&#39;</span>t have any network attached to it.
+</span></span><span class="line"><span class="cl">  To create a new network, use: lxc network create
+</span></span><span class="line"><span class="cl">  To attach a network to an instance, use: lxc network attach
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Starting my-gpg-master
+</span></span></code></pre></div><p><code>lxc list</code> でも IP アドレスが付与されていないことを確認します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">$ lxc list my-gpg-master
+</span></span><span class="line"><span class="cl">+---------------+---------+------+------+-----------+-----------+
+</span></span><span class="line"><span class="cl"><span class="p">|</span>     NAME      <span class="p">|</span>  STATE  <span class="p">|</span> IPV4 <span class="p">|</span> IPV6 <span class="p">|</span>   TYPE    <span class="p">|</span> SNAPSHOTS <span class="p">|</span>
+</span></span><span class="line"><span class="cl">+---------------+---------+------+------+-----------+-----------+
+</span></span><span class="line"><span class="cl"><span class="p">|</span> my-gpg-master <span class="p">|</span> RUNNING <span class="p">|</span>      <span class="p">|</span>      <span class="p">|</span> CONTAINER <span class="p">|</span> <span class="m">0</span>         <span class="p">|</span>
+</span></span><span class="line"><span class="cl">+---------------+---------+------+------+-----------+-----------+
+</span></span></code></pre></div><p><code>lxc info</code> でも eth0 が無いことを確認します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">$ lxc info my-gpg-master
+</span></span><span class="line"><span class="cl">Name: my-gpg-master
+</span></span><span class="line"><span class="cl">Status: RUNNING
+</span></span><span class="line"><span class="cl">Type: container
+</span></span><span class="line"><span class="cl">Architecture: x86_64
+</span></span><span class="line"><span class="cl">PID: <span class="m">4011455</span>
+</span></span><span class="line"><span class="cl">Created: 2022/08/06 20:17 JST
+</span></span><span class="line"><span class="cl">Last Used: 2022/08/06 20:17 JST
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Resources:
+</span></span><span class="line"><span class="cl">  Processes: <span class="m">57</span>
+</span></span><span class="line"><span class="cl">  Disk usage:
+</span></span><span class="line"><span class="cl">    root: 24.02MiB
+</span></span><span class="line"><span class="cl">  CPU usage:
+</span></span><span class="line"><span class="cl">    CPU usage <span class="o">(</span>in seconds<span class="o">)</span>: <span class="m">14</span>
+</span></span><span class="line"><span class="cl">  Memory usage:
+</span></span><span class="line"><span class="cl">    Memory <span class="o">(</span>current<span class="o">)</span>: 210.56MiB
+</span></span><span class="line"><span class="cl">  Network usage:
+</span></span><span class="line"><span class="cl">    lo:
+</span></span><span class="line"><span class="cl">      Type: loopback
+</span></span><span class="line"><span class="cl">      State: UP
+</span></span><span class="line"><span class="cl">      MTU: <span class="m">65536</span>
+</span></span><span class="line"><span class="cl">      Bytes received: 12.00kB
+</span></span><span class="line"><span class="cl">      Bytes sent: 12.00kB
+</span></span><span class="line"><span class="cl">      Packets received: <span class="m">164</span>
+</span></span><span class="line"><span class="cl">      Packets sent: <span class="m">164</span>
+</span></span><span class="line"><span class="cl">      IP addresses:
+</span></span><span class="line"><span class="cl">        inet:  127.0.0.1/8 <span class="o">(</span><span class="nb">local</span><span class="o">)</span>
+</span></span><span class="line"><span class="cl">        inet6: ::1/128 <span class="o">(</span><span class="nb">local</span><span class="o">)</span>
+</span></span></code></pre></div><h2 id="コンテナの中に入って-gpg-のプライマリーキーを作成">コンテナの中に入って GPG のプライマリーキーを作成</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">lxc <span class="nb">exec</span> my-gpg-master bash
+</span></span></code></pre></div><p>gpg のバージョンを確認します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># gpg --version</span>
+</span></span><span class="line"><span class="cl">gpg <span class="o">(</span>GnuPG<span class="o">)</span> 2.2.27
+</span></span><span class="line"><span class="cl">libgcrypt 1.9.4
+</span></span><span class="line"><span class="cl">Copyright <span class="o">(</span>C<span class="o">)</span> <span class="m">2021</span> Free Software Foundation, Inc.
+</span></span><span class="line"><span class="cl">License GNU GPL-3.0-or-later &lt;https://gnu.org/licenses/gpl.html&gt;
+</span></span><span class="line"><span class="cl">This is free software: you are free to change and redistribute it.
+</span></span><span class="line"><span class="cl">There is NO WARRANTY, to the extent permitted by law.
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Home: /root/.gnupg
+</span></span><span class="line"><span class="cl">Supported algorithms:
+</span></span><span class="line"><span class="cl">Pubkey: RSA, ELG, DSA, ECDH, ECDSA, EDDSA
+</span></span><span class="line"><span class="cl">Cipher: IDEA, 3DES, CAST5, BLOWFISH, AES, AES192, AES256, TWOFISH,
+</span></span><span class="line"><span class="cl">        CAMELLIA128, CAMELLIA192, CAMELLIA256
+</span></span><span class="line"><span class="cl">Hash: SHA1, RIPEMD160, SHA256, SHA384, SHA512, SHA224
+</span></span><span class="line"><span class="cl">Compression: Uncompressed, ZIP, ZLIB, BZIP2
+</span></span></code></pre></div><p>Ubuntu 22.04 の LXD コンテナでは初期状態で gpg の他に gpg-agent や gpgsm もインストールされていました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># dpkg -l | grep gpg</span>
+</span></span><span class="line"><span class="cl">ii  gpg                             2.2.27-3ubuntu2.1                       amd64        GNU Privacy Guard -- minimalist public key operations
+</span></span><span class="line"><span class="cl">ii  gpg-agent                       2.2.27-3ubuntu2.1                       amd64        GNU privacy guard - cryptographic agent
+</span></span><span class="line"><span class="cl">ii  gpg-wks-client                  2.2.27-3ubuntu2.1                       amd64        GNU privacy guard - Web Key Service client
+</span></span><span class="line"><span class="cl">ii  gpg-wks-server                  2.2.27-3ubuntu2.1                       amd64        GNU privacy guard - Web Key Service server
+</span></span><span class="line"><span class="cl">ii  gpgconf                         2.2.27-3ubuntu2.1                       amd64        GNU privacy guard - core configuration utilities
+</span></span><span class="line"><span class="cl">ii  gpgsm                           2.2.27-3ubuntu2.1                       amd64        GNU privacy guard - S/MIME version
+</span></span><span class="line"><span class="cl">ii  gpgv                            2.2.27-3ubuntu2.1                       amd64        GNU privacy guard - signature verification tool
+</span></span><span class="line"><span class="cl">ii  libgpg-error0:amd64             1.43-3                                  amd64        GnuPG development runtime library
+</span></span><span class="line"><span class="cl">ii  libgpgme11:amd64                1.16.0-1.2ubuntu4                       amd64        GPGME - GnuPG Made Easy <span class="o">(</span>library<span class="o">)</span>
+</span></span></code></pre></div><p>まず、とりあえず特に指定せずにデフォルトでプライマリーキーを作成してみました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">gpg --gen-key
+</span></span></code></pre></div><p>私の場合の実行例。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># gpg --gen-key</span>
+</span></span><span class="line"><span class="cl">gpg <span class="o">(</span>GnuPG<span class="o">)</span> 2.2.27<span class="p">;</span> Copyright <span class="o">(</span>C<span class="o">)</span> <span class="m">2021</span> Free Software Foundation, Inc.
+</span></span><span class="line"><span class="cl">This is free software: you are free to change and redistribute it.
+</span></span><span class="line"><span class="cl">There is NO WARRANTY, to the extent permitted by law.
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">gpg: directory <span class="s1">&#39;/root/.gnupg&#39;</span> created
+</span></span><span class="line"><span class="cl">gpg: keybox <span class="s1">&#39;/root/.gnupg/pubring.kbx&#39;</span> created
+</span></span><span class="line"><span class="cl">Note: Use <span class="s2">&#34;gpg --full-generate-key&#34;</span> <span class="k">for</span> a full featured key generation dialog.
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">GnuPG needs to construct a user ID to identify your key.
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Real name: Hiroaki Nakamura
+</span></span><span class="line"><span class="cl">Email address: hnakamur@gmail.com
+</span></span><span class="line"><span class="cl">You selected this USER-ID:
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Change <span class="o">(</span>N<span class="o">)</span>ame, <span class="o">(</span>E<span class="o">)</span>mail, or <span class="o">(</span>O<span class="o">)</span>kay/<span class="o">(</span>Q<span class="o">)</span>uit? O
+</span></span></code></pre></div><p>すると以下のように表示されるので、適当にキーボードをタイプします。</p>
+<pre tabindex="0"><code>We need to generate a lot of random bytes. It is a good idea to perform
+some other action (type on the keyboard, move the mouse, utilize the
+disks) during the prime generation; this gives the random number
+generator a better chance to gain enough entropy.
+</code></pre><p>すると以下のメッセージが表示されてプライマリーキーが作成されました (key の後の XXXX は念の為伏せてます)。
+使用されたアルゴリズムは RSA 3072 bit でした。</p>
+<pre tabindex="0"><code>asdlfkgpg: /root/.gnupg/trustdb.gpg: trustdb created
+gpg: key XXXXXXXXXXXXXXXX marked as ultimately trusted
+gpg: directory &#39;/root/.gnupg/openpgp-revocs.d&#39; created
+jasdfgpg: revocation certificate stored as &#39;/root/.gnupg/openpgp-revocs.d/6BACB1D1D76C87D24BAEAB9DB89D3B8FDEF900B9.rev&#39;
+public and secret key created and signed.
+
+pub   rsa3072 2022-08-06 [SC] [expires: 2024-08-05]
+      6BACB1D1D76C87D24BAEAB9DB89D3B8FDEF900B9
+uid                      Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+sub   rsa3072 2022-08-06 [E] [expires: 2024-08-05]
+</code></pre><p>その後以下のページを見て ed25519 を使ってプライマリーキーを作成し直すことにしました。</p>
+<ul>
+<li><a href="https://nbeguier.medium.com/a-real-world-comparison-of-the-ssh-key-algorithms-b26b0b31bfd9">Comparison of the SSH Key Algorithms | by Nicolas Béguier | Medium</a></li>
+<li><a href="https://musigma.blog/2021/05/09/gpg-ssh-ed25519.html">An abridged guide to using ed25519 PGP keys with GnuPG and SSH | MuSigma</a></li>
+</ul>
+<p><code>~/.gpg</code> を削除します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">rm -rf ~/.gpg
+</span></span></code></pre></div><p>ed25519 でプライマリーキーを作成します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">gpg --quick-generate-key <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    <span class="s1">&#39;Your Name &lt;your.email@example.com&gt; (optional comment)&#39;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    ed25519 cert never
+</span></span></code></pre></div><p>私の場合は以下のようにしました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">gpg --quick-generate-key <span class="s1">&#39;Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;&#39;</span> ed25519 cert never
+</span></span></code></pre></div><p>実行してみると以下のメッセージが出ました。単に <code>~/.gnupg</code> を消すだけではだめなようです。</p>
+<pre tabindex="0"><code>gpg: A key for &#34;Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;&#34; already exists
+</code></pre><p>ということで exit でコンテナを抜けて、コンテナを作り直して再度試しました。</p>
+<pre tabindex="0"><code>exit
+lxc delete -f my-gpg-master
+lxc launch ubuntu:22.04 my-gpg-master -p offline
+lxc exec my-gpg-master bash
+</code></pre><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">gpg --quick-generate-key <span class="s1">&#39;Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;&#39;</span> ed25519 cert never
+</span></span></code></pre></div><p>作成するキー用のパスフレーズの入力を求められますので、パスワードマネージャでランダム文字列を生成して入力しました。</p>
+<p>以下のようなメッセージが表示されました (key の後の XXXX は念の為伏せてます)。</p>
+<pre tabindex="0"><code>gpg: directory &#39;/root/.gnupg&#39; created
+gpg: keybox &#39;/root/.gnupg/pubring.kbx&#39; created
+We need to generate a lot of random bytes. It is a good idea to perform
+some other action (type on the keyboard, move the mouse, utilize the
+disks) during the prime generation; this gives the random number
+generator a better chance to gain enough entropy.
+gpg: /root/.gnupg/trustdb.gpg: trustdb created
+gpg: key XXXXXXXXXXXXXXXX marked as ultimately trusted
+gpg: directory &#39;/root/.gnupg/openpgp-revocs.d&#39; created
+gpg: revocation certificate stored as &#39;/root/.gnupg/openpgp-revocs.d/0A9ECAD801E0EBFCF7B77F690629F2A2680DEB3C.rev&#39;
+public and secret key created and signed.
+
+pub   ed25519 2022-08-06 [C]
+      0A9ECAD801E0EBFCF7B77F690629F2A2680DEB3C
+uid                      Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+</code></pre><p><a href="https://musigma.blog/2021/05/09/gpg-ssh-ed25519.html">An abridged guide to using ed25519 PGP keys with GnuPG and SSH | MuSigma</a> を再度見てみると</p>
+<blockquote>
+<p>Note that certification and authentication keys use signature algorithms internally, thus for our key, we’ll use <code>ed25519</code> for all but our encryption subkey which will instead use <code>cv25519</code></p>
+</blockquote>
+<p>と書いてありました。 <code>ed25519</code> とは別に <code>cv25519</code> というのもあるんですね。暗号化には <code>cv25519</code>、署名には <code>ed25519</code> を使うそうです。</p>
+<p><a href="https://crypto.stackexchange.com/questions/52859/why-is-curve25519-in-the-gpg-expert-options">elliptic curves - Why is Curve25519 in the GPG “expert” options? - Cryptography Stack Exchange</a> にも</p>
+<blockquote>
+<p>Support for what GnuPG calls cv25519 public-key encryption keys, and for ed25519 public-key signature keys, is neither standardized nor widespread, so you&rsquo;re likely to hit compatibility issues with anyone else using OpenPGP.</p>
+</blockquote>
+<p>というコメントがありました。</p>
+<ul>
+<li><a href="https://security.stackexchange.com/questions/205600/rsa-4096-vs-ecc-curve-25519">gnupg - RSA 4096 vs. ECC Curve 25519 - Information Security Stack Exchange</a></li>
+<li><a href="https://crypto.stackexchange.com/questions/31439/how-do-i-get-the-equivalent-strength-of-an-ecc-key">public key - How do I get the equivalent strength of an ECC key? - Cryptography Stack Exchange</a></li>
+</ul>
+<p>も見てみて、今回は ed25519 / cv25519 で行くことにしました。今回はといってもプライマリーキーは何年も使う想定なので、将来 ed25519 / cv25519 では不十分となったら、作り直す必要が出てくるかもしれません。</p>
+<ul>
+<li><a href="https://www.reddit.com/r/yubikey/comments/gjwkpd/can_gpg_key_curve_25519_be_stored_on_yubikey/">Can GPG key Curve 25519 be stored on Yubikey? : yubikey</a></li>
+<li><a href="https://support.yubico.com/hc/en-us/articles/360016649139-YubiKey-5-2-3-Enhancements-to-OpenPGP-3-4-Support">YubiKey 5.2 Enhancements to OpenPGP 3.4 Support – Yubico</a></li>
+</ul>
+<p>によると YubiKey 5.2 以上のファームウェアでは Elliptic Curve Cryptographic Algorithms をサポートしているとのこと。</p>
+<p>私が持っているのは</p>
+<ul>
+<li>YubiKey 5 NFC</li>
+<li>YubiKey 5C</li>
+<li>YubiKey Bio - FIDO Edition</li>
+<li>YubiKey C Bio - FIDO Edition</li>
+</ul>
+<p>ということでたぶん大丈夫。</p>
+<p><a href="https://musigma.blog/2021/05/09/gpg-ssh-ed25519.html">An abridged guide to using ed25519 PGP keys with GnuPG and SSH | MuSigma</a> の続きを進めます。</p>
+<p>プライマリーキーを作成したときに表示された pub の後のフィンガープリントをこの後実行するコマンド用に KEYFP 環境変数に設定しておきます。
+今回の例だと以下のようにします。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="nb">export</span> <span class="nv">KEYFP</span><span class="o">=</span>0A9ECAD801E0EBFCF7B77F690629F2A2680DEB3C
+</span></span></code></pre></div><p>署名、暗号化、認証用のサブキーを作成します。各コマンドでパスフレーズを聞かれるので、上記で設定したパスフレーズを入力します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">gpg --quick-add-key <span class="nv">$KEYFP</span> ed25519 sign 1y
+</span></span><span class="line"><span class="cl">gpg --quick-add-key <span class="nv">$KEYFP</span> cv25519 encr 1y
+</span></span><span class="line"><span class="cl">gpg --quick-add-key <span class="nv">$KEYFP</span> ed25519 auth 1y
+</span></span></code></pre></div><p><code>gpg --list-secret-keys</code> で秘密鍵の一覧を表示します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">root@my-gpg-master:~# gpg --list-secret-keys
+</span></span><span class="line"><span class="cl">/root/.gnupg/pubring.kbx
+</span></span><span class="line"><span class="cl">------------------------
+</span></span><span class="line"><span class="cl">sec   ed25519 2022-08-06 <span class="o">[</span>C<span class="o">]</span>
+</span></span><span class="line"><span class="cl">      0A9ECAD801E0EBFCF7B77F690629F2A2680DEB3C
+</span></span><span class="line"><span class="cl">uid           <span class="o">[</span>ultimate<span class="o">]</span> Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+</span></span><span class="line"><span class="cl">ssb   ed25519 2022-08-06 <span class="o">[</span>S<span class="o">]</span> <span class="o">[</span>expires: 2023-08-06<span class="o">]</span>
+</span></span><span class="line"><span class="cl">ssb   cv25519 2022-08-06 <span class="o">[</span>E<span class="o">]</span> <span class="o">[</span>expires: 2023-08-06<span class="o">]</span>
+</span></span><span class="line"><span class="cl">ssb   ed25519 2022-08-06 <span class="o">[</span>A<span class="o">]</span> <span class="o">[</span>expires: 2023-08-06<span class="o">]</span>
+</span></span></code></pre></div><h2 id="顔写真の登録">顔写真の登録</h2>
+<p>以下は <a href="http://joemphilips.com/post/gpg_memo/">GPGで自分用の秘密鍵を1つに統一する · JoeMPhilips</a> を参考に進めます。この記事で <code>MASTERID</code> と書いているところは <code>$KEYFP</code> と読み替えて実行します。</p>
+<p><a href="https://blog.josefsson.org/2014/06/19/creating-a-small-jpeg-photo-for-your-openpgp-key/">Creating a small JPEG photo for your OpenPGP key – Simon Josefsson&rsquo;s blog</a> によると GnuPG では 240x288 の解像度が良いらしいです。
+リンク先の <a href="http://git.gnupg.org/cgi-bin/gitweb.cgi?p=gnupg.git;a=blob;f=g10/photoid.c;h=517fa21d7808596e2b0a96d3500e849c494a3ec6;hb=6209c6d9ad00a17bef4780ff22f0e9f588343c00#l83">git.gnupg.org Git - gnupg.git/blob - g10/photoid.c</a> を GitHub で 2022-08-06 現在の最新コミット <a href="https://github.com/gpg/gnupg/blob/25ae80b8eb6e9011049d76440ad7d250c1d02f7c/g10/photoid.c#L84">gnupg/photoid.c at master · gpg/gnupg</a> で確認するとお勧めは変わらず 240x288 でした。</p>
+<p>が、私の twitter アイコンの画像は 100x100 なので気にせずそれを使うことにしました。
+ホストマシンから自分の顔写真の画像を作業用コンテナにコピー。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">lxc file push ~/Pictures/my_icon_100x100.jpg my-gpg-master/root/
+</span></span></code></pre></div><p><a href="https://superuser.com/questions/1191963/gpg2-edit-key-addphoto-keytocard-without-password-prompt">bash - gpg2 &ndash;edit-key addphoto / keytocard without password prompt - Super User</a> を参考に以下のコマンドで設定してみました。</p>
+<p>プライマリーキーのIDは <code>gpg --list-secret-keys --keyid-format short</code> で確認して <code>keyid</code> 変数に設定します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="nv">keyid</span><span class="o">=</span>プライマリーキーのID
+</span></span><span class="line"><span class="cl"><span class="nv">var_photo_path</span><span class="o">=</span>my_icon_100x100.jpg
+</span></span><span class="line"><span class="cl"><span class="nv">cmd</span><span class="o">=</span><span class="s2">&#34;addphoto\n</span><span class="nv">$var_photo_path</span><span class="s2">\ny\nパスフレーズ\nquit\ny\n&#34;</span> 
+</span></span><span class="line"><span class="cl"><span class="nb">echo</span> -e <span class="s2">&#34;</span><span class="nv">$cmd</span><span class="s2">&#34;</span> <span class="p">|</span> gpg --command-fd <span class="m">0</span> --pinentry-mode<span class="o">=</span>loopback --status-fd <span class="m">2</span> --edit-key <span class="s2">&#34;</span><span class="nv">$keyid</span><span class="s2">&#34;</span>
+</span></span></code></pre></div><p>試してみたのですがエラーメッセージが出てうまく行きませんでした。期待する入力順序とあってなさそうな感じのメッセージになってました。</p>
+<p>ということでおとなしくインタラクティブに画像ファイルを登録することにしました。</p>
+<pre tabindex="0"><code>gpg --edit-key $keyid
+</code></pre><pre tabindex="0"><code>gpg&gt; addphoto
+
+Pick an image to use for your photo ID.  The image must be a JPEG file.
+Remember that the image is stored within your public key.  If you use a
+very large picture, your key will become very large as well!
+Keeping the image close to 240x288 is a good size to use.
+
+Enter JPEG filename for photo ID: my_icon_100x100.jpg
+Is this photo correct (y/N/q)? y
+
+gpg&gt; quit
+Save changes? (y/N) y
+</code></pre><h2 id="プライマリーキーの執行証明書を作成">プライマリーキーの執行証明書を作成</h2>
+<p><code>gpg --output $KEYFP.gpg-revocation-certificate --gen-revoke $KEYFP</code> を実行すると以下のように理由が聞かれました。一旦 Q を入力してキャンセルして抜けました。</p>
+<pre tabindex="0"><code>root@my-gpg-master:~# gpg --output $KEYFP.gpg-revocation-certificate --gen-revoke $KEYFP
+
+sec  ed25519/0629F2A2680DEB3C 2022-08-06 Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+
+Create a revocation certificate for this key? (y/N) y
+Please select the reason for the revocation:
+  0 = No reason specified
+  1 = Key has been compromised
+  2 = Key is superseded
+  3 = Key is no longer used
+  Q = Cancel
+(Probably you want to select 1 here)
+Your decision? Q
+</code></pre><p>1, 2, 3 のどれも将来使う可能性がありそうなので、ファイル名を変えて3通り作っておくことにしました。</p>
+<pre tabindex="0"><code>root@my-gpg-master:~# gpg --output $KEYFP.gpg-revocation-certificate-compromised --gen-revoke $KEYFP
+
+sec  ed25519/0629F2A2680DEB3C 2022-08-06 Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+
+Create a revocation certificate for this key? (y/N) y
+Please select the reason for the revocation:
+  0 = No reason specified
+  1 = Key has been compromised
+  2 = Key is superseded
+  3 = Key is no longer used
+  Q = Cancel
+(Probably you want to select 1 here)
+Your decision? 1
+Enter an optional description; end it with an empty line:
+&gt;
+Reason for revocation: Key has been compromised
+(No description given)
+Is this okay? (y/N) y
+ASCII armored output forced.
+Revocation certificate created.
+
+Please move it to a medium which you can hide away; if Mallory gets
+access to this certificate he can use it to make your key unusable.
+It is smart to print this certificate and store it away, just in case
+your media become unreadable.  But have some caution:  The print system of
+your machine might store the data and make it available to others!
+</code></pre><pre tabindex="0"><code># gpg --output $KEYFP.gpg-revocation-certificate-superseded --gen-revoke $KEYFP
+
+sec  ed25519/0629F2A2680DEB3C 2022-08-06 Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+
+Create a revocation certificate for this key? (y/N) y
+Please select the reason for the revocation:
+  0 = No reason specified
+  1 = Key has been compromised
+  2 = Key is superseded
+  3 = Key is no longer used
+  Q = Cancel
+(Probably you want to select 1 here)
+Your decision? 2
+Enter an optional description; end it with an empty line:
+&gt;
+Reason for revocation: Key is superseded
+(No description given)
+Is this okay? (y/N) y
+ASCII armored output forced.
+Revocation certificate created.
+
+Please move it to a medium which you can hide away; if Mallory gets
+access to this certificate he can use it to make your key unusable.
+It is smart to print this certificate and store it away, just in case
+your media become unreadable.  But have some caution:  The print system of
+your machine might store the data and make it available to others!
+</code></pre><pre tabindex="0"><code># gpg --output $KEYFP.gpg-revocation-certificate-no-longer-used --gen-revoke $KEYFP
+
+sec  ed25519/0629F2A2680DEB3C 2022-08-06 Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+
+Create a revocation certificate for this key? (y/N) y
+Please select the reason for the revocation:
+  0 = No reason specified
+  1 = Key has been compromised
+  2 = Key is superseded
+  3 = Key is no longer used
+  Q = Cancel
+(Probably you want to select 1 here)
+Your decision? 3
+Enter an optional description; end it with an empty line:
+&gt;
+Reason for revocation: Key is no longer used
+(No description given)
+Is this okay? (y/N) y
+ASCII armored output forced.
+Revocation certificate created.
+
+Please move it to a medium which you can hide away; if Mallory gets
+access to this certificate he can use it to make your key unusable.
+It is smart to print this certificate and store it away, just in case
+your media become unreadable.  But have some caution:  The print system of
+your machine might store the data and make it available to others!
+</code></pre><h2 id="ホストマシンに-paperkey-をインストール">ホストマシンに Paperkey をインストール</h2>
+<p><a href="http://joemphilips.com/post/gpg_memo/">GPGで自分用の秘密鍵を1つに統一する · JoeMPhilips</a> の optar でリンクされていた <a href="http://www.jabberwocky.com/software/paperkey/">Paperkey - an OpenPGP key archiver</a> を使ってみます。</p>
+<p>Ubuntu 22.04 LTS には paperkey のパッケージがありました。 Homepage の URL も上のリンク先と一致しています。</p>
+<pre tabindex="0"><code>$ apt show paperkey
+Package: paperkey
+Version: 1.6-1
+Priority: optional
+Section: universe/utils
+Origin: Ubuntu
+Maintainer: Ubuntu Developers &lt;ubuntu-devel-discuss@lists.ubuntu.com&gt;
+Original-Maintainer: Peter Palfrader &lt;weasel@debian.org&gt;
+Bugs: https://bugs.launchpad.net/ubuntu/+filebug
+Installed-Size: 56.3 kB
+Depends: libc6 (&gt;= 2.14)
+Recommends: gnupg
+Enhances: gnupg
+Homepage: http://www.jabberwocky.com/software/paperkey/
+Download-Size: 26.7 kB
+APT-Sources: http://jp.archive.ubuntu.com/ubuntu jammy/universe amd64 Packages
+…(略)…
+</code></pre><h2 id="失効証明書を印刷">失効証明書を印刷</h2>
+<p>ここでホストマシンの LAN ケーブルを抜いて WiFi もオフにしてオフラインにしました。</p>
+<p><code>lxc file pull</code> コマンドを使って上記で作成した失効証明書をホストマシンにコピーして Text Editor で開いて印刷しました。 ゼロとオーなどが区別が付きやすいようにフォントは Cica フォントを使いました。</p>
+<h2 id="秘密鍵を印刷">秘密鍵を印刷</h2>
+<p>コンテナで以下のコマンドを実行して秘密鍵をエクスポートします (パスフレーズを聞かれるので入力します)。</p>
+<pre tabindex="0"><code>gpg --export-secret-keys &gt; my-gpg-master-key-for-github.gpg
+</code></pre><p>その後 <code>lxc file pull</code> コマンドを使ってホストマシンにコピーし、 paperkey コマンドでテキストに変換します。このときパスフレーズは聞かれなかったのでパスフレーズで守られた状態のプライマリーキーをテキスト化しているようです。 <code>man paperkey</code> にも書いてありました。パスフレーズがついている、ついていないに応じてそのままの状態でテキスト化しているとのことです。</p>
+<p>(確認のため試しに別のオフラインのコンテナを作って my-gpg-master-key-for-github.gpg をコピーして <code>gpg --import my-gpg-master-key-for-github.gpg</code> を実行するとパスフレーズを聞かれました。と、パスフレーズ入力ダイアログを表示したままこの文章を書いていたらタイムアウトになったのかダイアログが閉じて public key &hellip; imported という表示が出ました。 <code>gpg --list-keys</code> では鍵が表示されていましたが <code>gpg --list-secret-keys</code> では何も表示されませんでした。公開鍵の方だけインポートされたようです)。</p>
+<pre tabindex="0"><code>paperkey --secret-key my-gpg-master-key-for-github.gpg --output my-gpg-master-key-for-github.gpg.txt
+</code></pre><p>出力されたテキストファイルは以下のような内容になっていました。もちろんキーの内容は伏せています。</p>
+<pre tabindex="0"><code># Secret portions of key 0A9ECAD801E0EBFCF7B77F690629F2A2680DEB3C
+# Base16 data extracted Sat Aug  6 23:14:29 2022
+# Created with paperkey 1.6 by David Shaw
+#
+# File format:
+# a) 1 octet:  Version of the paperkey format (currently 0).
+# b) 1 octet:  OpenPGP key or subkey version (currently 4)
+# c) n octets: Key fingerprint (20 octets for a version 4 key or subkey)
+# d) 2 octets: 16-bit big endian length of the following secret data
+# e) n octets: Secret data: a partial OpenPGP secret key or subkey packet as
+#              specified in RFC 4880, starting with the string-to-key usage
+#              octet and continuing until the end of the packet.
+# Repeat fields b through e as needed to cover all subkeys.
+#
+# To recover a secret key without using the paperkey program, use the
+# key fingerprint to match an existing public key packet with the
+# corresponding secret data from the paper key.  Next, append this secret
+# data to the public key packet.  Finally, switch the public key packet tag
+# from 6 to 5 (14 to 7 for subkeys).  This will recreate the original secret
+# key or secret subkey packet.  Repeat as needed for all public key or subkey
+# packets in the public key.  All other packets (user IDs, signatures, etc.)
+# may simply be copied from the public key.
+#
+# Each base16 line ends with a CRC-24 of that line.
+# The entire block of data ends with a CRC-24 of the entire block of data.
+
+  1: XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XXXXXX
+…(略)…
+</code></pre><h2 id="usb-メモリにバックアップ">USB メモリにバックアップ</h2>
+<p>上記で作成したファイル一式と <a href="http://joemphilips.com/post/gpg_memo/">GPGで自分用の秘密鍵を1つに統一する · JoeMPhilips</a> をテキストファイルに保存して、普段使用しない USB メモリにバックアップしました。将来故障して読めなくなるリスクを考えて 2 つの USB メモリにコピーしました。</p>
+<p>USB メモリは念の為 LUKS で暗号化しておきました。手順は <a href="https://mekou.com/linux-magazine/luks-%E3%81%A7usb%E3%83%A1%E3%83%A2%E3%83%AA%E3%82%92%E6%9A%97%E5%8F%B7%E5%8C%96/">LUKS でUSBメモリを暗号化 | Linux Magazine</a> を参考にしました。</p>
+<h2 id="作業用コンテナ内からサブキーをエクスポートしてホストマシンにインポート">作業用コンテナ内からサブキーをエクスポートしてホストマシンにインポート</h2>
+<p>作業用コンテナで以下のコマンドを実行してサブキーをエクスポート (パスフレーズを聞かれるので入力)。</p>
+<pre tabindex="0"><code>gpg --output hnakamur-gpg-subkeys.gpg --export-secret-subkeys $KEYFP
+</code></pre><p>その後 <code>lxc file pull</code> コマンドを使ってホストマシンにコピー。</p>
+<p>ホストマシンで以下のコマンドを実行してサブキーをインポート (パスフレーズをモーダルダイアログで聞かれるので事前にパスワードマネージャでコピーしておいて入力)。</p>
+<pre tabindex="0"><code>gpg --import hnakamur-gpg-subkeys.gpg
+</code></pre><p>インポートした結果を確認すると sec の後に # がついています。</p>
+<pre tabindex="0"><code>$ gpg --list-secret-keys 0A9ECAD801E0EBFCF7B77F690629F2A2680DEB3C
+sec#  ed25519 2022-08-06 [C]
+      0A9ECAD801E0EBFCF7B77F690629F2A2680DEB3C
+uid           [ unknown] Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+uid           [ unknown] [jpeg image of size 2607]
+ssb   ed25519 2022-08-06 [S] [expires: 2023-08-06]
+ssb   cv25519 2022-08-06 [E] [expires: 2023-08-06]
+ssb   ed25519 2022-08-06 [A] [expires: 2023-08-06]
+</code></pre><p><code>man gpg</code> の <code>--list-secret-keys</code> には以下のように書かれていました。</p>
+<blockquote>
+<p>A # after the initial tags sec or ssb means that the secret key
+or subkey is currently not usable.</p>
+</blockquote>
+<h2 id="サブキーのフィンガープリントの確認方法">サブキーのフィンガープリントの確認方法</h2>
+<p><a href="https://lists.gnupg.org/pipermail/gnupg-users/2005-March/025169.html">How can I get a subkey&rsquo;s fingerprint?</a> で知りました。 <code>man gpg</code> の <code>--fingerprint</code> の説明にも2回指定するとサブキーのフィンガープリントも出力されると書かれていました。</p>
+<pre tabindex="0"><code>$ gpg --fingerprint --fingerprint 0629F2A2680DEB3C
+pub   ed25519 2022-08-06 [C]
+      0A9E CAD8 01E0 EBFC F7B7  7F69 0629 F2A2 680D EB3C
+uid           [ unknown] Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+uid           [ unknown] [jpeg image of size 2607]
+sub   ed25519 2022-08-06 [S] [expires: 2023-08-06]
+      13F0 F726 6E46 D846 A741  FF4B F7AD BE58 173B 8F2E
+sub   cv25519 2022-08-06 [E] [expires: 2023-08-06]
+      6867 353C 336F 958F 4E6E  02DB 0DDE 7B81 65A0 4D70
+sub   ed25519 2022-08-06 [A] [expires: 2023-08-06]
+      453B 5C4D DE2A 8CDA 2038  FF2D 4428 346A 4DA6 7825
+</code></pre><h2 id="作業用のコンテナを削除">作業用のコンテナを削除</h2>
+<p>ホストマシンで以下のコマンドを実行し作業用のコンテナを削除します。</p>
+<pre tabindex="0"><code>lxc delete -f my-gpg-master
+</code></pre><p>そしてホストマシンの LAN ケーブルをつないでオンラインに戻しました。</p>
+<h2 id="パスワード入力のモーダルダイアログを-gui-から-tui-に変更">パスワード入力のモーダルダイアログを GUI から TUI に変更</h2>
+<p>GUI のモーダルダイアログだとパスワードマネージャに切り替えてコピペできないので TUI に変更します。
+現状を確認すると以下のようになっていました。</p>
+<pre tabindex="0"><code>$ ls -l /usr/bin/pinentry*
+lrwxrwxrwx 1 root root    26  5月  7 18:14 /usr/bin/pinentry -&gt; /etc/alternatives/pinentry
+-rwxr-xr-x 1 root root 60056  3月 25 01:31 /usr/bin/pinentry-curses
+-rwxr-xr-x 1 root root 76448  3月 25 01:31 /usr/bin/pinentry-gnome3
+lrwxrwxrwx 1 root root    30  5月  7 18:14 /usr/bin/pinentry-x11 -&gt; /etc/alternatives/pinentry-x11
+</code></pre><pre tabindex="0"><code>$ ls -l /etc/alternatives/pinentry
+lrwxrwxrwx 1 root root 24  5月  7 18:14 /etc/alternatives/pinentry -&gt; /usr/bin/pinentry-gnome3
+</code></pre><p>update-alternatives での変更前に選択肢を表示。</p>
+<pre tabindex="0"><code>$ sudo update-alternatives --list pinentry
+/usr/bin/pinentry-curses
+/usr/bin/pinentry-gnome3
+</code></pre><p>変更と確認。</p>
+<pre tabindex="0"><code>$ sudo update-alternatives --set pinentry /usr/bin/pinentry-curses
+update-alternatives: using /usr/bin/pinentry-curses to provide /usr/bin/pinentry (pinentry) in manual mode
+$ ls -l /etc/alternatives/pinentry
+lrwxrwxrwx 1 root root 24  8月  7 00:51 /etc/alternatives/pinentry -&gt; /usr/bin/pinentry-curses
+</code></pre><h2 id="サブキーのパスワード変更">サブキーのパスワード変更</h2>
+<p><code>gpg --keyid-format short --list-keys</code> で一覧を表示して、変更したいサブキーの ID (ed25519/ や cv25519/ の後ろ) を指定して、以下のコマンドで変更します。</p>
+<pre tabindex="0"><code>gpg --edit-key 鍵のID passwd
+</code></pre><p>変更後 <code>gpg&gt; </code> のプロンプトになるので <code>quit</code> で抜けます。</p>
+<p>変更後の鍵一覧の表示での鍵ID は long 形式で出力されていました。ということで鍵一覧を表示するときは <code>gpg --keyid-format long --list-keys</code> のように long 形式で出力しておくのが良さそうです。</p>
+<p>試してみたところ <code>gpg --edit-key 鍵のID passwd</code> で鍵のIDにプライマリーキーのIDを指定してもサブキーのIDを指定しても元のパスフレーズを1回聞かれた後、新しいパスワードは3つのサブキーのパスフレーズに対して順に聞かれます。自信が無いのですが、3つのサブキーのパスフレーズが共通になっている気がします。</p>
+<h2 id="github-に署名用の副鍵を登録">GitHub に署名用の副鍵を登録</h2>
+<p><a href="https://docs.github.com/en/authentication/managing-commit-signature-verification/generating-a-new-gpg-key">Generating a new GPG key - GitHub Docs</a> と <a href="https://qiita.com/kanatatsu64/items/85104644d1599c244f35">githubで使うGPG鍵の作成 - Qiita</a> を参考に登録します。</p>
+<pre tabindex="0"><code>gpg --export --armor プライマリーキーID
+</code></pre><p>以下のように公開鍵が出力されました。</p>
+<pre tabindex="0"><code>-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+mDMEYu5UmRYJKwYBBAHaRw8BAQdAomlYh4adsDQ/KJwfIU/Y88prO/fpa24/8RmR
+…(略)…
+iSJrhHPvY443N2s3EzxituVIq91htDlrjmdDiHUHHQk=
+=5vbz
+-----END PGP PUBLIC KEY BLOCK-----
+</code></pre><p>ブラウザで <a href="https://github.com/settings/keys">https://github.com/settings/keys</a> を開いて [New GPG key] ボタンを押し、上記のコマンドで出力された鍵の内容を Key のテキストエリアにコピーペーストします。
+Title のテキストフィールドは Hiroaki Nakamura と入力しました。</p>
+<p><a href="https://zenn.dev/spiegel/articles/20201014-openpgp-pubkey-in-github">GitHub に登録した OpenPGP 公開鍵を取り出す</a> を参考に登録した GPG 鍵を確認してみた。
+レスポンスを見ると、プライマリーキーと3つのサブキーのIDも含まれているのでこれらは公開情報ということがわかりました。上記で伏せる必要はなかったのでした。</p>
+<pre tabindex="0"><code>$ curl -s https://api.github.com/users/hnakamur/gpg_keys
+[
+  {
+    &#34;id&#34;: 2049443,
+    &#34;primary_key_id&#34;: null,
+    &#34;key_id&#34;: &#34;0629F2A2680DEB3C&#34;,
+    &#34;raw_key&#34;: &#34;-----BEGIN PGP PUBLIC KEY BLOCK-----\r\n\r\nmDMEYu5UmRYJKwYBBAHaRw8BAQdAomlYh4adsDQ/KJwfIU/Y88prO/fpa24/8RmR\r\nXiRa/bm0JUhpcm9ha2kgTmFrYW11cmEgPGhuYWthbXVyQGdtYWlsLmNvbT6IkAQT\r\nFggAOBYhBAqeytgB4Ov897d/aQYp8qJoDes8BQJi7lSZAhsBBQsJCAcCBhUKCQgL\r\nAgQWAgMBAh4BAheAAAoJEAYp8qJoDes8rIsBAKL/np9gMjcE7QQLNGCKQnEVduRL\r\nhgPCFzd4W/fyQ6SuAP4tEY3HkartZW28mzTE3do15ZeW35bw/8ZTeuH+kNpyAtHJ\r\ngsmAARAAAQEAAAAAAAAAAAAAAAD/2P/gABBKRklGAAEBAQBIAEgAAP/+AE9WZW5k\r\nZXI6U0hBUlAKTW9kZWw6ODEyU0gKU29mdHdhcmUgVmVyc2lvbjoxLjEzUiAgIApE\r\nYXRldGltZToyMDA4MDcyMiAwMToyNTowMP/bAEMABwUFBgUEBwYFBggHBwgKEQsK\r\nCQkKFQ8QDBEYFRoZGBUYFxseJyEbHSUdFxgiLiIlKCkrLCsaIC8zLyoyJyorKv/b\r\nAEMBBwgICgkKFAsLFCocGBwqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioq\r\nKioqKioqKioqKioqKioqKioqKv/AABEIAGQAZAMBIQACEQEDEQH/xAAcAAABBAMB\r\nAAAAAAAAAAAAAAAFAAIEBgEDBwj/xAAyEAABAwQBAgUDAgUFAAAAAAABAAIDBAUR\r\nIRIGMRMiQVFxBxRhMpEVQmKBwSMzUqLh/8QAGgEAAgMBAQAAAAAAAAAAAAAAAwQB\r\nAgUABv/EACYRAAICAgICAgICAwAAAAAAAAABAhEDIRIxBEEiURNhBXEjMoH/2gAM\r\nAwEAAhEDEQA/AKi2LWTpbGxYzja7rQBsf4e8HCf4WDkhVkq6IqkYeY4z53gfJSY+\r\nJ36Xg/BVK0ds2tiDjkb+FkQb7bVSRxiOAcJNi/CjjrRS6VGfC0NYCz4fl2okumRa\r\nGmMjskpV0TS+jSyMEb2tjYfLk6TLsh9kauuVHb2cqh45Y00bJ/shjLpNcARGPCjz\r\nofzfuqSqMbYbHDm7LLYunmVh5vjDj/ydtW2n6LaRkxsPwkXl32aX4daJEnQkEhHE\r\n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\r\n=5vbz\r\n-----END PGP PUBLIC KEY BLOCK-----&#34;,
+    &#34;public_key&#34;: &#34;xjMEYu5UmRYJKwYBBAHaRw8BAQdAomlYh4adsDQ/KJwfIU/Y88prO/fpa24/8RmRXiRa/bk=&#34;,
+    &#34;emails&#34;: [
+      {
+        &#34;email&#34;: &#34;hnakamur@gmail.com&#34;,
+        &#34;verified&#34;: true
+      }
+    ],
+    &#34;subkeys&#34;: [
+      {
+        &#34;id&#34;: 2049444,
+        &#34;primary_key_id&#34;: 2049443,
+        &#34;key_id&#34;: &#34;F7ADBE58173B8F2E&#34;,
+        &#34;raw_key&#34;: null,
+        &#34;public_key&#34;: &#34;zjMEYu5i5RYJKwYBBAHaRw8BAQdAu/KOfEhOX5ka/VF/sGWS8xnn4zMEF0EWyn3MCW+HJTI=&#34;,
+        &#34;emails&#34;: [
+
+        ],
+        &#34;subkeys&#34;: [
+
+        ],
+        &#34;can_sign&#34;: true,
+        &#34;can_encrypt_comms&#34;: false,
+        &#34;can_encrypt_storage&#34;: false,
+        &#34;can_certify&#34;: false,
+        &#34;created_at&#34;: &#34;2022-08-06T16:49:56.000Z&#34;,
+        &#34;expires_at&#34;: &#34;2023-08-06T12:47:33.000Z&#34;,
+        &#34;revoked&#34;: false
+      },
+      {
+        &#34;id&#34;: 2049445,
+        &#34;primary_key_id&#34;: 2049443,
+        &#34;key_id&#34;: &#34;0DDE7B8165A04D70&#34;,
+        &#34;raw_key&#34;: null,
+        &#34;public_key&#34;: &#34;zjgEYu5i/RIKKwYBBAGXVQEFAQEHQBQbzskGmbcuwDQcRVRZFKD8RkB7gddPHYbMDc+VAxcYAwEIBw==&#34;,
+        &#34;emails&#34;: [
+
+        ],
+        &#34;subkeys&#34;: [
+
+        ],
+        &#34;can_sign&#34;: false,
+        &#34;can_encrypt_comms&#34;: true,
+        &#34;can_encrypt_storage&#34;: true,
+        &#34;can_certify&#34;: false,
+        &#34;created_at&#34;: &#34;2022-08-06T16:49:56.000Z&#34;,
+        &#34;expires_at&#34;: &#34;2023-08-06T12:47:57.000Z&#34;,
+        &#34;revoked&#34;: false
+      },
+      {
+        &#34;id&#34;: 2049446,
+        &#34;primary_key_id&#34;: 2049443,
+        &#34;key_id&#34;: &#34;4428346A4DA67825&#34;,
+        &#34;raw_key&#34;: null,
+        &#34;public_key&#34;: &#34;zjMEYu5jBxYJKwYBBAHaRw8BAQdAGjhfLpYnwwP3D2Pxun9IFAL4BCRGpG65ogtbZQ6QZGY=&#34;,
+        &#34;emails&#34;: [
+
+        ],
+        &#34;subkeys&#34;: [
+
+        ],
+        &#34;can_sign&#34;: false,
+        &#34;can_encrypt_comms&#34;: false,
+        &#34;can_encrypt_storage&#34;: false,
+        &#34;can_certify&#34;: false,
+        &#34;created_at&#34;: &#34;2022-08-06T16:49:56.000Z&#34;,
+        &#34;expires_at&#34;: &#34;2023-08-06T12:48:07.000Z&#34;,
+        &#34;revoked&#34;: false
+      }
+    ],
+    &#34;can_sign&#34;: false,
+    &#34;can_encrypt_comms&#34;: false,
+    &#34;can_encrypt_storage&#34;: false,
+    &#34;can_certify&#34;: true,
+    &#34;created_at&#34;: &#34;2022-08-06T16:49:56.000Z&#34;,
+    &#34;expires_at&#34;: null,
+    &#34;revoked&#34;: false,
+    &#34;name&#34;: &#34;Hiroaki Nakamura&#34;
+  }
+]
+</code></pre><h2 id="git-でコミットに署名する設定">git でコミットに署名する設定</h2>
+<p>常にコミットに署名する設定をします。
+<a href="https://www.hjdskes.nl/blog/psa-github-gpg/">Jente Hidskes&rsquo; website - PSA: want to use a new subkey to sign your commits?</a> を見るとサブキーを使う場合は git の <code>user.signingkey</code> 設定の鍵IDの最後に <code>!</code> を追加する必要があり、<a href="https://git-scm.com/book/en/v2/Git-Tools-Signing-Your-Work">Git - Signing Your Work</a> を見ると鍵IDはサブキーではなくプライマリーキーのほうを指定する必要があるようです。と思ったのですがサブキーを <code>!</code> 無しで指定するのが正解でした（下記参照）。</p>
+<pre tabindex="0"><code>git config --global user.signingkey 0629F2A2680DEB3C\! # プライマリーキーIDの後に感嘆符 (バックスラッシュは zsh の場合のエスケープ)
+git config --global commit.gpgsign true
+</code></pre><p><code>man git-config</code> で <code>gpg.program</code> の説明を見るとデフォルト値は gpg なので、 <code>gpg.program</code> は未設定としておきます。</p>
+<p>これでこのブログ記事をコミットしてどうなるか試してみたところ以下のエラーになりました。</p>
+<pre tabindex="0"><code>error: gpg failed to sign the data
+fatal: failed to write commit object
+</code></pre><p><a href="https://gist.github.com/paolocarrasco/18ca8fe6e63490ae1be23e84a7039374">How to understand the <code>gpg failed to sign the data</code> problem in git</a> で <code>git commit</code> 実行時に <code>GIT_TRACE=1 git commit</code> のように <code>GIT_TRACE=1</code> をつけるとトレースメッセージが出力されることを知りました。</p>
+<p>その一部で以下のように git から呼んでいる gpg のコマンドが出力されます。</p>
+<pre tabindex="0"><code>trace: run_command: gpg --status-fd=2 -bsau &#39;0629F2A2680DEB3C&#39;\!&#39;&#39;
+</code></pre><p>これをコピペして実行してみると <code>Unusable secret key</code> と表示されました。</p>
+<pre tabindex="0"><code>$ gpg --status-fd=2 -bsau &#39;0629F2A2680DEB3C&#39;\!&#39;&#39;
+[GNUPG:] KEY_CONSIDERED 0A9ECAD801E0EBFCF7B77F690629F2A2680DEB3C 1
+gpg: skipped &#34;0629F2A2680DEB3C!&#34;: Unusable secret key
+[GNUPG:] INV_SGNR 9 0629F2A2680DEB3C!
+[GNUPG:] FAILURE sign 54
+gpg: signing failed: Unusable secret key
+</code></pre><p>署名用のサブキー (鍵一覧の表示で <code>[S]</code> がついている鍵) のIDで試すと上のエラーは出ずに待ち状態になったので Ctrl-C で止めました。</p>
+<pre tabindex="0"><code>$ gpg --status-fd=2 -bsau F7ADBE58173B8F2E
+[GNUPG:] KEY_CONSIDERED 0A9ECAD801E0EBFCF7B77F690629F2A2680DEB3C 0
+[GNUPG:] BEGIN_SIGNING H8
+^C
+gpg: signal 2 caught ... exiting
+</code></pre><p>というわけで以下のように設定を変更しました。</p>
+<pre tabindex="0"><code>git config --global user.signingkey F7ADBE58173B8F2E # 署名用サブキーID
+</code></pre><p>しかし、 <code>git commit</code> では相変わらず同じエラーが出ました。</p>
+<p><a href="https://docs.github.com/en/authentication/managing-commit-signature-verification/telling-git-about-your-signing-key">Telling Git about your signing key - GitHub Docs</a>
+の 5 の手順を忘れていたのが原因でした。以下のコマンドを実行して <code>GPG_TTY</code> 環境変数を設定しておく必要がありました。</p>
+<pre tabindex="0"><code>[ -f ~/.bashrc ] &amp;&amp; echo &#39;export GPG_TTY=$(tty)&#39; &gt;&gt; ~/.bashrc
+</code></pre><p>その場で反映するため、ログインシェルを再起動します。</p>
+<pre tabindex="0"><code>exec $SHELL -l
+</code></pre><p><code>GPG_TTY</code> 環境変数が設定されたことを確認します。</p>
+<pre tabindex="0"><code>$ echo $GPG_TTY
+/dev/pts/2
+</code></pre><p>これで <code>git commit</code> が成功しました。</p>
+<h2 id="コミットまたはタグがどの鍵で署名されているかを確認">コミットまたはタグがどの鍵で署名されているかを確認</h2>
+<p><a href="https://security.stackexchange.com/questions/128437/how-do-i-know-which-subkey-github-is-using-for-signing">gnupg - How do I know which subkey GitHub is using for signing? - Information Security Stack Exchange</a> で知りました。 <code>git verify-commit コミット</code> や <code>git verify-tag タグ名</code> で確認できます。</p>
+<pre tabindex="0"><code>$ git verify-commit HEAD
+gpg: Signature made 2022年08月07日 03時07分49秒 JST
+gpg:                using EDDSA key 13F0F7266E46D846A741FF4BF7ADBE58173B8F2E
+gpg: Good signature from &#34;Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;&#34; [unknown]
+gpg:                 aka &#34;[jpeg image of size 2607]&#34; [unknown]
+gpg: WARNING: This key is not certified with a trusted signature!
+gpg:          There is no indication that the signature belongs to the owner.
+Primary key fingerprint: 0A9E CAD8 01E0 EBFC F7B7  7F69 0629 F2A2 680D EB3C
+     Subkey fingerprint: 13F0 F726 6E46 D846 A741  FF4B F7AD BE58 173B 8F2E
+</code></pre><h2 id="公開鍵をキーサーバにアップロード">公開鍵をキーサーバにアップロード</h2>
+<p>上記でメールアドレスの後が <code>[unknown]</code> になっているのを見て <a href="http://joemphilips.com/post/gpg_memo/">GPGで自分用の秘密鍵を1つに統一する · JoeMPhilips</a> の公開鍵のアップロードをしてみることにしました。</p>
+<p><code>apt show gnupg-curl</code> を実行してみると、そういう名前のパッケージは無さそうでした。 <code>dpkg -l | grep gpg</code> してみたところ gpg-wks-client というパッケージの説明に Web Key Service client というのがあってこれが気になりました。</p>
+<pre tabindex="0"><code>$ dpkg -l | grep gpg
+ii  gpg                                        2.2.27-3ubuntu2.1                       amd64        GNU Privacy Guard -- minimalist public key operations
+ii  gpg-agent                                  2.2.27-3ubuntu2.1                       amd64        GNU privacy guard - cryptographic agent
+ii  gpg-wks-client                             2.2.27-3ubuntu2.1                       amd64        GNU privacy guard - Web Key Service client
+ii  gpg-wks-server                             2.2.27-3ubuntu2.1                       amd64        GNU privacy guard - Web Key Service server
+ii  gpgconf                                    2.2.27-3ubuntu2.1                       amd64        GNU privacy guard - core configuration utilities
+ii  gpgsm                                      2.2.27-3ubuntu2.1                       amd64        GNU privacy guard - S/MIME version
+ii  gpgv                                       2.2.27-3ubuntu2.1                       amd64        GNU privacy guard - signature verification tool
+ii  libgpg-error-l10n                          1.43-3                                  all          library of error values and messages in GnuPG (localization files)
+ii  libgpg-error0:amd64                        1.43-3                                  amd64        GnuPG development runtime library
+ii  libgpg-error0:i386                         1.43-3                                  i386         GnuPG development runtime library
+ii  libgpgme11:amd64                           1.16.0-1.2ubuntu4                       amd64        GPGME - GnuPG Made Easy (library)
+ii  python3-gpg                                1.16.0-1.2ubuntu4                       amd64        Python interface to the GPGME GnuPG encryption library (Python 3)
+</code></pre><p><code>apt show gpg-wks-client</code> で説明を見てみると <a href="https://datatracker.ietf.org/doc/html/draft-koch-openpgp-webkey-service">draft-koch-openpgp-webkey-service-14</a> に規定されているプロトコルでキーサーバにアップロードするようです。</p>
+<pre tabindex="0"><code>$ apt show gpg-wks-client
+Package: gpg-wks-client
+Version: 2.2.27-3ubuntu2.1
+Priority: optional
+Section: utils
+Source: gnupg2
+Origin: Ubuntu
+Maintainer: Ubuntu Developers &lt;ubuntu-devel-discuss@lists.ubuntu.com&gt;
+Original-Maintainer: Debian GnuPG Maintainers &lt;pkg-gnupg-maint@lists.alioth.debian.org&gt;
+Bugs: https://bugs.launchpad.net/ubuntu/+filebug
+Installed-Size: 188 kB
+Depends: dirmngr (= 2.2.27-3ubuntu2.1), gpg (= 2.2.27-3ubuntu2.1), gpg-agent (= 2.2.27-3ubuntu2.1), libassuan0 (&gt;= 2.5.0), libc6 (&gt;= 2.34), libgcrypt20 (&gt;= 1.9.0), libgpg-error0 (&gt;= 1.42)
+Recommends: gnupg (= 2.2.27-3ubuntu2.1)
+Homepage: https://www.gnupg.org/
+Task: ubuntu-desktop-minimal, samba-server, ubuntu-desktop, cloud-image, ubuntu-desktop-raspi, ubuntu-wsl, mail-server, server, ubuntu-server-raspi, kubuntu-desktop, xubuntu-core, xubuntu-desktop, lubuntu-desktop, ubuntustudio-desktop-core, ubuntustudio-desktop, ubuntukylin-desktop, ubuntu-mate-core, ubuntu-mate-desktop, ubuntu-budgie-desktop, ubuntu-budgie-desktop-raspi
+Download-Size: 62.7 kB
+APT-Manual-Installed: no
+APT-Sources: http://jp.archive.ubuntu.com/ubuntu jammy-updates/main amd64 Packages
+Description: GNU privacy guard - Web Key Service client
+ GnuPG is GNU&#39;s tool for secure communication and data storage.
+ It can be used to encrypt data and to create digital signatures.
+ It includes an advanced key management facility and is compliant
+ with the proposed OpenPGP Internet standard as described in RFC4880.
+ .
+ This package provides the GnuPG client for the Web Key Service
+ protocol.
+ .
+ A Web Key Service is a service that allows users to upload keys per
+ mail to be verified over https as described in
+ https://tools.ietf.org/html/draft-koch-openpgp-webkey-service
+ .
+ For more information see: https://wiki.gnupg.org/WKS
+
+N: There is 1 additional record. Please use the &#39;-a&#39; switch to see it
+</code></pre><p>gpg-wks-client パッケージのファイル一覧を見てみると <code>/usr/bin/</code> 以下のプログラムは無く、 <code>/usr/lib/gnupg/gpg-wks-client</code> というファイルがあるので、これが gpg のプラグインなっていそうです。</p>
+<pre tabindex="0"><code>$ dpkg -L gpg-wks-client
+/.
+/usr
+/usr/lib
+/usr/lib/gnupg
+/usr/lib/gnupg/gpg-wks-client
+/usr/share
+/usr/share/doc
+/usr/share/doc/gpg-wks-client
+/usr/share/doc/gpg-wks-client/copyright
+/usr/share/lintian
+/usr/share/lintian/overrides
+/usr/share/lintian/overrides/gpg-wks-client
+/usr/share/man
+/usr/share/man/man1
+/usr/share/man/man1/gpg-wks-client.1.gz
+/usr/share/doc/gpg-wks-client/NEWS.Debian.gz
+/usr/share/doc/gpg-wks-client/changelog.Debian.gz
+</code></pre><p><code>man gpg-wks-client</code> も見てみましたが、<code>gpg --send-key</code> で使われるのかはよくわかりませんでした。とりあえず今回は気にしないことにします。</p>
+<p>あとは vDistributing keys](<a href="https://www.gnupg.org/gph/en/manual/x457.html">https://www.gnupg.org/gph/en/manual/x457.html</a>) と <a href="https://en.wikipedia.org/wiki/Key_server_%28cryptographic%29">Key server (cryptographic) - Wikipedia</a> を見て keyserver.ubuntu.com のキーサーバにアップロードしてみました。</p>
+<pre tabindex="0"><code>gpg --keyserver keyserver.ubuntu.com --send-key F7ADBE58173B8F2E
+</code></pre><p>実行結果。これを見るとプライマリーキーのIDを指定するのが正しかったのかもしれません(が、よくわかっていません)。また hkp://keyserver.ubuntu.com とあるので hkp プロトコルが使われたようです。
+<a href="https://en.wikipedia.org/wiki/Key_server_%28cryptographic%29">Key server (cryptographic) - Wikipedia</a> に <a href="https://datatracker.ietf.org/doc/html/draft-shaw-openpgp-hkp-00">draft-shaw-openpgp-hkp-00</a> へのリンクがありました。</p>
+<pre tabindex="0"><code>$ gpg --keyserver keyserver.ubuntu.com --send-key F7ADBE58173B8F2E
+gpg: sending key 0629F2A2680DEB3C to hkp://keyserver.ubuntu.com
+</code></pre><p>ブラウザで <a href="https://keyserver.ubuntu.com/">OpenPGP Keyserver</a> を開いて F7ADBE58173B8F2E と入力して [Search Key] ボタンを押すと以下のような結果が表示されました。
+uat の右には登録した顔写真も出ていました。</p>
+<pre tabindex="0"><code>Search results for &#39;0xF7ADBE58173B8F2E&#39;
+
+Type bits/keyID            cr. time   exp time   key expir
+
+pub eddsa263/0a9ecad801e0ebfcf7b77f690629f2a2680deb3c 2022-08-06T11:46:33Z
+   Hash=5d1e66d498df3b5c16bef55eb11a3e63
+
+uid Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+sig  sig  0629f2a2680deb3c 2022-08-06T11:46:33Z ____________________ ____________________ [selfsig]
+
+uat 
+sig  sig  0629f2a2680deb3c 2022-08-06T13:28:00Z ____________________ ____________________ [selfsig]
+
+sub eddsa263/453b5c4dde2a8cda2038ff2d4428346a4da67825 2022-08-06T12:48:07Z            
+sig sbind 0629f2a2680deb3c 2022-08-06T12:48:07Z ____________________ 2023-08-06T12:48:07Z []
+
+sub ecdh263/6867353c336f958f4e6e02db0dde7b8165a04d70 2022-08-06T12:47:57Z            
+sig sbind 0629f2a2680deb3c 2022-08-06T12:47:57Z ____________________ 2023-08-06T12:47:57Z []
+
+sub eddsa263/13f0f7266e46d846a741ff4bf7adbe58173b8f2e 2022-08-06T12:47:33Z            
+sig sbind 0629f2a2680deb3c 2022-08-06T12:47:33Z ____________________ 2023-08-06T12:47:33Z []
+</code></pre><p>検索欄に 0629F2A2680DEB3C と入力した場合は Not Found となりました。</p>
+<p><code>gpg --search-key</code> で確認する場合は公開鍵のフィンガープリントを指定する必要がありました。</p>
+<pre tabindex="0"><code>$ gpg --keyserver keyserver.ubuntu.com --search-key F7ADBE58173B8F2E
+gpg: data source: http://162.213.33.9:11371
+gpg: key &#34;F7ADBE58173B8F2E&#34; not found on keyserver
+gpg: keyserver search failed: Not found
+$ gpg --keyserver keyserver.ubuntu.com --search-key 0629F2A2680DEB3C
+gpg: data source: http://162.213.33.9:11371
+gpg: key &#34;0629F2A2680DEB3C&#34; not found on keyserver
+gpg: keyserver search failed: Not found
+$ gpg --keyserver keyserver.ubuntu.com --search-key 0x0629F2A2680DEB3C
+gpg: data source: http://162.213.33.9:11371
+gpg: key &#34;0x0629F2A2680DEB3C&#34; not found on keyserver
+gpg: keyserver search failed: Not found
+$ gpg --keyserver keyserver.ubuntu.com --search-key 0a9ecad801e0ebfcf7b77f690629f2a2680deb3c
+gpg: data source: http://162.213.33.9:11371
+(1)     Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+          263 bit EDDSA key 0629F2A2680DEB3C, created: 2022-08-06
+Keys 1-1 of 1 for &#34;0a9ecad801e0ebfcf7b77f690629f2a2680deb3c&#34;.  Enter number(s), N)ext, or Q)uit &gt; 1
+gpg: key 0629F2A2680DEB3C: &#34;Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;&#34; not changed
+gpg: Total number processed: 1
+gpg:              unchanged: 1
+</code></pre><p>3時間ほどしたらサブキーやマスターキーのIDでも検索できるようになってました。</p>
+<pre tabindex="0"><code>$ gpg --keyserver keyserver.ubuntu.com --search-key F7ADBE58173B8F2E
+gpg: data source: http://162.213.33.9:11371
+(1)     Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+          263 bit EDDSA key 0629F2A2680DEB3C, created: 2022-08-06
+Keys 1-1 of 1 for &#34;F7ADBE58173B8F2E&#34;.  Enter number(s), N)ext, or Q)uit &gt; 1
+gpg: key 0629F2A2680DEB3C: &#34;Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;&#34; not changed
+gpg: Total number processed: 1
+gpg:              unchanged: 1
+$ gpg --keyserver keyserver.ubuntu.com --search-key 0629F2A2680DEB3C
+gpg: data source: http://162.213.33.9:11371
+(1)     Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+          263 bit EDDSA key 0629F2A2680DEB3C, created: 2022-08-06
+Keys 1-1 of 1 for &#34;0629F2A2680DEB3C&#34;.  Enter number(s), N)ext, or Q)uit &gt; 1
+gpg: key 0629F2A2680DEB3C: &#34;Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;&#34; not changed
+gpg: Total number processed: 1
+gpg:              unchanged: 1
+</code></pre><h2 id="自分の鍵を信頼する">自分の鍵を信頼する</h2>
+<p><a href="https://stackoverflow.com/questions/17371955/verifying-signed-git-commits">Verifying signed git commits? - Stack Overflow</a> で
+<code>git log --show-signature</code> というコマンドを知り、試してみると各コミットにシグネチャ (上記の <code>git verify-commit</code> の出力) が青字で
+表示されました。</p>
+<p><a href="https://gnupg.org/download/integrity_check.html">GnuPG - Integrity Check</a> を見ると unknown となっているのは、キーを信頼していない状態だとわかりました。
+<a href="https://www.gnupg.org/gph/en/manual/x334.html">Validating other keys on your public keyring</a> の手順で信頼できるようです。</p>
+<pre tabindex="0"><code>$ gpg --edit-key 0629F2A2680DEB3C trust
+gpg (GnuPG) 2.2.27; Copyright (C) 2021 Free Software Foundation, Inc.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
+Secret subkeys are available.
+
+pub  ed25519/0629F2A2680DEB3C
+     created: 2022-08-06  expires: never       usage: C
+     trust: unknown       validity: unknown
+ssb  ed25519/F7ADBE58173B8F2E
+     created: 2022-08-06  expires: 2023-08-06  usage: S
+ssb  cv25519/0DDE7B8165A04D70
+     created: 2022-08-06  expires: 2023-08-06  usage: E
+ssb  ed25519/4428346A4DA67825
+     created: 2022-08-06  expires: 2023-08-06  usage: A
+[ unknown] (1). Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+[ unknown] (2)  [jpeg image of size 2607]
+
+pub  ed25519/0629F2A2680DEB3C
+     created: 2022-08-06  expires: never       usage: C
+     trust: unknown       validity: unknown
+ssb  ed25519/F7ADBE58173B8F2E
+     created: 2022-08-06  expires: 2023-08-06  usage: S
+ssb  cv25519/0DDE7B8165A04D70
+     created: 2022-08-06  expires: 2023-08-06  usage: E
+ssb  ed25519/4428346A4DA67825
+     created: 2022-08-06  expires: 2023-08-06  usage: A
+[ unknown] (1). Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+[ unknown] (2)  [jpeg image of size 2607]
+
+Please decide how far you trust this user to correctly verify other users&#39; keys
+(by looking at passports, checking fingerprints from different sources, etc.)
+
+  1 = I don&#39;t know or won&#39;t say
+  2 = I do NOT trust
+  3 = I trust marginally
+  4 = I trust fully
+  5 = I trust ultimately
+  m = back to the main menu
+
+Your decision?
+</code></pre><p>ここで選択肢を選ぶ前に内容を調べました。</p>
+<p><a href="https://www.gnupg.org/gph/en/manual/x334.html">Validating other keys on your public keyring</a> の例の出力に比べて <code>5 = I trust ultimately</code> が増えていました。</p>
+<p><a href="https://security.stackexchange.com/questions/69062/what-is-the-difference-between-full-and-ultimate-trust">pgp - What is the difference between &ldquo;full&rdquo; and &ldquo;ultimate&rdquo; trust? - Information Security Stack Exchange</a> に ultimate trust と full trust と marginal trust の違いが書かれていました。</p>
+<ul>
+<li>ultimate trust は web of trust の中で対象の鍵が introducer として許可されることを意味する。つまり、鍵が ultimately に信頼される場合、ultimately に信頼されるキーへの trust path が無い場合でも全ての certify されたキーは有効と考えられる。これは秘密鍵を所有していることを必須とはしないが、通常は所有している。</li>
+<li>full trust (デフォルトの信頼度、調整可能) も fully に信頼された鍵で certify されたキーは信頼されるが、これは fully に信頼された鍵自体が有効な場合 (ultimately に信頼される鍵からの trust path がある) のみに限定される。</li>
+<li>marginal trust は full trust と似たように機能するが、他の marginally に有効な鍵からの複数の incoming certifications を必要とする。</li>
+</ul>
+<p><a href="https://www.phildev.net/pgp/gpgtrust.html">Phil&rsquo;s PGP Docs</a> に</p>
+<blockquote>
+<p>Generally it is a good idea to trust only yourself ultimately, and gnupg often does this for you.</p>
+</blockquote>
+<p>と説明がありました。通常は自分の鍵だけを ultimately に信頼するのが良くて gnupg はそうしてくれるとのことです。</p>
+<p>今回作成した鍵はなぜ信頼されていないのかなと思ったら、ホストマシンとは別のコンテナで鍵を生成してそれをインポートしたからだと気づきました。</p>
+<p>ということで元の端末の <code>Your decision?</code> に 5 を入力しました。その後 <code>Do you really want to set this key to ultimate trust? (y/N)</code> に y と入力し、<code>gpg&gt;</code> のプロンプトで quit と入力しました。</p>
+<pre tabindex="0"><code>Your decision? 5
+Do you really want to set this key to ultimate trust? (y/N) y
+
+pub  ed25519/0629F2A2680DEB3C
+     created: 2022-08-06  expires: never       usage: C
+     trust: ultimate      validity: unknown
+ssb  ed25519/F7ADBE58173B8F2E
+     created: 2022-08-06  expires: 2023-08-06  usage: S
+ssb  cv25519/0DDE7B8165A04D70
+     created: 2022-08-06  expires: 2023-08-06  usage: E
+ssb  ed25519/4428346A4DA67825
+     created: 2022-08-06  expires: 2023-08-06  usage: A
+[ unknown] (1). Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+[ unknown] (2)  [jpeg image of size 2607]
+Please note that the shown key validity is not necessarily correct
+unless you restart the program.
+
+gpg&gt; quit
+</code></pre><p>再度 <code>git verify-commit HEAD</code> を実行すると <code>[unknown]</code> の部分が <code>[ultimate]</code> に変わりました。</p>
+<pre tabindex="0"><code>$ git verify-commit HEAD
+gpg: Signature made 2022年08月07日 07時22分43秒 JST
+gpg:                using EDDSA key 13F0F7266E46D846A741FF4BF7ADBE58173B8F2E
+gpg: checking the trustdb
+gpg: marginals needed: 3  completes needed: 1  trust model: pgp
+gpg: depth: 0  valid:   1  signed:   0  trust: 0-, 0q, 0n, 0m, 0f, 1u
+gpg: Good signature from &#34;Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;&#34; [ultimate]
+gpg:                 aka &#34;[jpeg image of size 2607]&#34; [ultimate]
+</code></pre><p><code>git log --signature</code> でも同様に変わりました。</p>
+<pre tabindex="0"><code>commit 8a7b61024e4b8309f5ab25edeb6f121074564e73 (HEAD -&gt; main)
+gpg: Signature made 2022年08月07日 07時22分43秒 JST
+gpg:                using EDDSA key 13F0F7266E46D846A741FF4BF7ADBE58173B8F2E
+gpg: Good signature from &#34;Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;&#34; [ultimate]
+gpg:                 aka &#34;[jpeg image of size 2607]&#34; [ultimate]
+Author: Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+Date:   Sun Aug 7 07:22:00 2022
+
+    3時間後サブキーやマスターキーのIDでも gpg --search-key が動いた旨追記
+
+commit d55783fcd31b65172388df3cc3e9c7e2276df0ad (origin/main, origin/HEAD)
+gpg: Signature made 2022年08月07日 04時13分40秒 JST
+gpg:                using EDDSA key 13F0F7266E46D846A741FF4BF7ADBE58173B8F2E
+gpg: Good signature from &#34;Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;&#34; [ultimate]
+gpg:                 aka &#34;[jpeg image of size 2607]&#34; [ultimate]
+Author: Hiroaki Nakamura &lt;hnakamur@gmail.com&gt;
+Date:   Sun Aug 7 04:13:21 2022
+
+    LUKS でUSBメモリを暗号化のリンク追加
+</code></pre>
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

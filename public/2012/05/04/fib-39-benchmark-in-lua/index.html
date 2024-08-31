@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>lua, V8, ruby, mrubyでfib(39)の実行時間比較 2013-03-12版 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>lua, V8, ruby, mrubyでfib(39)の実行時間比較 2013-03-12版</h1>
+  <time datetime=2012-05-04T00:00:00Z class="post-date">2012-05-04</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#lua">lua</a></li>
+    <li><a href="#v8">V8</a></li>
+    <li><a href="#ruby">ruby</a></li>
+  </ul>
+</nav>
+  <p>2013-03-13追記</p>
+<p>この記事が<a href="https://twitter.com/yukihiro_matz">@matz</a>さんにツイートされたのを受けて、各処理系の最新版で再度試してみました。
+<a href="http://hnakamur.github.com/blog/2013/03/12/fib-39-benchmark-in-luajit/">lua, V8, ruby, mrubyでfib(39)の実行時間比較 2013-03-12版</a>をご参照ください。</p>
+<!-- raw HTML omitted -->
+<p><a href="http://www.quredo.net/2012/04/mruby-%E8%BB%BD%E9%87%8Fruby-%E3%82%BD%E3%83%BC%E3%82%B9%E5%85%AC%E9%96%8B/">mruby (軽量ruby) ソース公開 | quredo-style</a>を見て、自分の環境でlua, luajit, V8, ruby, mrubyで試してみた。</p>
+<p>テスト環境</p>
+<ul>
+<li>Model: MacBook Air 13-inch, Mid 2011</li>
+<li>CPU: 1.7GHz Intel Core i5</li>
+<li>RAM: 4GB 1333MHz DDR3</li>
+<li>OS: Mac OS X Lion 10.7.3</li>
+</ul>
+<h2 id="lua">lua</h2>
+<p>fib.lua</p>
+<pre tabindex="0"><code>function fib(n)
+  if n &lt; 2 then
+    return n
+  end
+  return fib(n-2) + fib(n-1)
+end
+
+print(fib(39))
+</code></pre><pre tabindex="0"><code>$ lua -v
+Lua 5.1.4  Copyright (C) 1994-2008 Lua.org, PUC-Rio
+$ time lua fib.lua
+63245986
+
+real	0m21.368s
+user	0m21.345s
+sys	0m0.016s
+</code></pre><pre tabindex="0"><code>$ ./lua -v
+Lua 5.2.0  Copyright (C) 1994-2011 Lua.org, PUC-Rio
+$ time ./lua fib.lua
+63245986
+
+real	0m19.603s
+user	0m19.585s
+sys	0m0.012s
+</code></pre><pre tabindex="0"><code>$ ./luajit -v
+Lua 5.1.5  Copyright (C) 1994-2012 Lua.org, PUC-Rio
+LuaJIT 1.1.8  Copyright (C) 2005-2012 Mike Pall, http://luajit.org/
+$ time ./luajit fib.lua
+63245986
+
+real	0m4.302s
+user	0m4.292s
+sys	0m0.006s
+</code></pre><pre tabindex="0"><code>$ luajit -v
+LuaJIT 2.0.0-beta9 -- Copyright (C) 2005-2011 Mike Pall. http://luajit.org/
+$ time luajit fib.lua
+63245986
+
+real	0m1.299s
+user	0m1.289s
+sys	0m0.004s
+</code></pre><h2 id="v8">V8</h2>
+<pre tabindex="0"><code>function fib(n) {
+  if (n &lt; 2) return n;
+  return fib(n-2) + fib(n-1);
+}
+
+print(fib(39));
+</code></pre><pre tabindex="0"><code>$ v8
+V8 version 3.9.24 [sample shell]
+&gt; quit()
+$ time v8 fib.js
+63245986
+
+real	0m1.417s
+user	0m1.407s
+sys	0m0.013s
+</code></pre><h2 id="ruby">ruby</h2>
+<pre tabindex="0"><code>def fib n
+  return n if n &lt; 2
+  fib(n-2) + fib(n-1)
+end
+
+puts fib(39)
+</code></pre><pre tabindex="0"><code>$ rbenv version
+1.8.7-p358 (set by /Users/hnakamur/.rbenv/version)
+$ time ruby fib.rb
+63245986
+
+real	1m47.227s
+user	1m46.945s
+sys	0m0.132s
+</code></pre><pre tabindex="0"><code>$ rbenv version
+1.9.3-p125 (set by /Users/hnakamur/.rbenv/version)
+$ time ruby fib.rb
+63245986
+
+real	0m16.504s
+user	0m16.374s
+sys	0m0.051s
+</code></pre><pre tabindex="0"><code>$ time bin/mruby fib.rb 
+63245986
+
+real	0m35.465s
+user	0m35.423s
+sys	0m0.014s
+</code></pre><p>[2012-05-03 23:21]</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Envoy と envoy-filter-example をビルドしてみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Envoy と envoy-filter-example をビルドしてみた</h1>
+  <time datetime=2020-08-02T15:55:58&#43;0900 class="post-date">2020-08-02</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#サンプルではなく-envoy-の-docker-イメージのビルド">サンプルではなく Envoy の Docker イメージのビルド</a>
+      <ul>
+        <li><a href="#ubuntu-2004-lts-に-docker-公式パッケージをインストール">Ubuntu 20.04 LTS に docker 公式パッケージをインストール</a></li>
+        <li><a href="#envoy-の-docker-イメージをビルドを試みるも問題発生">Envoy の Docker イメージをビルドを試みるも問題発生</a></li>
+      </ul>
+    </li>
+    <li><a href="#envoy-filter-example-のビルド">envoy-filter-example のビルド</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="https://twitter.com/songmu/status/1289230625933680641">Sonmuさんのツイート</a> で紹介されていた
+<a href="https://dropbox.tech/infrastructure/how-we-migrated-dropbox-from-nginx-to-envoy">How we migrated Dropbox from Nginx to Envoy - Dropbox</a>
+を読みました。</p>
+<p>nginx や Go でプロキシーサーバーを構築することについて、ずっと気になっていたけど私の力不足で性能検証できなくてもやもやしていたことについて詳しく書かれていて非常に参考になりました。</p>
+<p>Envoy は moonjit という LuaJIT のフォーク版が組み込まれているが出来ることは限定的なので Dropbox ではこれは使わずに C++ で拡張しているとのことでした。</p>
+<!-- raw HTML omitted -->
+<!-- raw HTML omitted -->
+<p>そこでまずは Hello world 的なものを探すと
+<a href="https://github.com/envoyproxy/envoy-filter-example">envoyproxy/envoy-filter-example: Example of consuming Envoy and adding a custom filter</a>
+というのがありました。</p>
+<p>Building の項を見ると、サンプルのフィルター単体ではなく Envoy と合わせてスタティックな実行ファイルのバイナリーをビルドする方式らしいです。</p>
+<p>ということでビルドを試してみたメモです。</p>
+<h2 id="サンプルではなく-envoy-の-docker-イメージのビルド">サンプルではなく Envoy の Docker イメージのビルド</h2>
+<p>上記のサンプルを試すにはこの項は不要ですが、興味本位で先に Envoy の Docker ビルド手順を試してみることにしました。</p>
+<p><a href="https://www.envoyproxy.io/docs/envoy/v1.15.0/install/building#modifying-envoy">Modifying Envoy</a>
+から
+<a href="https://www.envoyproxy.io/docs/envoy/v1.15.0/install/sandboxes/local_docker_build">Building an Envoy Docker image — envoy tag-v1.15.0 documentation</a>
+を読んで試しました。</p>
+<h3 id="ubuntu-2004-lts-に-docker-公式パッケージをインストール">Ubuntu 20.04 LTS に docker 公式パッケージをインストール</h3>
+<p><a href="https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository">Install Docker Engine on Ubuntu | Docker Documentation</a> の apt のレポジトリを追加してインストールしました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo add-apt-repository \
+</span></span></span><span class="line"><span class="cl"><span class="go">   &#34;deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+</span></span></span><span class="line"><span class="cl"><span class="go">   $(lsb_release -cs) \
+</span></span></span><span class="line"><span class="cl"><span class="go">   stable&#34;
+</span></span></span></code></pre></div><p>のところはレポジトリのファイルを分けたいので以下のように変えています。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">echo &#34;deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+</span></span></span><span class="line"><span class="cl"><span class="go">   $(lsb_release -cs) \
+</span></span></span><span class="line"><span class="cl"><span class="go">   stable&#34; | sudo tee /etc/apt/sources.list.d/docker.list
+</span></span></span></code></pre></div><h3 id="envoy-の-docker-イメージをビルドを試みるも問題発生">Envoy の Docker イメージをビルドを試みるも問題発生</h3>
+<p>で <a href="https://www.envoyproxy.io/docs/envoy/v1.15.0/install/sandboxes/local_docker_build">Building an Envoy Docker image — envoy tag-v1.15.0 documentation</a>
+の Step 1: Build Envoy を試すわけですが、まず Envoy の git レポジトリを取得して移動します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">git clone https://github.com/envoyproxy/envoy
+</span></span></span><span class="line"><span class="cl"><span class="go">cd envoy
+</span></span></span></code></pre></div><p>次に手順通り以下のコマンドで Envoy の Docker イメージのビルドを試してみました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">./ci/run_envoy_docker.sh &#39;./ci/do_ci.sh bazel.release&#39;
+</span></span></span></code></pre></div><p><a href="https://twitter.com/hnakamur2/status/1289481821709688840">試してた時の私のツイートのスレッド</a> にもありますが、いくつか問題が発生しました。</p>
+<h4 id="docker-で-ipv6-を有効にする必要がある">Docker で IPv6 を有効にする必要がある</h4>
+<p>まずテストで <code>cannot bind '[::1]:0'</code> というエラーが出ました。</p>
+<p><a href="https://docs.docker.com/config/daemon/systemd/">Control Docker with systemd | Docker Documentation</a> と
+<a href="https://docs.docker.com/config/daemon/ipv6/">Enable IPv6 support | Docker Documentation</a> を見て
+<code>/etc/docker/daemon.json</code> を以下の内容で作成しました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;ipv6&#34;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;fixed-cidr-v6&#34;</span><span class="p">:</span> <span class="s2">&#34;2001:db8:1::/64&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>その後以下のコマンドを実行して反映します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo systemctl reload docker
+</span></span></span></code></pre></div><h4 id="ビルドの中間ファイルに-220gb-程度空きが必要">ビルドの中間ファイルに 220GB 程度空きが必要</h4>
+<p>10 時間超えてもビルドが終わらないと思ったらルートファイルシステムの使用量が 100%  になって Ubuntu の Gnome に警告ダイアログが表示されました。
+調べてみると <code>/tmp/envoy-docker-build</code> というディレクトリが作られて約 200GB もディスクを消費していました。</p>
+<p>ビルドを試していたマシンは Windows とのデュアルブート構成にしていたのですが、 Windows のパーティションを消して Ubuntu 20.04 LTS を再インストールして十分な空きを確保しました。</p>
+<p>また <code>/tmp/</code> 以下だと Linux の再起動時に消されてしまうと思ったので、場所を変える設定を調べました。</p>
+<p><code>ci/README.md</code> の <code>Building and running tests as a developer</code> の
+<a href="https://github.com/envoyproxy/envoy/blob/master/ci/README.md#on-linux">On Linux</a>
+を見ると <code>ENVOY_DOCKER_BUILD_DIR</code> 環境変数で指定可能なことが分かりました。</p>
+<p>が、下の</p>
+<p>ただし、例の <code>~/build</code> のように <code>~</code> を使うとエラーになり、文字通り <code>~</code> というディレクトリが作られてしまいました。</p>
+<p>ビルドに時間がかかるので time コマンドで計測しようと思い、以下のコマンドでビルドしました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">time env &#34;ENVOY_DOCKER_BUILD_DIR=$HOME/envoy-docker-build&#34; ./ci/run_envoy_docker.sh &#39;./ci/do_ci.sh bazel.release&#39;
+</span></span></span></code></pre></div><p>上記のコマンドで以下の環境でビルドに4時間45分程度かかりました。</p>
+<ul>
+<li>PC: ThinkCenter m75q-1 Tiny</li>
+<li>CPU: AMD Ryzen 5 PRO 3400GE 4コア8スレッド</li>
+<li>RAM: 16GB (Crucial ノートPC用 メモリ PC4-21300(DDR4-2666) 8GB SODIMM CT8G4SFS8266 2毎セット)</li>
+<li>SSD: WesternDigital SSD WD Blue SN550シリーズ NVMe M.2 2280 1.0TB WDS100T2B0C</li>
+</ul>
+<h4 id="docker-の-spectre-対策を切る">Docker の Spectre 対策を切る</h4>
+<p>3950Xで30分かからないくらいなので、上記は遅すぎではないかとツッコミのツイートを頂きました。
+<a href="https://twitter.com/lizan/status/1289804557724160004">Lizan ZhouさんはTwitterを使っています 「@hnakamur2 それはかかりすぎな気がします、3950Xで30分かからないくらいなので。ディスクが遅いか、DockerのSpectre対策がオンのままになっているかでは？」 / Twitter</a></p>
+<p><a href="https://mametter.hatenablog.com/entry/2020/05/23/032650">CPU律速なRuby/Pythonコードはデフォルト設定のdocker上で遅くなる - まめめも</a> によると docker の実行時に
+<code>--security-opt seccomp=unconfined</code> あるいは <code>--privileged</code> を付けると Sepctre 対策が無効になるそうです。</p>
+<p>一般にはここに書かれているように「Spectre攻撃に対して脆弱になるのでやめたほうがいい」でしょうが、自宅PCのような占有環境なら付けても良さそうです。</p>
+<h2 id="envoy-filter-example-のビルド">envoy-filter-example のビルド</h2>
+<ul>
+<li><a href="https://twitter.com/hnakamur2/status/1289811629194899456">Hiroaki NakamuraさんはTwitterを使っています 「次は https://github.com/envoyproxy/envoy-filter-example のビルドを試してます。 https://docs.bazel.build/versions/3.4.0/install-ubuntu.html でbazel入れて https://github.com/pypa/pip/issues/5356#issuecomment-385688328 でpython3-distutils入れてエラーログ見てcmake入れて試したら今度はNinja。 https://github.com/ninja-build/ninja/releases を入れて再度実行中。」 / Twitter</a>
+<ul>
+<li><a href="https://github.com/envoyproxy/envoy-filter-example">https://github.com/envoyproxy/envoy-filter-example</a></li>
+<li><a href="https://docs.bazel.build/versions/3.4.0/install-ubuntu.html">https://docs.bazel.build/versions/3.4.0/install-ubuntu.html</a></li>
+<li><a href="https://github.com/pypa/pip/issues/5356#issuecomment-385688328">https://github.com/pypa/pip/issues/5356#issuecomment-385688328</a></li>
+<li><a href="https://github.com/ninja-build/ninja/releases">https://github.com/ninja-build/ninja/releases</a></li>
+</ul>
+</li>
+<li><a href="https://twitter.com/hnakamur2/status/1289812481687220224">Hiroaki NakamuraさんはTwitterを使っています 「あー、 /usr/bin/env: &lsquo;python&rsquo;: No such file or directory が。これは python3 へシンボリックリンク貼ればいいのかな。あ、ninjaは https://github.com/envoyproxy/envoy/blob/master/bazel/README.md みたらninja-buildで入れられたのか。」 / Twitter</a>
+<ul>
+<li><a href="https://github.com/envoyproxy/envoy/blob/master/bazel/README.md">https://github.com/envoyproxy/envoy/blob/master/bazel/README.md</a></li>
+</ul>
+</li>
+</ul>
+<p>でビルドしていたら</p>
+<ul>
+<li><a href="https://twitter.com/lizan/status/1289817401467392002">Lizan ZhouさんはTwitterを使っています 「@hnakamur2 ビルドコンテナ通りにまずは環境設定することをオススメします https://github.com/envoyproxy/envoy-build-tools/blob/master/build_container/build_container_ubuntu.sh」 / Twitter</a>
+<ul>
+<li><a href="https://github.com/envoyproxy/envoy-build-tools/blob/master/build_container/build_container_ubuntu.sh">https://github.com/envoyproxy/envoy-build-tools/blob/master/build_container/build_container_ubuntu.sh</a></li>
+</ul>
+</li>
+</ul>
+<p>というツッコミを頂きました。ありがとうございます！</p>
+<ul>
+<li><a href="https://twitter.com/hnakamur2/status/1289825477457133573">Hiroaki NakamuraさんはTwitterを使っています 「46分ぐらいでビルド完了しました。 この後教えていただいた https://github.com/envoyproxy/envoy-build-tools/blob/master/build_container/build_container_ubuntu.sh に環境を合わせて再度やってみます。 あー apt-add-repository のところだけはレポジトリファイルを分けたいのでアレンジして。」 / Twitter</a></li>
+</ul>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

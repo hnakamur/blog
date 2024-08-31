@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>VictoriaMetrics/fastcacheのコードリーディングその1 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>VictoriaMetrics/fastcacheのコードリーディングその1</h1>
+  <time datetime=2019-12-30T01:20:00&#43;0900 class="post-date">2019-12-30</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#仕様">仕様</a></li>
+    <li><a href="#コードリーディング">コードリーディング</a>
+      <ul>
+        <li><a href="#主な定数">主な定数</a></li>
+        <li><a href="#メインのcache-構造体">メインのCache 構造体</a></li>
+        <li><a href="#new-関数">New 関数</a></li>
+        <li><a href="#bucket-構造体と-init-メソッド">bucket 構造体と Init メソッド</a></li>
+        <li><a href="#cache-の-set-メソッド">Cache の Set メソッド</a></li>
+        <li><a href="#bucket-の-set-メソッド">bucket の Set メソッド</a></li>
+        <li><a href="#cache-の-get-メソッド">Cache の Get メソッド</a></li>
+        <li><a href="#bucket-の-get-メソッド">bucket の Get メソッド</a></li>
+        <li><a href="#cache-の-del-メソッド">Cache の Del メソッド</a></li>
+        <li><a href="#bucket-の-del-メソッド">bucket の Del メソッド</a></li>
+        <li><a href="#malloc_mmapgo">malloc_mmap.go</a></li>
+        <li><a href="#malloc_heapgo">malloc_heap.go</a></li>
+        <li><a href="#setbig-と-getbig-に関連する定数">SetBig と GetBig に関連する定数</a></li>
+        <li><a href="#cache-の-setbig-メソッド">Cache の SetBig メソッド</a></li>
+        <li><a href="#cache-の-getbig-メソッド">Cache の GetBig メソッド</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="https://github.com/VictoriaMetrics/fastcache">VictoriaMetrics/fastcache</a> のコードリーディングのメモです。対象バージョンはこの記事を書いた時点の最新コミット <a href="https://github.com/VictoriaMetrics/fastcache/commit/c9a5939fd508ba790b708b23929feea13623d735">c9a5939</a> です。</p>
+<h2 id="仕様">仕様</h2>
+<p><a href="https://github.com/VictoriaMetrics/fastcache">VictoriaMetrics/fastcache</a> は <a href="https://github.com/VictoriaMetrics/VictoriaMetrics">VictoriaMetrics/VictoriaMetrics</a> のメトリクス名の管理に使っているキーバリューストアを切り出したものなので、 VictoriaMetrics での要件に沿った仕様となっています。</p>
+<ul>
+<li>ストア作成時に使用可能な最大メモリ容量を指定</li>
+<li>キー・バリューを追加するときにメモリ容量を超える場合は古いエントリが自動的に削除される</li>
+</ul>
+<p>大量のエントリを GC のオーバーヘッドなしに登録可能なデザインとありますが、 VictoriaMetrics という時系列DBのメトリクス名からIDへのマッピングなどを保管する用途なのでキーと値の集合は一旦一通り登録したら、それ以降は基本的には増えないような使い方を想定していると推測します。</p>
+<p>動的にコンテナが増えまくって、その際違うメトリクス名を使うような使い方をするなら別ですが。</p>
+<h2 id="コードリーディング">コードリーディング</h2>
+<p><a href="https://github.com/VictoriaMetrics/fastcache#architecture-details">Architecture details</a> にある通り、多数のバケットから構成されるハッシュテーブルになっています。バケット毎にロックが分かれているのでマルチコアの CPU で別のバケットにアクセスする場合は並列に実行可能です。</p>
+<h3 id="主な定数">主な定数</h3>
+<p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/fastcache.go#L14-L24">fastcache.go#L14-L24</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">const</span> <span class="nx">bucketsCount</span> <span class="p">=</span> <span class="mi">512</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">const</span> <span class="nx">chunkSize</span> <span class="p">=</span> <span class="mi">64</span> <span class="o">*</span> <span class="mi">1024</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">const</span> <span class="nx">bucketSizeBits</span> <span class="p">=</span> <span class="mi">40</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">const</span> <span class="nx">genSizeBits</span> <span class="p">=</span> <span class="mi">64</span> <span class="o">-</span> <span class="nx">bucketSizeBits</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">const</span> <span class="nx">maxGen</span> <span class="p">=</span> <span class="mi">1</span><span class="o">&lt;&lt;</span><span class="nx">genSizeBits</span> <span class="o">-</span> <span class="mi">1</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">const</span> <span class="nx">maxBucketSize</span> <span class="kt">uint64</span> <span class="p">=</span> <span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="nx">bucketSizeBits</span>
+</span></span></code></pre></div><p>バケット数は 512 固定。チャンクサイズは 64 KiB。
+<code>uint64</code> の 8 バイトの領域のうち 40bit をバケットサイズに使い、残りの 24bit を世代に使うようになっています。
+<code>maxBucketSize</code> は <code>1&lt;&lt;40</code> つまり 1 TiB です。</p>
+<h3 id="メインのcache-構造体">メインのCache 構造体</h3>
+<p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/fastcache.go#L108-L112">fastcache.go#L108-L112</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Cache</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">buckets</span> <span class="p">[</span><span class="nx">bucketsCount</span><span class="p">]</span><span class="nx">bucket</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="nx">bigStats</span> <span class="nx">BigStats</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>512 個のバケットと統計情報のフィールドを持ちます。</p>
+<h3 id="new-関数">New 関数</h3>
+<p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/fastcache.go#L114-L130">fastcache.go#L114-L130</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// New returns new cache with the given maxBytes capacity in bytes.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// maxBytes must be smaller than the available RAM size for the app,
+</span></span></span><span class="line"><span class="cl"><span class="c1">// since the cache holds data in memory.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// If maxBytes is less than 32MB, then the minimum cache capacity is 32MB.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">New</span><span class="p">(</span><span class="nx">maxBytes</span> <span class="kt">int</span><span class="p">)</span> <span class="o">*</span><span class="nx">Cache</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">maxBytes</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nb">panic</span><span class="p">(</span><span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;maxBytes must be greater than 0; got %d&#34;</span><span class="p">,</span> <span class="nx">maxBytes</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="kd">var</span> <span class="nx">c</span> <span class="nx">Cache</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">maxBucketBytes</span> <span class="o">:=</span> <span class="nb">uint64</span><span class="p">((</span><span class="nx">maxBytes</span> <span class="o">+</span> <span class="nx">bucketsCount</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="nx">bucketsCount</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">c</span><span class="p">.</span><span class="nx">buckets</span><span class="p">[:]</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">c</span><span class="p">.</span><span class="nx">buckets</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nf">Init</span><span class="p">(</span><span class="nx">maxBucketBytes</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="o">&amp;</span><span class="nx">c</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>引数の <code>maxBytes</code> をバケットの数 512 で割って切り上げたものを、1 つのバケット当たりの最大バイト数とし各バケットを初期化します。</p>
+<h3 id="bucket-構造体と-init-メソッド">bucket 構造体と Init メソッド</h3>
+<p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/fastcache.go#L214-L248">fastcache.go#L214-L248</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">bucket</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">mu</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">RWMutex</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// chunks is a ring buffer with encoded (k, v) pairs.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// It consists of 64KB chunks.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">chunks</span> <span class="p">[][]</span><span class="kt">byte</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// m maps hash(k) to idx of (k, v) pair in chunks.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">m</span> <span class="kd">map</span><span class="p">[</span><span class="kt">uint64</span><span class="p">]</span><span class="kt">uint64</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// idx points to chunks for writing the next (k, v) pair.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">idx</span> <span class="kt">uint64</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// gen is the generation of chunks.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">gen</span> <span class="kt">uint64</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="nx">getCalls</span>    <span class="kt">uint64</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">setCalls</span>    <span class="kt">uint64</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">misses</span>      <span class="kt">uint64</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">collisions</span>  <span class="kt">uint64</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">corruptions</span> <span class="kt">uint64</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">bucket</span><span class="p">)</span> <span class="nf">Init</span><span class="p">(</span><span class="nx">maxBytes</span> <span class="kt">uint64</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">maxBytes</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nb">panic</span><span class="p">(</span><span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;maxBytes cannot be zero&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">maxBytes</span> <span class="o">&gt;=</span> <span class="nx">maxBucketSize</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nb">panic</span><span class="p">(</span><span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;too big maxBytes=%d; should be smaller than %d&#34;</span><span class="p">,</span> <span class="nx">maxBytes</span><span class="p">,</span> <span class="nx">maxBucketSize</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">maxChunks</span> <span class="o">:=</span> <span class="p">(</span><span class="nx">maxBytes</span> <span class="o">+</span> <span class="nx">chunkSize</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="nx">chunkSize</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">b</span><span class="p">.</span><span class="nx">chunks</span> <span class="p">=</span> <span class="nb">make</span><span class="p">([][]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">maxChunks</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">b</span><span class="p">.</span><span class="nx">m</span> <span class="p">=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">uint64</span><span class="p">]</span><span class="kt">uint64</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">b</span><span class="p">.</span><span class="nf">Reset</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><ul>
+<li><code>chunks</code> フィールドはキーバリューペアをエンコードした値を格納するリングバッファ。 <code>[]byte</code> は 64KiB のチャンクでそれを複数持つので <code>[][]byte</code> 型。</li>
+<li><code>m</code> フィールドはキーのハッシュ値からキーバリューペアのエントリの <code>chunks</code> 内でのインデクスへのマッピング。</li>
+<li><code>idx</code> フィールドは次のキーバリューペアを書き込むインデクス（具体的にどういう値かは <code>bucket</code> の <code>Set</code> メソッド参照）。</li>
+<li><code>gen</code> は <code>chunks</code> の世代。</li>
+<li><code>chunks</code> の長さ（要素数）は引数の <code>maxBytes</code> （1つのバケットの最大バイト数）を 1つの <code>chunk</code> のサイズ 64 KiB で割って切り上げた数としている。</li>
+</ul>
+<h3 id="cache-の-set-メソッド">Cache の Set メソッド</h3>
+<p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/fastcache.go#L132-L149">fastcache.go#L132-L149</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Set stores (k, v) in the cache.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// Get must be used for reading the stored entry.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// The stored entry may be evicted at any time either due to cache
+</span></span></span><span class="line"><span class="cl"><span class="c1">// overflow or due to unlikely hash collision.
+</span></span></span><span class="line"><span class="cl"><span class="c1">// Pass higher maxBytes value to New if the added items disappear
+</span></span></span><span class="line"><span class="cl"><span class="c1">// frequently.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// (k, v) entries with summary size exceeding 64KB aren&#39;t stored in the cache.
+</span></span></span><span class="line"><span class="cl"><span class="c1">// SetBig can be used for storing entries exceeding 64KB.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// k and v contents may be modified after returning from Set.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Cache</span><span class="p">)</span> <span class="nf">Set</span><span class="p">(</span><span class="nx">k</span><span class="p">,</span> <span class="nx">v</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">h</span> <span class="o">:=</span> <span class="nx">xxhash</span><span class="p">.</span><span class="nf">Sum64</span><span class="p">(</span><span class="nx">k</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">idx</span> <span class="o">:=</span> <span class="nx">h</span> <span class="o">%</span> <span class="nx">bucketsCount</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">c</span><span class="p">.</span><span class="nx">buckets</span><span class="p">[</span><span class="nx">idx</span><span class="p">].</span><span class="nf">Set</span><span class="p">(</span><span class="nx">k</span><span class="p">,</span> <span class="nx">v</span><span class="p">,</span> <span class="nx">h</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>xxhash.Sum64</code> でキーのハッシュ値を計算し、バケット数で割った余りをインデクスとして対応するバケットを決定しその <code>Set</code> メソッドに移譲。</p>
+<p>ハッシュ値が衝突する場合は同じハッシュ値の古いキーが上書きされる。衝突が頻繁に起こるようなら <code>maxBytes</code> ともっと大きい値にして <code>New</code> を呼んで <code>Cache</code> を作るようにしておく。</p>
+<p><code>Get</code> など他のメソッドもほぼ同じパターン。</p>
+<h3 id="bucket-の-set-メソッド">bucket の Set メソッド</h3>
+<p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/fastcache.go#L302-L358">fastcache.go#L302-L358</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">bucket</span><span class="p">)</span> <span class="nf">Set</span><span class="p">(</span><span class="nx">k</span><span class="p">,</span> <span class="nx">v</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">h</span> <span class="kt">uint64</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">setCalls</span> <span class="o">:=</span> <span class="nx">atomic</span><span class="p">.</span><span class="nf">AddUint64</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">b</span><span class="p">.</span><span class="nx">setCalls</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">setCalls</span><span class="o">%</span><span class="p">(</span><span class="mi">1</span><span class="o">&lt;&lt;</span><span class="mi">14</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">b</span><span class="p">.</span><span class="nf">Clean</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">k</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="p">(</span><span class="mi">1</span><span class="o">&lt;&lt;</span><span class="mi">16</span><span class="p">)</span> <span class="o">||</span> <span class="nb">len</span><span class="p">(</span><span class="nx">v</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="p">(</span><span class="mi">1</span><span class="o">&lt;&lt;</span><span class="mi">16</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Too big key or value - its length cannot be encoded
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// with 2 bytes (see below). Skip the entry.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">return</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="kd">var</span> <span class="nx">kvLenBuf</span> <span class="p">[</span><span class="mi">4</span><span class="p">]</span><span class="kt">byte</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">kvLenBuf</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">=</span> <span class="nb">byte</span><span class="p">(</span><span class="nb">uint16</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nx">k</span><span class="p">))</span> <span class="o">&gt;&gt;</span> <span class="mi">8</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">kvLenBuf</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="p">=</span> <span class="nb">byte</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nx">k</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">kvLenBuf</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="p">=</span> <span class="nb">byte</span><span class="p">(</span><span class="nb">uint16</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nx">v</span><span class="p">))</span> <span class="o">&gt;&gt;</span> <span class="mi">8</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">kvLenBuf</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="p">=</span> <span class="nb">byte</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nx">v</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">kvLen</span> <span class="o">:=</span> <span class="nb">uint64</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nx">kvLenBuf</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="nx">k</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="nx">v</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">kvLen</span> <span class="o">&gt;=</span> <span class="nx">chunkSize</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Do not store too big keys and values, since they do not
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// fit a chunk.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">return</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="nx">b</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">idx</span> <span class="o">:=</span> <span class="nx">b</span><span class="p">.</span><span class="nx">idx</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">idxNew</span> <span class="o">:=</span> <span class="nx">idx</span> <span class="o">+</span> <span class="nx">kvLen</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">chunkIdx</span> <span class="o">:=</span> <span class="nx">idx</span> <span class="o">/</span> <span class="nx">chunkSize</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">chunkIdxNew</span> <span class="o">:=</span> <span class="nx">idxNew</span> <span class="o">/</span> <span class="nx">chunkSize</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">chunkIdxNew</span> <span class="p">&gt;</span> <span class="nx">chunkIdx</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">chunkIdxNew</span> <span class="o">&gt;=</span> <span class="nb">uint64</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nx">b</span><span class="p">.</span><span class="nx">chunks</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">idx</span> <span class="p">=</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">idxNew</span> <span class="p">=</span> <span class="nx">kvLen</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">chunkIdx</span> <span class="p">=</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">b</span><span class="p">.</span><span class="nx">gen</span><span class="o">++</span>
+</span></span><span class="line"><span class="cl">      <span class="k">if</span> <span class="nx">b</span><span class="p">.</span><span class="nx">gen</span><span class="o">&amp;</span><span class="p">((</span><span class="mi">1</span><span class="o">&lt;&lt;</span><span class="nx">genSizeBits</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">b</span><span class="p">.</span><span class="nx">gen</span><span class="o">++</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">idx</span> <span class="p">=</span> <span class="nx">chunkIdxNew</span> <span class="o">*</span> <span class="nx">chunkSize</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">idxNew</span> <span class="p">=</span> <span class="nx">idx</span> <span class="o">+</span> <span class="nx">kvLen</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">chunkIdx</span> <span class="p">=</span> <span class="nx">chunkIdxNew</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">b</span><span class="p">.</span><span class="nx">chunks</span><span class="p">[</span><span class="nx">chunkIdx</span><span class="p">]</span> <span class="p">=</span> <span class="nx">b</span><span class="p">.</span><span class="nx">chunks</span><span class="p">[</span><span class="nx">chunkIdx</span><span class="p">][:</span><span class="mi">0</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">chunk</span> <span class="o">:=</span> <span class="nx">b</span><span class="p">.</span><span class="nx">chunks</span><span class="p">[</span><span class="nx">chunkIdx</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">chunk</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">chunk</span> <span class="p">=</span> <span class="nf">getChunk</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">chunk</span> <span class="p">=</span> <span class="nx">chunk</span><span class="p">[:</span><span class="mi">0</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">chunk</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">chunk</span><span class="p">,</span> <span class="nx">kvLenBuf</span><span class="p">[:]</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">chunk</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">chunk</span><span class="p">,</span> <span class="nx">k</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">chunk</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">chunk</span><span class="p">,</span> <span class="nx">v</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">b</span><span class="p">.</span><span class="nx">chunks</span><span class="p">[</span><span class="nx">chunkIdx</span><span class="p">]</span> <span class="p">=</span> <span class="nx">chunk</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">b</span><span class="p">.</span><span class="nx">m</span><span class="p">[</span><span class="nx">h</span><span class="p">]</span> <span class="p">=</span> <span class="nx">idx</span> <span class="p">|</span> <span class="p">(</span><span class="nx">b</span><span class="p">.</span><span class="nx">gen</span> <span class="o">&lt;&lt;</span> <span class="nx">bucketSizeBits</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">b</span><span class="p">.</span><span class="nx">idx</span> <span class="p">=</span> <span class="nx">idxNew</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">b</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><ul>
+<li>キーと値のバイト数でのサイズは共に最大 64 KiB。</li>
+<li>キーと値の長さをそれぞれ 2 バイトの整数でエンコードし、その後にキーと値のバイト列を追加したものが <code>chunk</code> になる。</li>
+<li><code>chunk</code> の長さが 64 KiB 以上の場合は、なんと何もせずに抜ける。適切なサイズのキーと値を渡すのは呼び出し側の責任ということか。</li>
+<li><code>idx</code> は 64 KiB のチャンクが複数並ぶ空間内での次に書き込む開始位置を表している。</li>
+<li>それに今回書き込むべき <code>chunk</code> の長さ <code>kvLen</code> を足したものが終端位置 <code>idxNew</code> 。</li>
+<li><code>idx</code> と <code>idxNew</code> を <code>chunkSize</code> で割った値が <code>chunks</code> 内の対応するインデクスになる。</li>
+<li><code>chunkIdxNew</code> &gt; <code>chunkIdx</code> は今回の <code>chunk</code> が 64 KiB の境界をまたぐという場合。</li>
+<li>さらに <code>chunkIdxNew &gt;= uint64(len(b.chunks))</code> は <code>chunks</code> の最後のチャンクの終端を超える場合。この場合は世代 <code>b.gen</code> を増やして <code>chunks</code> の最初の要素に書き込む。</li>
+<li><code>b.gen</code> を増やしたとき <code>b.gen&amp;((1&lt;&lt;genSizeBits)-1) == 0</code> になる場合というのは下位 24bit が 0 になる場合。1週目は <code>1&lt;&lt;24</code> で 2週目だと <code>2&lt;&lt;24</code> 。この値は下位24bitを取ると初期値の 0 と区別がつかなくなるのでさらに1足すようにしている。</li>
+</ul>
+<h3 id="cache-の-get-メソッド">Cache の Get メソッド</h3>
+<p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/fastcache.go#L151-L163">fastcache.go#L151-L163</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Get appends value by the key k to dst and returns the result.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// Get allocates new byte slice for the returned value if dst is nil.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// Get returns only values stored in c via Set.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// k contents may be modified after returning from Get.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Cache</span><span class="p">)</span> <span class="nf">Get</span><span class="p">(</span><span class="nx">dst</span><span class="p">,</span> <span class="nx">k</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">[]</span><span class="kt">byte</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">h</span> <span class="o">:=</span> <span class="nx">xxhash</span><span class="p">.</span><span class="nf">Sum64</span><span class="p">(</span><span class="nx">k</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">idx</span> <span class="o">:=</span> <span class="nx">h</span> <span class="o">%</span> <span class="nx">bucketsCount</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">dst</span><span class="p">,</span> <span class="nx">_</span> <span class="p">=</span> <span class="nx">c</span><span class="p">.</span><span class="nx">buckets</span><span class="p">[</span><span class="nx">idx</span><span class="p">].</span><span class="nf">Get</span><span class="p">(</span><span class="nx">dst</span><span class="p">,</span> <span class="nx">k</span><span class="p">,</span> <span class="nx">h</span><span class="p">,</span> <span class="kc">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">dst</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>まずシグネチャが <code>Get(k []byte) []byte</code> でなく、値の書き込み先 <code>dst</code> を引数で渡すことに注意。 Go のビルトイン関数 <code>append</code> と同じパターン。これにより <code>dst</code> の <code>cap</code> に余裕があればメモリ割り当てをしなくて済む。</p>
+<h3 id="bucket-の-get-メソッド">bucket の Get メソッド</h3>
+<p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/fastcache.go#L360-L409">fastcache.go#L360-L409</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">bucket</span><span class="p">)</span> <span class="nf">Get</span><span class="p">(</span><span class="nx">dst</span><span class="p">,</span> <span class="nx">k</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">h</span> <span class="kt">uint64</span><span class="p">,</span> <span class="nx">returnDst</span> <span class="kt">bool</span><span class="p">)</span> <span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="kt">bool</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">atomic</span><span class="p">.</span><span class="nf">AddUint64</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">b</span><span class="p">.</span><span class="nx">getCalls</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">found</span> <span class="o">:=</span> <span class="kc">false</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">b</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">RLock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">v</span> <span class="o">:=</span> <span class="nx">b</span><span class="p">.</span><span class="nx">m</span><span class="p">[</span><span class="nx">h</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">bGen</span> <span class="o">:=</span> <span class="nx">b</span><span class="p">.</span><span class="nx">gen</span> <span class="o">&amp;</span> <span class="p">((</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="nx">genSizeBits</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">v</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">gen</span> <span class="o">:=</span> <span class="nx">v</span> <span class="o">&gt;&gt;</span> <span class="nx">bucketSizeBits</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">idx</span> <span class="o">:=</span> <span class="nx">v</span> <span class="o">&amp;</span> <span class="p">((</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="nx">bucketSizeBits</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">gen</span> <span class="o">==</span> <span class="nx">bGen</span> <span class="o">&amp;&amp;</span> <span class="nx">idx</span> <span class="p">&lt;</span> <span class="nx">b</span><span class="p">.</span><span class="nx">idx</span> <span class="o">||</span> <span class="nx">gen</span><span class="o">+</span><span class="mi">1</span> <span class="o">==</span> <span class="nx">bGen</span> <span class="o">&amp;&amp;</span> <span class="nx">idx</span> <span class="o">&gt;=</span> <span class="nx">b</span><span class="p">.</span><span class="nx">idx</span> <span class="o">||</span> <span class="nx">gen</span> <span class="o">==</span> <span class="nx">maxGen</span> <span class="o">&amp;&amp;</span> <span class="nx">bGen</span> <span class="o">==</span> <span class="mi">1</span> <span class="o">&amp;&amp;</span> <span class="nx">idx</span> <span class="o">&gt;=</span> <span class="nx">b</span><span class="p">.</span><span class="nx">idx</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">chunkIdx</span> <span class="o">:=</span> <span class="nx">idx</span> <span class="o">/</span> <span class="nx">chunkSize</span>
+</span></span><span class="line"><span class="cl">      <span class="k">if</span> <span class="nx">chunkIdx</span> <span class="o">&gt;=</span> <span class="nb">uint64</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nx">b</span><span class="p">.</span><span class="nx">chunks</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// Corrupted data during the load from file. Just skip it.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="nx">atomic</span><span class="p">.</span><span class="nf">AddUint64</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">b</span><span class="p">.</span><span class="nx">corruptions</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="k">goto</span> <span class="nx">end</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">chunk</span> <span class="o">:=</span> <span class="nx">b</span><span class="p">.</span><span class="nx">chunks</span><span class="p">[</span><span class="nx">chunkIdx</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">idx</span> <span class="o">%=</span> <span class="nx">chunkSize</span>
+</span></span><span class="line"><span class="cl">      <span class="k">if</span> <span class="nx">idx</span><span class="o">+</span><span class="mi">4</span> <span class="o">&gt;=</span> <span class="nx">chunkSize</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// Corrupted data during the load from file. Just skip it.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="nx">atomic</span><span class="p">.</span><span class="nf">AddUint64</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">b</span><span class="p">.</span><span class="nx">corruptions</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="k">goto</span> <span class="nx">end</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">kvLenBuf</span> <span class="o">:=</span> <span class="nx">chunk</span><span class="p">[</span><span class="nx">idx</span> <span class="p">:</span> <span class="nx">idx</span><span class="o">+</span><span class="mi">4</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">keyLen</span> <span class="o">:=</span> <span class="p">(</span><span class="nb">uint64</span><span class="p">(</span><span class="nx">kvLenBuf</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">&lt;&lt;</span> <span class="mi">8</span><span class="p">)</span> <span class="p">|</span> <span class="nb">uint64</span><span class="p">(</span><span class="nx">kvLenBuf</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">valLen</span> <span class="o">:=</span> <span class="p">(</span><span class="nb">uint64</span><span class="p">(</span><span class="nx">kvLenBuf</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;&lt;</span> <span class="mi">8</span><span class="p">)</span> <span class="p">|</span> <span class="nb">uint64</span><span class="p">(</span><span class="nx">kvLenBuf</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">idx</span> <span class="o">+=</span> <span class="mi">4</span>
+</span></span><span class="line"><span class="cl">      <span class="k">if</span> <span class="nx">idx</span><span class="o">+</span><span class="nx">keyLen</span><span class="o">+</span><span class="nx">valLen</span> <span class="o">&gt;=</span> <span class="nx">chunkSize</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// Corrupted data during the load from file. Just skip it.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="nx">atomic</span><span class="p">.</span><span class="nf">AddUint64</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">b</span><span class="p">.</span><span class="nx">corruptions</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="k">goto</span> <span class="nx">end</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">      <span class="k">if</span> <span class="nb">string</span><span class="p">(</span><span class="nx">k</span><span class="p">)</span> <span class="o">==</span> <span class="nb">string</span><span class="p">(</span><span class="nx">chunk</span><span class="p">[</span><span class="nx">idx</span><span class="p">:</span><span class="nx">idx</span><span class="o">+</span><span class="nx">keyLen</span><span class="p">])</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">idx</span> <span class="o">+=</span> <span class="nx">keyLen</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">returnDst</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">          <span class="nx">dst</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">dst</span><span class="p">,</span> <span class="nx">chunk</span><span class="p">[</span><span class="nx">idx</span><span class="p">:</span><span class="nx">idx</span><span class="o">+</span><span class="nx">valLen</span><span class="p">]</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">found</span> <span class="p">=</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">atomic</span><span class="p">.</span><span class="nf">AddUint64</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">b</span><span class="p">.</span><span class="nx">collisions</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="nx">end</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">b</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">RUnlock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">!</span><span class="nx">found</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">atomic</span><span class="p">.</span><span class="nf">AddUint64</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">b</span><span class="p">.</span><span class="nx">misses</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">dst</span><span class="p">,</span> <span class="nx">found</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><ul>
+<li><code>b.gen</code> はバケットの世代でその下位24bitの値を <code>bGen</code> としている。</li>
+<li><code>gen</code> は探索するキーバリューの世代。</li>
+<li><code>gen == bGen &amp;&amp; idx &lt; b.idx</code> はキーバリューの世代がバケットの世代と同じで、キーバリューの <code>idx</code> がバケットの書き込みカーソル <code>b.idx</code> より手前の場合。</li>
+<li><code>gen+1 == bGen &amp;&amp; idx &gt;= b.idx</code> はバケットは次の世代に移っているが、キーバリューはまだ上書きされていない場合</li>
+<li><code>gen == maxGen &amp;&amp; bGen == 1 &amp;&amp; idx &gt;= b.idx</code> はキーバリューの世代は24bitの最大値 <code>1&lt;&lt;24-1</code> でバケットの世代の下位24bitは一周回って1になっているが、キーバリューはまだ上書きされていない場合。</li>
+<li>上記3つのいずれかの場合はキーバリューの値を <code>chunks</code> から探す。</li>
+<li>読む取る際に不整合が起きた場合は統計情報の <code>corruptions</code> をインクリメントしつつ、キーが見つからなかった扱いで返す。</li>
+<li>キーバリューを読み取って見てキーが一致しない場合はハッシュ値が衝突して上書きされていたということで統計情報の <code>collisions</code> をインクリメントしつつ、キーが見つからなかった扱いで返す。</li>
+<li><code>returnDst</code> が <code>true</code> の場合は値を <code>dst</code> に <code>append</code> しつつ結果を戻り値でも返す。</li>
+<li><code>Cache</code> にキーが存在するかしないかだけチェックする <code>Has</code> メソッドでは <code>returnDst</code> が <code>false</code> で呼び出される。</li>
+</ul>
+<h3 id="cache-の-del-メソッド">Cache の Del メソッド</h3>
+<p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/fastcache.go#L182-L189">fastcache.go#L182-L189</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Del deletes value for the given k from the cache.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// k contents may be modified after returning from Del.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Cache</span><span class="p">)</span> <span class="nf">Del</span><span class="p">(</span><span class="nx">k</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">h</span> <span class="o">:=</span> <span class="nx">xxhash</span><span class="p">.</span><span class="nf">Sum64</span><span class="p">(</span><span class="nx">k</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">idx</span> <span class="o">:=</span> <span class="nx">h</span> <span class="o">%</span> <span class="nx">bucketsCount</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">c</span><span class="p">.</span><span class="nx">buckets</span><span class="p">[</span><span class="nx">idx</span><span class="p">].</span><span class="nf">Del</span><span class="p">(</span><span class="nx">h</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h3 id="bucket-の-del-メソッド">bucket の Del メソッド</h3>
+<p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/fastcache.go#L411-L415">fastcache.go#L411-L415</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">bucket</span><span class="p">)</span> <span class="nf">Del</span><span class="p">(</span><span class="nx">h</span> <span class="kt">uint64</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">b</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="nb">delete</span><span class="p">(</span><span class="nx">b</span><span class="p">.</span><span class="nx">m</span><span class="p">,</span> <span class="nx">h</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">b</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><ul>
+<li>単に <code>b.m</code> から対象のキーのハッシュ値のエントリを削除するだけ。</li>
+<li><code>b.chunks</code> 内のキーバリューは単なるバイト列なので放置で良い。</li>
+</ul>
+<h3 id="malloc_mmapgo">malloc_mmap.go</h3>
+<p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/malloc_mmap.go">malloc_mmap.go</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// +build !appengine,!windows
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="kn">package</span> <span class="nx">fastcache</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="p">(</span>
+</span></span><span class="line"><span class="cl">  <span class="s">&#34;fmt&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="s">&#34;sync&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="s">&#34;syscall&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="s">&#34;unsafe&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">const</span> <span class="nx">chunksPerAlloc</span> <span class="p">=</span> <span class="mi">1024</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">var</span> <span class="p">(</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">freeChunks</span>     <span class="p">[]</span><span class="o">*</span><span class="p">[</span><span class="nx">chunkSize</span><span class="p">]</span><span class="kt">byte</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">freeChunksLock</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">Mutex</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">getChunk</span><span class="p">()</span> <span class="p">[]</span><span class="kt">byte</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">freeChunksLock</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">freeChunks</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Allocate offheap memory, so GOGC won&#39;t take into account cache size.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// This should reduce free memory waste.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">data</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">syscall</span><span class="p">.</span><span class="nf">Mmap</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">chunkSize</span><span class="o">*</span><span class="nx">chunksPerAlloc</span><span class="p">,</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">PROT_READ</span><span class="p">|</span><span class="nx">syscall</span><span class="p">.</span><span class="nx">PROT_WRITE</span><span class="p">,</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">MAP_ANON</span><span class="p">|</span><span class="nx">syscall</span><span class="p">.</span><span class="nx">MAP_PRIVATE</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nb">panic</span><span class="p">(</span><span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;cannot allocate %d bytes via mmap: %s&#34;</span><span class="p">,</span> <span class="nx">chunkSize</span><span class="o">*</span><span class="nx">chunksPerAlloc</span><span class="p">,</span> <span class="nx">err</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="nb">len</span><span class="p">(</span><span class="nx">data</span><span class="p">)</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">p</span> <span class="o">:=</span> <span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nx">chunkSize</span><span class="p">]</span><span class="kt">byte</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">freeChunks</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">freeChunks</span><span class="p">,</span> <span class="nx">p</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">data</span> <span class="p">=</span> <span class="nx">data</span><span class="p">[</span><span class="nx">chunkSize</span><span class="p">:]</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">n</span> <span class="o">:=</span> <span class="nb">len</span><span class="p">(</span><span class="nx">freeChunks</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">p</span> <span class="o">:=</span> <span class="nx">freeChunks</span><span class="p">[</span><span class="nx">n</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">freeChunks</span><span class="p">[</span><span class="nx">n</span><span class="p">]</span> <span class="p">=</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">freeChunks</span> <span class="p">=</span> <span class="nx">freeChunks</span><span class="p">[:</span><span class="nx">n</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">freeChunksLock</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">p</span><span class="p">[:]</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">putChunk</span><span class="p">(</span><span class="nx">chunk</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">chunk</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">chunk</span> <span class="p">=</span> <span class="nx">chunk</span><span class="p">[:</span><span class="nx">chunkSize</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">p</span> <span class="o">:=</span> <span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nx">chunkSize</span><span class="p">]</span><span class="kt">byte</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">chunk</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="nx">freeChunksLock</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">freeChunks</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">freeChunks</span><span class="p">,</span> <span class="nx">p</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">freeChunksLock</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><ul>
+<li>Google App Engine と Windows 以外ではこのファイルの <code>getChunk</code> と <code>putChunk</code> が利用される。</li>
+<li><code>freeChunks</code> 変数は 64KiB のチャンクへのポインタのスライス。</li>
+<li><code>freeChunks</code> が空の場合は <code>syscall.Mmap</code> を呼んで Go の GC の管理外でメモリを割り当てる。</li>
+<li>割り当てサイズが <code>chunkSize</code> <code>=64KiB</code> ではなく <code>chunkSize*chunksPerAlloc</code> <code>=64MiB</code> にしている理由は私には不明。</li>
+<li>割り当てたメモリ領域は <code>freeChunks</code> に <code>append</code> する。</li>
+<li><code>data</code> 変数の指す先を <code>chunkSize</code> バイト進めた点にしているのも理由が理解できていない。 GoのGCが Mmap で割り当てったメモリ領域を解放しないようにするためか。</li>
+<li><code>freechunks</code> は最後の要素から使用し、使い終わったら <code>putChunk</code> で <code>freeChunks</code> の最後に追加する。</li>
+</ul>
+<h3 id="malloc_heapgo">malloc_heap.go</h3>
+<p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/malloc_heap.go">malloc_heap.go</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// +build appengine windows
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="kn">package</span> <span class="nx">fastcache</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">getChunk</span><span class="p">()</span> <span class="p">[]</span><span class="kt">byte</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">chunkSize</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">putChunk</span><span class="p">(</span><span class="nx">chunk</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// No-op.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></div><ul>
+<li>Google App Engine と Windows ではこのファイルの <code>getChunk</code> と <code>putChunk</code> が利用される。</li>
+<li>ごく素直に Go の <code>make</code> で <code>chunkSize</code> バイト数のメモリ領域を割り当てる。</li>
+<li>使い終わった後の <code>putChunk</code> では解放は GC に任せればよいので何もしない。</li>
+</ul>
+<h3 id="setbig-と-getbig-に関連する定数">SetBig と GetBig に関連する定数</h3>
+<p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/bigcache.go#L10-L22">bigcache.go#L10-L22</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// maxSubvalueLen is the maximum size of subvalue chunk.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// - 16 bytes are for subkey encoding
+</span></span></span><span class="line"><span class="cl"><span class="c1">// - 4 bytes are for len(key)+len(value) encoding inside fastcache
+</span></span></span><span class="line"><span class="cl"><span class="c1">// - 1 byte is implementation detail of fastcache
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">const</span> <span class="nx">maxSubvalueLen</span> <span class="p">=</span> <span class="nx">chunkSize</span> <span class="o">-</span> <span class="mi">16</span> <span class="o">-</span> <span class="mi">4</span> <span class="o">-</span> <span class="mi">1</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// maxKeyLen is the maximum size of key.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// - 16 bytes are for (hash + valueLen)
+</span></span></span><span class="line"><span class="cl"><span class="c1">// - 4 bytes are for len(key)+len(subkey)
+</span></span></span><span class="line"><span class="cl"><span class="c1">// - 1 byte is implementation detail of fastcache
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">const</span> <span class="nx">maxKeyLen</span> <span class="p">=</span> <span class="nx">chunkSize</span> <span class="o">-</span> <span class="mi">16</span> <span class="o">-</span> <span class="mi">4</span> <span class="o">-</span> <span class="mi">1</span>
+</span></span></code></pre></div><ul>
+<li><code>SetBig</code> に指定可能なキーの最大長が <code>maxKeyLen</code> 。</li>
+<li>64KiB 以上の値を分割して (subvalue) 保管する際の最大長が <code>maxSubvalueLen</code> 。</li>
+<li>分割する際に subkey というものを作るがそれのエンコーディングに 16bit を使用する。</li>
+<li>key, subvalue, subkey の長さは全て 64KiB 以下なのでそれぞれ2バイトでエンコードする（が、この分を引く理由は <code>SetBig</code> と <code>GetBig</code> メソッドのコードを見ても良く分からなかった）。</li>
+<li>fastcache の実装詳細で1バイト使う（とコメントには書いてあるが <code>SetBig</code> と <code>GetBig</code> メソッドのコードを見ても良く分からなかった）。</li>
+</ul>
+<h3 id="cache-の-setbig-メソッド">Cache の SetBig メソッド</h3>
+<p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/bigcache.go#L24-L66">bigcache.go#L24-L66</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// SetBig sets (k, v) to c where len(v) may exceed 64KB.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// GetBig must be used for reading stored values.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// The stored entry may be evicted at any time either due to cache
+</span></span></span><span class="line"><span class="cl"><span class="c1">// overflow or due to unlikely hash collision.
+</span></span></span><span class="line"><span class="cl"><span class="c1">// Pass higher maxBytes value to New if the added items disappear
+</span></span></span><span class="line"><span class="cl"><span class="c1">// frequently.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// It is safe to store entries smaller than 64KB with SetBig.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// k and v contents may be modified after returning from SetBig.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Cache</span><span class="p">)</span> <span class="nf">SetBig</span><span class="p">(</span><span class="nx">k</span><span class="p">,</span> <span class="nx">v</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">atomic</span><span class="p">.</span><span class="nf">AddUint64</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">c</span><span class="p">.</span><span class="nx">bigStats</span><span class="p">.</span><span class="nx">SetBigCalls</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">k</span><span class="p">)</span> <span class="p">&gt;</span> <span class="nx">maxKeyLen</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">atomic</span><span class="p">.</span><span class="nf">AddUint64</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">c</span><span class="p">.</span><span class="nx">bigStats</span><span class="p">.</span><span class="nx">TooBigKeyErrors</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">valueLen</span> <span class="o">:=</span> <span class="nb">len</span><span class="p">(</span><span class="nx">v</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">valueHash</span> <span class="o">:=</span> <span class="nx">xxhash</span><span class="p">.</span><span class="nf">Sum64</span><span class="p">(</span><span class="nx">v</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Split v into chunks with up to 64Kb each.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">subkey</span> <span class="o">:=</span> <span class="nf">getSubkeyBuf</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="kd">var</span> <span class="nx">i</span> <span class="kt">uint64</span>
+</span></span><span class="line"><span class="cl">  <span class="k">for</span> <span class="nb">len</span><span class="p">(</span><span class="nx">v</span><span class="p">)</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span> <span class="p">=</span> <span class="nf">marshalUint64</span><span class="p">(</span><span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span><span class="p">[:</span><span class="mi">0</span><span class="p">],</span> <span class="nx">valueHash</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span> <span class="p">=</span> <span class="nf">marshalUint64</span><span class="p">(</span><span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span><span class="p">,</span> <span class="nb">uint64</span><span class="p">(</span><span class="nx">i</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">i</span><span class="o">++</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">subvalueLen</span> <span class="o">:=</span> <span class="nx">maxSubvalueLen</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">v</span><span class="p">)</span> <span class="p">&lt;</span> <span class="nx">subvalueLen</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">subvalueLen</span> <span class="p">=</span> <span class="nb">len</span><span class="p">(</span><span class="nx">v</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">subvalue</span> <span class="o">:=</span> <span class="nx">v</span><span class="p">[:</span><span class="nx">subvalueLen</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">v</span> <span class="p">=</span> <span class="nx">v</span><span class="p">[</span><span class="nx">subvalueLen</span><span class="p">:]</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">c</span><span class="p">.</span><span class="nf">Set</span><span class="p">(</span><span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span><span class="p">,</span> <span class="nx">subvalue</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Write metavalue, which consists of valueHash and valueLen.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span> <span class="p">=</span> <span class="nf">marshalUint64</span><span class="p">(</span><span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span><span class="p">[:</span><span class="mi">0</span><span class="p">],</span> <span class="nx">valueHash</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span> <span class="p">=</span> <span class="nf">marshalUint64</span><span class="p">(</span><span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span><span class="p">,</span> <span class="nb">uint64</span><span class="p">(</span><span class="nx">valueLen</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">c</span><span class="p">.</span><span class="nf">Set</span><span class="p">(</span><span class="nx">k</span><span class="p">,</span> <span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nf">putSubkeyBuf</span><span class="p">(</span><span class="nx">subkey</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><ul>
+<li>値は約64KiB（正確には <code>maxSubvalueLen</code>）単位の subvalue に分割する。</li>
+<li>引数の <code>k</code> には、 <code>v</code> のハッシュ値とバイト長をエンコードした値を設定する。 <code>uint64</code> (8バイト)が2つで計 16 バイト。これが <code>maxKeyLen</code> の定義で 16 引いてる分に対応。</li>
+<li>subvalue は <code>v</code> のハッシュ値と分割の連番をエンコードした値を subkey としてハッシュに設定する。 subkey も <code>uint64</code> 2つで <code>maxSubvalueLen</code> の16引いてる分。</li>
+<li>例えば 128KiB の値だと subvalue は3つになり、 <code>k</code> と合わせて合計4エントリが追加されることになる。</li>
+</ul>
+<h3 id="cache-の-getbig-メソッド">Cache の GetBig メソッド</h3>
+<p><a href="https://github.com/VictoriaMetrics/fastcache/blob/c9a5939fd508ba790b708b23929feea13623d735/bigcache.go#L68-L124">bigcache.go#L68-L124</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// GetBig searches for the value for the given k, appends it to dst
+</span></span></span><span class="line"><span class="cl"><span class="c1">// and returns the result.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// GetBig returns only values stored via SetBig. It doesn&#39;t work
+</span></span></span><span class="line"><span class="cl"><span class="c1">// with values stored via other methods.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// k contents may be modified after returning from GetBig.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Cache</span><span class="p">)</span> <span class="nf">GetBig</span><span class="p">(</span><span class="nx">dst</span><span class="p">,</span> <span class="nx">k</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">[]</span><span class="kt">byte</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">atomic</span><span class="p">.</span><span class="nf">AddUint64</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">c</span><span class="p">.</span><span class="nx">bigStats</span><span class="p">.</span><span class="nx">GetBigCalls</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">subkey</span> <span class="o">:=</span> <span class="nf">getSubkeyBuf</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="k">defer</span> <span class="nf">putSubkeyBuf</span><span class="p">(</span><span class="nx">subkey</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Read and parse metavalue
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span> <span class="p">=</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span><span class="p">[:</span><span class="mi">0</span><span class="p">],</span> <span class="nx">k</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Nothing found.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">return</span> <span class="nx">dst</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">16</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">atomic</span><span class="p">.</span><span class="nf">AddUint64</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">c</span><span class="p">.</span><span class="nx">bigStats</span><span class="p">.</span><span class="nx">InvalidMetavalueErrors</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">dst</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">valueHash</span> <span class="o">:=</span> <span class="nf">unmarshalUint64</span><span class="p">(</span><span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">valueLen</span> <span class="o">:=</span> <span class="nf">unmarshalUint64</span><span class="p">(</span><span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span><span class="p">[</span><span class="mi">8</span><span class="p">:])</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Collect result from chunks.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">dstLen</span> <span class="o">:=</span> <span class="nb">len</span><span class="p">(</span><span class="nx">dst</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">n</span> <span class="o">:=</span> <span class="nx">dstLen</span> <span class="o">+</span> <span class="nb">int</span><span class="p">(</span><span class="nx">valueLen</span><span class="p">)</span> <span class="o">-</span> <span class="nb">cap</span><span class="p">(</span><span class="nx">dst</span><span class="p">);</span> <span class="nx">n</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">dst</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">dst</span><span class="p">[:</span><span class="nb">cap</span><span class="p">(</span><span class="nx">dst</span><span class="p">)],</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">n</span><span class="p">)</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">dst</span> <span class="p">=</span> <span class="nx">dst</span><span class="p">[:</span><span class="nx">dstLen</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">  <span class="kd">var</span> <span class="nx">i</span> <span class="kt">uint64</span>
+</span></span><span class="line"><span class="cl">  <span class="k">for</span> <span class="nb">uint64</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nx">dst</span><span class="p">)</span><span class="o">-</span><span class="nx">dstLen</span><span class="p">)</span> <span class="p">&lt;</span> <span class="nx">valueLen</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span> <span class="p">=</span> <span class="nf">marshalUint64</span><span class="p">(</span><span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span><span class="p">[:</span><span class="mi">0</span><span class="p">],</span> <span class="nx">valueHash</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span> <span class="p">=</span> <span class="nf">marshalUint64</span><span class="p">(</span><span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span><span class="p">,</span> <span class="nb">uint64</span><span class="p">(</span><span class="nx">i</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">i</span><span class="o">++</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">dstNew</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="nx">dst</span><span class="p">,</span> <span class="nx">subkey</span><span class="p">.</span><span class="nx">B</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">dstNew</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="nx">dst</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="c1">// Cannot find subvalue
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="k">return</span> <span class="nx">dst</span><span class="p">[:</span><span class="nx">dstLen</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">dst</span> <span class="p">=</span> <span class="nx">dstNew</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Verify the obtained value.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">v</span> <span class="o">:=</span> <span class="nx">dst</span><span class="p">[</span><span class="nx">dstLen</span><span class="p">:]</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nb">uint64</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nx">v</span><span class="p">))</span> <span class="o">!=</span> <span class="nx">valueLen</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">atomic</span><span class="p">.</span><span class="nf">AddUint64</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">c</span><span class="p">.</span><span class="nx">bigStats</span><span class="p">.</span><span class="nx">InvalidValueLenErrors</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">dst</span><span class="p">[:</span><span class="nx">dstLen</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">h</span> <span class="o">:=</span> <span class="nx">xxhash</span><span class="p">.</span><span class="nf">Sum64</span><span class="p">(</span><span class="nx">v</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">h</span> <span class="o">!=</span> <span class="nx">valueHash</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">atomic</span><span class="p">.</span><span class="nf">AddUint64</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">c</span><span class="p">.</span><span class="nx">bigStats</span><span class="p">.</span><span class="nx">InvalidValueHashErrors</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">dst</span><span class="p">[:</span><span class="nx">dstLen</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">dst</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><ul>
+<li>まず <code>k</code> に対する値を取得し、 <code>SetBig</code> で設定した値のハッシュ値と長さをデコードする。</li>
+<li><code>GetBig</code> が呼ばれた時点の <code>dst</code> の長さを <code>dstLen</code> にとっておく。</li>
+<li><code>dst</code> の <code>cap</code> が十分でなければ増やしておく。</li>
+<li><code>dst</code> に追加した長さ <code>len(dst)-dstLen</code> が <code>valueLen</code> より小さい間は subvalue を取得して <code>dst</code> に <code>append</code> で追加していく。 subvalue 取得後に <code>len(dst)</code> が変わらなかった場合は subvalue が無かったと判断して <code>dst</code> と当初の長さに切り取って返す。subvalue を取得しつつ無かったか判定するのは今なら <code>HasGet</code> メソッドがあるのでそちらを使うべき。</li>
+<li><code>GetBig</code> の呼び出し側では <code>len(dst)</code> が呼び出し前後で変わってなければ取得失敗というエラー処理を行う必要あり。最初に <code>dst</code> の <code>cap</code> を確保するところでアドレスが変わる場合があるので、アドレスが変わってなければというチェックではだめなことに注意。</li>
+<li>subvalue が全て取得できた場合は合計の長さのチェックと値全体のハッシュ値の突き合せチェックを行う。</li>
+</ul>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>LXDでネストした非特権コンテナを試してみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>LXDでネストした非特権コンテナを試してみた</h1>
+  <time datetime=2017-03-21T21:00:00&#43;0900 class="post-date">2017-03-21</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#subuidとsubgidファイルを編集しつつ作成">subuidとsubgidファイルを編集しつつ作成</a></li>
+    <li><a href="#subuidとsubgidファイルを元に戻して再度実験">subuidとsubgidファイルを元に戻して再度実験</a></li>
+    <li><a href="#1段目のみsecuritynestingはつけて再実験">1段目のみsecurity.nestingはつけて再実験</a></li>
+    <li><a href="#2段目もsecuritynestingをつけて再実験">2段目もsecurity.nestingをつけて再実験</a></li>
+    <li><a href="#1段目のみsecuritynestingをつけて一からやり直し">1段目のみsecurity.nestingをつけて一からやり直し</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="https://twitter.com/ten_forward/status/844107303099932676">https://twitter.com/ten_forward/status/844107303099932676</a></p>
+<p><a href="https://twitter.com/ten_forward/status/844142416282054658">https://twitter.com/ten_forward/status/844142416282054658</a></p>
+<p>というツイートを受けて自分でもLXDでネストした非特権コンテナを試してみました。
+環境はUbuntu 16.04です。
+lxdのバージョンは2.0.9です。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> uname -a
+</span></span><span class="line"><span class="cl"><span class="go">Linux bai1b7faf04 4.4.0-53-generic #74-Ubuntu SMP Fri Dec 2 15:59:10 UTC 2016 x86_64 x86_64 x86_64 GNU/Linux
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="gp">$</span> lxd --version
+</span></span><span class="line"><span class="cl"><span class="go">2.0.9
+</span></span></span></code></pre></div><h2 id="subuidとsubgidファイルを編集しつつ作成">subuidとsubgidファイルを編集しつつ作成</h2>
+<p>まずは <a href="https://insights.ubuntu.com/2015/10/30/nested-containers-in-lxd/">Nested containers in LXD | Ubuntu Insights</a> に従って <code>/etc/subuid</code> と <code>/etc/subgid</code> を編集しつつ試しました。</p>
+<p>一段ネストして <code>lxc launch images:ubuntu/xenial c2</code> するところで、</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">error: Get https://images.linuxcontainers.org/streams/v1/index.json: x509: failed to load system roots and no roots provided
+</span></span></span></code></pre></div><p>というエラーが出ました。 これは <a href="http://qiita.com/tukiyo3/items/2833e6c5cdf1b8ae9eeb">失敗: Alpine 3.5.1上でLXD 2.8を使おうと試行錯誤した - Qiita</a> の「トラブルシューティング」にあるように <code>ca-certificates</code> と <code>openssl</code> をインストールしたら解消しました。</p>
+<p>その後3段目まで無事作れました。そこで調子に乗って4段目も作ってみると、なんと作れてしまいました。
+しかも <code>lxc launch</code> の際に <code>-c security.nesting=true</code> を指定してなかったような気がします。</p>
+<p><a href="https://insights.ubuntu.com/2015/10/30/nested-containers-in-lxd/">Nested containers in LXD | Ubuntu Insights</a> の記事にあった uid の話は関係なかったのでしょうか。</p>
+<h2 id="subuidとsubgidファイルを元に戻して再度実験">subuidとsubgidファイルを元に戻して再度実験</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> lxc launch images:ubuntu/xenial c1
+</span></span><span class="line"><span class="cl"><span class="go">Creating c1
+</span></span></span><span class="line"><span class="cl"><span class="go">Starting c1
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="gp">$</span> lxc <span class="nb">exec</span> c1 bash
+</span></span><span class="line"><span class="cl"><span class="go">root@c1:~#
+</span></span></span></code></pre></div><p>.. code-block:: console</p>
+<pre><code>root@c1:~# apt update &amp;&amp; apt install -y lxd ca-certificates openssl
+root@c1:~# lxd init
+# 質問やダイアログは全てEnterキーで進む
+</code></pre>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">root@c1:~# su - ubuntu
+</span></span></span><span class="line"><span class="cl"><span class="go">To run a command as administrator (user &#34;root&#34;), use &#34;sudo &lt;command&gt;&#34;.
+</span></span></span><span class="line"><span class="cl"><span class="go">See &#34;man sudo_root&#34; for details.
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">ubuntu@c1:~$ lxc list
+</span></span></span><span class="line"><span class="cl"><span class="go">Generating a client certificate. This may take a minute...
+</span></span></span><span class="line"><span class="cl"><span class="go">If this is your first time using LXD, you should also run: sudo lxd init
+</span></span></span><span class="line"><span class="cl"><span class="go">To start your first container, try: lxc launch ubuntu:16.04
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">+------+-------+------+------+------+-----------+
+</span></span></span><span class="line"><span class="cl"><span class="go">| NAME | STATE | IPV4 | IPV6 | TYPE | SNAPSHOTS |
+</span></span></span><span class="line"><span class="cl"><span class="go">+------+-------+------+------+------+-----------+
+</span></span></span><span class="line"><span class="cl"><span class="go">ubuntu@c1:~$ lxc launch images:ubuntu/xenial c2
+</span></span></span><span class="line"><span class="cl"><span class="go">Creating c2
+</span></span></span><span class="line"><span class="cl"><span class="go">Starting c2
+</span></span></span><span class="line"><span class="cl"><span class="go">error: Error calling &#39;lxd forkstart c2 /var/lib/lxd/containers /var/log/lxd/c2/lxc.conf&#39;: err=&#39;exit status 1&#39;
+</span></span></span><span class="line"><span class="cl"><span class="go">  lxc 20170321123841.200 ERROR lxc_utils - utils.c:safe_mount:1751 - Permission denied - Failed to mount proc onto /usr/lib/x86_64-linux-gnu/lxc/proc
+</span></span></span><span class="line"><span class="cl"><span class="go">  lxc 20170321123841.200 ERROR lxc_conf - conf.c:lxc_mount_auto_mounts:801 - Permission denied - error mounting proc on /usr/lib/x86_64-linux-gnu/lxc/proc flags 14
+</span></span></span><span class="line"><span class="cl"><span class="go">  lxc 20170321123841.200 ERROR lxc_conf - conf.c:lxc_setup:3859 - failed to setup the automatic mounts for &#39;c2&#39;
+</span></span></span><span class="line"><span class="cl"><span class="go">  lxc 20170321123841.200 ERROR lxc_start - start.c:do_start:811 - Failed to setup container &#34;c2&#34;.
+</span></span></span><span class="line"><span class="cl"><span class="go">  lxc 20170321123841.200 ERROR lxc_sync - sync.c:__sync_wait:57 - An error occurred in another process (expected sequence number 3)
+</span></span></span><span class="line"><span class="cl"><span class="go">  lxc 20170321123841.239 ERROR lxc_start - start.c:__lxc_start:1346 - Failed to spawn container &#34;c2&#34;.
+</span></span></span><span class="line"><span class="cl"><span class="go">  lxc 20170321123841.801 ERROR lxc_conf - conf.c:run_buffer:405 - Script exited with status 1.
+</span></span></span><span class="line"><span class="cl"><span class="go">  lxc 20170321123841.801 ERROR lxc_start - start.c:lxc_fini:546 - Failed to run lxc.hook.post-stop for container &#34;c2&#34;.
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">Try `lxc info --show-log local:c2` for more info
+</span></span></span></code></pre></div><h2 id="1段目のみsecuritynestingはつけて再実験">1段目のみsecurity.nestingはつけて再実験</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> lxc launch images:ubuntu/xenial c1 -c security.nesting<span class="o">=</span><span class="nb">true</span>
+</span></span><span class="line"><span class="cl"><span class="go">Creating c1
+</span></span></span><span class="line"><span class="cl"><span class="go">Starting c1
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="gp">$</span> lxc <span class="nb">exec</span> c1 bash
+</span></span><span class="line"><span class="cl"><span class="go">root@c1:~# apt update &amp;&amp; apt install -y lxd ca-certificates openssl
+</span></span></span><span class="line"><span class="cl"><span class="go">root@c1:~# lxd init
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="gp">#</span> 質問やダイアログは全てEnterキーで進む
+</span></span></code></pre></div><p>.. code-block:: console</p>
+<pre><code>root@c1:~# su - ubuntu
+ubuntu@c1:~$ lxc list
+Generating a client certificate. This may take a minute...
+If this is your first time using LXD, you should also run: sudo lxd init
+To start your first container, try: lxc launch ubuntu:16.04
+
++------+-------+------+------+------+-----------+
+| NAME | STATE | IPV4 | IPV6 | TYPE | SNAPSHOTS |
++------+-------+------+------+------+-----------+
+ubuntu@c1:~$ lxc launch images:ubuntu/xenial c2
+Creating c2
+Starting c2
+ubuntu@c1:~$ lxc exec c2 bash
+root@c2:~# apt update &amp;&amp; apt install -y lxd ca-certificates openssl
+...(略)...
+Setting up apparmor (2.10.95-0ubuntu2.5) ...
+update-rc.d: warning: start and stop actions are no longer supported; falling back to defaults
+Skipping profile in /etc/apparmor.d/disable: usr.sbin.rsyslogd
+/sbin/apparmor_parser: Unable to replace &quot;/sbin/dhclient&quot;.  Permission denied; attempted to load a profile while confined?
+Skipping profile in /etc/apparmor.d/disable: usr.sbin.rsyslogd
+/sbin/apparmor_parser: Unable to replace &quot;/sbin/dhclient&quot;.  Permission denied; attempted to load a profile while confined?
+sh: echo: I/O error
+sh: echo: I/O error
+sh: echo: I/O error
+sh: echo: I/O error
+sh: echo: I/O error
+sh: echo: I/O error
+diff: /var/lib/apparmor/profiles/.apparmor.md5sums: No such file or directory
+Setting up rsync (3.1.1-3ubuntu1) ...
+Setting up lxd-client (2.0.9-0ubuntu1~16.04.2) ...
+Setting up libfuse2:amd64 (2.9.4-1ubuntu3.1) ...
+Setting up lxcfs (2.0.6-0ubuntu1~16.04.1) ...
+Setting up squashfs-tools (1:4.3-3ubuntu2) ...
+Setting up uidmap (1:4.2-3.1ubuntu5) ...
+Setting up xz-utils (5.1.1alpha+20120614-2ubuntu2) ...
+update-alternatives: using /usr/bin/xz to provide /usr/bin/lzma (lzma) in auto mode
+Setting up openssl (1.0.2g-1ubuntu4.6) ...
+Setting up ca-certificates (20160104ubuntu1) ...
+Setting up libcap-ng0:amd64 (0.7.7-1) ...
+Setting up dbus (1.10.6-1ubuntu3.3) ...
+Setting up dns-root-data (2015052300+h+1) ...
+Setting up liblxc1 (2.0.7-0ubuntu1~16.04.2) ...
+Setting up lxd (2.0.9-0ubuntu1~16.04.2) ...
+apparmor_parser: Unable to replace &quot;/usr/lib/lxd/lxd-bridge-proxy&quot;.  Permission denied; attempted to load a profile while confined?
+
+The default LXD bridge, lxdbr0, comes unconfigured by default.
+Only limited HTTP connectivity through a PROXY will be available.
+To go through the initial LXD configuration, run: lxd init
+
+Setting up lxc-common (2.0.7-0ubuntu1~16.04.2) ...
+apparmor.service is not active, cannot reload.
+invoke-rc.d: initscript apparmor, action &quot;reload&quot; failed.
+apparmor_parser: Unable to replace &quot;/usr/bin/lxc-start&quot;.  Permission denied; attempted to load a profile while confined?
+</code></pre>
+<h2 id="2段目もsecuritynestingをつけて再実験">2段目もsecurity.nestingをつけて再実験</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">root@c2:~# exit
+</span></span></span><span class="line"><span class="cl"><span class="go">ubuntu@c1:~$ lxc delete -f c2
+</span></span></span><span class="line"><span class="cl"><span class="go">ubuntu@c1:~$ lxc launch images:ubuntu/xenial c2 -c security.nesting=true
+</span></span></span><span class="line"><span class="cl"><span class="go">ubuntu@c1:~$ lxc exec c2 bash
+</span></span></span><span class="line"><span class="cl"><span class="go">root@c2:~# apt update &amp;&amp; apt install -y lxd ca-certificates openssl
+</span></span></span></code></pre></div><p>同じエラーが出ました。
+とりあえず無視して続けてみました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">root@c2:~# lxd init
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="gp">#</span> 質問やダイアログは全てEnterキーで進む
+</span></span><span class="line"><span class="cl"><span class="go">ubuntu@c2:~$ lxc launch images:ubuntu/xenial c3
+</span></span></span><span class="line"><span class="cl"><span class="go">ubuntu@c2:~$ lxc exec c3 bash
+</span></span></span></code></pre></div><p>ホストでプロセスを確認して見ました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> ps auxww <span class="p">|</span> grep <span class="s1">&#39;lxc exec c[1-3]&#39;</span>
+</span></span><span class="line"><span class="cl"><span class="go">hnakamur 10810  0.0  0.1 217644 16368 pts/25   Sl+  21:45   0:00 lxc exec c1 bash
+</span></span></span><span class="line"><span class="cl"><span class="go">101000   19687  0.0  0.0 208436 14836 pts/13   Sl+  21:54   0:00 lxc exec c2 bash
+</span></span></span><span class="line"><span class="cl"><span class="go">101000   26461  0.0  0.0 202800  8952 pts/1    Sl+  23:21   0:00 lxc exec c3 bash
+</span></span></span></code></pre></div><h2 id="1段目のみsecuritynestingをつけて一からやり直し">1段目のみsecurity.nestingをつけて一からやり直し</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> lxc delete -f c1
+</span></span><span class="line"><span class="cl"><span class="gp">$</span> lxc launch images:ubuntu/xenial c1 -c security.nesting<span class="o">=</span><span class="nb">true</span>
+</span></span><span class="line"><span class="cl"><span class="gp">$</span> lxc <span class="nb">exec</span> c1 bash
+</span></span><span class="line"><span class="cl"><span class="go">root@c1:~# apt update &amp;&amp; apt install -y lxd ca-certificates openssl
+</span></span></span><span class="line"><span class="cl"><span class="go">root@c1:~# lxd init
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="gp">#</span> 質問やダイアログは全てEnterキーで進む
+</span></span></code></pre></div><p>.. code-block:: console</p>
+<pre><code>root@c1:~# su - ubuntu
+ubuntu@c1:~$ lxc launch images:ubuntu/xenial c2
+ubuntu@c1:~$ lxc exec c2 bash
+root@c2:~# apt update &amp;&amp; apt install -y lxd ca-certificates openssl
+...(略)...
+Skipping profile in /etc/apparmor.d/disable: usr.sbin.rsyslogd
+/sbin/apparmor_parser: Unable to replace &quot;/sbin/dhclient&quot;.  Permission denied; attempted to load a profile while confined?
+Skipping profile in /etc/apparmor.d/disable: usr.sbin.rsyslogd
+/sbin/apparmor_parser: Unable to replace &quot;/sbin/dhclient&quot;.  Permission denied; attempted to load a profile while confined?
+sh: echo: I/O error
+sh: echo: I/O error
+sh: echo: I/O error
+sh: echo: I/O error
+sh: echo: I/O error
+sh: echo: I/O error
+diff: /var/lib/apparmor/profiles/.apparmor.md5sums: No such file or directory
+Setting up rsync (3.1.1-3ubuntu1) ...
+Setting up lxd-client (2.0.9-0ubuntu1~16.04.2) ...
+Setting up libfuse2:amd64 (2.9.4-1ubuntu3.1) ...
+Setting up lxcfs (2.0.6-0ubuntu1~16.04.1) ...
+Setting up squashfs-tools (1:4.3-3ubuntu2) ...
+Setting up uidmap (1:4.2-3.1ubuntu5) ...
+Setting up xz-utils (5.1.1alpha+20120614-2ubuntu2) ...
+update-alternatives: using /usr/bin/xz to provide /usr/bin/lzma (lzma) in auto mode
+Setting up openssl (1.0.2g-1ubuntu4.6) ...
+Setting up ca-certificates (20160104ubuntu1) ...
+Setting up libcap-ng0:amd64 (0.7.7-1) ...
+Setting up dbus (1.10.6-1ubuntu3.3) ...
+Setting up dns-root-data (2015052300+h+1) ...
+Setting up liblxc1 (2.0.7-0ubuntu1~16.04.2) ...
+Setting up lxd (2.0.9-0ubuntu1~16.04.2) ...
+apparmor_parser: Unable to replace &quot;/usr/lib/lxd/lxd-bridge-proxy&quot;.  Permission denied; attempted to load a profile while confined?
+
+The default LXD bridge, lxdbr0, comes unconfigured by default.
+Only limited HTTP connectivity through a PROXY will be available.
+To go through the initial LXD configuration, run: lxd init
+
+Setting up lxc-common (2.0.7-0ubuntu1~16.04.2) ...
+apparmor.service is not active, cannot reload.
+invoke-rc.d: initscript apparmor, action &quot;reload&quot; failed.
+apparmor_parser: Unable to replace &quot;/usr/bin/lxc-start&quot;.  Permission denied; attempted to load a profile while confined?
+Processing triggers for libc-bin (2.23-0ubuntu6) ...
+Processing triggers for systemd (229-4ubuntu16) ...
+Processing triggers for ureadahead (0.100.0-19) ...
+Processing triggers for ca-certificates (20160104ubuntu1) ...
+Updating certificates in /etc/ssl/certs...
+173 added, 0 removed; done.
+Running hooks in /etc/ca-certificates/update.d...
+done.
+root@c2:~#
+</code></pre>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">root@c2:~# lxd init
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="gp">#</span> 質問やダイアログは全てEnterキーで進む
+</span></span><span class="line"><span class="cl"><span class="go">...(略)...
+</span></span></span><span class="line"><span class="cl"><span class="go">apparmor_parser: Unable to replace &#34;/usr/lib/lxd/lxd-bridge-proxy&#34;.  Permission denied; attempted to load a profile while confined?
+</span></span></span><span class="line"><span class="cl"><span class="go">LXD has been successfully configured.
+</span></span></span><span class="line"><span class="cl"><span class="go">root@c2:~#
+</span></span></span></code></pre></div><p>.. code-block:: console</p>
+<pre><code>root@c2:~# su - ubuntu
+ubuntu@c2:~$ lxc launch images:ubuntu/xenial c3
+ubuntu@c2:~$ lxc exec c3 bash
+</code></pre>
+<p>ホストでプロセスを確認。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> ps auxww <span class="p">|</span> grep <span class="s1">&#39;lxc exec c[1-3]&#39;</span>
+</span></span><span class="line"><span class="cl"><span class="go">101000    3380  0.0  0.0 141844 13336 pts/17   Sl+  23:36   0:00 lxc exec c2 bash
+</span></span></span><span class="line"><span class="cl"><span class="go">101000    3692  0.0  0.0 207380 12304 pts/1    Sl+  23:37   0:00 lxc exec c3 bash
+</span></span></span><span class="line"><span class="cl"><span class="go">hnakamur 27103  0.0  0.0 152108 14228 pts/25   Sl+  23:27   0:00 lxc exec c1 bash
+</span></span></span></code></pre></div><p><code>apparmor_parser: Unable to replace &quot;ファイル名&quot;.  Permission denied; attempted to load a profile while confined?</code> のエラーが気になりますが、とりあえずネストして非特権コンテナが動いているっぽいです。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

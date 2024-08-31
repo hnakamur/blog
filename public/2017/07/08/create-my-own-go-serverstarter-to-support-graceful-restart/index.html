@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>グレースフルリスタートを支援するサーバ起動のGoライブラリを自作した &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>グレースフルリスタートを支援するサーバ起動のGoライブラリを自作した</h1>
+  <time datetime=2017-07-08T21:25:00&#43;0900 class="post-date">2017-07-08</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#使ってみた既存のライブラリ">使ってみた既存のライブラリ</a>
+      <ul>
+        <li><a href="#githubcomlestrratgo-server-starter">github.com/lestrrat/go-server-starter</a></li>
+        <li><a href="#githubcomfacebookgograce">github.com/facebookgo/grace</a></li>
+      </ul>
+    </li>
+    <li><a href="#自作ライブラリ">自作ライブラリ</a>
+      <ul>
+        <li><a href="#プロセス構成">プロセス構成</a></li>
+        <li><a href="#シンプルなコード例">シンプルなコード例</a></li>
+        <li><a href="#より複雑な例">より複雑な例</a></li>
+      </ul>
+    </li>
+    <li><a href="#おわりに">おわりに</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>サーバプロセスを無停止で実行ファイルを更新し再起動できるグレースフルリスタートは
+非常に便利な仕組みです。</p>
+<p>今までは <a href="https://shogo82148.github.io/blog/2015/05/03/golang-graceful-restart/">Go言語でGraceful Restartをする - Shogo&rsquo;s Blog</a> と一連の記事を参考に
+<a href="https://github.com/lestrrat/go-server-starter">lestrrat/go-server-starter: Go port of start_server utility (Server::Starter)</a> を使わせていただいていました。
+ありがとうございます！</p>
+<p>今回自分好みの構成にするためにサーバ起動のGoライブラリを自作してみたのでメモです。</p>
+<p>検証環境は以下の通りです。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> go version
+</span></span><span class="line"><span class="cl"><span class="go">go version go1.9beta2 linux/amd64
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="gp">$</span> grep ^VERSION<span class="o">=</span> /etc/os-release
+</span></span><span class="line"><span class="cl"><span class="go">VERSION=&#34;16.04.2 LTS (Xenial Xerus)&#34;
+</span></span></span></code></pre></div><h2 id="使ってみた既存のライブラリ">使ってみた既存のライブラリ</h2>
+<h3 id="githubcomlestrratgo-server-starter">github.com/lestrrat/go-server-starter</h3>
+<p><code>github.com/lestrrat/go-server-starter</code> パッケージは Perl の `Server::Starter - a superdaemon for hot-deploying server programs - metacpan.org](<a href="https://metacpan.org/pod/Server::Starter">https://metacpan.org/pod/Server::Starter</a>) と互換性があり、 drop-in replacement として使えることを目的として開発されています。</p>
+<p><code>github.com/lestrrat/go-server-starter</code> パッケージでは
+<code>start_server</code> という実行ファイルを提供しています。</p>
+<p>まず自分のサーバプログラムを <code>github.com/lestrrat/go-server-starter/listener</code> パッケージのAPIを使って <code>start_server</code> からリスナーの情報を受け取るように改変します。</p>
+<p>そして自分のサーバプロセスを起動するコマンドラインを <code>start_server</code> への起動引数で指定して起動するという仕組みになっています。</p>
+<p>プロセスの親子関係は以下の図の通りです。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">start_server
+</span></span><span class="line"><span class="cl"> \_ 自分のサーバプロセス
+</span></span></code></pre></div><p><code>start_server</code> が <code>SIGHUP</code> のシグナルを受け取ると、まず新しいサーバプロセスを起動します。これ以降新しくリクエストが来たときは、新サーバプロセスで処理されます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">start_server
+</span></span><span class="line"><span class="cl"> \_ 旧サーバプロセス
+</span></span><span class="line"><span class="cl"> \_ 新サーバプロセス
+</span></span></code></pre></div><p>その後 <code>start_server</code> が旧サーバプロセスに <code>SIGTERM</code> を送り、旧サーバプロセスはそれを受け取って自分を終了させます。</p>
+<p>この時いきなり終了するのではなく、クライアントのリクエストを処理中の場合はレスポンスを返して処理を完了してから終了するというグレースフルシャットダウンを行うようにすれば、グレースフルリスタートが実現できるというわけです。</p>
+<p>この点は以下に説明する <code>github.com/facebookgo/grace</code> や今回自作したライブラリも同じです。つまりグレースフルリスタートはライブラリ側だけで実現できるものではなく、
+サーバプロセス側でグレースフルシャットダウンを実装することが必須となります。
+そこで、この記事の件名も「グレースフルリスタートを支援する」という言い方にしました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">start_server
+</span></span><span class="line"><span class="cl"> \_ 新サーバプロセス
+</span></span></code></pre></div><h3 id="githubcomfacebookgograce">github.com/facebookgo/grace</h3>
+<p>一方 <a href="https://github.com/facebookgo/grace/">facebookgo/grace: Graceful restart &amp; zero downtime deploy for Go servers.</a> は外部のプログラムは使わない仕組みになっています。</p>
+<p>また自分のサーバプログラムの改修も
+<a href="https://golang.org/pkg/net/http/#Server">net/http.Server</a>
+の
+<a href="https://golang.org/pkg/net/http/#Server.ListenAndServe">func (*Server) ListenAndServe</a> 、
+<a href="https://golang.org/pkg/net/http/#Server.ListenAndServeTLS">func (*Server) ListenAndServeTLS</a> 、
+<a href="https://golang.org/pkg/net/http/#Server.Serve">func (*Server) Serve</a>
+を呼ぶところを
+<a href="https://godoc.org/github.com/facebookgo/grace/gracehttp">github.com/facebookgo/grace/gracehttp</a> の
+<a href="https://godoc.org/github.com/facebookgo/grace/gracehttp#Serve">func Serve(servers &hellip;*http.Server) error</a> を使うように改変するだけです。</p>
+<p>このように手軽に使えるのが魅力です。</p>
+<p>プロセス構成は普段は自分のサーバプロセスが単体で存在するようになっています。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">自分のサーバプロセス
+</span></span></span></code></pre></div><p><code>SIGUSR2</code> を受け取ると新しいサーバプロセスを子プロセスとして起動します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">旧サーバプロセス
+</span></span></span><span class="line"><span class="cl"><span class="go"> \_ 新サーバプロセス
+</span></span></span></code></pre></div><p>新サーバプロセスは起動すると <code>SIGTERM</code> を親である旧サーバプロセスに送り、旧サーバプロセスはそれを受け取って終了します。その結果新サーバプロセスだけが残ります。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">新サーバプロセス
+</span></span></span></code></pre></div><p>つまり元のプロセスIDとは異なるプロセスIDを持つプロセスだけが残ることになります。
+この方式だと <a href="http://cr.yp.to/daemontools.html">daemontools</a> や
+Pythonの <a href="http://supervisord.org/">Supervisor</a> から使えなくて困りそうです。</p>
+<p>ただ、私個人は <a href="https://www.freedesktop.org/wiki/Software/systemd/">systemd</a> から使えれば困らないので、この点は特に気にしていませんでした。</p>
+<p>しかし、
+<a href="https://shogo82148.github.io/blog/2017/01/21/golang-1-dot-8-graceful-shutdown/">Go1.8のGraceful Shutdownとgo-gracedownの対応 - Shogo&rsquo;s Blog</a>
+のベンチマークソフトを試してみるとHTTP/1.1のときは取りこぼし無しで良いのですが、 HTTP/2 のグレースフルスタートを試してみると取りこぼしがばんばん発生することがわかりました。</p>
+<h2 id="自作ライブラリ">自作ライブラリ</h2>
+<p>ということで <code>github.com/facebookgo/grace/gracehttp</code> を改変してプルリクエストを送ろうかと思ったのですが、作っているうちにプロセス構成やAPIも全く違うものになったので別物のライブラリとして自作することにしました。</p>
+<p>自作と言っても、肝となるコードは <code>facebookgo/grace</code> からコピーし、自分が使いたい構成のAPIに変更しつつ、必要な処理を少し追加で実装しただけです。</p>
+<p>Linux用の <code>syscall</code> パッケージの関数を使いまくっているので動作環境はLinuxのみです。</p>
+<p><a href="https://github.com/hnakamur/serverstarter">github.com/hnakamur/serverstarter</a> で公開しています。</p>
+<h3 id="プロセス構成">プロセス構成</h3>
+<p>プロセス構成は以下のようになっています。サーバプログラムを起動した直後はマスタープロセスだけがある状態ですが、マスタープロセスはポートのリッスンを行った後ワーカープロセスを起動します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">マスタープロセス
+</span></span></span><span class="line"><span class="cl"><span class="go"> \_ ワーカープロセス
+</span></span></span></code></pre></div><p>マスタープロセスが <code>SIGHUP</code> を受け取ると新しいワーカープロセスを起動します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">マスタープロセス
+</span></span></span><span class="line"><span class="cl"><span class="go"> \_ 旧ワーカープロセス
+</span></span></span><span class="line"><span class="cl"><span class="go"> \_ 新ワーカープロセス
+</span></span></span></code></pre></div><p>その後、マスタープロセスが旧ワーカープロセスに <code>SIGTERM</code> を送ると旧ワーカープロセスが自分を終了します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">マスタープロセス
+</span></span></span><span class="line"><span class="cl"><span class="go"> \_ 新ワーカープロセス
+</span></span></span></code></pre></div><h3 id="シンプルなコード例">シンプルなコード例</h3>
+<p>このライブラリを使うには自分のサーバプログラムに組み込んで以下のような構成にします。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span> <span class="nx">main</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="p">(</span>
+</span></span><span class="line"><span class="cl">	<span class="s">&#34;context&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="s">&#34;flag&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="s">&#34;fmt&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="s">&#34;log&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="s">&#34;net&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="s">&#34;net/http&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="s">&#34;os&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="s">&#34;os/signal&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="s">&#34;syscall&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="s">&#34;github.com/hnakamur/serverstarter&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">addr</span> <span class="o">:=</span> <span class="nx">flag</span><span class="p">.</span><span class="nf">String</span><span class="p">(</span><span class="s">&#34;addr&#34;</span><span class="p">,</span> <span class="s">&#34;:8080&#34;</span><span class="p">,</span> <span class="s">&#34;server listen address&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">flag</span><span class="p">.</span><span class="nf">Parse</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">starter</span> <span class="o">:=</span> <span class="nx">serverstarter</span><span class="p">.</span><span class="nf">New</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">starter</span><span class="p">.</span><span class="nf">IsMaster</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">l</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">net</span><span class="p">.</span><span class="nf">Listen</span><span class="p">(</span><span class="s">&#34;tcp&#34;</span><span class="p">,</span> <span class="o">*</span><span class="nx">addr</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">log</span><span class="p">.</span><span class="nf">Fatalf</span><span class="p">(</span><span class="s">&#34;failed to listen %s; %v&#34;</span><span class="p">,</span> <span class="o">*</span><span class="nx">addr</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">starter</span><span class="p">.</span><span class="nf">RunMaster</span><span class="p">(</span><span class="nx">l</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">log</span><span class="p">.</span><span class="nf">Fatalf</span><span class="p">(</span><span class="s">&#34;failed to run master; %v&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">listeners</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">starter</span><span class="p">.</span><span class="nf">Listeners</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">log</span><span class="p">.</span><span class="nf">Fatalf</span><span class="p">(</span><span class="s">&#34;failed to get listeners; %v&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">l</span> <span class="o">:=</span> <span class="nx">listeners</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">http</span><span class="p">.</span><span class="nf">HandleFunc</span><span class="p">(</span><span class="s">&#34;/&#34;</span><span class="p">,</span> <span class="kd">func</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">fmt</span><span class="p">.</span><span class="nf">Fprintf</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="s">&#34;from pid %d.\n&#34;</span><span class="p">,</span> <span class="nx">os</span><span class="p">.</span><span class="nf">Getpid</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">	<span class="p">})</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">srv</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">http</span><span class="p">.</span><span class="nx">Server</span><span class="p">{}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">go</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span> <span class="nx">srv</span><span class="p">.</span><span class="nf">Serve</span><span class="p">(</span><span class="nx">l</span><span class="p">)</span> <span class="p">}()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">sigC</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="nx">os</span><span class="p">.</span><span class="nx">Signal</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">signal</span><span class="p">.</span><span class="nf">Notify</span><span class="p">(</span><span class="nx">sigC</span><span class="p">,</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">SIGTERM</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="o">&lt;-</span><span class="nx">sigC</span> <span class="o">==</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">SIGTERM</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">srv</span><span class="p">.</span><span class="nf">Shutdown</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nf">Background</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">			<span class="k">return</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><ul>
+<li>
+<p>21行目で <code>serverstarter.New()</code> で `Starter](<a href="https://godoc.org/github.com/hnakamur/serverstarter#Starter">https://godoc.org/github.com/hnakamur/serverstarter#Starter</a>) のインスタンスを作ります。</p>
+</li>
+<li>
+<p>21～31行目がマスタープロセスの場合の処理です。</p>
+<ul>
+<li>23行目でポートのリッスンを行います。</li>
+<li>27行目でワーカープロセスを起動し、シグナルを受け取るループに入ります。</li>
+</ul>
+</li>
+<li>
+<p>33行目以降がワーカープロセスの場合の処理です。</p>
+<ul>
+<li>33行目で <code>starter.Listeners()</code> でリスナー一覧を受け取り、43行目でそのリスナーを使って <code>net/http.Server</code> の <code>func (srv *Server) Serve(l net.Listener) error</code> メソッドを呼び出してサービスのループをgoroutineで起動しています。</li>
+</ul>
+</li>
+</ul>
+<p>上記の「Go1.8のGraceful Shutdownとgo-gracedownの対応 - Shogo&rsquo;s Blog」の記事によると</p>
+<ul>
+<li><code>net/http.Server</code> の <code>Serve</code> メソッドは <strong>シャットダウンが始まるとすぐ制御を返す</strong></li>
+<li><code>net/http.Server</code> の <code>Shutdown</code> メソッドは <strong>シャットダウンが終わるまで待つ</strong></li>
+</ul>
+<p>とのことなので、グレースフルシャットダウンの完了を待つには、シグナル待ちのループと <code>Shutdown</code> を呼ぶ処理をメインで行い、 <code>Serve</code> の実行はgoroutineで行う構成にするのがポイントとなります。</p>
+<p><code>facebookgo/grace</code> よりはコード量が増えますが、マスタープロセスでの処理とワーカープロセスでの処理が目に見える形で明示的に書かれるので、何をやっているかはこちらのほうがわかりやすいと個人的には考えています。</p>
+<h3 id="より複雑な例">より複雑な例</h3>
+<p>より複雑な例を <code>github.com/hnakamur/servestarter</code> の <code>examples</code> ディレクトリに置いています。</p>
+<p>サンプルサーバ
+<a href="https://github.com/hnakamur/serverstarter/blob/bf52ea60200f0d9c69be75b8b87180797df7af1d/examples/graceserver/main.go">examples/graceserver/main.go</a>
+ではHTTP/1.1とHTTP/2のポートを片方または両方リッスンできるようにしています。</p>
+<p>最初は HTTP/1.1とHTTP/2で別々に <code>net/http.Server</code> のインスタンスを作って、グレースフルシャットダウンのときは両方に <code>Shutdown</code> をgoroutineと <code>sync.WaitGroup</code> で並列に呼び出すようにしてみました。が、HTTP/2でグレースフルリスタートを試すと取りこぼしが発生してしまいました。</p>
+<p>そこで、 <code>net/http.Server</code> のインスタンスを1つにして、別々のgoroutineでHTTP/1.1とHTTP/2のリスナーに対して <code>Server</code> を呼ぶようにし、グレースフルシャットダウンのときはその1つの <code>Server</code> に対して <code>Shutdown</code> を呼ぶという構成にしてみたらHTTP/2のグレースフルリスタートでも取りこぼしがなくなりました。</p>
+<p>本題から外れますが、SSL自己証明書を作成するコードは
+<a href="https://www.socketloop.com/tutorials/golang-create-x509-certificate-private-and-public-keys">Golang : Create x509 certificate, private and public keys</a>
+を参考にして、RSAではなくECDSAを使うように改変してみました。</p>
+<p>ベンチマーククライアント
+<a href="https://github.com/hnakamur/serverstarter/blob/bf52ea60200f0d9c69be75b8b87180797df7af1d/examples/h2bench/main.go">examples/h2bench/main.go</a>
+は「Go1.8のGraceful Shutdownとgo-gracedownの対応 - Shogo&rsquo;s Blog」の記事にあったコードそのままです。</p>
+<p>試す手順は <a href="https://github.com/hnakamur/serverstarter#a-more-advanced-example">A more advanced example</a> を参照してください。</p>
+<p>実際試してみた結果、HTTP/1.1とHTTP/2のポートの両方をリッスンした状態で毎秒グレースフルリスタートをかけつつ、HTTP/1.1、HTTP/2のどちらのポートにベンチマーククライアントでアクセスをかけても取りこぼしは起きませんでした。</p>
+<p>また、毎秒グレースフルリスタートをかけた状態で、元とは違う内容のレスポンスを返すようにサーバのコードを書き換えて <code>go build -race</code> で実行ファイルを置き換える試験もしてみましたが、この場合も取りこぼし無しで置き換えが出来ました。</p>
+<p>またその際以下のコマンドでマスタープロセスとワーカープロセスのプロセスIDも見てみました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">watch -n 0.1 &#34;ps alwwf | grep -E &#39;(^F|[.]/graceserver)&#39;&#34;
+</span></span></span></code></pre></div><p>以下に出力例を示します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">Every 0.1s: ps alwwf | grep -E &#39;(^F|[.]/graceserver)&#39;       Sat Jul  8 23:38:53 2017
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">F   UID   PID  PPID PRI  NI    VSZ   RSS WCHAN  STAT TTY        TIME COMMAND
+</span></span></span><span class="line"><span class="cl"><span class="go">0  1000 31459 17608  20   0 387856 29556 futex_ Sl+  pts/14     0:00  \_ ./graceserver -http=:9090 -https=:9443 -sleep=2s
+</span></span></span><span class="line"><span class="cl"><span class="go">0  1000  6646 31459  20   0 403468 32900 futex_ Sl+  pts/14     0:00      \_ ./graceserver -http=:9090 -https=:9443 -sleep=2s
+</span></span></span><span class="line"><span class="cl"><span class="go">0  1000  6720 31459  20   0 190296 29608 futex_ Sl+  pts/14     0:00      \_ ./graceserver -http=:9090 -https=:9443 -sleep=2s
+</span></span></span></code></pre></div><p>グレースフルリスタートの度にワーカープロセスは新しく作られてプロセスIDが変わっていきますが、マスタープロセスのプロセスIDは同じままであることも確認できました。</p>
+<h2 id="おわりに">おわりに</h2>
+<p>例によって雰囲気で書いてみただけなので、タイミングによってちゃんと動かないなどの落とし穴が残っている可能性はありますが、とりあえず希望通りの動きにはなっています。
+また、 <code>go build -race</code> つきでビルドして動作確認しましたが datarace は報告されていないので、その点もとりあえずは大丈夫そうです。</p>
+<p>ということで自分好みのライブラリが作れたので今後使っていこうと思います。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

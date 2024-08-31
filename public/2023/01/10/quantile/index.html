@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Quantileについて調査してみた(途中) &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Quantileについて調査してみた(途中)</h1>
+  <time datetime=2023-01-10T21:39:28&#43;0900 class="post-date">2023-01-10</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#quantileを推測するアルゴリズムはいろいろある">Quantileを推測するアルゴリズムはいろいろある</a></li>
+    <li><a href="#greenwald-khanna方式のコードをgoに移植して試してみた">Greenwald-Khanna方式のコードをGoに移植して試してみた</a></li>
+    <li><a href="#kllというアルゴリズムを知った">KLLというアルゴリズムを知った</a></li>
+    <li><a href="#apache-dataskethes-というライブラリとreqというアリゴリズムを知った">Apache Dataskethes というライブラリとREQというアリゴリズムを知った</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="/blog/2023/01/03/fast-log2-for-uint64/">uint64で高速にLog2を計算する方法を知った · hnakamur&rsquo;s blog</a>のあと、本題のQuantileについて調査したのでメモです。実はまだ途中なのですが、この後一旦他のことをするので現状をメモしておくということで。</p>
+<p>試したレポジトリは
+<a href="https://github.com/hnakamur/quantile_experiment">https://github.com/hnakamur/quantile_experiment</a>
+です。</p>
+<h2 id="quantileを推測するアルゴリズムはいろいろある">Quantileを推測するアルゴリズムはいろいろある</h2>
+<p>まず推測する方式の前に、愚直に算出する方式を考えると、全ての入力値を取っておいてランクに対応する値を調べるということになります。ただ、それだと入力値が多くなってくると保管する領域も多くなってしまいます。</p>
+<p>そこで入力値を適宜間引きながら、なるべく高精度で近似値を出すようなアルゴリズムがいろいろ考案されているというわけです。</p>
+<h2 id="greenwald-khanna方式のコードをgoに移植して試してみた">Greenwald-Khanna方式のコードをGoに移植して試してみた</h2>
+<p><a href="https://twitter.com/kazuho/status/1610109662346752002">kazuhoさんのツイート</a>で紹介されているコードは<a href="https://www.cis.upenn.edu/~sanjeev/papers/sigmod01_quantiles.pdf">Space-Efficient Online Computation of Quantile Summaries</a>という論文のアルゴリズムを実装しているとのことでした。</p>
+<p>検索して<a href="https://aakinshin.net/posts/greenwald-khanna-quantile-estimator/">Greenwald-Khanna quantile estimator | Andrey Akinshin</a>という解説記事とC#実装を見つけました(記事からリンクされている<a href="https://github.com/AndreyAkinshin/perfolizer/tree/master/src/Perfolizer/Perfolizer/Mathematics/QuantileEstimators">レポジトリ内</a>には他にもたくさんのアルゴリズムの実装がありました)。</p>
+<p>これをGoに移植して、愚直に算出する方式を比較するようなproperty-based <a href="https://github.com/hnakamur/quantile_experiment/blob/65a27e9aff5f802b02f8ba9eaf0665b5c0a9bfe4/summary_test.go#L138-L175">テスト</a>を<a href="https://github.com/flyingmutant/rapid">flyingmutant/rapid</a>で書いてみました。指定したパーセントに対する値をestimatorで算出して、その値のランクを愚直方式で算出して、ランクのずれが指定の範囲内に収まっているかという確認の仕方をしています。この確認方法で良いのか、指定の範囲の計算方法がこれで正しいのかは私はまだよくわかっていません。</p>
+<p>仮にこのテストが正しいとして、何回か失敗するケースがありました。<a href="https://github.com/hnakamur/quantile_experiment/commit/e938ec567f47df59142d317120b0cb73aad486b0">この変更</a>を入れると失敗しなくなったのですが、これが正しいかも不明です。</p>
+<h2 id="kllというアルゴリズムを知った">KLLというアルゴリズムを知った</h2>
+<p><a href="https://en.wikipedia.org/wiki/Quantile">Quantile - Wikipedia</a>で以下の文で他のアルゴリズムを知りました。</p>
+<blockquote>
+<p>The most popular methods are t-digest[16] and KLL.[17]</p>
+</blockquote>
+<p>16は<a href="https://arxiv.org/abs/1902.04023">[1902.04023] Computing Extremely Accurate Quantiles Using t-Digests</a>、17は<a href="https://arxiv.org/abs/1603.05346">[1603.05346] Optimal Quantile Approximation in Streams</a>という論文にリンクされていました。KLLは17の論文の3名の著者の頭文字になっています。</p>
+<blockquote>
+<p>The KLL algorithm uses a more sophisticated</p>
+</blockquote>
+<p>とあるのでt-digestよりはKLLのほうが良さそうな雰囲気です。</p>
+<h2 id="apache-dataskethes-というライブラリとreqというアリゴリズムを知った">Apache Dataskethes というライブラリとREQというアリゴリズムを知った</h2>
+<p>さらに検索して<a href="https://datasketches.apache.org/docs/Quantiles/SketchingQuantilesAndRanksTutorial.html">Sketching Quantiles and Ranks Tutorial</a>というページを見つけました。natural rankとnormalized rankという概念や、サーチの際に境界を含める(inclusive)か含めない(exclusive)という選択があることなどを知れて良かったです。</p>
+<p><a href="https://datasketches.apache.org/docs/Quantiles/QuantilesOverview.html">Introduction to the 3 Quantiles Sketches</a>を見ると2018年3月にKLLの実装がリリースされていますが、その後2021年2月にREQという別の実装がリリースされています。</p>
+<p>ということはREQのほうが良いのかなと思って、Javaの実装をGoに移植してみました。値の追加とパーセンタイルを求める部分がとりあえず動いたっぽいという段階で、こちらも愚直方式の結果と付き合わせるテストを書いています。</p>
+<p>本当にこれで合ってるかとか性能評価とかはこれからしたいなというところですが、冒頭に書いたように別のことを先にやりたいので一旦ペンディングします。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

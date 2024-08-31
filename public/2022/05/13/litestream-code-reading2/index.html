@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Litestreamのコードリーディングその2 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Litestreamのコードリーディングその2</h1>
+  <time datetime=2022-05-13T14:48:24&#43;0900 class="post-date">2022-05-13</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#db-構造体">DB 構造体</a>
+      <ul>
+        <li><a href="#db-構造体の-streamclient-のコメント">DB 構造体の StreamClient のコメント</a></li>
+      </ul>
+    </li>
+    <li><a href="#dbstreamslient-を設定しているのは1箇所">db.StreamSlient を設定しているのは1箇所</a></li>
+    <li><a href="#newdbfromconfigwithpath-関数を呼ぶのは2箇所">NewDBFromConfigWithPath 関数を呼ぶのは2箇所</a></li>
+    <li><a href="#dbstreamslient-の-stream-メソッドの呼び出し元">db.StreamSlient の Stream メソッドの呼び出し元</a></li>
+    <li><a href="#dbstreamslient-の-stream-メソッドの処理を追ってみる">db.StreamSlient の stream メソッドの処理を追ってみる</a>
+      <ul>
+        <li><a href="#dbstreamsnapshot-メソッド">db.streamSnapshot メソッド</a></li>
+        <li><a href="#dbstreamwalsegment-メソッド">db.streamWALSegment メソッド</a></li>
+        <li><a href="#invalidateshmfile-関数">invalidateSHMFile 関数</a></li>
+        <li><a href="#dbwritepositionfile-メソッド">DB.writePositionFile メソッド</a></li>
+      </ul>
+    </li>
+    <li><a href="#ファイル構成">ファイル構成</a>
+      <ul>
+        <li><a href="#リプリケーション元のディレクトリファイル構成">リプリケーション元のディレクトリ・ファイル構成</a></li>
+        <li><a href="#リプリケーション先のディレクトリファイル構成">リプリケーション先のディレクトリ・ファイル構成</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>対象バージョン
+<a href="https://github.com/benbjohnson/litestream/tree/e6f7c6052d84b7265fd54d3a3ab33208948e126b">https://github.com/benbjohnson/litestream/tree/e6f7c6052d84b7265fd54d3a3ab33208948e126b</a></p>
+<p>前回: <a href="/blog/2022/05/12/litestream-code-reading/">Litestreamのコードリーディング</a></p>
+<p>今回は upstream の URL を指定した場合の挙動関連。</p>
+<h2 id="db-構造体">DB 構造体</h2>
+<p>// DB represents a managed instance of a SQLite database in the file system.</p>
+<p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/db.go#L46-L125">type DB struct</a></p>
+<h3 id="db-構造体の-streamclient-のコメント">DB 構造体の StreamClient のコメント</h3>
+<pre tabindex="0"><code>	// Client used to receive live, upstream changes. If specified, then
+	// DB should be used as read-only as local changes will conflict with
+	// upstream changes.
+	StreamClient StreamClient
+</code></pre><p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/litestream.go#L595-L600">StreamClient インタフェース</a></p>
+<pre tabindex="0"><code>// StreamClient represents a client for streaming changes to a replica DB.
+type StreamClient interface {
+	// Stream returns a reader which contains and optional snapshot followed
+	// by a series of WAL segments. This stream begins from the given position.
+	Stream(ctx context.Context, pos Pos) (StreamReader, error)
+}
+</code></pre><h2 id="dbstreamslient-を設定しているのは1箇所">db.StreamSlient を設定しているのは1箇所</h2>
+<p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/cmd/litestream/main.go#L318">cmd/litestream/main.go#L318</a></p>
+<pre tabindex="0"><code>db.StreamClient = http.NewClient(upstreamURL, upstreamPath)
+</code></pre><p>// NewDBFromConfigWithPath instantiates a DB based on a configuration and using a given path.</p>
+<p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/cmd/litestream/main.go#L306-L348">func NewDBFromConfigWithPath(dbc *DBConfig, path string) (*litestream.DB, error)</a> 関数内</p>
+<h2 id="newdbfromconfigwithpath-関数を呼ぶのは2箇所">NewDBFromConfigWithPath 関数を呼ぶのは2箇所</h2>
+<pre tabindex="0"><code>$ vgrep NewDBFromConfigWithPath
+Index File                        Line Content
+    0 cmd/litestream/main.go       303 return NewDBFromConfigWithPath(dbc, path)
+    1 cmd/litestream/main.go       306 // NewDBFromConfigWithPath instantiates a DB based on a configuration and using a given path.
+    2 cmd/litestream/main.go       307 func NewDBFromConfigWithPath(dbc *DBConfig, path string) (*litestream.DB, error) {
+    3 cmd/litestream/replicate.go  121 return NewDBFromConfigWithPath(dbConfig, path)
+</code></pre><ul>
+<li><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/cmd/litestream/main.go#L303">Index 0</a> は <a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/cmd/litestream/main.go#L297-L304">NewDBFromConfig 関数</a> 内</li>
+<li><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/cmd/litestream/replicate.go#L121">Index 3</a> は <a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/cmd/litestream/replicate.go#L98-L183">ReplicateCommand.Run メソッド</a> 内</li>
+</ul>
+<h2 id="dbstreamslient-の-stream-メソッドの呼び出し元">db.StreamSlient の Stream メソッドの呼び出し元</h2>
+<pre tabindex="0"><code>$ vgrep db.StreamClient
+Index File                   Line Content
+    0 cmd/litestream/main.go  318 db.StreamClient = http.NewClient(upstreamURL, upstreamPath)
+    1 db.go                   930 if db.StreamClient != nil {
+    2 db.go                  1649 if db.StreamClient != nil {
+    3 db.go                  1716 sr, err := db.StreamClient.Stream(ctx, pos)
+</code></pre><p>// Continuously stream and apply records from client.</p>
+<p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/db.go#L1716">sr, err := db.StreamClient.Stream(ctx, pos)</a></p>
+<p>// stream initializes the local database and continuously streams new upstream data.</p>
+<p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/db.go#L1708-L1746">func (db *DB) stream(ctx context.Context) error</a> メソッド内</p>
+<p>↑</p>
+<p>// monitorUpstream runs in a separate goroutine and streams data into the local DB.</p>
+<p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/db.go#L1689-L1706">func (db *DB) monitorUpstream(ctx context.Context) error</a></p>
+<p>↑</p>
+<p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/db.go#L1648-L1653">func (db *DB) monitor(ctx context.Context) error</a></p>
+<p>↑</p>
+<pre tabindex="0"><code>	// If an upstream client is specified, then we should simply stream changes
+	// into the database. If it is not specified, then we should monitor the
+	// database for local changes and replicate them out.
+	db.g.Go(func() error { return db.monitor(db.ctx) })
+</code></pre><p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/db.go#L428">db.go#L428</a></p>
+<p>↑</p>
+<p>// Open initializes the background monitoring goroutine.</p>
+<p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/db.go#L404-L431">func (db *DB) Open() (err error)</a></p>
+<p>↑</p>
+<pre tabindex="0"><code>	// Start watching the database for changes.
+	if err := db.Open(); err != nil {
+</code></pre><p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/server.go#L106-L107">server.go#L106-L107</a></p>
+<p>// Watch adds a database path to be managed by the server.</p>
+<p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/server.go#L95-L126">func (s *Server) Watch(path string, fn func(path string) (*DB, error)) error</a></p>
+<p>↑</p>
+<pre tabindex="0"><code>		if err := c.server.Watch(path, func(path string) (*litestream.DB, error) {
+			return NewDBFromConfigWithPath(dbConfig, path)
+		}); err != nil {
+</code></pre><p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/cmd/litestream/replicate.go#L120-L122">cmd/litestream/replicate.go#L120-L122</a></p>
+<p>↑</p>
+<p>// Run loads all databases specified in the configuration.</p>
+<p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/cmd/litestream/replicate.go#L98-L183">func (c *ReplicateCommand) Run(ctx context.Context) (err error)</a></p>
+<h2 id="dbstreamslient-の-stream-メソッドの処理を追ってみる">db.StreamSlient の stream メソッドの処理を追ってみる</h2>
+<p>// stream initializes the local database and continuously streams new upstream data.</p>
+<p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/db.go#L1708-L1746">func (db *DB) stream(ctx context.Context) error</a></p>
+<pre tabindex="0"><code>// stream initializes the local database and continuously streams new upstream data.
+func (db *DB) stream(ctx context.Context) error {
+	pos, err := db.readPositionFile()
+	if err != nil {
+		return fmt.Errorf(&#34;read position file: %w&#34;, err)
+	}
+
+	// Continuously stream and apply records from client.
+	sr, err := db.StreamClient.Stream(ctx, pos)
+	if err != nil {
+		return fmt.Errorf(&#34;stream connect: %w&#34;, err)
+	}
+	defer sr.Close()
+
+	// Initialize the database and create it if it doesn&#39;t exist.
+	if err := db.initReplica(sr.PageSize()); err != nil {
+		return fmt.Errorf(&#34;init replica: %w&#34;, err)
+	}
+
+	for {
+		hdr, err := sr.Next()
+		if err != nil {
+			return err
+		}
+
+		switch hdr.Type {
+		case StreamRecordTypeSnapshot:
+			if err := db.streamSnapshot(ctx, hdr, sr); err != nil {
+				return fmt.Errorf(&#34;snapshot: %w&#34;, err)
+			}
+		case StreamRecordTypeWALSegment:
+			if err := db.streamWALSegment(ctx, hdr, sr); err != nil {
+				return fmt.Errorf(&#34;wal segment: %w&#34;, err)
+			}
+		default:
+			return fmt.Errorf(&#34;invalid stream record type: 0x%02x&#34;, hdr.Type)
+		}
+	}
+}
+</code></pre><h3 id="dbstreamsnapshot-メソッド">db.streamSnapshot メソッド</h3>
+<p>// streamSnapshot reads the snapshot into the WAL and applies it to the main database.</p>
+<p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/db.go#L1748-L1808">func (db *DB) streamSnapshot(ctx context.Context, hdr *StreamRecordHeader, r io.Reader) error</a></p>
+<ul>
+<li><code>PRAGMA wal_checkpoint(TRUNCATE)</code> クエリを実行して WAL ファイルをトランケート</li>
+<li><code>pageN := int(hdr.Size / int64(db.pageSize))</code> でページ数を計算</li>
+<li><code>ww := NewWALWriter(db.WALPath(), db.fileMode, db.pageSize)</code> で WAL のライターを作成</li>
+<li><code>ww.Open()</code> で WAL ファイルをオープン
+<ul>
+<li>エラー時用に defer で <code>_ = ww.Close()</code> で閉じる。正常時は後続の <code>ww.Close()</code> と合わせて計2回呼ばれる</li>
+</ul>
+</li>
+<li><code>ww.WriteHeader()</code> でヘッダーを書き込み</li>
+<li><code>buf := make([]byte, db.pageSize)</code> で読み込み用バッファ作成</li>
+<li><code>r</code> から <code>db.pageSize</code> 分のデータを読んで <code>ww.WriteFrame(pgno, commit, buf)</code> で WAL frame に書き込みをページ数分繰り返す
+<ul>
+<li><code>commit</code> は最後のページ以外は 0 で最後のページ合はページ数 <code>pageN</code> にセット</li>
+</ul>
+</li>
+<li><code>ww.Close()</code> で WALライターを閉じる</li>
+<li><code>invalidateSHMFile(db.path)</code> で WAL のインデクスをインバリデート</li>
+<li><code>db.writePositionFile(hdr.Pos())</code> で書き込み位置をファイルに書き、他のプロセスが読めるようにする</li>
+<li><code>&quot;snapshot applied&quot;</code> をログ出力</li>
+</ul>
+<h3 id="dbstreamwalsegment-メソッド">db.streamWALSegment メソッド</h3>
+<p>// streamWALSegment rewrites a WAL segment into the local WAL and applies it to the main database.</p>
+<p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/db.go#L1810-L1870">func (db *DB) streamWALSegment(ctx context.Context, hdr *StreamRecordHeader, r io.Reader) error</a></p>
+<ul>
+<li><code>zr := lz4.NewReader(r)</code> で lz4 を解凍するリーダ <code>zr</code> を作成</li>
+<li><code>hdr.Offset == 0</code> の場合 <code>zr</code> から <code>WALHeaderSize</code> バイト数分のデータを読み捨てる</li>
+<li><code>ww := NewWALWriter(db.WALPath(), db.fileMode, db.pageSize)</code> で WAL ライター作成</li>
+<li><code>ww := NewWALWriter(db.WALPath(), db.fileMode, db.pageSize)</code> で WAL のライターを作成</li>
+<li><code>ww.Open()</code> で WAL ファイルをオープン
+<ul>
+<li>エラー時用に defer で <code>_ = ww.Close()</code> で閉じる。正常時は後続の <code>ww.Close()</code> と合わせて計2回呼ばれる</li>
+</ul>
+</li>
+<li><code>ww.WriteHeader()</code> でヘッダーを書き込み</li>
+<li><code>buf := make([]byte, WALFrameHeaderSize+db.pageSize)</code> で読み込み用バッファ作成</li>
+<li><code>io.ReadFull(zr, buf)</code> でデータを読み込み、EOFならループを抜ける</li>
+<li><code>WALFrameHeaderSize</code> バイト数の部分から番号 <code>pgno</code> と <code>commit</code> を取得</li>
+<li><code>ww.WriteFrame(pgno, commit, buf[WALFrameHeaderSize:])</code> でページを WAL frame に書き込み</li>
+<li><code>ww.Close()</code> で WALライターを閉じる</li>
+<li><code>invalidateSHMFile(db.path)</code> で WAL のインデクスをインバリデート</li>
+<li><code>db.writePositionFile(hdr.Pos())</code> で書き込み位置をファイルに書き、他のプロセスが読めるようにする</li>
+<li><code>&quot;wal segment applied: %s&quot;, hdr.Pos().String()</code> をログ出力</li>
+</ul>
+<h3 id="invalidateshmfile-関数">invalidateSHMFile 関数</h3>
+<pre tabindex="0"><code>// invalidateSHMFile clears the iVersion field of the -shm file in order that
+// the next transaction will rebuild it.
+</code></pre><p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/db.go#L2019-L2062">func invalidateSHMFile(dbPath string) error</a></p>
+<ul>
+<li><code>db, err := sql.Open(&quot;sqlite3&quot;, dbPath)</code> で DB をオープン
+<ul>
+<li>ここでは接続時フックありのカスタムドライバではなく通常の <code>sqlite3</code> ドライバを使っている</li>
+<li>defer で <code>_ = db.Close()</code> でDBを閉じる</li>
+</ul>
+</li>
+<li><code>PRAGMA wal_checkpoint(PASSIVE)</code> クエリを実行</li>
+<li><code>f, err := os.OpenFile(dbPath+&quot;-shm&quot;, os.O_RDWR, 0666)</code> で共有メモリファイルをオープン</li>
+<li><code>buf := make([]byte, WALIndexHeaderSize)</code> で読み込みバッファを作成</li>
+<li><code>io.ReadFull(f, buf)</code> でバッファに読み込み</li>
+<li><code>buf[12], buf[60] = 0, 0</code> で &ldquo;isInit&rdquo; フィールドをインバリデート</li>
+<li><code>f.Seek(0, io.SeekStart)</code> で共有メモリファイルの先頭に移動
+<ul>
+<li>上で OpenFile で開いているのでこれは不要ではないか?</li>
+</ul>
+</li>
+<li><code>f.Write(buf)</code> で変更したバッファを書き込み</li>
+<li><code>f.Close()</code> で共有メモリファイルを閉じる
+<ul>
+<li>閉じる前に <code>f.Sync()</code> しなくてOK?</li>
+</ul>
+</li>
+<li><code>PRAGMA wal_checkpoint(TRUNCATE)</code> クエリを実行して WAL ファイルを再びトランケート</li>
+</ul>
+<h3 id="dbwritepositionfile-メソッド">DB.writePositionFile メソッド</h3>
+<p>// writePositionFile writes pos as the current position.</p>
+<p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/db.go#L1452-L1455">func (db *DB) writePositionFile(pos Pos) error</a></p>
+<ul>
+<li><code>internal.WriteFile(db.PositionPath(), []byte(pos.String()+&quot;\n&quot;), db.fileMode, db.uid, db.gid)</code> で <code>position</code> ファイルに位置を書き込み</li>
+</ul>
+<p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/db.go#L199-L203">(db *DB) PositionPath() string</a></p>
+<pre tabindex="0"><code>// PositionPath returns the path of the file that stores the current position.
+// This file is only used to communicate state to external processes.
+func (db *DB) PositionPath() string {
+	return filepath.Join(db.MetaPath(), &#34;position&#34;)
+}
+</code></pre><h2 id="ファイル構成">ファイル構成</h2>
+<h3 id="リプリケーション元のディレクトリファイル構成">リプリケーション元のディレクトリ・ファイル構成</h3>
+<p>DBファイル、共有メモリファイル、WALファイル</p>
+<pre tabindex="0"><code>$ LC_ALL=C ls -lR source.db{,-shm,-wal}
+-rw-r--r-- 1 hnakamur hnakamur 16384 May 12 17:05 source.db
+-rw-r--r-- 1 hnakamur hnakamur 32768 May 12 17:05 source.db-shm
+-rw-r--r-- 1 hnakamur hnakamur 37112 May 12 17:05 source.db-wal
+</code></pre><p><a href="https://github.com/benbjohnson/litestream/blob/e6f7c6052d84b7265fd54d3a3ab33208948e126b/db.go#L181-L185">func (db *DB) MetaPath() string</a> はリプリケーション元の DB ファイル名に <code>-litestream</code> を加えた名前のディレクトリ</p>
+<p>その配下のディレクトリ・ファイル構成の例</p>
+<pre tabindex="0"><code>$ LC_ALL=C ls -lR source.db-litestream/
+source.db-litestream/:
+total 3
+-rw-r--r-- 1 hnakamur hnakamur 17 May 12 17:04 generation
+drwxrwxr-x 3 hnakamur hnakamur  3 May 12 17:04 generations
+-rw-r--r-- 1 hnakamur hnakamur 51 May 12 17:05 position
+
+source.db-litestream/generations:
+total 1
+drwxrwxr-x 3 hnakamur hnakamur 3 May 12 17:04 40e9bff6b361ab2f
+
+source.db-litestream/generations/40e9bff6b361ab2f:
+total 1
+drwxrwxr-x 4 hnakamur hnakamur 4 May 12 17:05 wal
+
+source.db-litestream/generations/40e9bff6b361ab2f/wal:
+total 10
+drwxrwxr-x 2 hnakamur hnakamur 9 May 12 17:05 0000000000000000
+drwxrwxr-x 2 hnakamur hnakamur 4 May 12 17:05 0000000000000001
+
+source.db-litestream/generations/40e9bff6b361ab2f/wal/0000000000000000:
+total 19
+-rw-r--r-- 1 hnakamur hnakamur  51 May 12 17:04 0000000000000000.wal.lz4
+-rw-r--r-- 1 hnakamur hnakamur 444 May 12 17:04 0000000000000020.wal.lz4
+-rw-r--r-- 1 hnakamur hnakamur  91 May 12 17:05 0000000000004080.wal.lz4
+-rw-r--r-- 1 hnakamur hnakamur  97 May 12 17:05 0000000000005098.wal.lz4
+-rw-r--r-- 1 hnakamur hnakamur 102 May 12 17:05 00000000000060b0.wal.lz4
+-rw-r--r-- 1 hnakamur hnakamur 111 May 12 17:05 00000000000070c8.wal.lz4
+-rw-r--r-- 1 hnakamur hnakamur 122 May 12 17:05 00000000000080e0.wal.lz4
+
+source.db-litestream/generations/40e9bff6b361ab2f/wal/0000000000000001:
+total 2
+-rw-r--r-- 1 hnakamur hnakamur 51 May 12 17:05 0000000000000000.wal.lz4
+-rw-r--r-- 1 hnakamur hnakamur 91 May 12 17:05 0000000000000020.wal.lz4
+</code></pre><h3 id="リプリケーション先のディレクトリファイル構成">リプリケーション先のディレクトリ・ファイル構成</h3>
+<pre tabindex="0"><code>$ LC_ALL=C ls -lR destination.db/
+destination.db/:
+total 1
+drwxrwxr-x 3 hnakamur hnakamur 3 May 12 17:04 generations
+
+destination.db/generations:
+total 1
+drwxrwxr-x 4 hnakamur hnakamur 4 May 12 17:04 40e9bff6b361ab2f
+
+destination.db/generations/40e9bff6b361ab2f:
+total 2
+drwxrwxr-x 2 hnakamur hnakamur 3 May 12 17:04 snapshots
+drwxrwxr-x 4 hnakamur hnakamur 4 May 12 17:05 wal
+
+destination.db/generations/40e9bff6b361ab2f/snapshots:
+total 5
+-rw-r--r-- 1 hnakamur hnakamur 348 May 12 17:04 0000000000000000.snapshot.lz4
+
+destination.db/generations/40e9bff6b361ab2f/wal:
+total 10
+drwxrwxr-x 2 hnakamur hnakamur 8 May 12 17:05 0000000000000000
+drwxrwxr-x 2 hnakamur hnakamur 3 May 12 17:05 0000000000000001
+
+destination.db/generations/40e9bff6b361ab2f/wal/0000000000000000:
+total 18
+-rw-r--r-- 1 hnakamur hnakamur 464 May 12 17:04 0000000000000000.wal.lz4
+-rw-r--r-- 1 hnakamur hnakamur  91 May 12 17:05 0000000000004080.wal.lz4
+-rw-r--r-- 1 hnakamur hnakamur  97 May 12 17:05 0000000000005098.wal.lz4
+-rw-r--r-- 1 hnakamur hnakamur 102 May 12 17:05 00000000000060b0.wal.lz4
+-rw-r--r-- 1 hnakamur hnakamur 111 May 12 17:05 00000000000070c8.wal.lz4
+-rw-r--r-- 1 hnakamur hnakamur 122 May 12 17:05 00000000000080e0.wal.lz4
+
+destination.db/generations/40e9bff6b361ab2f/wal/0000000000000001:
+total 5
+-rw-r--r-- 1 hnakamur hnakamur 119 May 12 17:05 0000000000000000.wal.lz4
+</code></pre>
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

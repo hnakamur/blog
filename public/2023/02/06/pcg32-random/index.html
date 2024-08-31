@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>PCGと乱数生成について調べた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>PCGと乱数生成について調べた</h1>
+  <time datetime=2023-02-06T23:11:11&#43;0900 class="post-date">2023-02-06</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#pcg32が良さそう">pcg32が良さそう</a></li>
+    <li><a href="#乱数のテスト用にtestu01というライブラリがある">乱数のテスト用にTestU01というライブラリがある</a></li>
+    <li><a href="#シード値について">シード値について</a>
+      <ul>
+        <li><a href="#横道-xorshift用に良いシード値を生成する方法-splitmix64">横道: Xorshift用に良いシード値を生成する方法 SplitMix64</a></li>
+        <li><a href="#pcg32のシード値について">pcg32のシード値について</a></li>
+      </ul>
+    </li>
+    <li><a href="#指定した範囲の整数の乱数を効率よく生成するアルゴリズム">指定した範囲の整数の乱数を効率よく生成するアルゴリズム</a></li>
+    <li><a href="#効率良くシャッフルするアルゴリズム-fisheryates-shuffle">効率良くシャッフルするアルゴリズム Fisher–Yates shuffle</a></li>
+    <li><a href="#横道-daniel-lemireさんはsimdjsonの作者でもある">横道: Daniel Lemireさんはsimdjsonの作者でもある</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>テストでランダムな入力値を生成するのにどういうアルゴリズムを使うのが良いのかと調べていたのですが、
+今回いろいろ知ったのでメモです。Goだとmath/randパッケージを使っておけば良いのですが、C言語だと下記のリンク先からコードをコピペ改変して使うのが良さそうです。</p>
+<p>なお、暗号用の乱数はこの記事のスコープ外です。</p>
+<h2 id="pcg32が良さそう">pcg32が良さそう</h2>
+<p>今回調べるまでは<a href="https://en.wikipedia.org/wiki/Xorshift">Xorshift - Wikipedia</a>が処理が軽くて周期も長くて良いかなと思ってました。</p>
+<p>が、<a href="https://www.pcg-random.org/index.html">PCG, A Family of Better Random Number Generators | PCG, A Better Random Number Generator</a>の比較表を見ると、PCGのほうが良さそうです(ただ、PCGの作者によるサイトなので他の専門家の意見も聞いてみたいところではあります)。</p>
+<p><a href="https://www.pcg-random.org/download.html#minimal-c-implementation">Download the PCG Library | PCG, A Better Random Number Generator</a>に開発者によるCとC++の実装があり、最小限のC実装は5行と非常にコンパクトです。</p>
+<p><a href="https://en.wikipedia.org/wiki/Permuted_congruential_generator">Permuted congruential generator - Wikipedia</a>に<code>pcg32_fast</code>というのも紹介されていますが、通常は<code>pcg32</code>の通常版を使うほうが良いらしいです。</p>
+<h2 id="乱数のテスト用にtestu01というライブラリがある">乱数のテスト用にTestU01というライブラリがある</h2>
+<p><a href="https://www.cepstrum.co.jp/hobby/xorshift/xorshift.html">良い xorshift、悪い xorshift</a>で生成した乱数をプロットして規則的な模様が出るケースは良くないというのを見てなるほどと思いました。一方で良いほうは感覚的にしか分からないよなと思ったのですが、<a href="https://en.wikipedia.org/wiki/Xorshift">Xorshift - Wikipedia</a>や<a href="https://en.wikipedia.org/wiki/Permuted_congruential_generator">Permuted congruential generator - Wikipedia</a>で紹介されていた<a href="http://simul.iro.umontreal.ca/testu01/tu01.html">TestU01 - Empirical Testing of Random Number Generators</a>が良いみたいです。</p>
+<p><a href="https://en.wikipedia.org/wiki/TestU01">TestU01 - Wikipedia</a>にも説明がありました。<a href="http://simul.iro.umontreal.ca/testu01/tu01.html">TestU01 - Empirical Testing of Random Number Generators</a>に<a href="https://github.com/umontreal-simul/TestU01-2009/">github.com/umontreal-simul/TestU01-2009</a>へのリンクがありました。論文のリンクもありました(が私は読んでないです)。</p>
+<p>Ubuntu 22.04 LTSでは<a href="https://packages.ubuntu.com/source/jammy/testu01">testu01 ソースパッケージ</a>があったのですが、<code>testu01-doc</code>パッケージ内にexamplesのソースが入っているけど<a href="https://github.com/umontreal-simul/TestU01-2009/tree/c884a9ce4e6698194e0f0ca67024dd4410975773/examples">github.com/umontreal-simul/TestU01-2009のexamples/</a>にある<code>testxoshiro128plusplus.c</code>など一部のファイルは含まれていませんでした。</p>
+<p>というわけでdebパッケージは使わずに<a href="https://github.com/umontreal-simul/TestU01-2009/">github.com/umontreal-simul/TestU01-2009</a>のほうを取ってきて試してみました。</p>
+<p>なぜか<code>configure</code>に実行パーミッションが付いていないので</p>
+<pre tabindex="0"><code>sh configure
+</code></pre><p>で実行して</p>
+<pre tabindex="0"><code>make -j
+sudo make install
+</code></pre><p>でビルド・インストールします。</p>
+<p>あとは<code>cd examples</code>して<a href="https://github.com/umontreal-simul/TestU01-2009/blob/c884a9ce4e6698194e0f0ca67024dd4410975773/examples/testxoshiro128plusplus.c">testxoshiro128plusplus.c</a>と<a href="https://github.com/umontreal-simul/TestU01-2009/blob/c884a9ce4e6698194e0f0ca67024dd4410975773/examples/testpcg32.c">testpcg32.c</a>の先頭のコメントに書いてあるコマンドでコンパイルして実行します。</p>
+<p><code>bbattery_SmallCrush</code>だとすぐ終わるのですが、ソース内のコメントに<code>bbattery_BigCrush</code>に変えてもよいとあり、<code>BigCrush</code>は<a href="https://en.wikipedia.org/wiki/Xorshift">Xorshift - Wikipedia</a>でも言及されていたなということで試してみました。どちらも2時間ぐらいかかってテストはパスしていました。実行中<code>htop</code>で見てみると、CPUの1つのコアが100%近く使われて、行程が変わると別の1つのコアが100%近く使われるという挙動になっていました。複数コアを並列では使ってくれないようです。</p>
+<p><a href="https://www.pcg-random.org/blog/">PCGのblog記事一覧</a>でもTestU01が何度か出てきてました(が、今回は読んでないです)。</p>
+<h2 id="シード値について">シード値について</h2>
+<h3 id="横道-xorshift用に良いシード値を生成する方法-splitmix64">横道: Xorshift用に良いシード値を生成する方法 SplitMix64</h3>
+<p><a href="https://en.wikipedia.org/wiki/Xorshift">Xorshift - Wikipedia</a>のInitializationの項でSplitMix64 generatorというのを知りました。
+<a href="https://www.cepstrum.co.jp/hobby/xorshift/xorshift.html">良い xorshift、悪い xorshift</a>でも「レジスタ内に0のbitが固まって多く存在すると、しばらくの間0が多く含まれる値が出力されます」と説明されていました。
+ということでSplitMix64でシード値を加工して使うのがお勧めらしいです。</p>
+<h3 id="pcg32のシード値について">pcg32のシード値について</h3>
+<p><a href="https://www.pcg-random.org/using-pcg-c-basic.html#pcg32-srandom-r-rngptr-initstate-initseq">https://www.pcg-random.org/using-pcg-c-basic.html#pcg32-srandom-r-rngptr-initstate-initseq</a> によると<code>/dev/random</code>が使えればそれを使うか、quick and dirtyにしたい場合は現在時刻とRNGの状態変数のアドレスを使うと良いらしいです。</p>
+<h2 id="指定した範囲の整数の乱数を効率よく生成するアルゴリズム">指定した範囲の整数の乱数を効率よく生成するアルゴリズム</h2>
+<p><a href="https://github.com/golang/go/blob/go1.20/src/math/rand/rand.go#L151-L173">https://github.com/golang/go/blob/go1.20/src/math/rand/rand.go#L151-L173</a> のコードを見て
+<a href="https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/">https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/</a> と <a href="https://lemire.me/blog/2016/06/30/fast-random-shuffling/">https://lemire.me/blog/2016/06/30/fast-random-shuffling/</a> の記事を読みました。
+さらに<a href="https://www.pcg-random.org/posts/bounded-rands.html">Efficiently Generating a Number in a Range | PCG, A Better Random Number Generator</a>でも同じ題材について詳しく書かれていました。</p>
+<p><code>[0, n)</code>の整数の乱数を生成する際、バイアスありでも良い場合は<code>pcg32</code>で<code>[0, 2^32)</code>の整数<code>x</code>を生成して<code>x % n</code>が一番シンプルです。が、剰余は遅いので、代わりに乗算とシフト演算で算出する方法が紹介されています。さらに<a href="https://en.wikipedia.org/wiki/Rejection_sampling">Rejection sampling - Wikipedia</a>という手法でバイアス無しにする方法も紹介されていました。</p>
+<p>記事からリンクされていた <a href="https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/tree/master/2016/06/25">https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/tree/master/2016/06/25</a> のコードを試してみた結果は以下の通りです。</p>
+<pre tabindex="0"><code>~/ghq/github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/2016/06/25$ ./fastrange
+N = 31
+modsum(z,N,accesses,nmbr):  30.01 cycles per operation
+fastsum(z,N,accesses,nmbr):  2.36 cycles per operation
+N = 1500
+modsum(z,N,accesses,nmbr):  26.60 cycles per operation
+fastsum(z,N,accesses,nmbr):  2.67 cycles per operation
+N = 15000
+modsum(z,N,accesses,nmbr):  21.27 cycles per operation
+fastsum(z,N,accesses,nmbr):  2.05 cycles per operation
+N = 32
+modsum(z,N,accesses,nmbr):  23.44 cycles per operation
+fastsum(z,N,accesses,nmbr):  1.86 cycles per operation
+maskedsum(z,N,accesses,nmbr):  1.49 cycles per operation
+N = 4096
+modsum(z,N,accesses,nmbr):  19.65 cycles per operation
+fastsum(z,N,accesses,nmbr):  1.74 cycles per operation
+maskedsum(z,N,accesses,nmbr):  1.36 cycles per operation
+N = 65536
+modsum(z,N,accesses,nmbr):  17.98 cycles per operation
+fastsum(z,N,accesses,nmbr):  1.98 cycles per operation
+maskedsum(z,N,accesses,nmbr):  1.61 cycles per operation
+</code></pre><p>あと、<a href="https://www.pcg-random.org/posts/bounded-rands.html">Efficiently Generating a Number in a Range | PCG, A Better Random Number Generator</a>の最後に書かれていたのですが、nが2^32未満の場合、uint64_tの乱数を生成するよりuint32_tの乱数を生成してそれを使うほうが速いそうです。Goのmath/randのIntnもそういう実装になっていました。 <a href="https://github.com/golang/go/blob/go1.20/src/math/rand/rand.go#L175-L185">https://github.com/golang/go/blob/go1.20/src/math/rand/rand.go#L175-L185</a></p>
+<p>自分でテストで使うケースを考えると、ほとんどの場合はnは2^32未満で使うと思うので、pcg32だけ使っておけば良いかもと思いました。</p>
+<h2 id="効率良くシャッフルするアルゴリズム-fisheryates-shuffle">効率良くシャッフルするアルゴリズム Fisher–Yates shuffle</h2>
+<p><a href="https://github.com/golang/go/blob/go1.20/src/math/rand/rand.go#L243-L266">math/rand.Rand.Shuffle</a>のコメントで<a href="https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle">Fisher–Yates shuffle - Wikipedia</a>を知りました。<a href="https://lemire.me/blog/2016/06/30/fast-random-shuffling/">Fast random shuffling – Daniel Lemire&rsquo;s blog</a>の冒頭でも紹介されていました。</p>
+<p>記事からリンクされていた <a href="https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/tree/master/2016/06/29">https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/tree/master/2016/06/29</a> のコードを試してみた結果は以下の通りです。</p>
+<pre tabindex="0"><code>~/ghq/github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/2016/06/29$ ./shuffle
+Shuffling arrays of size 10000
+Time reported in number of cycles per array element.
+Tests assume that array is in cache as much as possible.
+shuffle_pcg(testvalues,size)                                :  33.20 cycles per input key
+shuffle_pcg_go(testvalues,size)                             :  33.15 cycles per input key
+shuffle_pcg_java(testvalues,size)                           :  16.42 cycles per input key
+shuffle_pcg_divisionless(testvalues,size)                   :  3.75 cycles per input key
+shuffle_pcg_divisionless_with_slight_bias(testvalues,size)  :  3.43 cycles per input key
+</code></pre><h2 id="横道-daniel-lemireさんはsimdjsonの作者でもある">横道: Daniel Lemireさんはsimdjsonの作者でもある</h2>
+<p><a href="https://lemire.me/blog/">https://lemire.me/blog/</a> から <a href="https://github.com/lemire">https://github.com/lemire</a> を見て気づいたのですが、Daniel Lemireさんはsimdjsonの作者でもあったんですね。それと、他のブログ記事もいくつかチラ見したのですが、いろいろ面白そうな記事があったので、いつか読んで試してみたいところです。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

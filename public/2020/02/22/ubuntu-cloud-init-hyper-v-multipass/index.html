@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Hyper-VとmultipassでUbuntu VMを起動してcloud-initで初期化する手順 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Hyper-VとmultipassでUbuntu VMを起動してcloud-initで初期化する手順</h1>
+  <time datetime=2020-02-22T23:45:32&#43;0900 class="post-date">2020-02-22</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#windows-では-multipass-から-hyper-v-に移行してました">Windows では multipass から Hyper-V に移行してました</a></li>
+    <li><a href="#私が-cloud-init-で行う初期化の概要">私が cloud-init で行う初期化の概要</a>
+      <ul>
+        <li><a href="#multipass-での-cloud-init-を使った-vm-の初期化">multipass での cloud-init を使った VM の初期化</a></li>
+        <li><a href="#hyper-v-での-cloud-init-を使った-vm-の初期化">Hyper-V での cloud-init を使った VM の初期化</a></li>
+      </ul>
+    </li>
+    <li><a href="#windows-での-hyper-v-での作業手順">Windows での Hyper-V での作業手順</a>
+      <ul>
+        <li><a href="#ubuntu-サーバの-iso-イメージのダウンロード">Ubuntu サーバの ISO イメージのダウンロード</a></li>
+        <li><a href="#cloudinittool-のダウンロードとインストール">cloudinittool のダウンロードとインストール</a></li>
+        <li><a href="#openssh-クライアントのインストール">OpenSSH クライアントのインストール</a></li>
+        <li><a href="#qemu-img-for-windows-のインストール">qemu-img for Windows のインストール</a></li>
+        <li><a href="#powershell-のキーバインドを-emacs-ライクにする">PowerShell のキーバインドを Emacs ライクにする</a></li>
+        <li><a href="#vethernet-winnat-の作成">vEthernet (WinNAT) の作成</a></li>
+        <li><a href="#vm-の作成と起動">VM の作成と起動</a></li>
+        <li><a href="#vm-へ-ssh-で接続">VM へ ssh で接続</a></li>
+      </ul>
+    </li>
+    <li><a href="#macos-での-multipass-での作業手順">macOS での multipass での作業手順</a>
+      <ul>
+        <li><a href="#multipass-のダウンロードとインストール">multipass のダウンロードとインストール</a></li>
+        <li><a href="#cloudinittool-のダウンロードとインストール-1">cloudinittool のダウンロードとインストール</a></li>
+        <li><a href="#vm-の作成と起動-1">VM の作成と起動</a></li>
+        <li><a href="#vm-へ-ssh-で接続-1">VM へ ssh で接続</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+  <h2 id="windows-では-multipass-から-hyper-v-に移行してました">Windows では multipass から Hyper-V に移行してました</h2>
+<p><a href="/blog/2019/10/17/multipass-on-windows-and-macos/">仮想マシンマネージャmultipassをWindowsとmacOSで試してみた  hnakamur&rsquo;s blog</a> を書いた後しばらく使っていましたが、Windows では Hyper-V を直接使うように切り替えました。</p>
+<p>移行の主な理由は <code>vEthernet (Default Switch)</code> の IP アドレスが Windows 再起動の度に変わってしまうからです。</p>
+<p><code>multipass のインスタンス名.mshome.net</code> で名前解決できると <a href="https://github.com/canonical/multipass/issues/1153#issuecomment-546940937">イシューのコメント</a> で教わったのですが、私は LXD で複数コンテナを起動するので 1 つのインスタンスにつき 1 つのホスト名では不足でした。</p>
+<p>ググると固定する方法も見つかったのですが Windows Update でバージョンが上がるとその方法は使えなくなったという記事もありました。</p>
+<p>そこで <a href="/blog/2019/10/29/static-ip-address-with-hyper-v-nat/">Hyper-VのWindows NAT機能を使ってVMのIPアドレスを固定</a> するようにしました。</p>
+<p>その後 <a href="https://github.com/BenjaminArmstrong/Hyper-V-PowerShell">BenjaminArmstrong/Hyper-V-PowerShell</a> で multipass 無しで Hyper-V だけで VM を作成できるようになったので、これを改変して自分用に手順を整備しました。</p>
+<h2 id="私が-cloud-init-で行う初期化の概要">私が cloud-init で行う初期化の概要</h2>
+<h3 id="multipass-での-cloud-init-を使った-vm-の初期化">multipass での cloud-init を使った VM の初期化</h3>
+<p>macOS では引き続き multipass を使います。
+multipass バージョン 1.0.0 の cloud-init の初期化には <a href="https://github.com/canonical/multipass/blob/v1.0.0/src/daemon/daemon.cpp#L78">5分の時間制限</a> がありますので、最低限の初期化のみを行うようにします。</p>
+<p><code>multipass launch</code> の <code>--cloud-init</code> オプションには <a href="https://cloud-init.io/">cloud-init</a> の user-data のファイルを指定できます。
+ドキュメントのサイトに <a href="https://cloudinit.readthedocs.io/en/latest/topics/examples.html">user-data の例</a> と <a href="https://cloudinit.readthedocs.io/en/latest/topics/modules.html">module のドキュメント</a> があります。</p>
+<p>いろいろ試した結果、以下のような設定にすることにしました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="c">#cloud-config</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">locale</span><span class="p">:</span><span class="w"> </span><span class="l">en_US.UTF8</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">timezone</span><span class="p">:</span><span class="w"> </span><span class="l">Asia/Tokyo</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">package_upgrade</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">package_reboot_if_required</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">apt</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">primary</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">arches</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span>- <span class="l">amd64</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span>- <span class="l">default</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">uri</span><span class="p">:</span><span class="w"> </span><span class="l">http://jp.archive.ubuntu.com/ubuntu/</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">password</span><span class="p">:</span><span class="w"> </span><span class="l">$6$...SALT...$...HASHED_PASSWORD_HERE...</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">chpasswd</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">expire</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">ssh_authorized_keys</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span>- <span class="p">|</span><span class="sd">
+</span></span></span><span class="line"><span class="cl"><span class="sd">  ssh-ed25519 ...YOUR_PUBLIC_KEY_HERE...</span><span class="w">  
+</span></span></span></code></pre></div><p>上記のうち <code>password</code> と <code>ssh_authorized_keys</code> の内容は個人ごとに変えるので、 git レポジトリに含めるサンプルファイルには含めたくありません。</p>
+<p>ちなみに multipass を使うと ssh の鍵ペアを生成して、公開鍵を VM のデフォルトユーザ <code>ubuntu</code> の <code>~/.ssh/authorized_keys</code> に追加してくれるのでそれを使えば良いのですが、 Windows で Hyper-V で VM を作成する場合は自分で作成した鍵ペアの公開鍵を追加するので揃えています。</p>
+<p>そこでこの 2 つ以外を書いた YAML ファイルを入力とし、この 2 つを追加したファイルを出力して使うことにします。</p>
+<h3 id="hyper-v-での-cloud-init-を使った-vm-の初期化">Hyper-V での cloud-init を使った VM の初期化</h3>
+<p>cloud-init の <code>user-data</code> に関しては前項と同じです。</p>
+<p>Hyper-V での cloud-init ではさらに <a href="https://cloudinit.readthedocs.io/en/latest/topics/network-config.html">ネットワーク設定</a> で Hyper-V の <code>vEthernet (WinNAT)</code> を使った静的 IP アドレスの設定を行います。</p>
+<p><a href="https://cloudinit.readthedocs.io/en/latest/topics/network-config.html#network-configuration-sources">Network Configuration Sources</a> の NoCloud の <a href="https://cloudinit.readthedocs.io/en/latest/topics/network-config-format-v1.html#network-config-v1">Networking Config Version 1</a> の例が <a href="https://gist.github.com/Informatic/0b6b24374b54d09c77b9d25595cdbd47">cloud-init &ldquo;nocloud&rdquo; networking setup</a> にあったので、これを参考に <a href="https://cloudinit.readthedocs.io/en/latest/topics/network-config-format-v2.html#network-config-v2">Networking Config Version 2</a> の方式での設定内容を考えて <code>network-config</code> ファイルは以下のようにしました
+（トップレベルに <code>network:</code> がなくその下のキーをトップレベルに書くことに注意してください）。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="m">2</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">ethernets</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">eth0</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">dhcp4</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">addresses</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">            </span>- <span class="m">192.168.254.2</span><span class="l">/24</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">gateway4</span><span class="p">:</span><span class="w"> </span><span class="m">192.168.254.1</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">nameservers</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">            </span><span class="nt">addresses</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="m">8.8.8.8</span><span class="p">,</span><span class="w"> </span><span class="m">8.8.4.4</span><span class="p">]</span><span class="w">
+</span></span></span></code></pre></div><p><code>vEthernet (WinNAT)</code> のアドレスが <code>192.168.254.1/24</code> で VM のアドレスが <code>192.168.254.2/24</code> という想定です。</p>
+<p>Hyper-V で cloud-init での初期化を行うには上記の <code>user-data</code>, <code>network-config</code> と空の <code>meta-data</code> ファイルを含む ISO イメージを作って VM 起動時に読ませる必要があります。</p>
+<p><a href="https://gihyo.jp/admin/serial/01/ubuntu-recipe/0561?page=2">第561回　ローカルインストール時もcloud-initを活用する：Ubuntu Weekly Recipe｜gihyo.jp  技術評論社</a> で紹介されている <code>cloud-localds</code> コマンドを使えばこの ISO イメージ作成を行うことができます。
+Ubuntu だと cloud-image-utils パッケージに含まれています。</p>
+<p>ただ、今後 Hyper-V での VM の利用が主体になると Windows Subsystem for Linux は入れずに使いたい場合もあると考えました。
+そこで <code>user-data</code> ファイルに <code>password</code> と <code>ssh_authorized_keys</code> の値を追加するのと、 cloud-init の ISO イメージを作るコマンドラインツール <a href="https://github.com/hnakamur/cloudinittool">hnakamur/cloudinittool</a> を Go で書きました。</p>
+<h2 id="windows-での-hyper-v-での作業手順">Windows での Hyper-V での作業手順</h2>
+<h3 id="ubuntu-サーバの-iso-イメージのダウンロード">Ubuntu サーバの ISO イメージのダウンロード</h3>
+<p><a href="http://cloud-images.ubuntu.com/releases/bionic/release/">Ubuntu 18.04 LTS の Cloud Image</a> のページから <code>ubuntu-18.04-server-cloudimg-amd64.img</code> をダウンロードして <code>${Env:USERPROFILE}\Downloads\ubuntu-18.04-server-cloudimg-amd64.img</code> に保存します。</p>
+<p>もしバージョンや置き場所を変更する場合は次項で cloudinittool をダウンロード、解凍した後
+<a href="https://github.com/hnakamur/cloudinittool/blob/v0.1.0/example-scripts/hyper-v/launch.ps1#L6">example-scripts/hyper-v/launch.ps1#L6</a> に対応する箇所も合わせて変更してください。</p>
+<h3 id="cloudinittool-のダウンロードとインストール">cloudinittool のダウンロードとインストール</h3>
+<p><a href="https://github.com/hnakamur/cloudinittool/releases">Releases  hnakamur/cloudinittool</a> から Windows 用の zip ファイルをダウンロード、展開し <code>cloudinittool.exe</code> を PATH が通った場所に置きます。</p>
+<p>PowerShell で展開する場合は <a href="/blog/2020/02/22/extract-zip-on-powershell/">PowerShellでZIPファイルを解凍する</a> の記事を参照してください。</p>
+<h3 id="openssh-クライアントのインストール">OpenSSH クライアントのインストール</h3>
+<p><code>ssh-keygen</code> を使うため <a href="/blog/2020/02/22/install-openssh-client-to-windows10/">Windows 10 に OpenSSH クライアントをインストール</a> の手順で OpenSSH クライアントをインストールします。</p>
+<h3 id="qemu-img-for-windows-のインストール">qemu-img for Windows のインストール</h3>
+<p><a href="https://cloudbase.it/qemu-img-windows/">qemu-img for Windows - Cloudbase Solutions</a> に Windows 用の qemu-img がありますので、ダウンロードして <code>C:\qemu-img\</code> に展開します。</p>
+<p>もし違う場所に置く場合は
+<a href="https://github.com/hnakamur/cloudinittool/blob/v0.1.0/example-scripts/hyper-v/launch.ps1#L24">example-scripts/hyper-v/launch.ps1#L24</a>
+の <code>C:\qemu-img\qemu-img</code> を合わせて変更してください。</p>
+<h3 id="powershell-のキーバインドを-emacs-ライクにする">PowerShell のキーバインドを Emacs ライクにする</h3>
+<p>本題とは関係ないですがお好みで <a href="/blog/2020/02/22/powershell-emacs-like-keybindings/">PowershellでEmacsライクなキーバインドを使う  hnakamur&rsquo;s blog</a> の設定をしておきます。</p>
+<h3 id="vethernet-winnat-の作成">vEthernet (WinNAT) の作成</h3>
+<p>PowerShell を管理者権限で開き、 cloudinittool の zip ファイルを展開した中の <code>example-scripts/hyper-v</code> フォルダに移動します。</p>
+<p><a href="https://github.com/hnakamur/cloudinittool/blob/v0.1.0/example-scripts/hyper-v/create-winnat.ps1">example-scripts/hyper-v/create-winnat.ps1</a> の内容を確認し、お好みでアドレスを変更します。</p>
+<p>以下のように実行して <code>vEthernet (WinNAT)</code> を作成します。</p>
+<pre tabindex="0"><code>.\create-winnat.ps1
+</code></pre><p>作成した結果は以下のコマンドレットで確認できます。</p>
+<ul>
+<li><a href="https://docs.microsoft.com/ja-jp/powershell/module/hyper-v/Get-VMSwitch?view=win10-ps">Get-VMSwitch</a></li>
+<li><a href="https://docs.microsoft.com/ja-jp/powershell/module/nettcpip/Get-NetIPAddress?view=win10-ps">Get-NetIPAddress</a></li>
+<li><a href="https://docs.microsoft.com/ja-jp/powershell/module/netnat/Get-NetNat?view=win10-ps">Get-NetNat</a></li>
+</ul>
+<h3 id="vm-の作成と起動">VM の作成と起動</h3>
+<p><a href="https://github.com/hnakamur/cloudinittool/blob/v0.1.0/example-scripts/hyper-v/launch.ps1">example-scripts/hyper-v/launch.ps1</a> の内容を確認し、適宜変更します。</p>
+<p>管理者権限の PowerShell で cloudinittool の zip ファイルを展開した中の <code>example-scripts/hyper-v</code> フォルダにて以下のコマンドを実行します。</p>
+<pre tabindex="0"><code>.\launch.ps1
+</code></pre><p>ssh 鍵ペアを生成する際のパスフレーズの入力を求められるので入力します。
+私は後で VM 内に LXD コンテナを作ってそこでもこの鍵ペアを流用するつもりでコンテナでいちいち ssh-agent 動かすのは面倒なのでパスフレーズは空にしました。</p>
+<p>鍵ペアは <code>${Env:USERPROFILE}\.ssh\vm.id_ed25519</code> と <code>${Env:USERPROFILE}\.ssh\vm.id_ed25519.pub</code> に作るようになっています。</p>
+<p>その後 VM の Ubuntu のデフォルトユーザ ubuntu のパスワードを決定するため <code>Password: </code> と <code>Confirm password: </code> というプロンプトが出ますので入力します。</p>
+<p>すると <code>user-data.in.yml</code> にパスワードと公開鍵を追加した <code>user-data</code> を生成し、
+その <code>user-data</code> と <code>network-config</code> を含む cloud-init の ISO イメージを作って Hyper-V で VM を作成、起動します。</p>
+<h3 id="vm-へ-ssh-で接続">VM へ ssh で接続</h3>
+<p>Hyper-V の VM のウィンドウが開いて起動が進んでログインプロンプトが出たら、 ユーザ権限の PowerShell のプロンプトで以下のように実行すれば ssh で接続できます。</p>
+<pre tabindex="0"><code>ssh -i ~/.ssh/vm.id_ed25519 ubuntu@192.168.254.2
+</code></pre><h2 id="macos-での-multipass-での作業手順">macOS での multipass での作業手順</h2>
+<h3 id="multipass-のダウンロードとインストール">multipass のダウンロードとインストール</h3>
+<p><a href="https://github.com/canonical/multipass">canonical/multipass</a> の <a href="https://github.com/canonical/multipass/releases">Releases</a> から macOS 用のインストーラをダウンロードしてインストールします。</p>
+<p>2020-02-22 時点では 1.0.0 の Assets を開いたところにある <code>multipass-1.0.0+mac-Darwin.pkg</code> が最新でした。</p>
+<h3 id="cloudinittool-のダウンロードとインストール-1">cloudinittool のダウンロードとインストール</h3>
+<p><a href="https://github.com/hnakamur/cloudinittool/releases">Releases  hnakamur/cloudinittool</a> から macOS 用の tar.gz ファイルをダウンロード、展開し <code>cloudinittool</code> を PATH が通った場所に置きます。</p>
+<h3 id="vm-の作成と起動-1">VM の作成と起動</h3>
+<p>cloudinittool の tar.gz ファイルを展開した中の <code>example-scripts/multipass</code> フォルダにて以下のコマンドを実行します。</p>
+<pre tabindex="0"><code>./launch.sh
+</code></pre><p>ssh 鍵ペアを生成する際のパスフレーズの入力を求められるので入力します。
+私は後で VM 内に LXD コンテナを作ってそこでもこの鍵ペアを流用するつもりでコンテナでいちいち ssh-agent 動かすのは面倒なのでパスフレーズは空にしました。</p>
+<p>鍵ペアは <code>~/.ssh/vm.id_ed25519</code> と <code>~/.ssh/vm.id_ed25519.pub</code> に作るようになっています。</p>
+<p>その後 VM の Ubuntu のデフォルトユーザ ubuntu のパスワードを決定するため <code>Password: </code> と <code>Confirm password: </code> というプロンプトが出ますので入力します。</p>
+<p>すると <code>user-data.in.yml</code> にパスワードと公開鍵を追加した <code>user-data</code> を生成し、 <code>multipass launch</code> に <code>--cloud-init</code> オプションでこの <code>user-data</code> を指定して VM を作成、起動します。</p>
+<h3 id="vm-へ-ssh-で接続-1">VM へ ssh で接続</h3>
+<p><code>multipass launch</code> が完了したら <code>multipass list</code> で VM を一覧表示し、 <code>primary</code> インスタンスの IP アドレスを確認します。
+その IP アドレスを指定して以下のように実行すれば ssh で接続できます。</p>
+<pre tabindex="0"><code>ssh -i ~/.ssh/vm.id_ed25519 ubuntu@primaryインスタンスのIPアドレス
+</code></pre><p>もちろん <code>multipass shell</code> コマンドも使えます。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

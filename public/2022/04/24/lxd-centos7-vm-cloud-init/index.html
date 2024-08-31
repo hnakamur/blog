@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>LXDでCentOS7の仮想マシンのネームサーバをcloud-initで設定 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>LXDでCentOS7の仮想マシンのネームサーバをcloud-initで設定</h1>
+  <time datetime=2022-04-24T09:05:35&#43;0900 class="post-date">2022-04-24</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#ubuntu-2204-lts-はそのままでは-centos-7-のコンテナは動かない">Ubuntu 22.04 LTS はそのままでは CentOS 7 のコンテナは動かない</a></li>
+    <li><a href="#lxd-で-centos-7-の仮想マシンのネームサーバを-cloud-init-で設定">LXD で CentOS 7 の仮想マシンのネームサーバを cloud-init で設定</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>Ubuntu 22.04 LTS はデフォルトで cgroup v2 を使っているので LXD で CentOS 7 のコンテナはそのままでは動きません。
+一方、 CentOS 7 の仮想マシンはそのままではネームサーバが設定されなかったので cloud-init で設定する必要がありました。
+ということで手順をメモしておきます。</p>
+<h2 id="ubuntu-2204-lts-はそのままでは-centos-7-のコンテナは動かない">Ubuntu 22.04 LTS はそのままでは CentOS 7 のコンテナは動かない</h2>
+<p>デフォルトでは cgroup v2 なので cgroup v1 が必要な CentOS 7 のコンテナはそのままでは動きません。</p>
+<p>具体的には <code>lxc launch images:centos/7 centos7</code> を試すと以下のようなエラーが出ました。</p>
+<pre tabindex="0"><code>Error: The image used by this instance requires a CGroupV1 host system
+</code></pre><p><a href="https://discuss.linuxcontainers.org/t/error-the-image-used-by-this-instance-requires-a-cgroupv1-host-system-when-using-clustering/13885">Error: The image used by this instance requires a CGroupV1 host system when using clustering - LXD - Linux Containers Forum</a> や <a href="https://wiki.archlinux.org/title/Cgroups">cgroups - ArchWiki</a> によるとカーネルのブート引数に <code>systemd.unified_cgroup_hierarchy=0</code> を指定すれば使えるようになるらしいです。</p>
+<p><a href="https://wiki.ubuntu.com/ImpishIndri/ReleaseNotes/Ja">ImpishIndri/ReleaseNotes/Ja - Ubuntu Wiki</a> によると Ubuntu 21.10 から cgroup v2 がデフォルトになったそうです。</p>
+<h2 id="lxd-で-centos-7-の仮想マシンのネームサーバを-cloud-init-で設定">LXD で CentOS 7 の仮想マシンのネームサーバを cloud-init で設定</h2>
+<p>私は LTS を使っているので Ubuntu 22.04 LTS が cgroup v2 がデフォルトの初めての環境となります。
+せっかくなのでこの状態で使ってみたいということで LXD で CentOS 7 をコンテナではなく仮想マシンで動かすことにしました。</p>
+<p>LXD で使える CentOS 7 の仮想マシンイメージの一覧を <code>lxc image list -h</code> と
+<a href="https://discuss.linuxcontainers.org/u/stgraber">How to use lxc image list - LXD - Linux Containers Forum</a> を参考に以下のように確認しました。</p>
+<pre tabindex="0"><code>$ lxc image list images: arch=amd64 type=disk-kvm.img centos/7
++-------------------------+--------------+--------+---------------------------------+--------------+-----------------+----------+-------------------------------+
+|          ALIAS          | FINGERPRINT  | PUBLIC |           DESCRIPTION           | ARCHITECTURE |      TYPE       |   SIZE   |          UPLOAD DATE          |
++-------------------------+--------------+--------+---------------------------------+--------------+-----------------+----------+-------------------------------+
+| centos/7 (3 more)       | 37bde9772123 | yes    | Centos 7 amd64 (20220423_19:21) | x86_64       | VIRTUAL-MACHINE | 402.69MB | Apr 23, 2022 at 12:00am (UTC) |
++-------------------------+--------------+--------+---------------------------------+--------------+-----------------+----------+-------------------------------+
+| centos/7/cloud (1 more) | d5495dbcdb7f | yes    | Centos 7 amd64 (20220423_19:21) | x86_64       | VIRTUAL-MACHINE | 415.13MB | Apr 23, 2022 at 12:00am (UTC) |
++-------------------------+--------------+--------+---------------------------------+--------------+-----------------+----------+-------------------------------+
+</code></pre><p><a href="https://lxd-ja.readthedocs.io/ja/latest/cloud-init/">cloud-init - LXD ドキュメント</a> で説明されているように ALIAS の最後に <code>/cloud</code> とついているのが cloud-init 対応のイメージです。</p>
+<p>そこで <code>lxc launch images:centos/7/cloud centos7-cloud-vm</code> で仮想マシンを作成・起動後、 <code>lxc exec centos7-cloud-vm bash</code> で中に入ってみたら IP アドレスは設定されているのですが <code>/etc/resolv.conf</code> にネームサーバが設定されていない状態でした。</p>
+<p><a href="https://lxd-ja.readthedocs.io/ja/latest/cloud-init/">cloud-init - LXD ドキュメント</a> と
+<a href="https://qiita.com/yo-yamada/items/74fff9418f681acace64">LXDとcloud-initを使ってコンテナインスタンスを自動作成する - Qiita</a> を参考に、cloud-init でネームサーバを設定して CentOS 7 の仮想マシンを作成・起動するスクリプトを書きました。</p>
+<pre tabindex="0"><code>#!/bin/bash
+set -eu
+
+vm_name=centos7-cloud-vm
+
+lxdbr0_ipv4_addr_with_mask=$(lxc network get lxdbr0 ipv4.address)
+lxdbr0_ipv4_addr=$(echo $lxdbr0_ipv4_addr_with_mask | sed &#39;s|/.*||&#39;)
+
+config_file=/tmp/$vm_name-cloud-init.yml
+cat &gt; $config_file &lt;&lt;EOF
+network:
+  version: 1
+  config:
+    - type: physical
+      name: eth0
+      subnets:
+        - type: dhcp
+          control: auto
+    - type: nameserver
+      address: $lxdbr0_ipv4_addr
+EOF
+
+lxc init images:centos/7/cloud $vm_name --vm
+lxc config set $vm_name cloud-init.network-config - &lt; $config_file
+lxc start $vm_name
+</code></pre><p>ちなみに既に作成・起動済みの仮想マシンで再度 cloud-init を実行したい場合は <a href="https://discuss.linuxcontainers.org/t/how-to-update-user-network-config-and-re-run-cloud-init-to-apply-the-new-config/6204">How to update user.network-config and re-run cloud-init to apply the new config? - LXD - Linux Containers Forum</a> に手順が書かれていました。</p>
+<p>ネットワーク設定を変更したい場合は以下のようにします。cloud-init-config.yml は上記のスクリプトで作っているのと同じ形式のファイルを作成しておきます。</p>
+<pre tabindex="0"><code>lxc config set $vm_name cloud-init.network-config - &lt; cloud-init-config.yml
+lxc exec $vm_name -- cloud-init clean
+lxc config set $vm_name volatile.apply_template create
+lxc restart $vm_name
+</code></pre><p>なお、 LXD で仮想マシンで cloud-init を実行すると数十秒程度時間がかかり途中で再起動がかかるようです。</p>
+<p>実行中に <code>lxc exec インスタンス名 bash</code> で仮想マシン内に入ろうとしてもエラーになったり、 <code>lxc list</code> で確認すると STATE が RUNNING だったのが STOPPED になってまた RUNNING になるという状況でした。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

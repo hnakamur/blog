@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>WSL2のUbuntuでsystemdとsnapdとLXDとdockerを動かしてみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>WSL2のUbuntuでsystemdとsnapdとLXDとdockerを動かしてみた</h1>
+  <time datetime=2020-05-30T15:50:00&#43;0900 class="post-date">2020-05-30</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#ubuntu-2004-lts-で-lxd-を動かすには-snapd-が必要と判明">Ubuntu 20.04 LTS で LXD を動かすには snapd が必要と判明</a></li>
+    <li><a href="#横道-varlibubuntu-release-upgraderrelease-upgrade-available-作成のパーミションエラー-2020-06-01-追記">（横道） /var/lib/ubuntu-release-upgrader/release-upgrade-available 作成のパーミションエラー （2020-06-01 追記）</a></li>
+    <li><a href="#wsl2-で-systemd-と-snapd-を動かす手順">WSL2 で systemd と snapd を動かす手順</a></li>
+    <li><a href="#lxd-を動かす">LXD を動かす</a></li>
+    <li><a href="#未解決の課題-procsysfsbinfmt_misc-の参照でエラー--解決-2020-06-01-追記">未解決の課題: <code>/proc/sys/fs/binfmt_misc</code> の参照でエラー → 解決 （2020-06-01 追記）</a></li>
+    <li><a href="#systemd-を起動しないように戻す場合の手順-2020-06-01-更新">systemd を起動しないように戻す場合の手順 （2020-06-01 更新）</a></li>
+    <li><a href="#おわりに">おわりに</a></li>
+    <li><a href="#docker-desktop-for-windows-をアンインストールして-docker-を動かしてみた-2020-05-31-追記-2020-06-05-更新">Docker Desktop for Windows をアンインストールして docker を動かしてみた （2020-05-31 追記、 2020-06-05 更新）</a></li>
+    <li><a href="#2021-08-24-追記-新しいレポジトリを見つけました">2021-08-24 追記: 新しいレポジトリを見つけました</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="/blog/2020/05/28/setup-wsl2-ubuntu-and-docker-desktop-for-windows/">WSL2のUbuntuとDocker Desktop for Windowsを試してみた · hnakamur&rsquo;s blog</a> で Docker は動いたので、次は LXD を動かそうと調べました。</p>
+<p>すると WSL2 では標準では systemd が動いていないため snapd や LXD が使えないことが分かりました。</p>
+<p>検索して見ると有志の方が systemd を動かす方法を紹介されていたので試してみたところ、 snapd と LXD も動かせました。</p>
+<p>そこで手順と調査メモを残しておきます。</p>
+<p>なお systemd を動かすのは Microsoft の WSL2 チームのサポート外の可能性が高いと思いますので、あくまで自己責任で。</p>
+<h2 id="ubuntu-2004-lts-で-lxd-を動かすには-snapd-が必要と判明">Ubuntu 20.04 LTS で LXD を動かすには snapd が必要と判明</h2>
+<p>当初 apt で lxd をインストールしようとして以下のコマンドを実行しました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo apt update
+</span></span></span><span class="line"><span class="cl"><span class="go">apt show lxd
+</span></span></span></code></pre></div><p>すると <code>apt show lxd</code> で以下のように出力され、lxd の deb パッケージはダミーで snap でインストールするように書かれていました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> apt show lxd
+</span></span><span class="line"><span class="cl"><span class="go">Package: lxd
+</span></span></span><span class="line"><span class="cl"><span class="go">Version: 1:0.9
+</span></span></span><span class="line"><span class="cl"><span class="go">Priority: optional
+</span></span></span><span class="line"><span class="cl"><span class="go">Section: universe/admin
+</span></span></span><span class="line"><span class="cl"><span class="go">Origin: Ubuntu
+</span></span></span><span class="line"><span class="cl"><span class="go">Maintainer: Ubuntu Developers &lt;ubuntu-devel-discuss@lists.ubuntu.com&gt;
+</span></span></span><span class="line"><span class="cl"><span class="go">Bugs: https://bugs.launchpad.net/ubuntu/+filebug
+</span></span></span><span class="line"><span class="cl"><span class="go">Installed-Size: 79.9 kB
+</span></span></span><span class="line"><span class="cl"><span class="go">Pre-Depends: debconf, snapd
+</span></span></span><span class="line"><span class="cl"><span class="go">Depends: debconf (&gt;= 0.5) | debconf-2.0
+</span></span></span><span class="line"><span class="cl"><span class="go">Breaks: lxd-client (&lt;&lt; 1:0.0~), lxd-tools (&lt;&lt; 1:0.0~)
+</span></span></span><span class="line"><span class="cl"><span class="go">Replaces: lxd-client (&lt;&lt; 1:0.0~), lxd-tools (&lt;&lt; 1:0.0~)
+</span></span></span><span class="line"><span class="cl"><span class="go">Homepage: https://linuxcontainers.org/
+</span></span></span><span class="line"><span class="cl"><span class="go">Download-Size: 5444 B
+</span></span></span><span class="line"><span class="cl"><span class="go">APT-Sources: http://archive.ubuntu.com/ubuntu focal/universe amd64 Packages
+</span></span></span><span class="line"><span class="cl"><span class="go">Description: Transitional package - lxd -&gt; snap (lxd)
+</span></span></span><span class="line"><span class="cl"><span class="go"> This is a transitional dummy package. It can safely be removed.
+</span></span></span><span class="line"><span class="cl"><span class="go"> .
+</span></span></span><span class="line"><span class="cl"><span class="go"> lxd is now replaced by the LXD snap.
+</span></span></span></code></pre></div><p>WSL2 の Ubuntu で snap を動かす方法を調べると以下のイシューを見つけました。
+<a href="https://github.com/microsoft/WSL/issues/5126">WSL2- Ubuntu 20.04 Snap store doesn&rsquo;t work due to systemd dependency · Issue #5126 · microsoft/WSL</a></p>
+<p>そこのコメントに回避策として
+<a href="https://forum.snapcraft.io/t/running-snaps-on-wsl2-insiders-only-for-now/13033">Running Snaps on WSL2 (Insiders only for now) - snapd - snapcraft.io</a>
+が紹介されていました。</p>
+<p>冒頭にスクリプトが書かれていますが、下のコメントを見ていくと
+<a href="https://forum.snapcraft.io/t/running-snaps-on-wsl2-insiders-only-for-now/13033/3">GUI アプリも動いたとのコメント</a> がありました。</p>
+<p>また <a href="https://forum.snapcraft.io/t/running-snaps-on-wsl2-insiders-only-for-now/13033/29">DamionGans さんのコメント</a> で
+<a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script">DamionGans/ubuntu-wsl2-systemd-script: Script to enable systemd support on current Ubuntu WSL2 images from the Windows store</a> のレポジトリを作ったと書かれています。</p>
+<p><a href="https://forum.snapcraft.io/t/running-snaps-on-wsl2-insiders-only-for-now/13033/38">トピ主の daniel さんのコメント</a> で冒頭のスクリプトは古いので最新版はこののレポジトリを参照するように書かれていました（最初の投稿から日にちがある程度経つとロックされて編集不可になるとのこと）。</p>
+<p>細かいところで少し気になるところがあったのでフォークして改変しました。改変についてはプルリクエストを送ったところです。</p>
+<p>2020-06-01 追記。私の 3 つのプルリクエストはマージされました。また <a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script/issues/15">Too many levels of symbolic links when running ls -l /proc/sys/fs/binfmt_misc · Issue #15 · DamionGans/ubuntu-wsl2-systemd-script</a> というイシューを立てたところ <a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script/pull/17/files">Add binfmt_misc override by diddledan · Pull Request #17 · DamionGans/ubuntu-wsl2-systemd-script</a> で修正頂きました。</p>
+<p>以下の手順ではこの修正版を使います。</p>
+<h2 id="横道-varlibubuntu-release-upgraderrelease-upgrade-available-作成のパーミションエラー-2020-06-01-追記">（横道） /var/lib/ubuntu-release-upgrader/release-upgrade-available 作成のパーミションエラー （2020-06-01 追記）</h2>
+<p>一度 ubuntu-wsl2-systemd-script の古い版を組み込んでいたのを外して起動したときに以下のエラーが出ました。</p>
+<pre tabindex="0"><code>/usr/lib/ubuntu-release-upgrader/release-upgrade-motd: 31: cannot create /var/lib/ubuntu-release-upgrader/release-upgrade-available: Permission denied
+</code></pre><p><code>grep -r release-upgrade-motd /etc/</code> で調べると <code>/etc/update-motd.d/91-release-upgrade</code> と <code>/etc/cron.weekly/update-notifier-common</code> が <code>/usr/lib/ubuntu-release-upgrader/release-upgrade-motd</code> を呼んでいます。</p>
+<p>このスクリプトを見ると <code>[ &quot;$(id -u)&quot; = 0 ]</code> という分岐があって root で実行される場合とそうでない場合があるようです。で root で作ったファイルを非 root ユーザーで更新しようとしてエラーになっているということのようです。</p>
+<p>一旦置いときます。</p>
+<h2 id="wsl2-で-systemd-と-snapd-を動かす手順">WSL2 で systemd と snapd を動かす手順</h2>
+<p>以下のコマンドを実行して上記のスクリプトをダウンロード、展開して移動します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">cd
+</span></span></span><span class="line"><span class="cl"><span class="go">curl -sSL https://github.com/diddledan/ubuntu-wsl2-systemd-script/archive/binfmt_misc.tar.gz | tar zx
+</span></span></span><span class="line"><span class="cl"><span class="go">cd ubuntu-wsl2-systemd-script-binfmt_misc
+</span></span></span></code></pre></div><p>あるいはお好みで <code>git clone</code> を使う方式でも構いません。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">cd
+</span></span></span><span class="line"><span class="cl"><span class="go">git clone https://github.com/diddledan/ubuntu-wsl2-systemd-script
+</span></span></span><span class="line"><span class="cl"><span class="go">cd ubuntu-wsl2-systemd-script
+</span></span></span><span class="line"><span class="cl"><span class="go">git switch binfmt_misc
+</span></span></span></code></pre></div><p>以下のコマンドを実行すると、 <code>/etc/bash.bashrc</code> を改変し、 WSL2 の起動時に systemd を実行するようになります。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">bash ubuntu-wsl2-systemd-script.sh
+</span></span></span></code></pre></div><p>最後の <code>ubuntu-wsl2-systemd-script.sh</code> を実行すると sudo のパスワードプロンプトが出るのでパスワードを入力します。</p>
+<p>実行されるコマンドを確認したいので bash の <code>-x</code> つきで実行したときの出力を参考のため貼っておきます（実は今回は事前に sudo つきのコマンドを実行していたので sudo のパスワードプロンプトは出ませんでしたが、そうでない場合は <code>sudo apt-get update</code> のところでパスワード入力を求められます）。</p>
+<pre tabindex="0"><code>$ bash -x ubuntu-wsl2-systemd-script.sh
++ &#39;[&#39; -z &#39;&#39; &#39;]&#39;
++ return
++ &#39;[&#39; -f /usr/sbin/start-systemd-namespace &#39;]&#39;
+++ dirname ubuntu-wsl2-systemd-script.sh
++ self_dir=.
++ sudo apt-get update
+Hit:1 http://archive.ubuntu.com/ubuntu focal InRelease
+Hit:2 http://ppa.launchpad.net/hnakamur/libsxg/ubuntu focal InRelease
+Get:3 http://security.ubuntu.com/ubuntu focal-security InRelease [107 kB]
+Get:4 http://archive.ubuntu.com/ubuntu focal-updates InRelease [107 kB]
+Hit:5 http://ppa.launchpad.net/hnakamur/nginx/ubuntu focal InRelease
+Hit:6 http://ppa.launchpad.net/hnakamur/openresty-luajit/ubuntu focal InRelease
+Get:7 http://archive.ubuntu.com/ubuntu focal-backports InRelease [98.3 kB]
+Get:8 http://archive.ubuntu.com/ubuntu focal-updates/main amd64 Packages [148 kB]
+Get:9 http://archive.ubuntu.com/ubuntu focal-updates/universe amd64 Packages [74.9 kB]
+Fetched 535 kB in 3s (205 kB/s)
+Reading package lists... Done
++ sudo apt-get install -yqq daemonize dbus-user-session fontconfig
++ sudo cp ./start-systemd-namespace /usr/sbin/start-systemd-namespace
++ sudo cp ./enter-systemd-namespace /usr/sbin/enter-systemd-namespace
++ sudo chmod +x /usr/sbin/enter-systemd-namespace
++ sudo tee /etc/sudoers.d/systemd-namespace
++ grep start-systemd-namespace /etc/bash.bashrc
++ sudo sed -i &#39;2a# Start or enter a PID namespace in WSL2\nsource /usr/sbin/start-systemd-namespace\n&#39; /etc/bash.bashrc
++ sudo rm /etc/systemd/user/sockets.target.wants/dirmngr.socket
++ sudo rm /etc/systemd/user/sockets.target.wants/gpg-agent-browser.socket /etc/systemd/user/sockets.target.wants/gpg-agent-extra.socket /etc/systemd/user/sockets.target.wants/gpg-agent-ssh.socket /etc/systemd/user/sockets.target.wants/gpg-agent.socket
++ sudo rm /lib/systemd/system/sysinit.target.wants/proc-sys-fs-binfmt_misc.automount
++ sudo rm /lib/systemd/system/sysinit.target.wants/proc-sys-fs-binfmt_misc.mount
+rm: cannot remove &#39;/lib/systemd/system/sysinit.target.wants/proc-sys-fs-binfmt_misc.mount&#39;: No such file or directory
++ sudo rm /lib/systemd/system/sysinit.target.wants/systemd-binfmt.service
++ &#39;[&#39; -f /proc/sys/fs/binfmt_misc/WSLInterop &#39;]&#39;
+++ head -n1 /proc/sys/fs/binfmt_misc/WSLInterop
++ &#39;[&#39; enabled == enabled &#39;]&#39;
++ cmd.exe /C setx WSLENV BASH_ENV/u
+
+成功: 指定した値は保存されました。
++ cmd.exe /C setx BASH_ENV /etc/bash.bashrc
+
+成功: 指定した値は保存されました。
+</code></pre><p><code>ps auxwwf</code> でプロセス一覧を確認すると、この時点ではまだ WSL2 の独自 init が動いています。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">hnakamur@sunshine7:~/ubuntu-wsl2-systemd-script-modify$ ps auxwwf
+</span></span></span><span class="line"><span class="cl"><span class="go">USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+</span></span></span><span class="line"><span class="cl"><span class="go">root         1  0.0  0.0    900   568 ?        Sl   16:04   0:00 /init
+</span></span></span><span class="line"><span class="cl"><span class="go">root         6  0.0  0.0    892    76 ?        Ss   16:04   0:00 /init
+</span></span></span><span class="line"><span class="cl"><span class="go">root         7  0.0  0.0    892    76 ?        S    16:04   0:00  \_ /init
+</span></span></span><span class="line"><span class="cl"><span class="go">hnakamur     8  0.0  0.0  10176  5120 pts/0    Ss   16:04   0:00      \_ -bash
+</span></span></span><span class="line"><span class="cl"><span class="go">hnakamur  1552  0.0  0.0  10604  3248 pts/0    R+   16:23   0:00      |   \_ ps auxwwf
+</span></span></span><span class="line"><span class="cl"><span class="go">hnakamur    25  0.0  0.0   6968  1772 ?        Ss   16:04   0:00      \_ socat UNIX-LISTEN:/home/hnakamur/.ssh/agent.sock,fork EXEC:/mnt/c/wsl-ssh-agent/npiperelay.exe -ei -s //./pipe/openssh-ssh-agent,nofork
+</span></span></span><span class="line"><span class="cl"><span class="go">root        48  0.0  0.0    892    76 ?        Ss   16:04   0:00 /init
+</span></span></span><span class="line"><span class="cl"><span class="go">root        49  0.0  0.0    892    76 ?        S    16:04   0:00  \_ /init
+</span></span></span><span class="line"><span class="cl"><span class="go">root        50  0.0  0.1 487988 21888 pts/1    Ssl+ 16:04   0:00      \_ /mnt/wsl/docker-desktop/docker-desktop-proxy --distro-name Ubuntu-20.04 --docker-desktop-root /mnt/wsl/docker-desktop
+</span></span></span></code></pre></div><p><code>wsl.exe -t ubuntu-20.04</code> を実行して WSL2 の VM を終了させます。ディストリビューション名はお使いの環境に応じて適宜変更してください。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">hnakamur@sunshine7:~/ubuntu-wsl2-systemd-script-modify$ wsl.exe -t ubuntu-20.04
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">[プロセスはコード 1 で終了しました]
+</span></span></span></code></pre></div><p>このコマンドは WSL2 の VM 上で実行しても大丈夫です。
+ただし上記のように <a href="https://github.com/microsoft/terminal">Windows Terminal</a> のセッションは終了するので、閉じて再度開きなおす必要があります。</p>
+<p>端末を開きなおすと <code>/etc/bash.bashrc</code> から <code>source /usr/sbin/start-systemd-namespace</code> を実行するところで以下のようなメッセージが出力されました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">Sleeping for 2 seconds to let systemd settle
+</span></span></code></pre></div><p>その後いつもの Welcome メッセージとプロンプトが表示されました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">Welcome to Ubuntu 20.04 LTS (GNU/Linux 4.19.104-microsoft-standard x86_64)
+</span></span><span class="line"><span class="cl">…(略)…
+</span></span></code></pre></div><p><code>ps auxwwf</code> でプロセス一覧を確認すると、以下のように systemd と snapd が動いていました。
+nginx が動いているのは別途インストールして <code>systemctl enable nginx</code> していたからです。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">hnakamur@sunshine7:/mnt/c/Users/hnakamur$ ps auxwwf
+</span></span></span><span class="line"><span class="cl"><span class="go">USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+</span></span></span><span class="line"><span class="cl"><span class="go">root           2  0.0  0.0  10560  4588 pts/1    S    16:27   0:00 /bin/login -p -f          &#39;HOSTTYPE=x86_64&#39; &#39;PWD=/mnt/c/Users/hnakamur&#39; &#39;TERM=xterm-256color&#39; &#39;WSLENV=WT_SESSION::WT_PROFILE_ID&#39; &#39;WSL_DISTRO_NAME=Ubuntu-20.04&#39; &#39;WSL_INTEROP=/run/WSL/37_interop&#39; &#39;WT_PROFILE_ID={07b52e3e-de2c-5db4-bd2d-ba144ed6c273}&#39; &#39;WT_SESSION=fc0d0da7-2ebf-446f-adec-b6424ccc2fdf&#39;
+</span></span></span><span class="line"><span class="cl"><span class="go">hnakamur     321  0.6  0.0  10048  5088 pts/1    S    16:27   0:00  \_ -bash
+</span></span></span><span class="line"><span class="cl"><span class="go">hnakamur    1124  0.0  0.0  10604  3296 pts/1    R+   16:28   0:00      \_ ps auxwwf
+</span></span></span><span class="line"><span class="cl"><span class="go">root           1 10.1  0.0 107632 12776 ?        Rs   16:27   0:01 /lib/systemd/systemd --system-unit=basic.target
+</span></span></span><span class="line"><span class="cl"><span class="go">root          58  5.2  0.0  37056 12240 ?        S&lt;s  16:27   0:00 /lib/systemd/systemd-journald
+</span></span></span><span class="line"><span class="cl"><span class="go">root          80  2.5  0.0  18260  5124 ?        Ss   16:27   0:00 /lib/systemd/systemd-udevd
+</span></span></span><span class="line"><span class="cl"><span class="go">systemd+      84  4.0  0.0  18680  7908 ?        Ss   16:27   0:00 /lib/systemd/systemd-networkd
+</span></span></span><span class="line"><span class="cl"><span class="go">systemd+     300  3.8  0.0  24052 12200 ?        Ss   16:27   0:00 /lib/systemd/systemd-resolved
+</span></span></span><span class="line"><span class="cl"><span class="go">systemd+     301  4.0  0.0  90392  6408 ?        Ssl  16:27   0:00 /lib/systemd/systemd-timesyncd
+</span></span></span><span class="line"><span class="cl"><span class="go">hnakamur     342  0.0  0.0   6968  1856 ?        Ss   16:27   0:00 socat UNIX-LISTEN:/home/hnakamur/.ssh/agent.sock,fork EXEC:/mnt/c/wsl-ssh-agent/npiperelay.exe -ei -s //./pipe/openssh-ssh-agent,nofork
+</span></span></span><span class="line"><span class="cl"><span class="go">root         345  0.1  0.0 237304  6940 ?        Ssl  16:28   0:00 /usr/lib/accountsservice/accounts-daemon
+</span></span></span><span class="line"><span class="cl"><span class="go">message+     346  2.1  0.0   7352  4684 ?        Ss   16:28   0:00 /usr/bin/dbus-daemon --system --address=systemd: --nofork --nopidfile --systemd-activation --syslog-only
+</span></span></span><span class="line"><span class="cl"><span class="go">root         349  0.1  0.0  81816  3788 ?        Ssl  16:28   0:00 /usr/sbin/irqbalance --foreground
+</span></span></span><span class="line"><span class="cl"><span class="go">root         351  1.2  0.1  29224 17964 ?        Ss   16:28   0:00 /usr/bin/python3 /usr/bin/networkd-dispatcher --run-startup-triggers
+</span></span></span><span class="line"><span class="cl"><span class="go">syslog       352  0.2  0.0 224328  4788 ?        Ssl  16:28   0:00 /usr/sbin/rsyslogd -n -iNONE
+</span></span></span><span class="line"><span class="cl"><span class="go">root         355  7.7  0.0  16764  7656 ?        Ss   16:28   0:01 /lib/systemd/systemd-logind
+</span></span></span><span class="line"><span class="cl"><span class="go">root         362  0.0  0.0   8540  2928 ?        Ss   16:28   0:00 /usr/sbin/cron -f
+</span></span></span><span class="line"><span class="cl"><span class="go">daemon       367  0.0  0.0   3796  2188 ?        Ss   16:28   0:00 /usr/sbin/atd -f
+</span></span></span><span class="line"><span class="cl"><span class="go">root         385  0.0  0.0   5832  1852 tty1     Ss+  16:28   0:00 /sbin/agetty -o -p -- \u --noclear tty1 linux
+</span></span></span><span class="line"><span class="cl"><span class="go">root         431  0.0  0.0 232704  6536 ?        Ssl  16:28   0:00 /usr/lib/policykit-1/polkitd --no-debug
+</span></span></span><span class="line"><span class="cl"><span class="go">root         436  0.0  0.0  11368  1228 ?        Ss   16:28   0:00 nginx: master process /usr/sbin/nginx -c /etc/nginx/nginx.conf
+</span></span></span><span class="line"><span class="cl"><span class="go">nginx        437  0.0  0.0  12012  3840 ?        S    16:28   0:00  \_ nginx: worker process
+</span></span></span><span class="line"><span class="cl"><span class="go">root         452  0.9  0.1 108044 20912 ?        Ssl  16:28   0:00 /usr/bin/python3 /usr/share/unattended-upgrades/unattended-upgrade-shutdown --wait-for-signal
+</span></span></span><span class="line"><span class="cl"><span class="go">root         477  0.3  0.1 641816 24976 ?        Ssl  16:28   0:00 /usr/bin/snap wait system seed.loaded
+</span></span></span><span class="line"><span class="cl"><span class="go">root         754 15.8  0.2 1235704 33868 ?       Ssl  16:28   0:01 /usr/lib/snapd/snapd
+</span></span></span><span class="line"><span class="cl"><span class="go">root        1112  0.0  0.0   2928  2276 ?        R    16:28   0:00  \_ /usr/lib/snapd/snap-confine --base core18 snap.lxd.hook.install /usr/lib/snapd/snap-exec --hook=install lxd
+</span></span></span><span class="line"><span class="cl"><span class="go">root        1125  0.0  0.0   2928   196 ?        S    16:28   0:00      \_ /usr/lib/snapd/snap-confine --base core18 snap.lxd.hook.install /usr/lib/snapd/snap-exec --hook=install lxd
+</span></span></span></code></pre></div><h2 id="lxd-を動かす">LXD を動かす</h2>
+<p><code>snap list</code> を実行してみると lxd は既にインストール済みでした。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> snap list
+</span></span><span class="line"><span class="cl"><span class="go">Name    Version   Rev    Tracking         Publisher   Notes
+</span></span></span><span class="line"><span class="cl"><span class="go">core18  20200311  1705   latest/stable    canonical✓  base
+</span></span></span><span class="line"><span class="cl"><span class="go">lxd     4.0.1     14804  latest/stable/…  canonical✓  -
+</span></span></span><span class="line"><span class="cl"><span class="go">snapd   2.44.3    7264   latest/stable    canonical✓  snapd
+</span></span></span></code></pre></div><p>あとはいつもの lxd の手順で OK です。</p>
+<p>まず自分のユーザーを lxd グループに追加します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo usermod -a -G lxd $USER
+</span></span></span></code></pre></div><p>実行後端末を開きなおします。</p>
+<p><code>lxd init</code> を実行して LXD の初期セットアップを行います。
+いくつかプロンプトが出力されるので、お好みで選択します。</p>
+<p>ストレージバックエンドがデフォルトで btrfs になってるんですね。
+今回は試しにそれにしてサイズは 100 GB に増やしました。</p>
+<p><a href="/blog/2020/05/28/setup-wsl2-ubuntu-and-docker-desktop-for-windows/">WSL2のUbuntuとDocker Desktop for Windowsを試してみた · hnakamur&rsquo;s blog</a> に書きましたが、 WSL2 は現状は IPv6 は使えないので IPv6 address のところは none と答えて無効にしておきます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> lxd init
+</span></span><span class="line"><span class="cl"><span class="go">2020/05/30 16:48:35 usbid: failed to load: open /usr/share/misc/usb.ids: no such file or directory
+</span></span></span><span class="line"><span class="cl"><span class="go">Would you like to use LXD clustering? (yes/no) [default=no]:
+</span></span></span><span class="line"><span class="cl"><span class="go">Do you want to configure a new storage pool? (yes/no) [default=yes]:
+</span></span></span><span class="line"><span class="cl"><span class="go">Name of the new storage pool [default=default]:
+</span></span></span><span class="line"><span class="cl"><span class="go">Name of the storage backend to use (ceph, btrfs, dir, lvm) [default=btrfs]:
+</span></span></span><span class="line"><span class="cl"><span class="go">Create a new BTRFS pool? (yes/no) [default=yes]:
+</span></span></span><span class="line"><span class="cl"><span class="go">Would you like to use an existing block device? (yes/no) [default=no]:
+</span></span></span><span class="line"><span class="cl"><span class="go">Size in GB of the new loop device (1GB minimum) [default=50GB]: 100GB
+</span></span></span><span class="line"><span class="cl"><span class="go">Would you like to connect to a MAAS server? (yes/no) [default=no]:
+</span></span></span><span class="line"><span class="cl"><span class="go">Would you like to create a new local network bridge? (yes/no) [default=yes]:
+</span></span></span><span class="line"><span class="cl"><span class="go">What should the new bridge be called? [default=lxdbr0]:
+</span></span></span><span class="line"><span class="cl"><span class="go">What IPv4 address should be used? (CIDR subnet notation, “auto” or “none”) [default=auto]:
+</span></span></span><span class="line"><span class="cl"><span class="go">What IPv6 address should be used? (CIDR subnet notation, “auto” or “none”) [default=auto]: none
+</span></span></span><span class="line"><span class="cl"><span class="go">Would you like LXD to be available over the network? (yes/no) [default=no]:
+</span></span></span><span class="line"><span class="cl"><span class="go">Would you like stale cached images to be updated automatically? (yes/no) [default=yes]
+</span></span></span><span class="line"><span class="cl"><span class="go">Would you like a YAML &#34;lxd init&#34; preseed to be printed? (yes/no) [default=no]: yes
+</span></span></span><span class="line"><span class="cl"><span class="go">config: {}
+</span></span></span><span class="line"><span class="cl"><span class="go">networks:
+</span></span></span><span class="line"><span class="cl"><span class="go">- config:
+</span></span></span><span class="line"><span class="cl"><span class="go">    ipv4.address: auto
+</span></span></span><span class="line"><span class="cl"><span class="go">    ipv6.address: none
+</span></span></span><span class="line"><span class="cl"><span class="go">  description: &#34;&#34;
+</span></span></span><span class="line"><span class="cl"><span class="go">  name: lxdbr0
+</span></span></span><span class="line"><span class="cl"><span class="go">  type: &#34;&#34;
+</span></span></span><span class="line"><span class="cl"><span class="go">storage_pools:
+</span></span></span><span class="line"><span class="cl"><span class="go">- config:
+</span></span></span><span class="line"><span class="cl"><span class="go">    size: 100GB
+</span></span></span><span class="line"><span class="cl"><span class="go">  description: &#34;&#34;
+</span></span></span><span class="line"><span class="cl"><span class="go">  name: default
+</span></span></span><span class="line"><span class="cl"><span class="go">  driver: btrfs
+</span></span></span><span class="line"><span class="cl"><span class="go">profiles:
+</span></span></span><span class="line"><span class="cl"><span class="go">- config: {}
+</span></span></span><span class="line"><span class="cl"><span class="go">  description: &#34;&#34;
+</span></span></span><span class="line"><span class="cl"><span class="go">  devices:
+</span></span></span><span class="line"><span class="cl"><span class="go">    eth0:
+</span></span></span><span class="line"><span class="cl"><span class="go">      name: eth0
+</span></span></span><span class="line"><span class="cl"><span class="go">      network: lxdbr0
+</span></span></span><span class="line"><span class="cl"><span class="go">      type: nic
+</span></span></span><span class="line"><span class="cl"><span class="go">    root:
+</span></span></span><span class="line"><span class="cl"><span class="go">      path: /
+</span></span></span><span class="line"><span class="cl"><span class="go">      pool: default
+</span></span></span><span class="line"><span class="cl"><span class="go">      type: disk
+</span></span></span><span class="line"><span class="cl"><span class="go">  name: default
+</span></span></span><span class="line"><span class="cl"><span class="go">cluster: null
+</span></span></span></code></pre></div><p>以下のコマンドで Ubuntu 20.04 LTS のコンテナーを作成し起動します。
+最後の focal はコンテナー名なのでお好みで変えてください。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> lxc launch ubuntu:20.04 focal
+</span></span><span class="line"><span class="cl"><span class="go">Creating focal
+</span></span></span><span class="line"><span class="cl"><span class="go">Starting focal
+</span></span></span></code></pre></div><p>作成したコンテナー内で bash を起動してみます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> lxc <span class="nb">exec</span> focal bash
+</span></span><span class="line"><span class="cl"><span class="go">root@focal:~#
+</span></span></span></code></pre></div><p>コンテナー内からネットワークも普通に使えます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">root@focal:~# ping -c 1 www.ubuntu.com
+</span></span></span><span class="line"><span class="cl"><span class="go">PING www.ubuntu.com (91.189.88.181) 56(84) bytes of data.
+</span></span></span><span class="line"><span class="cl"><span class="go">64 bytes from davybones.canonical.com (91.189.88.181): icmp_seq=1 ttl=49 time=225 ms
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">--- www.ubuntu.com ping statistics ---
+</span></span></span><span class="line"><span class="cl"><span class="go">1 packets transmitted, 1 received, 0% packet loss, time 0ms
+</span></span></span><span class="line"><span class="cl"><span class="go">rtt min/avg/max/mdev = 225.115/225.115/225.115/0.000 ms
+</span></span></span></code></pre></div><p><code>exit</code> でコンテナーから抜けます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">root@focal:~# exit
+</span></span></span><span class="line"><span class="cl"><span class="go">exit
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="gp">$</span>
+</span></span></code></pre></div><h2 id="未解決の課題-procsysfsbinfmt_misc-の参照でエラー--解決-2020-06-01-追記">未解決の課題: <code>/proc/sys/fs/binfmt_misc</code> の参照でエラー → 解決 （2020-06-01 追記）</h2>
+<p>上記の手順で systemd を動かすと <code>/proc/sys/fs/binfmt_misc</code> を参照しようとすると以下のようなエラーになります。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> ls -l /proc/sys/fs/binfmt_misc
+</span></span><span class="line"><span class="cl"><span class="go">ls: cannot open directory &#39;/proc/sys/fs/binfmt_misc&#39;: Too many levels of symbolic links
+</span></span></span></code></pre></div><p>原因は分からないので、とりあえずイシューを立ててみました。
+<a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script/issues/15">Too many levels of symbolic links when running ls -l /proc/sys/fs/binfmt_misc · Issue #15 · DamionGans/ubuntu-wsl2-systemd-script</a></p>
+<p><a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script/pull/17/files">Add binfmt_misc override by diddledan · Pull Request #17 · DamionGans/ubuntu-wsl2-systemd-script</a> で修正されました。</p>
+<p>古いバージョンを消して再起動した後、このバージョンを実行して再起動すると、以下のように参照できていました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> ls -l /proc/sys/fs/binfmt_misc
+</span></span><span class="line"><span class="cl"><span class="go">total 0
+</span></span></span><span class="line"><span class="cl"><span class="go">-rw-r--r-- 1 root root 0 Jun  1 01:38 WSLInterop
+</span></span></span><span class="line"><span class="cl"><span class="go">--w------- 1 root root 0 Jun  1 01:38 register
+</span></span></span><span class="line"><span class="cl"><span class="go">-rw-r--r-- 1 root root 0 Jun  1 01:38 status
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="gp">$</span> cat /proc/sys/fs/binfmt_misc/WSLInterop
+</span></span><span class="line"><span class="cl"><span class="go">enabled
+</span></span></span><span class="line"><span class="cl"><span class="go">interpreter /tools/init
+</span></span></span><span class="line"><span class="cl"><span class="go">flags: F
+</span></span></span><span class="line"><span class="cl"><span class="go">offset 0
+</span></span></span><span class="line"><span class="cl"><span class="go">magic 4d5a
+</span></span></span></code></pre></div><h2 id="systemd-を起動しないように戻す場合の手順-2020-06-01-更新">systemd を起動しないように戻す場合の手順 （2020-06-01 更新）</h2>
+<p>今回利用したスクリプトの
+<a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script/blob/5a5dd97114c81ee82d24353e3f9d9f2f1782d1a5/ubuntu-wsl2-systemd-script.sh#L27">ubuntu-wsl2-systemd-script.sh#L27</a> で <code>/etc/bash.bashrc</code> の 3,4 行目に以下の内容を追加していますので、これをコメントアウトか削除すれば、次回の起動では systemd を実行しないようになります。</p>
+<pre tabindex="0"><code># Start or enter a PID namespace in WSL2
+source /usr/sbin/start-systemd-namespace
+</code></pre><p><a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script/pull/17/files">Add binfmt_misc override by diddledan · Pull Request #17 · DamionGans/ubuntu-wsl2-systemd-script</a> で 2 重インストールしないようにチェックが厳しくなったので、綺麗に消す必要があります。</p>
+<p>ということで以下のようなコマンドを実行して削除します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo sed -i -e &#39;/^# Start or enter a PID namespace in WSL2$/,/^$/d&#39; /etc/bash.bashrc
+</span></span></span><span class="line"><span class="cl"><span class="go">sudo rm /usr/sbin/{start,enter}-systemd-namespace
+</span></span></span></code></pre></div><p>削除後 WSL2 の Ubuntu を終了します。 <code>wsl.exe -t</code> の後のディストリビューション名は環境に応じて適宜変更。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">wsl.exe -t ubuntu-20.04
+</span></span></span></code></pre></div><p>これで端末を開きなおして <code>ps auxwwf</code> を実行すると PID 1 は <code>/init</code> に戻り <code>ls -l /proc/sys/fs/binfmt_misc</code> や <code>cat /proc/sys/fs/binfmt_misc/WSLInterop</code> も正常に実行されます。</p>
+<h2 id="おわりに">おわりに</h2>
+<p><a href="https://forum.snapcraft.io/t/running-snaps-on-wsl2-insiders-only-for-now/13033/23">Running Snaps on WSL2 (Insiders only for now) - snapd - snapcraft.io</a> の冒頭の投稿には &ldquo;Optional: Strict confinement support&rdquo; というセクションがあります。</p>
+<p>オプションでカスタムカーネルを使うことにより厳格な confinement がサポートできるそうです。
+が、カーネルの脆弱性の度にビルドするのも大変なので今回はスキップしました。
+いつか気が向いたら試してみてもいいかも。</p>
+<p>また <a href="https://forum.snapcraft.io/t/running-snaps-on-wsl2-insiders-only-for-now/13033/25">izznatsir さんのコメント</a> によるとこの手順に従って systemd を動かすと Docker Desktop for Windows 無しで WSL2 の Ubuntu 内だけで docker を動かせたそうです（カスタムカーネルを使う手順を試されたそうですが、カスタムカーネルなしでも動くかも）とのこと。
+こちらも別途試してみたいところです。</p>
+<p>それと <a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script">DamionGans/ubuntu-wsl2-systemd-script: Script to enable systemd support on current Ubuntu WSL2 images from the Windows store</a> の <a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script/blob/master/enter-systemd-namespace">enter-systemd-namespace</a> のスクリプト内では <code>unshare</code> コマンドや <code>nsenter</code> コマンドを実行していて興味深いので、今後もう少し時間かけて理解したいところです。</p>
+<h2 id="docker-desktop-for-windows-をアンインストールして-docker-を動かしてみた-2020-05-31-追記-2020-06-05-更新">Docker Desktop for Windows をアンインストールして docker を動かしてみた （2020-05-31 追記、 2020-06-05 更新）</h2>
+<p>2020-06-05 追記: 2020-05-31 の時点では Ubuntu の標準パッケージの docker.io を入れる手順を書いていましたが、その後 <a href="https://docs.docker.com/engine/install/ubuntu/">Install Docker Engine on Ubuntu | Docker Documentation</a> を確認すると Docker の apt レポジトリが Ubuntu 20.04 LTS も対応になっていたので、そちらの手順に書き換えました。</p>
+<p>カスタムカーネル無しで動きました。</p>
+<p>手順は以下の通りです。</p>
+<ol>
+<li>Docker Desktop for Windows をアンインストールして、Windows を再起動。</li>
+<li>WSL2 を起動し <code>~/.docker/config.json</code> を削除。</li>
+<li>WSL2 の Ubuntu で docker 公式レポジトリを追加して docker-ce と docker-compose をインストール。</li>
+</ol>
+<p><a href="https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository">Install using the repository</a> の手順にほぼ従います。</p>
+<p>まず必要なソフトウェアを追加します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo apt update
+</span></span></span><span class="line"><span class="cl"><span class="go">sudo apt -y install \
+</span></span></span><span class="line"><span class="cl"><span class="go">    apt-transport-https \
+</span></span></span><span class="line"><span class="cl"><span class="go">    ca-certificates \
+</span></span></span><span class="line"><span class="cl"><span class="go">    curl \
+</span></span></span><span class="line"><span class="cl"><span class="go">    gnupg-agent \
+</span></span></span><span class="line"><span class="cl"><span class="go">    software-properties-common
+</span></span></span></code></pre></div><p>docker の GPG 鍵を追加します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+</span></span></span></code></pre></div><p>上記で追加した鍵のフィンガープリントを確認します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> sudo apt-key fingerprint 0EBFCD88
+</span></span><span class="line"><span class="cl"><span class="go">pub   rsa4096 2017-02-22 [SCEA]
+</span></span></span><span class="line"><span class="cl"><span class="go">      9DC8 5822 9FC7 DD38 854A  E2D8 8D81 803C 0EBF CD88
+</span></span></span><span class="line"><span class="cl"><span class="go">uid           [ unknown] Docker Release (CE deb) &lt;docker@docker.com&gt;
+</span></span></span><span class="line"><span class="cl"><span class="go">sub   rsa4096 2017-02-22 [S]
+</span></span></span></code></pre></div><p>apt のレポジトリを追加します。
+<a href="https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository">Install using the repository</a> の手順では <code>add-apt-repository</code> を使っていますが、これだと <code>/etc/apt/sources.list</code> が変更されます。
+私は <code>/etc/apt/sources.list.d/</code> にファイルを追加するほうが好きなので、以下の手順にします。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">echo &#34;deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable&#34; \
+</span></span></span><span class="line"><span class="cl"><span class="go">  | sudo tee /etc/apt/sources.list.d/docker.list
+</span></span></span></code></pre></div><p>以下のコマンドで docker-ce と関連パッケージをインストールします。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo apt-get update
+</span></span></span><span class="line"><span class="cl"><span class="go">sudo apt-get install docker-ce docker-ce-cli containerd.io
+</span></span></span></code></pre></div><ol start="4">
+<li>docker グループに自ユーザーを追加</li>
+</ol>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo usermod -a -G docker $USER
+</span></span></span></code></pre></div><p>一旦端末を閉じて開きなおすか <code>newgrp docker</code> を実行すれば docker グループにも所属した状態になります。</p>
+<p><code>docker ps</code> が実行できるかを確認します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> docker ps
+</span></span><span class="line"><span class="cl"><span class="go">CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
+</span></span></span></code></pre></div><ol start="5">
+<li>docker で hello-world コンテナーを実行</li>
+</ol>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">docker run hello-world
+</span></span></span></code></pre></div><ol start="6">
+<li>WSL2 の Ubuntu を停止（-t の後のディストリビューション名は環境に応じて変更）</li>
+</ol>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">wsl.exe -t ubuntu-20.04
+</span></span></span></code></pre></div><ol start="7">
+<li>WSL2 の端末を開きなおして docker サービスが動いているか確認すると動いていました。</li>
+</ol>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">hnakamur@sunshine7:/mnt/c/Users/hnakamur$ systemctl status docker
+</span></span></span><span class="line"><span class="cl"><span class="go">● docker.service - Docker Application Container Engine
+</span></span></span><span class="line"><span class="cl"><span class="go">     Loaded: loaded (/lib/systemd/system/docker.service; enabled; vendor preset: enabled)
+</span></span></span><span class="line"><span class="cl"><span class="go">     Active: active (running) since Fri 2020-06-05 17:55:28 JST; 4s ago
+</span></span></span><span class="line"><span class="cl"><span class="go">TriggeredBy: ● docker.socket
+</span></span></span><span class="line"><span class="cl"><span class="go">       Docs: https://docs.docker.com
+</span></span></span><span class="line"><span class="cl"><span class="go">   Main PID: 279 (dockerd)
+</span></span></span><span class="line"><span class="cl"><span class="go">      Tasks: 12
+</span></span></span><span class="line"><span class="cl"><span class="go">     Memory: 121.9M
+</span></span></span><span class="line"><span class="cl"><span class="go">     CGroup: /system.slice/docker.service
+</span></span></span><span class="line"><span class="cl"><span class="go">             └─279 /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">Jun 05 17:55:27 sunshine7 dockerd[279]: time=&#34;2020-06-05T17:55:27.908189300+09:00&#34; level=warning msg=&#34;Your kernel does not support cgroup blkio throttle.write_bp&gt;
+</span></span></span><span class="line"><span class="cl"><span class="go">Jun 05 17:55:27 sunshine7 dockerd[279]: time=&#34;2020-06-05T17:55:27.908200000+09:00&#34; level=warning msg=&#34;Your kernel does not support cgroup blkio throttle.read_iop&gt;
+</span></span></span><span class="line"><span class="cl"><span class="go">Jun 05 17:55:27 sunshine7 dockerd[279]: time=&#34;2020-06-05T17:55:27.908210100+09:00&#34; level=warning msg=&#34;Your kernel does not support cgroup blkio throttle.write_io&gt;
+</span></span></span><span class="line"><span class="cl"><span class="go">Jun 05 17:55:27 sunshine7 dockerd[279]: time=&#34;2020-06-05T17:55:27.908412800+09:00&#34; level=info msg=&#34;Loading containers: start.&#34;
+</span></span></span><span class="line"><span class="cl"><span class="go">Jun 05 17:55:28 sunshine7 dockerd[279]: time=&#34;2020-06-05T17:55:28.078619400+09:00&#34; level=info msg=&#34;Default bridge (docker0) is assigned with an IP address 172.17&gt;
+</span></span></span><span class="line"><span class="cl"><span class="go">Jun 05 17:55:28 sunshine7 dockerd[279]: time=&#34;2020-06-05T17:55:28.147477000+09:00&#34; level=info msg=&#34;Loading containers: done.&#34;
+</span></span></span><span class="line"><span class="cl"><span class="go">Jun 05 17:55:28 sunshine7 dockerd[279]: time=&#34;2020-06-05T17:55:28.248031800+09:00&#34; level=info msg=&#34;Docker daemon&#34; commit=42e35e61f3 graphdriver(s)=overlay2 versi&gt;
+</span></span></span><span class="line"><span class="cl"><span class="go">Jun 05 17:55:28 sunshine7 dockerd[279]: time=&#34;2020-06-05T17:55:28.249390500+09:00&#34; level=info msg=&#34;Daemon has completed initialization&#34;
+</span></span></span><span class="line"><span class="cl"><span class="go">Jun 05 17:55:28 sunshine7 systemd[1]: Started Docker Application Container Engine.
+</span></span></span><span class="line"><span class="cl"><span class="go">Jun 05 17:55:28 sunshine7 dockerd[279]: time=&#34;2020-06-05T17:55:28.272997200+09:00&#34; level=info msg=&#34;API listen on /run/docker.sock&#34;
+</span></span></span></code></pre></div><p>Docker Compose のインストールは <a href="https://docs.docker.com/compose/install/">Install Docker Compose | Docker Documentation</a> を参考に以下のようにしました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">release=&#34;$(basename $(curl -s -o /dev/null -w &#39;%{redirect_url}&#39; https://github.com/docker/compose/releases/latest))&#34;
+</span></span></span><span class="line"><span class="cl"><span class="go">sudo curl -L &#34;https://github.com/docker/compose/releases/download/$release/docker-compose-$(uname -s)-$(uname -m)&#34; -o /usr/local/bin/docker-compose
+</span></span></span><span class="line"><span class="cl"><span class="go">sudo chmod +x /usr/local/bin/docker-compose
+</span></span></span></code></pre></div><h2 id="2021-08-24-追記-新しいレポジトリを見つけました">2021-08-24 追記: 新しいレポジトリを見つけました</h2>
+<p><a href="https://github.com/DamionGans/ubuntu-wsl2-systemd-script">DamionGans/ubuntu-wsl2-systemd-script: Script to enable systemd support on current Ubuntu WSL2 images from the Windows store</a> は今日見たらもう更新されないと書かれていました。
+そこで検索してみるとスクリプトの元々の作者の diddledani さんのレポジトリがありました。今後試したいと思います。
+<a href="https://github.com/diddledani/one-script-wsl2-systemd">diddledani/one-script-wsl2-systemd: The one-script variant of the systemd hack for WSL2</a></p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

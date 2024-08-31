@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>node-http-proxyでバーチャルホストで振り分けつつhttp/https-&gt;websocketリバースプロキシの実験 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>node-http-proxyでバーチャルホストで振り分けつつhttp/https-&gt;websocketリバースプロキシの実験</h1>
+  <time datetime=2012-06-27T00:00:00Z class="post-date">2012-06-27</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#実行手順">実行手順</a>
+      <ul>
+        <li><a href="#自己証明書とパスフレーズ無しの秘密鍵を生成">自己証明書とパスフレーズ無しの秘密鍵を生成。</a></li>
+        <li><a href="#nodeモジュールインストール">nodeモジュールインストール</a></li>
+        <li><a href="#サーバ起動">サーバ起動</a></li>
+        <li><a href="#ローカルマシンのetchostsに以下のエントリ追加">ローカルマシンの/etc/hostsに以下のエントリ追加</a></li>
+        <li><a href="#ブラウザでアクセス">ブラウザでアクセス</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+  <p>以下の2つのページを参考に、node-http-proxyでバーチャルホストで振り分けつつ
+http/httpsからwebsocketにリバースプロキシする実験をしてみました。
+環境はCentOS 6.2です。ソースは<a href="https://github.com/hnakamur/node-http-proxy-websocket-sample">hnakamur/node-http-proxy-websocket-sample</a>にあります。</p>
+<ul>
+<li><a href="http://d.hatena.ne.jp/replication/20111108/1320762287">５分くらいで出来るnode.js(0.6) + socket.io(0.8x)のサンプルプログラム - 大人になったら肺呼吸</a></li>
+<li><a href="https://github.com/nodejitsu/node-http-proxy">nodejitsu/node-http-proxy</a></li>
+</ul>
+<!-- raw HTML omitted -->
+<!-- raw HTML omitted -->
+<p>上記の構成で、
+vhost1.example.comというホスト名でアクセスしたらVHost1/app、
+vhost2.example.comというホスト名でアクセスしたらVHost2/app
+にリバースプロキシするようにします。
+*.example.comというワイルドカードの自己証明書でproxy-vhostにてSSLを処理します。</p>
+<h2 id="実行手順">実行手順</h2>
+<h3 id="自己証明書とパスフレーズ無しの秘密鍵を生成">自己証明書とパスフレーズ無しの秘密鍵を生成。</h3>
+<p>以下、ドメインexample.comの部分は適宜変更してください。</p>
+<pre tabindex="0"><code>openssl req -new -newkey rsa:2048 -x509 -nodes -days 365 -set_serial 0 \
+  -subj &#39;/C=JP/ST=Kanagawa/L=Yokohama City/CN=*.example.com&#39; \
+  -out /etc/pki/tls/certs/wildcard.example.com.crt \
+  -keyout /etc/pki/tls/private/wildcard.example.com.key
+</code></pre><h3 id="nodeモジュールインストール">nodeモジュールインストール</h3>
+<p>私の環境では/usr/local/node-v0.6.19にnode.jsをインストールしているのでPATHを通してから実行します。</p>
+<pre tabindex="0"><code>export PATH=/usr/local/node-v0.6.19/bin:$PATH
+</code></pre><pre tabindex="0"><code>npm install socket.io -g
+npm install express@2.5.10 -g
+npm install ejs -g
+npm install http-proxy -g
+</code></pre><p>なお、モジュールをグルーバルにインストールしているのは<a href="https://github.com/hnakamur/node-http-proxy-websocket-sample">hnakamur/node-http-proxy-websocket-sample</a>にモジュールを含めたくないからで、実際はローカルにインストールしても構いません。</p>
+<h3 id="サーバ起動">サーバ起動</h3>
+<p>私の環境では/usr/local/node-v0.6.19にnode.jsをインストールしているのでNODE_PATHを通してから実行します。</p>
+<pre tabindex="0"><code>export NODE_PATH=/usr/local/node-v0.6.19/lib/node_modules
+</code></pre><pre tabindex="0"><code>node VHost1App/app &amp;
+node VHost2App/app &amp;
+node proxy-vhost &amp;
+</code></pre><h3 id="ローカルマシンのetchostsに以下のエントリ追加">ローカルマシンの/etc/hostsに以下のエントリ追加</h3>
+<p>IPアドレスは実際のサーバに合わせて変更してください。</p>
+<pre tabindex="0"><code>192.0.2.2 vhost1.example.com vhost2.example.com
+</code></pre><h3 id="ブラウザでアクセス">ブラウザでアクセス</h3>
+<p><a href="https://vhost1.example.com/">https://vhost1.example.com/</a>
+や
+<a href="https://vhost2.example.com/">https://vhost2.example.com/</a>
+にアクセスします。自己証明書なのでエラーになりますが受け入れて進んでください。
+バーチャルホスト毎にそれぞれ内容が異なることを確認します。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

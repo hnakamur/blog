@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>EC2で同じリージョンの全ホストのプライベートIPを起動時にhostsに自動登録 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>EC2で同じリージョンの全ホストのプライベートIPを起動時にhostsに自動登録</h1>
+  <time datetime=2013-02-16T00:00:00Z class="post-date">2013-02-16</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#情報取得用のaimユーザ作成">情報取得用のAIMユーザ作成</a></li>
+    <li><a href="#スクリプト設置">スクリプト設置</a></li>
+    <li><a href="#実行">実行</a></li>
+    <li><a href="#githubに移動しました">githubに移動しました</a></li>
+  </ul>
+</nav>
+  <p>Elastic IPの上限数にひっかかって使えない自体に遭遇したので作りました。</p>
+<p><a href="http://aws.amazon.com/jp/contact-us/eip_limit_request/">Elastic IP アドレス上限緩和申請 | アマゾン ウェブ サービス（AWS 日本語）</a> から緩和申請できるようです。</p>
+<p>が、申請完了画面で、3〜5営業日かかる、緊急の場合は、完了画面に表示されるCase Numberを添えて <a href="mailto:ec2-request@amazon.com">ec2-request@amazon.com</a> に送るようにと書かれていました。</p>
+<p>（Case Numberを添えてというのは今気付いた。再度メールしました。ブログに書くために読み返してよかった）</p>
+<p>そこで、hostsにプライベートアドレスを登録するスクリプトを書くことにしました。</p>
+<p><a href="http://frmmpgit.blog.fc2.com/blog-entry-123.html">EC2 - 動的プライベートIPアドレスをどうにかする | code up</a> を参考にしました。ありがとうございます。</p>
+<p>最初は対象のホストの一覧を指定するようなスクリプトを書いていたのですが、ホストを増やすことを考えると編集と反映が面倒だと予想して、リージョン内の全ホストを一括登録することにしました。</p>
+<h2 id="情報取得用のaimユーザ作成">情報取得用のAIMユーザ作成</h2>
+<p>AIMでUserを作ってUser PolicyにReadOnlyAccessを与えます。</p>
+<h2 id="スクリプト設置">スクリプト設置</h2>
+<p>以下の設定ファイルとスクリプトを設置します。</p>
+<p>アクセスキーとシークレットキーは上で作ったユーザのものを設定します。</p>
+<p>/root/.amazon_address_finder_key</p>
+<pre tabindex="0"><code>export AWS_ACCESS_KEY=${your_access_key_here}
+export AWS_SECRET_KEY=${your_secret_key_here}
+</code></pre><p>/usr/local/sbin/update_hosts.sh</p>
+<pre tabindex="0"><code>#!/bin/sh
+. /root/.amazon_address_finder_key
+region=`ec2-metadata | sed -n &#39;s/^local-hostname: ip-[0-9-]*\.\(.*\)\.compute\.i
+nternal/\1/p&#39;`
+
+ec2-describe-instances --region $region -H --show-empty-fields | gawk &#39;
+BEGIN {OFS=&#34;\t&#34;; print &#34;127.0.0.1&#34;, &#34;localhost localhost.localdomain&#34;}
+/^INSTANCE/ {ip = $18}  
+/^TAG/ {print ip, gensub(/.*\tName\t([^\t]*).*/, &#34;\\1&#34;, $0)}  
+&#39; &gt; /etc/hosts
+</code></pre><p>/etc/cron.d/update_hosts</p>
+<pre tabindex="0"><code>@reboot root /usr/local/sbin/update_hosts.sh
+</code></pre><h2 id="実行">実行</h2>
+<p>これで、OS起動時にhostsが上書き更新されます。</p>
+<p>インタンスのNameタグに設定した値がホスト名になります。</p>
+<p>出力例</p>
+<pre tabindex="0"><code>127.0.0.1       localhost localhost.localdomain
+10.132.102.199  web01
+10.128.21.174   web02
+10.120.32.111   app01
+10.132.103.238  app02
+</code></pre><h2 id="githubに移動しました">githubに移動しました</h2>
+<p>さらにhostnameも更新するようにして、スクリプトが発展してきたので、
+<a href="https://github.com/hnakamur/aws_scripts">hnakamur/aws_scripts · GitHub</a>
+に移動しました。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

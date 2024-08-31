@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>pgregory.net/rapidを使ってGoでProperty Based Testingをやってみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>pgregory.net/rapidを使ってGoでProperty Based Testingをやってみた</h1>
+  <time datetime=2020-07-26T16:54:19&#43;0900 class="post-date">2020-07-26</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#property-based-testing-について">Property Based Testing について</a></li>
+    <li><a href="#pgregorynetrapid-パッケージ"><code>pgregory.net/rapid</code> パッケージ</a>
+      <ul>
+        <li><a href="#stateless-な-property-based-test">stateless な property based test</a></li>
+        <li><a href="#stateful-な-property-based-test">stateful な property based test</a></li>
+      </ul>
+    </li>
+    <li><a href="#property-based-testing-で既存の別実装との挙動の互換性を確認する使い方もある">Property Based Testing で既存の別実装との挙動の互換性を確認する使い方もある</a></li>
+    <li><a href="#おわりに">おわりに</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>以前から Go で Property Based Testing をやってみたいと思っていたのですが
+@objectxplosive さんの <a href="https://twitter.com/objectxplosive/status/1284837906520006657">ツイート</a>
+を見て <a href="https://pkg.go.dev/pgregory.net/rapid?tab=doc">pgregory.net/rapid package · pkg.go.dev</a> を試してみたのでメモです。</p>
+<h2 id="property-based-testing-について">Property Based Testing について</h2>
+<p>@dgryski さんの <a href="https://twitter.com/dgryski/status/1277647928690008064">ツイート</a> で紹介されていた
+<a href="https://www.youtube.com/watch?v=IYzDFHx6QPY&amp;feature=emb_logo">The lazy programmer&rsquo;s guide to writing thousands of tests - Scott Wlaschin - YouTube</a> が分かりやすかったです。
+この動画では Go 言語ではなく別の言語 (Haskell?) を使って説明されています。</p>
+<p>通常のユニットテストではサンプルの入力データをテストケースとして用意し、それをテスト対象に投入して出力や結果を確認します。
+境界値などを考えながらテストケースを準備するわけですが、開発者が予想もしないような入力は漏れてしまいがちです。</p>
+<p>Property Based Testing はランダムなテストケースを生成してテストを実行することで想定外の入力もカバーするようなテスト手法です。
+予め自分で用意したテストケースの場合はその個々のケースに対して出力を事前に準備しておくことができます。</p>
+<p>しかし、ランダムなテストケースに対しては事前には準備できないので、入力に対して出力が必ず満たす法則や特性のようなものを考えて、それを満たすことを確認します。</p>
+<p>その特性が property で、なので Property Based Testing というわけです。</p>
+<p>例えば足し算の場合は以下の特性が考えられます。</p>
+<ul>
+<li>x + y = y + x (交換法則, commutativity)</li>
+<li>x + 1 + 1 = x + 2 (結合法則, associativity)</li>
+<li>x + 0 = x (同一性法則(※1) , identity)</li>
+</ul>
+<p>※1: 検索しても一般的な訳語が見つけらなかったので今適当につけました。</p>
+<p>上の 3 つは加算に対する Property Based Test の最終形ですが、上記の動画では順を追って説明されているので、気になる方はぜひご覧ください。</p>
+<p>さらに、動画では Shrinking についても説明されています。</p>
+<p>ランダムな入力値で property を満たさないケースが発見された後、その失敗を再現する最小限の入力を探すことをそう呼ぶようです。
+<a href="https://propertesting.com/book_shrinking.html">Shrinking</a> にも説明がありました。</p>
+<p>テスト対象が状態マシンの場合、失敗が見つかったときの入力のステップ数が膨大な場合もありえます。
+すると再現テストを動かすのに時間がかかって効率が悪いので、最小化するということのようです。</p>
+<h2 id="pgregorynetrapid-パッケージ"><code>pgregory.net/rapid</code> パッケージ</h2>
+<p>レポジトリは <a href="https://github.com/flyingmutant/rapid">flyingmutant/rapid: Rapid is a Go library for property-based testing that supports state machine (&ldquo;stateful&rdquo; or &ldquo;model-based&rdquo;) testing and fully automatic test case minimization (&ldquo;shrinking&rdquo;)</a> にあります。
+Go で書かれていてライセンスは MPL-2.0 です。
+2020-07-26 時点ではバージョン v0.4.0 です。
+README によると今はアルファで、今後 API が非互換で変更される可能性があるとのことです。</p>
+<h3 id="stateless-な-property-based-test">stateless な property based test</h3>
+<p>API ドキュメントを参考に上記の動画で説明されていた足し算のテストを書いてみたのが
+<a href="https://github.com/hnakamur/property-based-test-example/blob/master/add_test.go">property-based-test-example/add_test.go</a>
+です。</p>
+<p>一部を以下に抜粋します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestAdd</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">t</span><span class="p">.</span><span class="nf">Run</span><span class="p">(</span><span class="s">&#34;commutativity&#34;</span><span class="p">,</span> <span class="nx">rapid</span><span class="p">.</span><span class="nf">MakeCheck</span><span class="p">(</span><span class="kd">func</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">rapid</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">x</span> <span class="o">:=</span> <span class="nx">rapid</span><span class="p">.</span><span class="nf">Int</span><span class="p">().</span><span class="nf">Draw</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span> <span class="s">&#34;x&#34;</span><span class="p">).(</span><span class="kt">int</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">y</span> <span class="o">:=</span> <span class="nx">rapid</span><span class="p">.</span><span class="nf">Int</span><span class="p">().</span><span class="nf">Draw</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span> <span class="s">&#34;y&#34;</span><span class="p">).(</span><span class="kt">int</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">result1</span> <span class="o">:=</span> <span class="nf">add</span><span class="p">(</span><span class="nx">x</span><span class="p">,</span> <span class="nx">y</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">result2</span> <span class="o">:=</span> <span class="nf">add</span><span class="p">(</span><span class="nx">y</span><span class="p">,</span> <span class="nx">x</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">result1</span> <span class="o">!=</span> <span class="nx">result2</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">t</span><span class="p">.</span><span class="nf">Fatalf</span><span class="p">(</span><span class="s">&#34;add must be commutative, x=%d, y=%d, result1=%d, result2=%d&#34;</span><span class="p">,</span> <span class="nx">x</span><span class="p">,</span> <span class="nx">y</span><span class="p">,</span> <span class="nx">result1</span><span class="p">,</span> <span class="nx">result2</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}))</span>
+</span></span></code></pre></div><p>動画では足し算の特性 (property) を表す関数をテストライブラリに渡すという方式でしたが、<code>pgregory.net/rapid</code> パッケージでは Go のテストとして標準的な書き方に合わせていて、失敗する場合は <code>t.Errorf</code> などを呼ぶという API となっています。</p>
+<p>ただし、 <code>*testing.T</code> とは別に独自の <code>*rapid.T</code> という型があって、そちらの <code>Errorf</code> などのメソッドを呼ぶのが Go の通常のテストとは違うところです。</p>
+<p>またランダムな入力値は <a href="https://pkg.go.dev/pgregory.net/rapid?tab=doc#Int">rapid.Int()</a> などで
+<a href="https://pkg.go.dev/pgregory.net/rapid?tab=doc#Generator">*rapid.Generator</a>
+のインスタンスを作成し、 <a href="https://pkg.go.dev/pgregory.net/rapid?tab=doc#Generator.Draw">Draw</a> メソッドや <a href="https://pkg.go.dev/pgregory.net/rapid?tab=doc#Generator.Example">Example</a> メソッドで値を生成します。</p>
+<p>上記の <code>add_test.go</code> はそのままだとテストが通る状態ですが、 <a href="https://github.com/hnakamur/property-based-test-example/blob/master/add.go">add.go</a> の <code>add</code> 関数の実装を <code>return x - y</code> などとわざと間違えてテストを実行してみると以下のようになります。</p>
+<pre tabindex="0"><code>$ go test -v
+=== RUN   TestAdd
+=== RUN   TestAdd/commutativity
+    TestAdd/commutativity: add_test.go:10: [rapid] failed after 0 tests: add must be commutative, x=0, y=-1, result1=1, result2=-1
+        To reproduce, specify -run=&#34;TestAdd/commutativity&#34; -rapid.seed=1595763150563185679
+        Failed test output:
+    TestAdd/commutativity: add_test.go:11: [rapid] draw x: 0
+    TestAdd/commutativity: add_test.go:12: [rapid] draw y: -1
+    TestAdd/commutativity: add_test.go:16: add must be commutative, x=0, y=-1, result1=1, result2=-1
+=== RUN   TestAdd/associativity
+    TestAdd/associativity: add_test.go:19: [rapid] OK, passed 100 tests (48.497µs)
+=== RUN   TestAdd/identity
+    TestAdd/identity: add_test.go:27: [rapid] OK, passed 100 tests (42.924µs)
+--- FAIL: TestAdd (0.00s)
+    --- FAIL: TestAdd/commutativity (0.00s)
+    --- PASS: TestAdd/associativity (0.00s)
+    --- PASS: TestAdd/identity (0.00s)
+FAIL
+exit status 1
+FAIL    github.com/hnakamur/property-based-test-example 0.007s
+</code></pre><p><code>To reproduce, </code> の後に今回の失敗を再現するための <code>go test</code> の引数を出力してくれています。
+上記の例だと以下のように実行すれば再現できるというわけです。</p>
+<pre tabindex="0"><code>go test -run=&#34;TestAdd/commutativity&#34; -rapid.seed=1595763150563185679
+</code></pre><p>今回の例は実装が単純なので間違いは明らかですが、実際のケースではデバッグログ出力などを追加して再現テストを実行するというのを繰り返していけば、問題の原因が調査できます。</p>
+<h3 id="stateful-な-property-based-test">stateful な property based test</h3>
+<p>上記の <code>add</code> 関数は stateless でしたが、 stateful なテスト対象の場合は <a href="https://pkg.go.dev/pgregory.net/rapid?tab=doc#StateMachine">StateMachine</a> というインタフェースを実装した構造体を定義してテスト対象をラップします。</p>
+<p><a href="https://pkg.go.dev/pgregory.net/rapid?tab=doc#Run">Run(m *SateMachine) func(*T)</a> 関数の
+<a href="https://pkg.go.dev/pgregory.net/rapid?tab=doc#example-Run-Queue">例</a> を展開するとコード例が見られます（リンク先に飛んで少し上にスクロールバックすると <code>Example (Queue)</code> というのがありますのでクリックして展開してください）。</p>
+<p>この例では <code>Queue</code> 構造体がテストの対象ですが、テストを実行するための状態遷移マシンとして <code>queueMachine</code> という構造体を定義しています。</p>
+<p><code>queueMachine</code> の <code>Init</code> メソッドで初期化処理を実装します。
+初期化が不要な場合は <code>Init</code> メソッドは省略可能です。</p>
+<p>また後処理が必要な場合は <code>Cleanup</code> メソッドに実装します。</p>
+<p>なんらかのアクション（操作）を行った後、状態遷移マシンがあるべき状態を満たしているかを確認する処理を <code>Check</code> メソッドに実装します。</p>
+<p>それ以外のメソッドに各種アクションを実装します。</p>
+<p><code>Run</code> 関数のドキュメントにある通り、最初に <code>Init</code> を呼んで <code>Check</code> で確認し、その後はランダムにアクションを呼んで <code>Check</code> で確認を繰り返します。
+<code>Cleanup</code> メソッドがあれば、最後に後処理の際に呼び出します。</p>
+<p>ドキュメントでは概要ということで <code>for</code> は無限ループになっていますが、実際は十分な回数を実行したあと終了するようになっています。</p>
+<h4 id="状態遷移マシンは初期パラメータごとに型を定義する必要あり">状態遷移マシンは初期パラメータごとに型を定義する必要あり</h4>
+<p><a href="https://pkg.go.dev/pgregory.net/rapid?tab=doc#Run">Run(m *SateMachine) func(*T)</a> 関数のドキュメントに書かれていますが、 <code>Init</code> の前に状態遷移マシンを生成する疑似コードは
+<code>m := new(StateMachineType)</code> となっています。</p>
+<p>つまり引数の <code>m *StateMachine</code> のインスタンスがそのまま使われるわけではなく、その型情報を使って reflect でインスタンスを生成するようになっています。 <code>m</code> の中のデータは無視されると明記されています。</p>
+<p>ですので、初期パラメータを変えたい場合はそれごとに型を定義する必要があります。</p>
+<p>実際の例がこちらです。 <a href="https://github.com/hnakamur/whispertool/blob/ec224ff12e8097d2efe0fbd266ce682add9c90b2/internal/compattest/all_actions_test.go#L13-L108">all_actions_test.go#L13-L108</a></p>
+<p>長いので抜粋するとこんな感じです。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">allActionsMachineSmallSum0</span> <span class="kd">struct</span><span class="p">{</span> <span class="nx">allActionsMachine</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">m</span> <span class="o">*</span><span class="nx">allActionsMachineSmallSum0</span><span class="p">)</span> <span class="nf">Init</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">rapid</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">m</span><span class="p">.</span><span class="nx">allActionsMachine</span><span class="p">.</span><span class="nx">retentionDefs</span> <span class="p">=</span> <span class="s">&#34;1s:2s,2s:4s,4s:8s&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">m</span><span class="p">.</span><span class="nx">allActionsMachine</span><span class="p">.</span><span class="nx">aggregationMethod</span> <span class="p">=</span> <span class="s">&#34;sum&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">m</span><span class="p">.</span><span class="nx">allActionsMachine</span><span class="p">.</span><span class="nx">xFilesFactor</span> <span class="p">=</span> <span class="mf">0.0</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">m</span><span class="p">.</span><span class="nx">allActionsMachine</span><span class="p">.</span><span class="nf">Init</span><span class="p">(</span><span class="nx">t</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">allActionsMachineSmallSum05</span> <span class="kd">struct</span><span class="p">{</span> <span class="nx">allActionsMachine</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">m</span> <span class="o">*</span><span class="nx">allActionsMachineSmallSum05</span><span class="p">)</span> <span class="nf">Init</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">rapid</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">m</span><span class="p">.</span><span class="nx">allActionsMachine</span><span class="p">.</span><span class="nx">retentionDefs</span> <span class="p">=</span> <span class="s">&#34;1s:2s,2s:4s,4s:8s&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">m</span><span class="p">.</span><span class="nx">allActionsMachine</span><span class="p">.</span><span class="nx">aggregationMethod</span> <span class="p">=</span> <span class="s">&#34;sum&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">m</span><span class="p">.</span><span class="nx">allActionsMachine</span><span class="p">.</span><span class="nx">xFilesFactor</span> <span class="p">=</span> <span class="mf">0.5</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">m</span><span class="p">.</span><span class="nx">allActionsMachine</span><span class="p">.</span><span class="nf">Init</span><span class="p">(</span><span class="nx">t</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h4 id="独自の型のランダムな入力値は-rapidcustom-関数を使って生成する">独自の型のランダムな入力値は <code>rapid.Custom</code> 関数を使って生成する</h4>
+<p>上記の足し算のテストでの失敗例を見ると、その時の入力値が出力されます。</p>
+<pre tabindex="0"><code>    TestAdd/commutativity: add_test.go:11: [rapid] draw x: 0
+    TestAdd/commutativity: add_test.go:12: [rapid] draw y: -1
+</code></pre><p>独自の型の値の場合は <a href="https://pkg.go.dev/pgregory.net/rapid?tab=doc#Custom">Custom</a> 関数でカスタムのジェネレーターを定義してそれを使うと、失敗時の値が同様に出力されるので便利です。</p>
+<p><a href="https://pkg.go.dev/pgregory.net/rapid?tab=doc#example-Custom">Custom 関数の例</a> にシンプルな例があります。</p>
+<p>私が書いた実際の例がこちらです。
+<a href="https://github.com/hnakamur/whispertool/blob/ec224ff12e8097d2efe0fbd266ce682add9c90b2/internal/compattest/generator_test.go#L39-L56">generator_test.go#L39-L56</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">NewPointsForArchiveGenerator</span><span class="p">(</span><span class="nx">db</span> <span class="o">*</span><span class="nx">WhispertoolDB</span><span class="p">,</span> <span class="nx">archiveID</span> <span class="kt">int</span><span class="p">)</span> <span class="o">*</span><span class="nx">rapid</span><span class="p">.</span><span class="nx">Generator</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">rapid</span><span class="p">.</span><span class="nf">Custom</span><span class="p">(</span><span class="kd">func</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">rapid</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="nx">Points</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">var</span> <span class="nx">points</span> <span class="nx">Points</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">now</span> <span class="o">:=</span> <span class="nx">whispertool</span><span class="p">.</span><span class="nf">TimestampFromStdTime</span><span class="p">(</span><span class="nx">clock</span><span class="p">.</span><span class="nf">Now</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">archiveInfo</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">ArciveInfoList</span><span class="p">()[</span><span class="nx">archiveID</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">step</span> <span class="o">:=</span> <span class="nx">archiveInfo</span><span class="p">.</span><span class="nf">SecondsPerPoint</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">oldest</span> <span class="o">:=</span> <span class="nx">now</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="o">-</span><span class="nx">archiveInfo</span><span class="p">.</span><span class="nf">MaxRetention</span><span class="p">()).</span><span class="nf">Add</span><span class="p">(</span><span class="nx">step</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fillRatio</span> <span class="o">:=</span> <span class="nx">rapid</span><span class="p">.</span><span class="nf">Float64Range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">).</span><span class="nf">Draw</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span> <span class="s">&#34;fillRatio&#34;</span><span class="p">).(</span><span class="kt">float64</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="nx">timestamp</span> <span class="o">:=</span> <span class="nx">oldest</span><span class="p">;</span> <span class="nx">timestamp</span> <span class="o">&lt;=</span> <span class="nx">now</span><span class="p">;</span> <span class="nx">timestamp</span> <span class="p">=</span> <span class="nx">timestamp</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="nx">step</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">ptFillRatio</span> <span class="o">:=</span> <span class="nx">rapid</span><span class="p">.</span><span class="nf">Float64Range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">).</span><span class="nf">Draw</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span> <span class="s">&#34;ptFillRatio&#34;</span><span class="p">).(</span><span class="kt">float64</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="k">if</span> <span class="nx">ptFillRatio</span> <span class="p">&lt;</span> <span class="nx">fillRatio</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">v</span> <span class="o">:=</span> <span class="nx">rapid</span><span class="p">.</span><span class="nf">Float64</span><span class="p">().</span><span class="nf">Draw</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span> <span class="s">&#34;v&#34;</span><span class="p">).(</span><span class="kt">float64</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">points</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">points</span><span class="p">,</span> <span class="nx">whispertool</span><span class="p">.</span><span class="nx">Point</span><span class="p">{</span><span class="nx">Time</span><span class="p">:</span> <span class="nx">timestamp</span><span class="p">,</span> <span class="nx">Value</span><span class="p">:</span> <span class="nx">whispertool</span><span class="p">.</span><span class="nf">Value</span><span class="p">(</span><span class="nx">v</span><span class="p">)})</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">points</span>
+</span></span><span class="line"><span class="cl">  <span class="p">})</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>失敗時には値は <a href="https://golang.org/pkg/fmt/">fmt</a> パッケージの書式 <code>%#v</code> で <a href="https://github.com/flyingmutant/rapid/blob/v0.4.0/engine.go#L351">出力されます</a>。</p>
+<p>そこでテストのときのみ <code>%#v</code> の出力形式を変えるために、テスト専用の構造体を用意し <a href="https://golang.org/pkg/fmt/#Formatter">fmt.Formatter</a> インターフェースの <code>Format</code> メソッドを実装するようにしてみました。</p>
+<p><a href="https://github.com/hnakamur/whispertool/blob/ec224ff12e8097d2efe0fbd266ce682add9c90b2/internal/compattest/generator_test.go#L10-L14">generator_test.go#L10-L14</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Points</span> <span class="nx">whispertool</span><span class="p">.</span><span class="nx">Points</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">pp</span> <span class="nx">Points</span><span class="p">)</span> <span class="nf">Format</span><span class="p">(</span><span class="nx">f</span> <span class="nx">fmt</span><span class="p">.</span><span class="nx">State</span><span class="p">,</span> <span class="nx">c</span> <span class="kt">rune</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">f</span><span class="p">.</span><span class="nf">Write</span><span class="p">([]</span><span class="nb">byte</span><span class="p">(</span><span class="nx">whispertool</span><span class="p">.</span><span class="nf">Points</span><span class="p">(</span><span class="nx">pp</span><span class="p">).</span><span class="nf">String</span><span class="p">()))</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h2 id="property-based-testing-で既存の別実装との挙動の互換性を確認する使い方もある">Property Based Testing で既存の別実装との挙動の互換性を確認する使い方もある</h2>
+<p>上記の動画でも例として紹介されていますが、テスト対象の実装と同じ実装をテスト側にも書いて同じ結果になることを確認するのは無意味です。</p>
+<p>ですが、既存の別実装があってそれが正しい挙動をすると分かっている場合、自分の代替実装がその別実装と同じ挙動をするということを Property Based Testing で確認するのは有効な活用方法です。
+上記の動画では test oracle と呼ばれていました。</p>
+<h2 id="おわりに">おわりに</h2>
+<p>pgregory.net/rapid パッケージはまだアルファとのことですが、手軽に使えることが分かったので今後活用していこうと思います。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

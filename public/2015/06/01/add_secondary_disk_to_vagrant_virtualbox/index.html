@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Vagrant &#43; Virtualboxでのディスク追加 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Vagrant &#43; Virtualboxでのディスク追加</h1>
+  <time datetime=2015-06-01T06:04:04&#43;0900 class="post-date">2015-06-01</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#ディスク追加の設定">ディスク追加の設定</a></li>
+    <li><a href="#sata-controllerの作成はpackerで行っておく">SATA Controllerの作成はpackerで行っておく</a></li>
+  </ul>
+</nav>
+  <p>Vagrant + Virtualboxでのディスク追加についてのメモです。</p>
+<h2 id="ディスク追加の設定">ディスク追加の設定</h2>
+<ul>
+<li><a href="http://stackoverflow.com/questions/21050496/vagrant-virtualbox-second-disk-path/26743144#26743144">http://stackoverflow.com/questions/21050496/vagrant-virtualbox-second-disk-path/26743144#26743144</a></li>
+<li><a href="https://gist.github.com/leifg/4713995#comment-1206250">https://gist.github.com/leifg/4713995#comment-1206250</a></li>
+</ul>
+<p>を参考に以下のようにしました。</p>
+<pre tabindex="0"><code># -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure(2) do |config|
+  config.vm.box = &#39;base&#39;
+
+  config.vm.provider &#34;virtualbox&#34; do |p|
+    vagrant_root = File.dirname(File.expand_path(__FILE__))
+    file_to_disk = File.join(vagrant_root, &#39;ad1.vdi&#39;)
+    unless File.exist?(file_to_disk)
+      vb.customize [&#39;createhd&#39;, &#39;--filename&#39;, file_to_disk, &#39;--size&#39;, 500 * 1024]
+    end
+    vb.customize [&#39;storageattach&#39;, :id, &#39;--storagectl&#39;, &#39;SATA Controller&#39;, &#39;--port&#39;, 1, &#39;--device&#39;, 0, &#39;--type&#39;, &#39;hdd&#39;, &#39;--medium&#39;, file_to_disk]
+  end
+end
+</code></pre><p>上記の後者のリンク先では <code>Vagrantfile</code> のあるディレクトリを <code>VAGRANT_ROOT</code> と大文字で定数に設定していますが、私は <code>vagrant_root</code> と小文字で変数にしました。</p>
+<p>デバッグプリントを入れてみてわかったのですが、このブロックは1度ではなく複数回呼ばれます。定数だと既に初期化済みの警告が出るので変数にしたというわけです。</p>
+<h2 id="sata-controllerの作成はpackerで行っておく">SATA Controllerの作成はpackerで行っておく</h2>
+<p>上の設定だけでは <a href="https://github.com/hnakamur/freebsd-packer/tree/ef57aff51b02a03e658f0348eb5e463ed08735aa">https://github.com/hnakamur/freebsd-packer/tree/ef57aff51b02a03e658f0348eb5e463ed08735aa</a> で作ったFreeBSD 10.1 amd64のboxではSATA Controllerが無いためうまく行きませんでした。</p>
+<p><a href="https://gist.github.com/leifg/4713995#comment-1374268">https://gist.github.com/leifg/4713995#comment-1374268</a> でVagrantにモンキーパッチで対応しようとしているがうまくいかない例がありました。</p>
+<p><a href="https://github.com/mitchellh/vagrant/issues/4015#issuecomment-45930125">Rescue customization exception · Issue #4015 · mitchellh/vagrant</a>のVagrant開発者のコメントで、Vagrantfileの設定は手続き型ではなく宣言型なので、Vagrantfileの設定では無理でVagrantプラグインを作る必要があると書かれています。</p>
+<p>結局 <a href="https://github.com/hnakamur/freebsd-packer/commit/fc041427ffd9de330d390036ebd0948f01e707fe">https://github.com/hnakamur/freebsd-packer/commit/fc041427ffd9de330d390036ebd0948f01e707fe</a> のようにpackerのテンプレートを作る際にSATA Controllerも作っておくのがお手軽だったのでそうしました。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

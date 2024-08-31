@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>KeePassとKeeAgentでWSL2用にssh-agentを動かす &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>KeePassとKeeAgentでWSL2用にssh-agentを動かす</h1>
+  <time datetime=2020-05-29T19:59:34&#43;0900 class="post-date">2020-05-29</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#keepass-と-keeagent-プラグインをセットアップ">KeePass と KeeAgent プラグインをセットアップ</a></li>
+    <li><a href="#npiperelayexe-のセットアップ">npiperelay.exe のセットアップ</a></li>
+    <li><a href="#wsl2-の-ubuntu-で-socat-パッケージをインストール">WSL2 の Ubuntu で socat パッケージをインストール</a></li>
+    <li><a href="#wsl2-の-ubuntu-で-bashrc-を編集">WSL2 の Ubuntu で ~/.bashrc を編集</a></li>
+    <li><a href="#wsl2-で-ssh-agent-を使う">WSL2 で ssh-agent を使う</a></li>
+    <li><a href="#keepass--keeagent-の通知設定">KeePass + KeeAgent の通知設定</a></li>
+    <li><a href="#2020-08-23-追記-keepassxc-標準の-ssh-agent-client-機能でもok">2020-08-23 追記： KeePassXC 標準の ssh-agent client 機能でもOK</a></li>
+    <li><a href="#2020-08-23-追記-ubuntu-の-keepassxc-で-ssh-agent-client-機能を使う">2020-08-23 追記： Ubuntu の KeePassXC で ssh-agent client 機能を使う</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="/blog/2020/03/06/setup-wsl-ssh-agent/">wsl-ssh-agentでWindows Subsystem for LinuxからWindowsのssh-agentを使う設定手順 · hnakamur&rsquo;s blog</a> は快適だったのですが WSL2 では使えないことが分かりました。</p>
+<p><a href="https://github.com/rupor-github/wsl-ssh-agent">wsl-ssh-agent</a> の
+<a href="https://github.com/rupor-github/wsl-ssh-agent#wsl-2-compatibility">WSL 2 compatibility</a> に回避策が書いてあるのを見つけ
+<a href="https://medium.com/@pscheit/use-an-ssh-agent-in-wsl-with-your-ssh-setup-in-windows-10-41756755993e">Use an ssh-agent in WSL with your ssh setup from windows 10</a> も読んで設定してみたので手順をメモしておきます。</p>
+<h2 id="keepass-と-keeagent-プラグインをセットアップ">KeePass と KeeAgent プラグインをセットアップ</h2>
+<p><a href="https://keepass.info/">KeePass Password Safe</a> はパスワードマネージャーですが、 <a href="https://lechnology.com/software/keeagent/">KeeAgent – lechnology.com</a> プラグインを入れると experimental ではありますが ssh-agent が動かせるんですね。</p>
+<p>私は以前 KeePass から <a href="https://keepassxc.org/">KeePassXC Password Manager</a> に乗り換えていたのですが、今回 KeePass に戻しました（→ KeePassXC でもssh-agentクライアント機能は使えました。追記参照）。</p>
+<p>セットアップの手順は以下の通りです。</p>
+<ol>
+<li><a href="https://keepass.info/download.html">Downloads - KeePass</a> から KeePass 2.x のインストーラーをダウンロードしてインストール。</li>
+<li><a href="https://lechnology.com/software/keeagent/#download">KeeAgent の Download</a> から KeeAgent の zip ファイルをダウンロード。</li>
+<li>KeePass を起動し [Tools]/[Plugins] メニューを開き、 Plugins ダイアログ下部の [Open Folder] ボタンを押す。</li>
+<li>エクスプローラーで KeePass のプラグインのフォルダーが開いたら、 KeeAgent の zip ファイル内の <code>KeeAgent.plgx</code> ファイルをそこにコピー。</li>
+<li>KeePass を一旦終了し再度起動してKeeAgent プラグインのインストールが終わったら KeePass の [Tools]/[Options] メニューを選んで Options ダイアログを開き KeeAgent タブの [Enable agent for Windows OpenSSH (experimental)] チェックボックスにチェックして [OK] ボタンを押す。</li>
+</ol>
+<h2 id="npiperelayexe-のセットアップ">npiperelay.exe のセットアップ</h2>
+<p><a href="https://github.com/rupor-github/wsl-ssh-agent/releases/tag/v1.4.2">Releases · rupor-github/wsl-ssh-agent</a> の最新リリース &ldquo;WSL 2 workaround&rdquo; の Assets の <code>wsl-ssh-agent.7z</code> をダウンロードします(2021-07-04追記: <a href="https://github.com/rupor-github/wsl-ssh-agent/releases">Releases · rupor-github/wsl-ssh-agent</a> にさらに新しいバージョンが出ています)。</p>
+<p>解凍のために <a href="https://sevenzip.osdn.jp/">圧縮・解凍ソフト 7-Zip</a> をダウンロード、インストールします。</p>
+<p>インストール後、エクスプローラーで <code>wsl-ssh-agent.7z</code> を選んでポップアップメニューを開き [7-Zip]/[展開&hellip;] メニューを選んで解凍します。</p>
+<p>wsl-ssh-agent というフォルダーが作られますので、お好みの場所に移動します。</p>
+<p>ここでは <code>C:\wsl-ssh-agent</code> に移動したとして説明を続けます。</p>
+<p>このフォルダーには今回使用する <code>npiperelay.exe</code> が含まれています。</p>
+<h2 id="wsl2-の-ubuntu-で-socat-パッケージをインストール">WSL2 の Ubuntu で socat パッケージをインストール</h2>
+<p>以下のコマンドを実行してインストールします。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo apt update
+</span></span></span><span class="line"><span class="cl"><span class="go">sudo apt -y install socat
+</span></span></span></code></pre></div><h2 id="wsl2-の-ubuntu-で-bashrc-を編集">WSL2 の Ubuntu で ~/.bashrc を編集</h2>
+<p><a href="https://github.com/rupor-github/wsl-ssh-agent#wsl-2-compatibility">WSL 2 compatibility</a> に書いてある設定のうち <code>npireplay.exe</code> のパスを自分の環境に応じて書き換えて <code>~/.bashrc</code> に追記します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-txt" data-lang="txt"><span class="line"><span class="cl">export SSH_AUTH_SOCK=$HOME/.ssh/agent.sock
+</span></span><span class="line"><span class="cl">ss -a | grep -q $SSH_AUTH_SOCK
+</span></span><span class="line"><span class="cl">if [ $? -ne 0 ]; then
+</span></span><span class="line"><span class="cl">    rm -f $SSH_AUTH_SOCK
+</span></span><span class="line"><span class="cl">    ( setsid socat UNIX-LISTEN:$SSH_AUTH_SOCK,fork EXEC:&#34;/mnt/c/wsl-ssh-agent/npiperelay.exe -ei -s //./pipe/openssh-ssh-agent&#34;,nofork &amp; ) &gt;/dev/null 2&gt;&amp;1
+</span></span><span class="line"><span class="cl">fi
+</span></span></code></pre></div><h2 id="wsl2-で-ssh-agent-を使う">WSL2 で ssh-agent を使う</h2>
+<p>WSL2 の端末を開きなおすか <code>exec $SHELL -l</code> を実行すれば ssh-agent が使える状態になります。</p>
+<p>あとは普段通り <code>ssh-add -l</code> で登録済みの鍵一覧表示、 <code>ssh-add ~/.ssh/id_ed25519</code> などで鍵を ssh-agent に追加します。</p>
+<h2 id="keepass--keeagent-の通知設定">KeePass + KeeAgent の通知設定</h2>
+<p>デフォルトでは ssh-agent の鍵を利用するたびに Windows の通知バナーが表示され、音が鳴ります。</p>
+<p>Windows のタスクバーのアクションセンターのアイコン（あるいは Win+A キー）を押してアクションセンターを開き [通知の管理] を押します。</p>
+<p>[送信元ごとの通知の受信設定] の一覧で KeePass をクリックしてお好みで調整します。</p>
+<h2 id="2020-08-23-追記-keepassxc-標準の-ssh-agent-client-機能でもok">2020-08-23 追記： KeePassXC 標準の ssh-agent client 機能でもOK</h2>
+<p>その後 <a href="https://keepassxc.org/">KeePassXC Password Manager</a> の ssh-agent client 機能でも大丈夫なことに気づきました。</p>
+<p>[ツール]/[設定]メニューを選んで左のリストで[SSHエージェント]を選び、以下の2つのチェックボックスをオンにします。</p>
+<ul>
+<li>SSH エージェント統合を有効にする</li>
+<li>Pageant の代わりに OpenSSH for Windows を利用する</li>
+</ul>
+<p><a href="https://hnakamur.github.io/blog/2020/02/22/install-openssh-client-to-windows10/">Windows 10 に OpenSSH クライアントをインストール · hnakamur&rsquo;s blog</a> の手順で Windows の OpenSSH をインストールして ssh-agent サービスを動かしておく前提です。</p>
+<p>この状態で KeePassXC のパスワードエントリに SSH の秘密鍵ファイルを添付し、パスフレーズをパスワードとして登録しておきます。でソノエントリを選んでポップアップメニューの[鍵をSSHエージェントに追加]メニューを選択します。</p>
+<p>すると KeePassXC のマスターパスワードを入力してデータベースを開いた状態にすると ssh-agent に鍵が登録されます。 KeePassXC のデータベースをロック状態にすると ssh-agent から鍵は削除された状態になります。これは便利！</p>
+<h2 id="2020-08-23-追記-ubuntu-の-keepassxc-で-ssh-agent-client-機能を使う">2020-08-23 追記： Ubuntu の KeePassXC で ssh-agent client 機能を使う</h2>
+<p>WSL2 とは無関係ですが KeePassXC 関連ということでついでに追記です。</p>
+<p>Ubuntu の KeePassXC の ssh-agent client 機能を使うと Agent connection failed をいうエラーが出て困っていたのですが、今日原因と回避策を <a href="https://github.com/keepassxreboot/keepassxc/issues/1951#issuecomment-474688638">SSH Agent integration does not work with snap build · Issue #1951 · keepassxreboot/keepassxc</a> で知りました。</p>
+<p>snap のサンドボックスで制限されていたのが原因でした。 classic モードでインストールする技も今は使えなくっているそうで、以下のように開発モードでインストールすれば ssh-agent client 機能が使えました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo snap install --devmode keepassxc
+</span></span></span></code></pre></div><p>インストール済みの場合は一旦アンインストールしてから上記のコマンドで再度インストールすればOKです。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Ubuntu 18.04でcopr-cliのdebパッケージを作ったときのメモ &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Ubuntu 18.04でcopr-cliのdebパッケージを作ったときのメモ</h1>
+  <time datetime=2018-05-01T12:35:00&#43;0900 class="post-date">2018-05-01</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#ubuntu-1804ではcoprとcopr-cliパッケージを作った">Ubuntu 18.04ではcoprとcopr-cliパッケージを作った</a></li>
+    <li><a href="#python-coprのdebパッケージ作成">python-coprのdebパッケージ作成</a>
+      <ul>
+        <li></li>
+      </ul>
+    </li>
+    <li><a href="#copr-cliのdebパッケージ作成">copr-cliのdebパッケージ作成</a>
+      <ul>
+        <li></li>
+      </ul>
+    </li>
+    <li><a href="#ppaでcoprとcopr-cliをビルド">PPAでcoprとcopr-cliをビルド</a></li>
+    <li><a href="#ppaでビルドしたcopr-cliをインストール">PPAでビルドしたcopr-cliをインストール</a></li>
+    <li><a href="#ubuntu-2004-lts-では-python3-の-venv-を使うことにした2020-05-31-追記">Ubuntu 20.04 LTS では python3 の venv を使うことにした（2020-05-31 追記）</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="http://localhost:8000/2018/04/21/setup-mock-and-copr-cli-for-building-rpm-on-ubuntu-16.04/">Ubuntu16.04でrpmビルド用にmockとcopr-cliをセットアップ</a> に書いた copr-cli パッケージのビルド手順をサボってメモしてなかったのですが、Ubuntu 18.04 用にビルドする時に手間取ったのでメモしておきます。と言いつつ作業後に思い出しながら書いているので適当です。</p>
+<h2 id="ubuntu-1804ではcoprとcopr-cliパッケージを作った">Ubuntu 18.04ではcoprとcopr-cliパッケージを作った</h2>
+<p>Ubuntu 16.04のときは <a href="https://launchpad.net/~hnakamur/+archive/ubuntu/copr-cli">copr-cliのPPA</a> で以下の3つのパッケージをビルド・公開していました。</p>
+<ul>
+<li>marshmallow</li>
+<li>copr</li>
+<li>copr-cli</li>
+</ul>
+<p>このうち marshmallow というバイナリ形式のシリアライズ用ライブラリは Ubuntu 18.04 には含まれるようになっていました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> dpkg -l python3-marshmallow
+</span></span><span class="line"><span class="cl"><span class="go">Desired=Unknown/Install/Remove/Purge/Hold
+</span></span></span><span class="line"><span class="cl"><span class="go">| Status=Not/Inst/Conf-files/Unpacked/halF-conf/Half-inst/trig-aWait/Trig-pend
+</span></span></span><span class="line"><span class="cl"><span class="go">|/ Err?=(none)/Reinst-required (Status,Err: uppercase=bad)
+</span></span></span><span class="line"><span class="cl"><span class="go">||/ Name                    Version          Architecture     Description
+</span></span></span><span class="line"><span class="cl"><span class="go">+++-=======================-================-================-====================================================
+</span></span></span><span class="line"><span class="cl"><span class="go">ii  python3-marshmallow     3.0.0b3-1        all              Lightweight library for converting complex datatypes
+</span></span></span></code></pre></div><p>ということでpython3-marshmallowはUbuntu標準のパッケージを使うことにしてcoprとcopr-cliパッケージを作りました。</p>
+<h2 id="python-coprのdebパッケージ作成">python-coprのdebパッケージ作成</h2>
+<h4 id="coprのソースtarball作成">coprのソースtarball作成</h4>
+<p>upstreamのソースtarballを一時的に置くためのディレクトリを作ります。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">mkdir ~/copr-cli-work
+</span></span></span></code></pre></div><p><a href="https://pagure.io/copr/copr">coprのレポジトリ</a> からソースを取得します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">ghq get https://pagure.io/copr/copr
+</span></span></span></code></pre></div><p>取得したディレクトリに移動してgitのtagを確認します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">cd ~/.ghq/pagure.io/copr/copr
+</span></span></span><span class="line"><span class="cl"><span class="go">git tag
+</span></span></span></code></pre></div><p>.. code-block:: console</p>
+<pre><code>git checkout python-copr-1.87-1
+cd python
+tar cf - . | gzip -9 &gt; ~/copr-cli-work/python-copr-1.87.tar.gz
+</code></pre>
+<h4 id="python-coprのdebパッケージ作成-1">python-coprのdebパッケージ作成</h4>
+<p><a href="https://github.com/hnakamur/copr-deb">hnakamur/copr-deb</a> のローカルディレクトリに移動して上記のtarballを取り込みます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">cd ~/.ghq/github.com/hnakamur/copr-deb
+</span></span></span><span class="line"><span class="cl"><span class="go">gbp import-orig --pristine-tar -u 1.87 ~/copr-cli-work/python-copr-1.87.tar.gz
+</span></span></span></code></pre></div><p>あとはいつもの手順でビルドして、ローカルのfreightに追加します。</p>
+<p>ローカルのfreightレポジトリはnginxで以下のような設定をして <code>http://127.0.0.1/freight</code> でアクセスできるようにしておきます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">location /freight {
+</span></span><span class="line"><span class="cl">    alias /var/cache/freight;
+</span></span><span class="line"><span class="cl">}
+</span></span></code></pre></div><h2 id="copr-cliのdebパッケージ作成">copr-cliのdebパッケージ作成</h2>
+<h4 id="ローカルのfreightレポジトリを加えたpbuilderのchroot環境作成">ローカルのfreightレポジトリを加えたpbuilderのchroot環境作成</h4>
+<p>baseのchrootをコピーして変更していきます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo cp /var/cache/pbuilder/{base,with-local-repo}.tar.gz
+</span></span></span></code></pre></div><p>.. code-block:: console</p>
+<pre><code>sudo pbuilder login --basetgz /var/cache/pbuilder/with-local-repo.tar.gz --save-after-login
+</code></pre>
+<p>chroot環境内で以下のようにしてレポジトリを追加します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">apt install -y curl gnupg2
+</span></span></span><span class="line"><span class="cl"><span class="go">curl http://127.0.0.1/freight/pubkey.gpg | apt-key add -
+</span></span></span><span class="line"><span class="cl"><span class="go">echo &#39;deb http://127.0.0.1/freight bionic main&#39; | tee /etc/apt/sources.list.d/my-debs.list
+</span></span></span><span class="line"><span class="cl"><span class="go">exit
+</span></span></span></code></pre></div><p><a href="https://hnakamur.github.io/blog/2017/09/02/add-repositories-to-pbuilder-chroot-images/">pbuilderのchroot環境にレポジトリを追加する</a> の「ビルド時に apt update するための設定」を行ってビルド時にfreightのレポジトリの最新の内容を参照できるようにしておきます。</p>
+<h4 id="copr-cliのソースtarball作成">copr-cliのソースtarball作成</h4>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">cd ~/.ghq/pagure.io/copr/copr
+</span></span></span><span class="line"><span class="cl"><span class="go">git checkout copr-cli-1.67-1
+</span></span></span><span class="line"><span class="cl"><span class="go">cd cli
+</span></span></span><span class="line"><span class="cl"><span class="go">tar cf - . | gzip -9 &gt; ~/copr-cli-work/copr-cli-1.67-1.tar.gZ
+</span></span></span></code></pre></div><h4 id="copr-cliのdebパッケージ作成-1">copr-cliのdebパッケージ作成</h4>
+<p><a href="https://github.com/hnakamur/copr-cli-deb">hnakamur/copr-cli-deb</a> のローカルディレクトリに移動して上記で作成したtarballを取り込みます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">cd ~/.ghq/github.com/hnakamur/copr-cli-deb
+</span></span></span><span class="line"><span class="cl"><span class="go">gbp import-orig --pristine-tar -u 1.67 ~/copr-cli-work/copr-cli-1.67-1.tar.gZ
+</span></span></span></code></pre></div><p>あとはいつもと同様にして debian/changelog の更新とコミット、タグ作成とソースパッケージの作成までを行います。</p>
+<p>pbuilderでローカルでdebパッケージをビルドする際に <code>--basetgz</code> オプションで上記で作成したchroot環境を指定します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo pbuilder build --basetgz /var/cache/pbuilder/with-freight.tgz ../build-area/copr-cli_1.67-1ppa1.dsc
+</span></span></span></code></pre></div><p>ローカルでのビルドが終わったらローカルのfreightのレポジトリに追加して、そこからインストールして動作確認を行います。</p>
+<h2 id="ppaでcoprとcopr-cliをビルド">PPAでcoprとcopr-cliをビルド</h2>
+<p>まずcoprをPPAでビルドします。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">cd ~/.ghq/github.com/hnakamur/copr-deb
+</span></span></span><span class="line"><span class="cl"><span class="go">dput ppa:hnakamur/copr-cli ../build-area/copr_1.87-1ppa1_source.changes
+</span></span></span></code></pre></div><p>無事ビルドが完了したら、次はcopr-cliをビルドします。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">cd ~/.ghq/github.com/hnakamur/copr-cli-deb
+</span></span></span><span class="line"><span class="cl"><span class="go">dput ppa:hnakamur/copr-cli ../build-area/copr-cli_1.67-1ppa1_source.changes
+</span></span></span></code></pre></div><h2 id="ppaでビルドしたcopr-cliをインストール">PPAでビルドしたcopr-cliをインストール</h2>
+<p>ローカルのfreightからインストールしたパッケージをアンインストールします。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo apt remove python3-copr python3-copr-cli
+</span></span></span></code></pre></div><p>PPAからcopr-cliをインストールします。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo add-apt-repository ppa:hnakamur/copr-cli
+</span></span></span><span class="line"><span class="cl"><span class="go">sudo apt-get update
+</span></span></span><span class="line"><span class="cl"><span class="go">sudo apt install python3-copr-cli
+</span></span></span></code></pre></div><h2 id="ubuntu-2004-lts-では-python3-の-venv-を使うことにした2020-05-31-追記">Ubuntu 20.04 LTS では python3 の venv を使うことにした（2020-05-31 追記）</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo apt update
+</span></span></span><span class="line"><span class="cl"><span class="go">sudo apt -y install python3-venv
+</span></span></span><span class="line"><span class="cl"><span class="go">python3 -m venv ~/copr-cli-venv
+</span></span></span><span class="line"><span class="cl"><span class="go">source ~/copr-cli-venv/bin/activate
+</span></span></span><span class="line"><span class="cl"><span class="go">pip install wheel
+</span></span></span><span class="line"><span class="cl"><span class="go">pip install copr-cli
+</span></span></span></code></pre></div><p>あとは <a href="/blog/2018/04/21/setup-mock-and-copr-cli-for-building-rpm-on-ubuntu-16.04/">Ubuntu16.04でrpmビルド用にmockとcopr-cliをセットアップ · hnakamur&rsquo;s blog</a> に書いた通り、ブラウザで <a href="https://copr.fedorainfracloud.org/api/">API for Copr</a>  を開き fedora coprアカウントでログインするとAPIトークンのファイルの内容が表示されますので、 それを ~/.config/copr というファイルに保存します。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

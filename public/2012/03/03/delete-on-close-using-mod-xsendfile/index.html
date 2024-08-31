@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>mod_xsendfileでダウンロード後にサーバ上のファイル自動削除 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>mod_xsendfileでダウンロード後にサーバ上のファイル自動削除</h1>
+  <time datetime=2012-03-03T00:00:00Z class="post-date">2012-03-03</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#mod_xsendfileのインストール">mod_xsendfileのインストール</a></li>
+    <li><a href="#実験">実験</a></li>
+    <li><a href="#今回のはまりポイント">今回のはまりポイント</a></li>
+  </ul>
+</nav>
+  <p><a href="https://tn123.org/mod_xsendfile/">mod_xsendfile</a>のホームページ上でリリースされているバージョン0.12には含まれていませんが、<a href="https://github.com/nmaier/mod_xsendfile/commit/f6b853ce0e555b61f83f928d9f927349346018b4">Githubのレポジトリのソース</a>ではX-Sendfile-Temporaryという拡張ヘッダに対応しています。</p>
+<p>Scientific Linux 6.1で実験しました。</p>
+<h2 id="mod_xsendfileのインストール">mod_xsendfileのインストール</h2>
+<p>以下の手順でインストールします。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">yum install -y httpd-devel
+</span></span><span class="line"><span class="cl">git clone https://github.com/nmaier/mod_xsendfile.git
+</span></span><span class="line"><span class="cl"><span class="nb">cd</span> mod_xsendfile
+</span></span><span class="line"><span class="cl">apxs -cia mod_xsendfile.c
+</span></span></code></pre></div><p>実験スクリプト用にApacheの設定ファイルを作成します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">&lt;Directory /var/www/html/xsendfile&gt;
+</span></span><span class="line"><span class="cl">    XSendFilePath /var/www/html/xsendfile/data AllowFileDelete
+</span></span><span class="line"><span class="cl">    &lt;Files out.php&gt;
+</span></span><span class="line"><span class="cl">      XSendFile on
+</span></span><span class="line"><span class="cl">    &lt;/Files&gt;
+</span></span><span class="line"><span class="cl">&lt;/Directory&gt;
+</span></span></code></pre></div><p>Apache再起動。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">/etc/init.d/httpd graceful
+</span></span></code></pre></div><h2 id="実験">実験</h2>
+<p>実験スクリプト用のフォルダを作ります。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">mkdir /var/www/html/xsendfile/data/
+</span></span><span class="line"><span class="cl">chown -R apache:apache /var/www/html/xsendfile
+</span></span></code></pre></div><p>実験用のPHPスクリプトを作成します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-php" data-lang="php"><span class="line"><span class="cl"><span class="o">&lt;?</span><span class="nx">php</span>
+</span></span><span class="line"><span class="cl"><span class="nv">$path</span> <span class="o">=</span> <span class="s1">&#39;/var/www/html/xsendfile/data/file1.txt&#39;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="nv">$fname</span> <span class="o">=</span> <span class="nx">basename</span><span class="p">(</span><span class="nv">$path</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="nx">header</span><span class="p">(</span><span class="s2">&#34;X-Sendfile-Temporary: </span><span class="si">$path</span><span class="s2">&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="nx">header</span><span class="p">(</span><span class="s2">&#34;Content-Type: application/octet-stream&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="nx">header</span><span class="p">(</span><span class="s2">&#34;Content-Disposition: attachment; filename=</span><span class="se">\&#34;</span><span class="si">$fname\</span><span class="s2">&#34;&#34;);
+</span></span></span></code></pre></div><p>実験用のダウンロードファイルを作成します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">Hello, X-Sendfile-Temporary!
+</span></span></code></pre></div><p>これで、ブラウザで http://your_host_here/xsendfile/out.php を開くとダウンロード後にサーバ上のファイルが削除されました。</p>
+<h2 id="今回のはまりポイント">今回のはまりポイント</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">&lt;Directory /var/www/html/xsendfile&gt;
+</span></span><span class="line"><span class="cl">    XSendFilePath /var/www/html/xsendfile/data
+</span></span><span class="line"><span class="cl">    &lt;Files out.php&gt;
+</span></span><span class="line"><span class="cl">      XSendFile on
+</span></span><span class="line"><span class="cl">    &lt;/Files&gt;
+</span></span><span class="line"><span class="cl">&lt;/Directory&gt;
+</span></span></code></pre></div><p>のようにAllowFileDeleteを忘れていたら、out.phpを開いた時に404 Not Foundエラーになり、Apacheのエラーログには以下のようなエラーが出ていました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">[Sat Mar 03 15:57:07 2012] [error] [client 192.168.11.3] (14)Bad address: xsendfile: cannot open file: (null)
+</span></span></code></pre></div><p>AllowFileDeleteをつければOKでした。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

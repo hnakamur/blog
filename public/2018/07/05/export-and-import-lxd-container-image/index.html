@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>LXDのコンテナイメージのエクスポート・インポート &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>LXDのコンテナイメージのエクスポート・インポート</h1>
+  <time datetime=2018-07-05T14:50:00&#43;0900 class="post-date">2018-07-05</time>
+  <nav id="TableOfContents"></nav>
+  <h1 id="はじめに">はじめに</h1>
+<p><a href="/blog/2018/07/04/saml2-single-sign-on-with-nginx-and-shibboleth/">nginxとshibbolethでSAML2のシングルサインオンを試してみた</a> で使ったCentOS7のLXDコンテナのイメージをエクスポートし、別のマシンにコピーしてインポートするのを試してみたのでメモです。</p>
+<p>LXD 3.2で試しました。</p>
+<p><a href="https://discuss.linuxcontainers.org/t/backup-the-container-and-install-it-on-another-server/463/2">Backup the container and install it on another server - LXD - Linux Containers Forum</a> の手順ほぼそのままでOKでした。</p>
+<p>リモートのLXDにアクセスできる場合は、このコメントのように <code>lxc copy</code> コマンド一発でコピーできるのですが、今回はエクスポートしてインポートする方式を試しました。</p>
+<h1 id="エクスポート">エクスポート</h1>
+<p>まずスナップショットを作成します。 以下のコマンドを <code>CONTAINER_NAME</code> を実際の環境に合わせて変更して実行します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">lxc snapshot CONTAINER_NAME
+</span></span></span></code></pre></div><p>コンテナのスナップショット一覧は以下のコマンドで確認できます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">lxc info CONTAINER_NAME --verbose
+</span></span></span></code></pre></div><p>実行例を示します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> lxc info --verbose centos7
+</span></span><span class="line"><span class="cl"><span class="go">Name: centos7
+</span></span></span><span class="line"><span class="cl"><span class="go">…(略)…
+</span></span></span><span class="line"><span class="cl"><span class="go">Snapshots:
+</span></span></span><span class="line"><span class="cl"><span class="go">  snap0 (taken at 2018/07/05 06:02 UTC) (stateless)
+</span></span></span></code></pre></div><p>次に <code>lxc publish</code> でスナップショットをイメージに変換します。
+以下のコマンドを <code>CONTAINER_NAME</code> と <code>SNAPSHOT_NAME</code> を実際の環境に合わせて変更し <code>--alias</code> の引数の <code>my-export</code> をお好みの名前に変えて実行します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">lxc publish CONTAINER_NAME/SNAPSHOT_NAME --alias my-export
+</span></span></span></code></pre></div><p>実行例です。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> lxc publish centos7/snap0 --alias my-export
+</span></span><span class="line"><span class="cl"><span class="go">Container published with fingerprint: fd1e60e8d58e3bad3e67eb5de3ac1ad148718f2339ad3709ad35bd636d65cf770
+</span></span></span></code></pre></div><p><code>lxc image list</code> でローカルのイメージを一覧表示すると <code>my-export</code> というエイリアスを持つイメージが含まれることが確認できます。</p>
+<p>あとはイメージをエクスポートするだけです。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">lxc image export my-export .
+</span></span></span></code></pre></div><p><code>Image exported successfully!</code> と表示されたら成功です。カレントディレクトリに publish したときの fingerprint をベース名に持つtarballのファイルが作られていました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> ls
+</span></span><span class="line"><span class="cl"><span class="go">fd1e60e8d58e3bad3e67eb5de3ac1ad148718f2339ad3709ad35bd636d65cf77.tar.gz
+</span></span></span></code></pre></div><h1 id="インポート">インポート</h1>
+<p>事前準備として上記の手順でエクスポートしたtarballのファイルをインポートしたいマシンに何らかの方法でコピーしておきます。</p>
+<p>まずtarballのファイルをイメージとしてインポートします。<code>TARBALL</code> の部分を実際のファイル名に置き換えて以下のコマンドを実行してください。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">lxc image import TARBALL --alias my-export
+</span></span></span></code></pre></div><p>あとはこのイメージを元にコンテナを作成します。<code>NEW-CONTAINER</code> の部分をお好みのコンテナ名に変更して以下のコマンドを実行してください。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">lxc init my-export NEW-CONTAINER
+</span></span></span></code></pre></div>
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

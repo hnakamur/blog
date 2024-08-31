@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>GoでHTTPの通信をキャプチャーするライブラリを書いた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>GoでHTTPの通信をキャプチャーするライブラリを書いた</h1>
+  <time datetime=2023-02-23T18:04:15&#43;0900 class="post-date">2023-02-23</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#githubcomgooglegopacket-について">github.com/google/gopacket について</a></li>
+    <li><a href="#パケットのデータをhttpリクエストとレスポンスに変換">パケットのデータをHTTPリクエストとレスポンスに変換</a></li>
+    <li><a href="#bpfのフィルタのコンパイル">bpfのフィルタのコンパイル</a></li>
+    <li><a href="#gobuildタグでcgoありとなしで実装を切り替え">go:buildタグでCgoありとなしで実装を切り替え</a></li>
+    <li><a href="#サンプルcliの実行例">サンプルCLIの実行例</a></li>
+    <li><a href="#特殊なデバイス名anyの扱い">特殊なデバイス名anyの扱い</a></li>
+    <li><a href="#横道-自ホストのipアドレスを指定した場合もloデバイスを通る">(横道) 自ホストのIPアドレスを指定した場合もloデバイスを通る</a></li>
+    <li><a href="#深いモジュールになるよう心掛けた">「深いモジュール」になるよう心掛けた</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="https://trafficserver.apache.org/">Apache Traffic Server</a>の挙動を調べるときに、tcpdumpでパケットをキャプチャすることがあります。
+アクセスログを見るだけだと、upstreamへのアクセスが失敗してリトライするようなケースでもログは1件しか出ないのですが、パケットのログを見れば全てのHTTPリクエストとレスポンスが見られて便利です。
+私は以下のようなスクリプトを使っています(対象のポートは適宜調整)。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="cp">#!/bin/bash
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="nb">set</span> -eu
+</span></span><span class="line"><span class="cl"><span class="nv">log_basename</span><span class="o">=</span>tcpdump-<span class="k">$(</span>hostname<span class="k">)</span>-<span class="k">$(</span>date +%Y%m%d-%H%M%S<span class="k">)</span>
+</span></span><span class="line"><span class="cl">tcpdump -i any -U -w <span class="si">${</span><span class="nv">log_basename</span><span class="si">}</span>.dat tcp port <span class="s1">&#39;(80 or 8080)&#39;</span>
+</span></span><span class="line"><span class="cl">tcpdump -A -n -vvv -r <span class="si">${</span><span class="nv">log_basename</span><span class="si">}</span>.dat &gt; <span class="si">${</span><span class="nv">log_basename</span><span class="si">}</span>.log
+</span></span></code></pre></div><p>通信を行う前にこのスクリプトを実行しておいて、通信後 Ctrl-C を押すと1つめのtcpdumpが終了して、2つめのtcpdumpでバイナリのデータファイルをテキストに変換します。</p>
+<p>ただ、tcpdumpはあくまでTCPのレベルなので、HTTPのリクエストとレスポンスを対応して表示してくれるわけではありません。
+IPアドレスとポートの組み合わせを見て人間が対応付けて見る必要があります。</p>
+<p><a href="https://pkg.go.dev/github.com/google/gopacket">github.com/google/gopacket</a>というライブラリを以前見かけて気になっていたのですが、今回試してみたのでメモです。
+作ったライブラリは<a href="https://github.com/hnakamur/httpcapt">hnakamur/httpcapt</a>に置きました。</p>
+<h2 id="githubcomgooglegopacket-について">github.com/google/gopacket について</h2>
+<p>ネットワークデバイスからキャプチャーする部分は<a href="https://pkg.go.dev/github.com/google/gopacket@v1.1.19/pcap">github.com/google/gopacket/pcap</a>と<a href="https://pkg.go.dev/github.com/google/gopacket@v1.1.19/pcapgo">github.com/google/gopacket/pcapgo</a>という2つのサブパッケージが利用可能です。</p>
+<p><a href="https://pkg.go.dev/github.com/google/gopacket@v1.1.19/pcap">github.com/google/gopacket/pcap</a>はLinuxだとlibpcapとCgoを使います。
+<a href="https://pkg.go.dev/github.com/google/gopacket@v1.1.19/pcapgo">github.com/google/gopacket/pcapgo</a>はLinuxのみ対応ですが pure Go で実装されています。</p>
+<h2 id="パケットのデータをhttpリクエストとレスポンスに変換">パケットのデータをHTTPリクエストとレスポンスに変換</h2>
+<p><a href="https://github.com/google/gopacket/tree/master/examples">examples</a>ディレクトリの<a href="https://github.com/google/gopacket/blob/master/examples/httpassembly/main.go">gopacket/main.go</a>にパケットのデータをHTTPリクエストに変換する例があります。今回のライブラリはこれを参考に発展させて作りました。</p>
+<p><a href="https://pkg.go.dev/net/http@go1.20.1">net/http</a>の<a href="https://pkg.go.dev/net/http@go1.20.1#ReadRequest">ReadRequest</a>でHTTPリクエストのヘッダまでを読み込んでいます。ドキュメントにHTTP/1.1のみ対応とあり、HTTP/2は<a href="https://pkg.go.dev/golang.org/x/net/http2">golang.org/x/net/http2</a>を使えと書かれていました。が、私の用途ではとりあえずHTTP/1.1のみで十分です。</p>
+<p><a href="https://pkg.go.dev/net/http@go1.20.1#ReadRequest">ReadRequest</a>で返される<a href="https://pkg.go.dev/net/http@go1.20.1#Request">Request</a>のBodyはパケットデータのReaderを指すようになっているので最後まで読み取る必要があります。上記のサンプルはtcpreader.DiscardBytesToEOF](<a href="https://pkg.go.dev/github.com/google/gopacket@v1.1.19/tcpassembly/tcpreader#DiscardBytesToEOF">https://pkg.go.dev/github.com/google/gopacket@v1.1.19/tcpassembly/tcpreader#DiscardBytesToEOF</a>)でEOFまで読み捨てています。</p>
+<p>が、私はボディの内容も参照したいので<a href="https://pkg.go.dev/io@go1.20.1#ReadAll">io.ReadAll</a>で最後まで読み取って、<code>io.NopCloser(bufio.NewReader(data))</code>でReadCloserを作ってBodyを上書きしています。これは<a href="https://pkg.go.dev/net/http/httptest@go1.20.1#ResponseRecorder.Result">net/http/httptest.ResponseRecorder.Result</a>メソッドの<a href="https://cs.opensource.google/go/go/+/refs/tags/go1.20.1:src/net/http/httptest/recorder.go;l=201">実装</a>で見たコードを真似しました。</p>
+<p>なお、ボディ全体をメモリ上に持つので巨大な場合は良くないのですが、このライブラリは私は自動テストで使う想定でそこまで大きなボディは扱わないので大丈夫です。</p>
+<p>レスポンスは<a href="https://pkg.go.dev/net/http@go1.20.1#ReadResponse">ReadResponse</a>メソッド</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">ReadResponse</span><span class="p">(</span><span class="nx">r</span> <span class="o">*</span><span class="nx">bufio</span><span class="p">.</span><span class="nx">Reader</span><span class="p">,</span> <span class="nx">req</span> <span class="o">*</span><span class="nx">Request</span><span class="p">)</span> <span class="p">(</span><span class="o">*</span><span class="nx">Response</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span>
+</span></span></code></pre></div><p>を使い、ボディはリクエストと同様に最後まで読み取ってBodyにセットしています。</p>
+<p><a href="https://cs.opensource.google/go/go/+/refs/tags/go1.20.1:src/net/http/response.go;l=157">引数のreqはResponseのRequestフィールドに設定されます</a>。</p>
+<p><a href="https://github.com/hnakamur/httpcapt/blob/8e0a85300f10c374ae6725fb13b9c7f1272ac66b/http_stream.go#L48">httpStreamFactory.New</a>メソッド</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">httpStreamFactory</span><span class="p">)</span> <span class="nf">New</span><span class="p">(</span><span class="nx">net</span><span class="p">,</span> <span class="nx">transport</span> <span class="nx">gopacket</span><span class="p">.</span><span class="nx">Flow</span><span class="p">)</span> <span class="nx">tcpassembly</span><span class="p">.</span><span class="nx">Stream</span>
+</span></span></code></pre></div><p>の<code>net.Src()</code>で送信元のIPアドレス、<code>transport.Src()</code>で送信元のポート、<code>net.Dst()</code>で送信先のIPアドレス、<code>transport.Dst()</code>で送信先のポートが分かるので、これを
+<a href="https://github.com/hnakamur/httpcapt/blob/8e0a85300f10c374ae6725fb13b9c7f1272ac66b/http_stream.go#L194-L197">addrPortPair</a>に変換し、それをキーにしたmapにリクエストを保管しておきます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">addrPortPair</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">src</span> <span class="nx">netip</span><span class="p">.</span><span class="nx">AddrPort</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">dst</span> <span class="nx">netip</span><span class="p">.</span><span class="nx">AddrPort</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>レスポンスをデコードするときに、送信元と送信先を逆にしたキーでリクエストを取得してそれを<a href="https://pkg.go.dev/net/http@go1.20.1#ReadResponse">ReadResponse</a>メソッドのreq引数に渡しています。</p>
+<h2 id="bpfのフィルタのコンパイル">bpfのフィルタのコンパイル</h2>
+<p>bpfのフィルタは冒頭のスクリプトの <code>tcp port '(80 or 8080)'</code> のような文字列です。</p>
+<p><a href="https://pkg.go.dev/github.com/google/gopacket@v1.1.19/pcap">github.com/google/gopacket/pcap</a>のほうは<a href="https://pkg.go.dev/github.com/google/gopacket@v1.1.19/pcap#Handle.SetBPFFilter">Handle.SetBPFFilter</a>メソッド</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">Handle</span><span class="p">)</span> <span class="nf">SetBPFFilter</span><span class="p">(</span><span class="nx">expr</span> <span class="kt">string</span><span class="p">)</span> <span class="p">(</span><span class="nx">err</span> <span class="kt">error</span><span class="p">)</span>
+</span></span></code></pre></div><p>にフィルタ文字列をそのまま渡せます。</p>
+<p>一方、<a href="https://pkg.go.dev/github.com/google/gopacket@v1.1.19/pcapgo">github.com/google/gopacket/pcapgo</a>の<a href="https://pkg.go.dev/github.com/google/gopacket@v1.1.19/pcapgo#EthernetHandle.SetBPF">EthernetHandle.SetBPF</a>メソッドは</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">h</span> <span class="o">*</span><span class="nx">EthernetHandle</span><span class="p">)</span> <span class="nf">SetBPF</span><span class="p">(</span><span class="nx">filter</span> <span class="p">[]</span><span class="nx">bpf</span><span class="p">.</span><span class="nx">RawInstruction</span><span class="p">)</span> <span class="kt">error</span>
+</span></span></code></pre></div><p>のように<a href="https://pkg.go.dev/golang.org/x/net/bpf">golang.org/x/net/bpf</a>の<a href="https://pkg.go.dev/golang.org/x/net/bpf#RawInstruction">RawInstruction</a>構造体のスライスを渡す必要があります。</p>
+<p>これは困ったと思ったら<a href="https://pkg.go.dev/github.com/packetcap/go-pcap">github.com/packetcap/go-pcap</a>の<a href="https://pkg.go.dev/github.com/packetcap/go-pcap@v0.0.0-20221020071412-2b2e94010282/filter">filter</a>パッケージでフィルタ文字列を<a href="https://pkg.go.dev/golang.org/x/net/bpf#Instruction">golang.org/x/net/bpf.Instruction</a>インタフェースのスライスに変換できることがわかりました。そこから<a href="https://pkg.go.dev/golang.org/x/net/bpf#Assemble">golang.org/x/net/bpf.Assemble</a>関数で<a href="https://pkg.go.dev/golang.org/x/net/bpf#RawInstruction">RawInstruction</a>構造体のスライスに変換できます。</p>
+<h2 id="gobuildタグでcgoありとなしで実装を切り替え">go:buildタグでCgoありとなしで実装を切り替え</h2>
+<p>Cgoありのタグを<code>//go:build Cgo</code>、Linuxでpure Goのタグを<code>//go:build linux &amp;&amp; !Cgo</code>とし、それぞれで実装ファイルを分けて切り替えるようにしました(ビルドタグの詳細は<a href="https://pkg.go.dev/cmd/go#hdr-Build_constraints">Build constraints</a>参照)。</p>
+<h2 id="サンプルcliの実行例">サンプルCLIの実行例</h2>
+<p>事前に80番ポートでHTTPサーバが稼働中という前提とします。
+<a href="https://github.com/hnakamur/httpcapt/blob/main/README.md">README.md</a>の手順でインストールした後、以下のコマンドで起動します。</p>
+<pre tabindex="0"><code>$ sudo httpcapt
+</code></pre><p>別端末でcurlを実行します。</p>
+<pre tabindex="0"><code>$ curl -v -X GET -d &#39;Hi, this is request body!&#39; &#39;http://localhost?a=1&#39;
+*   Trying 127.0.0.1:80...
+* Connected to localhost (127.0.0.1) port 80 (#0)
+&gt; GET /?a=1 HTTP/1.1
+&gt; Host: localhost
+&gt; User-Agent: curl/7.81.0
+&gt; Accept: */*
+&gt; Content-Length: 25
+&gt; Content-Type: application/x-www-form-urlencoded
+&gt;
+* Mark bundle as not supporting multiuse
+&lt; HTTP/1.1 200 OK
+&lt; Server: nginx/1.23.3
+&lt; Date: Thu, 23 Feb 2023 11:18:04 GMT
+&lt; Content-Type: text/plain
+&lt; Connection: keep-alive
+&lt; content-length: 40
+&lt;
+Welcome to localhost, request_uri=/?a=1
+* Connection #0 to host localhost left intact
+</code></pre><p>httpcaptの端末には以下のようなログが出力されます。</p>
+<pre tabindex="0"><code>2023/02/23 20:18:04 result: reqTime=2023-02-23 20:18:04.36914 +0900 JST, respTime=2023-02-23 20:18:04.369369 +0900 JST, client=127.0.0.1:44594, server=127.0.0.1:80, request=&amp;{Method:GET URL:/?a=1 Proto:HTTP/1.1 ProtoMajor:1 ProtoMinor:1 Header:map[Accept:[*/*] Content-Length:[25] Content-Type:[application/x-www-form-urlencoded] User-Agent:[curl/7.81.0]] Body:{Reader:0xc00021e090} GetBody:&lt;nil&gt; ContentLength:25 TransferEncoding:[] Close:false Host:localhost Form:map[] PostForm:map[] MultipartForm:&lt;nil&gt; Trailer:map[] RemoteAddr: RequestURI:/?a=1 TLS:&lt;nil&gt; Cancel:&lt;nil&gt; Response:&lt;nil&gt; ctx:&lt;nil&gt;}, requestBody=Hi, this is request body!, response=&amp;{Status:200 OK StatusCode:200 Proto:HTTP/1.1 ProtoMajor:1 ProtoMinor:1 Header:map[Connection:[keep-alive] Content-Length:[40] Content-Type:[text/plain] Date:[Thu, 23 Feb 2023 11:18:04 GMT] Server:[nginx/1.23.3]] Body:{Reader:0xc00021e0f0} ContentLength:40 TransferEncoding:[] Close:false Uncompressed:false Trailer:map[] Request:0xc000220000 TLS:&lt;nil&gt;}, responseBody=Welcome to localhost, request_uri=/?a=1
+</code></pre><p>httpcatの端末でCtrl-Cを押すと終了します。</p>
+<pre tabindex="0"><code>^C2023/02/23 20:18:06 context canceled
+</code></pre><h2 id="特殊なデバイス名anyの扱い">特殊なデバイス名anyの扱い</h2>
+<p><code>tcpdump</code>の<code>-i</code>オプションや<a href="https://pkg.go.dev/github.com/google/gopacket@v1.1.19/pcap">github.com/google/gopacket/pcap</a>の<a href="https://pkg.go.dev/github.com/google/gopacket@v1.1.19/pcap#OpenLive">OpenLive</a>関数</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">OpenLive</span><span class="p">(</span><span class="nx">device</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">snaplen</span> <span class="kt">int32</span><span class="p">,</span> <span class="nx">promisc</span> <span class="kt">bool</span><span class="p">,</span> <span class="nx">timeout</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Duration</span><span class="p">)</span> <span class="p">(</span><span class="o">*</span><span class="nx">Handle</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span>
+</span></span></code></pre></div><p>のdevice引数では特殊なデバイス名として<code>any</code>を指定すると、ホスト上の全てのデバイスがキャプチャ対象になります。</p>
+<p>一方、<a href="https://pkg.go.dev/github.com/google/gopacket@v1.1.19/pcapgo">github.com/google/gopacket/pcapgo</a>の<a href="https://pkg.go.dev/github.com/google/gopacket@v1.1.19/pcapgo#NewEthernetHandle">NewEthernetHandle</a>関数</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">NewEthernetHandle</span><span class="p">(</span><span class="nx">ifname</span> <span class="kt">string</span><span class="p">)</span> <span class="p">(</span><span class="o">*</span><span class="nx">EthernetHandle</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span>
+</span></span></code></pre></div><p>のifname引数は<code>any</code>には対応していません。</p>
+<p>そこでラップしたAPIのほうでpure Goの実装では<code>any</code>の場合は<a href="https://pkg.go.dev/net@go1.20.1#Interfaces">net.Interfaces</a>関数でホスト上の全てのデバイス一覧を取得して内部的に複数の<code>EthernetHandle</code>を作って対応するようにしました。</p>
+<p>今回のライブラリのサンプルCLIも<code>-i</code>オプションでデバイス名を指定しますが、Cgo版と pure Go 版ともにanyに対応しており、デフォルト値もanyとしています。</p>
+<h2 id="横道-自ホストのipアドレスを指定した場合もloデバイスを通る">(横道) 自ホストのIPアドレスを指定した場合もloデバイスを通る</h2>
+<p>通常はデバイス名anyですべてのデバイスの通信をキャプチャーする想定なので気にする必要はないのですが、実装中に気付いたのでメモです。</p>
+<pre tabindex="0"><code>$ ip -br -4 a s dev lo; ip -br -4 a s dev enp1s0f1
+lo               UNKNOWN        127.0.0.1/8
+enp1s0f1         UP             192.168.2.3/24
+</code></pre><p>という環境で試していたのですが、curlのURLを<code>http://192.168.2.3</code>と指定した場合、HTTPサーバと同じマシン上で実行するとCLIで<code>-i lo</code>としたときはキャプチャーできますが<code>-i enp1s0f1</code>としたときはキャプチャーできませんでした。知っている方には当然なのでしょうが、知らなかった私には意外でした。</p>
+<p>一方別のマシンからアクセスする場合は<code>-i lo</code>ではキャプチャーできず<code>-i enp1s0f1</code>ならキャプチャーできました(これは普通)。</p>
+<p>私の用途だと同じサーバと別のサーバからの両方のリクエストをキャプチャーしたいので、複数のデバイスを指定する必要があります。またデバイス名はコンテナならだいたいeth0でしょうけど、物理マシンだと環境ごとに異なります。いちいち調べて指定するのは面倒なのでデバイス名にanyを指定して全てのデバイスを見てくれると便利です。</p>
+<p>キャプチャーを実行したいLinuxマシンにlibpcapをインストールしたくない場合もあるかもしれないので、pure Goでも全てデバイスを見てくれるのが理想です。そこで前項のように実装したというわけでした。</p>
+<h2 id="深いモジュールになるよう心掛けた">「深いモジュール」になるよう心掛けた</h2>
+<p>しばらく前に <a href="https://twitter.com/thorstenball/status/1624465909816467459">https://twitter.com/thorstenball/status/1624465909816467459</a> のツイートを見て<a href="https://web.stanford.edu/~ouster/cgi-bin/sayings.php">Favorite Sayings</a>を読んで良いなと思い、 <a href="https://twitter.com/og_fhools/status/1624466123969433602">https://twitter.com/og_fhools/status/1624466123969433602</a> のツイートも見て <a href="https://web.stanford.edu/~ouster/cgi-bin/book.php">Software Design Book</a> を見て <a href="https://www.amazon.co.jp/dp/B09B8LFKQL/">Amazon.co.jp: A Philosophy of Software Design, 2nd Edition (English Edition) 電子書籍: Ousterhout, John K. : 洋書</a> を買って読みました。こちらも素晴らしいと思いました。</p>
+<p>本の中で Modules Should Be Deep という章があり、浅いモジュールより深いモジュールが良いという話があったので、今回はそれを心掛けてAPIを設計してみました。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

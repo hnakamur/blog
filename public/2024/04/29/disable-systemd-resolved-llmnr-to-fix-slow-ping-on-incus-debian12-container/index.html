@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>IncusのDebian 12コンテナでpingが遅かったのをsystemd-resolvedのLLMNRを無効にしたら解決 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>IncusのDebian 12コンテナでpingが遅かったのをsystemd-resolvedのLLMNRを無効にしたら解決</h1>
+  <time datetime=2024-04-29T16:13:56&#43;0900 class="post-date">2024-04-29</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#incusのdebian-12コンテナでpingが遅かった">IncusのDebian 12コンテナでpingが遅かった</a></li>
+    <li><a href="#chatgpt-4に相談しつつ調査">ChatGPT 4に相談しつつ調査</a></li>
+    <li><a href="#systemd-resolved-の-llmnr-が-ubuntu-2404-では無効だが-debian-12-では有効という差異に気づく">systemd-resolved の LLMNR が Ubuntu 24.04 では無効だが Debian 12 では有効という差異に気づく</a></li>
+    <li><a href="#systemd-resolved-の-llmnr-を無効にして解決">systemd-resolved の LLMNR を無効にして解決</a></li>
+    <li><a href="#余談">余談</a></li>
+  </ul>
+</nav>
+  <h2 id="incusのdebian-12コンテナでpingが遅かった">IncusのDebian 12コンテナでpingが遅かった</h2>
+<p>以下のようにpingが出力する行の<code>time=</code>の値は遅くないのですが、
+各行を出力する間隔が非常に遅い状態でした。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">root@debian12:~# <span class="nb">time</span> ping -c <span class="m">3</span> iij.ad.jp
+</span></span><span class="line"><span class="cl">PING iij.ad.jp <span class="o">(</span>202.232.2.191<span class="o">)</span> 56<span class="o">(</span>84<span class="o">)</span> bytes of data.
+</span></span><span class="line"><span class="cl"><span class="m">64</span> bytes from 202.232.2.191: <span class="nv">icmp_seq</span><span class="o">=</span><span class="m">1</span> <span class="nv">ttl</span><span class="o">=</span><span class="m">57</span> <span class="nv">time</span><span class="o">=</span>5.95 ms
+</span></span><span class="line"><span class="cl"><span class="m">64</span> bytes from 202.232.2.191: <span class="nv">icmp_seq</span><span class="o">=</span><span class="m">2</span> <span class="nv">ttl</span><span class="o">=</span><span class="m">57</span> <span class="nv">time</span><span class="o">=</span>9.26 ms
+</span></span><span class="line"><span class="cl"><span class="m">64</span> bytes from 202.232.2.191: <span class="nv">icmp_seq</span><span class="o">=</span><span class="m">3</span> <span class="nv">ttl</span><span class="o">=</span><span class="m">57</span> <span class="nv">time</span><span class="o">=</span>7.99 ms
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">--- iij.ad.jp ping statistics ---
+</span></span><span class="line"><span class="cl"><span class="m">3</span> packets transmitted, <span class="m">3</span> received, 0% packet loss, <span class="nb">time</span> 20036ms
+</span></span><span class="line"><span class="cl">rtt min/avg/max/mdev <span class="o">=</span> 5.950/7.733/9.264/1.364 ms
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">real    0m21.073s
+</span></span><span class="line"><span class="cl">user    0m0.004s
+</span></span><span class="line"><span class="cl">sys     0m0.000s
+</span></span></code></pre></div><h2 id="chatgpt-4に相談しつつ調査">ChatGPT 4に相談しつつ調査</h2>
+<p>実際はいろいろ試行錯誤したのですが、ここでは整理して書きます。</p>
+<p>iij.ad.jpのIPアドレスを指定すると遅くないことがわかりました。</p>
+<pre tabindex="0"><code>root@debian12:~# time ping -c 3 202.232.2.191
+PING 202.232.2.191 (202.232.2.191) 56(84) bytes of data.
+64 bytes from 202.232.2.191: icmp_seq=1 ttl=57 time=5.85 ms
+64 bytes from 202.232.2.191: icmp_seq=2 ttl=57 time=6.08 ms
+64 bytes from 202.232.2.191: icmp_seq=3 ttl=57 time=6.13 ms
+
+--- 202.232.2.191 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2003ms
+rtt min/avg/max/mdev = 5.849/6.019/6.127/0.122 ms
+
+real    0m2.013s
+user    0m0.004s
+sys     0m0.000s
+</code></pre><p>同じIncusの環境内の Ubuntu 24.04 コンテナではホスト名を指定しても
+遅くありませんでした。</p>
+<pre tabindex="0"><code>root@numbat:~# time ping -6 -c 3 iij.ad.jp                                                                
+PING iij.ad.jp (2001:240:bb81::10:191) 56 data bytes
+64 bytes from 2001:240:bb81::10:191: icmp_seq=1 ttl=54 time=5.34 ms
+64 bytes from 2001:240:bb81::10:191: icmp_seq=2 ttl=54 time=5.08 ms
+64 bytes from 2001:240:bb81::10:191: icmp_seq=3 ttl=54 time=5.33 ms
+
+--- iij.ad.jp ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2095ms
+rtt min/avg/max/mdev = 5.083/5.251/5.343/0.119 ms
+
+real    0m2.104s
+user    0m0.004s
+sys     0m0.000s
+</code></pre><p>Debian 12コンテナ内でtcpdumpを取りながらpingを実行すると、DNSの逆引きが遅いことがわかりました。</p>
+<pre tabindex="0"><code>root@debian12:~# time ping -c 1 iij.ad.jp
+PING iij.ad.jp (202.232.2.191) 56(84) bytes of data.
+64 bytes from 202.232.2.191: icmp_seq=1 ttl=57 time=5.98 ms
+
+--- iij.ad.jp ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+rtt min/avg/max/mdev = 5.982/5.982/5.982/0.000 ms
+
+real    0m10.005s
+user    0m0.004s
+sys     0m0.000s
+</code></pre><pre tabindex="0"><code>root@debian12:~# sudo tcpdump -i any -n &#39;port 53&#39;
+tcpdump: data link type LINUX_SLL2
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on any, link-type LINUX_SLL2 (Linux cooked v2), snapshot length 262144 bytes
+06:29:00.227772 lo    In  IP 127.0.0.1.59882 &gt; 127.0.0.53.53: 48407+ [1au] A? iij.ad.jp. (38)
+06:29:00.227790 lo    In  IP 127.0.0.1.59882 &gt; 127.0.0.53.53: 25868+ [1au] AAAA? iij.ad.jp. (38)
+06:29:00.228250 lo    In  IP 127.0.0.53.53 &gt; 127.0.0.1.59882: 48407 1/2/5 A 202.232.2.191 (180)
+06:29:00.228501 lo    In  IP 127.0.0.53.53 &gt; 127.0.0.1.59882: 25868 1/2/5 AAAA 2001:240:bb81::10:191 (192)
+06:29:00.235127 lo    In  IP 127.0.0.1.52984 &gt; 127.0.0.53.53: 11525+ [1au] PTR? 191.2.232.202.in-addr.arpa. (55)
+06:29:05.240260 lo    In  IP 127.0.0.1.52984 &gt; 127.0.0.53.53: 11525+ [1au] PTR? 191.2.232.202.in-addr.arpa. (55)
+^C
+6 packets captured
+12 packets received by filter
+0 packets dropped by kernel
+</code></pre><p>digでも逆引きを試すとタイムアウトエラーになりました。</p>
+<pre tabindex="0"><code>root@debian12:~# time dig -x 202.232.2.191
+;; communications error to 127.0.0.53#53: timed out
+;; communications error to 127.0.0.53#53: timed out
+;; communications error to 127.0.0.53#53: timed out
+
+; &lt;&lt;&gt;&gt; DiG 9.18.24-1-Debian &lt;&lt;&gt;&gt; -x 202.232.2.191
+;; global options: +cmd
+;; no servers could be reached
+
+
+real    0m15.045s
+user    0m0.012s
+sys     0m0.008s
+</code></pre><h2 id="systemd-resolved-の-llmnr-が-ubuntu-2404-では無効だが-debian-12-では有効という差異に気づく">systemd-resolved の LLMNR が Ubuntu 24.04 では無効だが Debian 12 では有効という差異に気づく</h2>
+<p>Ubuntu 24.04:</p>
+<pre tabindex="0"><code>root@numbat:~# resolvectl status
+Global
+         Protocols: -LLMNR -mDNS -DNSOverTLS DNSSEC=no/unsupported
+  resolv.conf mode: stub
+
+Link 9 (eth0)
+    Current Scopes: DNS
+         Protocols: +DefaultRoute -LLMNR -mDNS -DNSOverTLS DNSSEC=no/unsupported
+Current DNS Server: 10.41.177.1
+       DNS Servers: 10.41.177.1 fd42:3fbb:de08:f160::1 fe80::216:3eff:fec5:55bc
+        DNS Domain: incus
+</code></pre><p>Debian 12:</p>
+<pre tabindex="0"><code>root@debian12:~# resolvectl status                   
+Global                                               
+       Protocols: +LLMNR +mDNS -DNSOverTLS DNSSEC=no/unsupported
+resolv.conf mode: stub                               
+                                                     
+Link 7 (eth0)                                        
+    Current Scopes: DNS LLMNR/IPv4 LLMNR/IPv6        
+         Protocols: +DefaultRoute +LLMNR -mDNS -DNSOverTLS DNSSEC=no/unsupported
+Current DNS Server: 10.41.177.1                      
+       DNS Servers: 10.41.177.1 fe80::216:3eff:fec5:55bc
+        DNS Domain: incus
+</code></pre><p><code>eth0</code>の<code>Current Scopes</code>がUbuntu 24.04はDNSのみですが、Debian 12はDNSに加えて
+LLMNR/IPv4 LLMNR/IPv6があります。
+またProtocolsもUbuntu 24.04は-LLMNRに対しDebianは+LLMNRとなっています。</p>
+<p><a href="https://wiki.archlinux.jp/index.php/Systemd-resolved#LLMNR">https://wiki.archlinux.jp/index.php/Systemd-resolved#LLMNR</a> によると</p>
+<blockquote>
+<p><a href="https://en.wikipedia.org/wiki/Link-Local_Multicast_Name_Resolution">Link-Local Multicast Name Resolution</a> は Microsoft によって作られたホストネーム解決プロトコルです。</p>
+</blockquote>
+<p>とのことです。</p>
+<p><code>/etc/systemd/resolved.conf</code>を見るとLLMNRはUbuntu 24.04コンテナではデフォルトで無効、Debian 12コンテナではデフォルトで有効でした。</p>
+<pre tabindex="0"><code>root@numbat:~# grep &#39;^#LLMNR=&#39; /etc/systemd/resolved.conf
+#LLMNR=no
+</code></pre><pre tabindex="0"><code>root@debian12:~# grep &#39;^#LLMNR=&#39; /etc/systemd/resolved.conf                                                                                                                                                         
+#LLMNR=yes
+</code></pre><h2 id="systemd-resolved-の-llmnr-を無効にして解決">systemd-resolved の LLMNR を無効にして解決</h2>
+<p>以下のコマンドでLLMNRを無効にしました。</p>
+<pre tabindex="0"><code>root@debian12:~# sed -i &#39;/#LLMNR=yes/a\
+LLMNR=no&#39; /etc/systemd/resolved.conf
+root@debian12:~# systemctl restart systemd-resolved
+</code></pre><p>これでホスト名を指定してpingを実行すると遅い問題が解消できました。</p>
+<pre tabindex="0"><code>root@debian12:~# time ping -c 3 iij.ad.jp
+PING iij.ad.jp (202.232.2.191) 56(84) bytes of data.
+64 bytes from 202.232.2.191 (202.232.2.191): icmp_seq=1 ttl=57 time=5.98 ms
+64 bytes from 202.232.2.191 (202.232.2.191): icmp_seq=2 ttl=57 time=5.61 ms
+64 bytes from 202.232.2.191 (202.232.2.191): icmp_seq=3 ttl=57 time=6.17 ms
+
+--- iij.ad.jp ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2004ms
+rtt min/avg/max/mdev = 5.607/5.916/6.167/0.232 ms
+
+real    0m2.015s
+user    0m0.000s
+sys     0m0.005s
+</code></pre><h2 id="余談">余談</h2>
+<p>ちなみに、物理マシンの Debian 12 環境もあったのですが、そちらではこの問題は起きていませんでした。
+DHCPで固定アドレスを付与していて<code>/etc/resolve.conf</code>の<code>nameserver</code>がDHCPサーバのアドレス
+になっており、systemd-resolvedは使っていないからでした。</p>
+<p>また、IncusでDebian 12の仮想マシンでも問題ありませんでした。こちらは
+<code>/etc/systemd/resolved.conf</code>で<code>#LLMNR=no</code>とLLMNRがデフォルトで無効になっていました。</p>
+<p><a href="https://images.linuxcontainers.org/">https://images.linuxcontainers.org/</a> からリンクされていた
+<a href="https://github.com/lxc/lxc-ci">https://github.com/lxc/lxc-ci</a> を git clone して
+git log -p して大文字小文字無視で llmnr で検索してみましたがヒットなしでした。</p>
+<p>ChatGPT 4 は今回非常に頼りになりました。自力では解決できなかったと思います。感謝。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

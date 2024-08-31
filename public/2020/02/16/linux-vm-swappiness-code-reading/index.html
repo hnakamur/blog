@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Linuxのvm_swapinessについてコードリーディングしてみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Linuxのvm_swapinessについてコードリーディングしてみた</h1>
+  <time datetime=2020-02-16T20:10:48&#43;0900 class="post-date">2020-02-16</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#vm_swappiness-の検索結果"><code>vm_swappiness</code> の検索結果</a></li>
+    <li><a href="#sysctl-の-vm_swappiness-の定義">sysctl の <code>vm_swappiness</code> の定義</a></li>
+    <li><a href="#vm_swappiness-は-mem_cgroup_swappiness_write-関数で設定"><code>vm_swappiness</code> は <code>mem_cgroup_swappiness_write</code> 関数で設定</a></li>
+    <li><a href="#vm_swappiness-は-mem_cgroup_swappiness-関数で参照"><code>vm_swappiness</code> は <code>mem_cgroup_swappiness</code> 関数で参照</a></li>
+    <li><a href="#vm_swappiness-のデフォルト値は-60"><code>vm_swappiness</code> のデフォルト値は 60</a></li>
+    <li><a href="#get_scan_count-関数"><code>get_scan_count</code> 関数</a>
+      <ul>
+        <li><a href="#関数のコメントとシグネチャ">関数のコメントとシグネチャ</a></li>
+        <li><a href="#関数内のローカル変数宣言">関数内のローカル変数宣言</a></li>
+        <li><a href="#enum-scan_balance"><code>enum scan_balance</code></a></li>
+        <li><a href="#条件に応じた-scan_balance-の設定">条件に応じた <code>scan_balance</code> の設定</a></li>
+        <li><a href="#enum-lru_list"><code>enum lru_list</code></a></li>
+        <li><a href="#lru-についてのループ処理その1"><code>lru</code> についてのループ処理その1</a></li>
+        <li><a href="#mem_cgroup_protection-関数"><code>mem_cgroup_protection</code> 関数</a></li>
+        <li><a href="#lru-についてのループ処理その2"><code>lru</code> についてのループ処理その2</a></li>
+        <li><a href="#lru-についてのループ処理その3"><code>lru</code> についてのループ処理その3</a></li>
+        <li><a href="#mem_cgroup_online-関数"><code>mem_cgroup_online</code> 関数</a></li>
+        <li><a href="#lru-についてのループ処理その4"><code>lru</code> についてのループ処理その4</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="https://chrisdown.name/ja/2018/01/02/in-defence-of-swap.html">スワップの弁護：よくある誤解を解く</a> と <a href="https://chrisdown.name/ja/2019/07/18/linux-memory-management-at-scale.html">大規模システムでの Linux のメモリ管理</a> を読んで Linux のスワップについて理解を深めたところで、実際のコードを読んでみることにしました。今回のリーディングの対象バージョンは <a href="https://github.com/torvalds/linux/tree/v5.6-rc1">torvalds/linux at v5.6-rc1</a> です。</p>
+<p>なお、私は上記の記事以外の前提知識が無い状態で初めて読んでみたところなので、誤読しているかもしれません。あまり信用せず、おかしい箇所があったらご自分で確認してください。</p>
+<h2 id="vm_swappiness-の検索結果"><code>vm_swappiness</code> の検索結果</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> ag vm_swappiness
+</span></span><span class="line"><span class="cl"><span class="go">mm/vmscan.c
+</span></span></span><span class="line"><span class="cl"><span class="go">166:int vm_swappiness = 60;
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">mm/memcontrol.c
+</span></span></span><span class="line"><span class="cl"><span class="go">3827:           vm_swappiness = val;
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">include/uapi/linux/sysctl.h
+</span></span></span><span class="line"><span class="cl"><span class="go">182:    VM_SWAPPINESS=19,       /* Tendency to steal mapped memory */
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">include/linux/swap.h
+</span></span></span><span class="line"><span class="cl"><span class="go">364:extern int vm_swappiness;
+</span></span></span><span class="line"><span class="cl"><span class="go">633:            return vm_swappiness;
+</span></span></span><span class="line"><span class="cl"><span class="go">637:            return vm_swappiness;
+</span></span></span><span class="line"><span class="cl"><span class="go">644:    return vm_swappiness;
+</span></span></span><span class="line"><span class="cl"><span class="go"></span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="go">kernel/sysctl.c
+</span></span></span><span class="line"><span class="cl"><span class="go">1410:           .data           = &amp;vm_swappiness,
+</span></span></span><span class="line"><span class="cl"><span class="go">1411:           .maxlen         = sizeof(vm_swappiness),
+</span></span></span></code></pre></div><h2 id="sysctl-の-vm_swappiness-の定義">sysctl の <code>vm_swappiness</code> の定義</h2>
+<p><a href="https://github.com/torvalds/linux/blob/v5.6-rc1/include/uapi/linux/sysctl.h#L182">include/uapi/linux/sysctl.h#L182</a></p>
+<p><code>CTL_VM names</code> の enum に <code>VM_SWAPPINESS</code> が含まれていました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">  <span class="n">VM_SWAPPINESS</span><span class="o">=</span><span class="mi">19</span><span class="p">,</span> <span class="cm">/* Tendency to steal mapped memory */</span>
+</span></span></code></pre></div><p><a href="https://github.com/torvalds/linux/blob/v5.6-rc1/kernel/sysctl.c#L1408-L1416">kernel/sysctl.c#L1408-L1416</a></p>
+<p><code>static struct ctl_table vm_table[]</code> の配列要素の 1 つに <code>swappiness</code> の設定の定義がありました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">  <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">procname</span> <span class="o">=</span> <span class="s">&#34;swappiness&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">data</span>   <span class="o">=</span> <span class="o">&amp;</span><span class="n">vm_swappiness</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">maxlen</span>   <span class="o">=</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">vm_swappiness</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">mode</span>   <span class="o">=</span> <span class="mo">0644</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">proc_handler</span> <span class="o">=</span> <span class="n">proc_dointvec_minmax</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">extra1</span>   <span class="o">=</span> <span class="n">SYSCTL_ZERO</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">extra2</span>   <span class="o">=</span> <span class="o">&amp;</span><span class="n">one_hundred</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="p">},</span>
+</span></span></code></pre></div><h2 id="vm_swappiness-は-mem_cgroup_swappiness_write-関数で設定"><code>vm_swappiness</code> は <code>mem_cgroup_swappiness_write</code> 関数で設定</h2>
+<p><a href="https://github.com/torvalds/linux/blob/v5.6-rc1/mm/memcontrol.c#L3816-L3830">mm/memcontrol.c#L3816-L3830</a></p>
+<p><code>mem_cgroup_swappiness_write</code> 関数の中で <code>vm_swappiness</code> を設定しています。
+<code>css-&gt;parent</code> の値によっては <code>vm_swapiness</code> の代わりに <code>memcg-&gt;swapiness</code> を設定しています。
+メモリ cgroup にも swapiness の設定があるんですね。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">int</span> <span class="nf">mem_cgroup_swappiness_write</span><span class="p">(</span><span class="k">struct</span> <span class="n">cgroup_subsys_state</span> <span class="o">*</span><span class="n">css</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">				       <span class="k">struct</span> <span class="n">cftype</span> <span class="o">*</span><span class="n">cft</span><span class="p">,</span> <span class="n">u64</span> <span class="n">val</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">mem_cgroup</span> <span class="o">*</span><span class="n">memcg</span> <span class="o">=</span> <span class="nf">mem_cgroup_from_css</span><span class="p">(</span><span class="n">css</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">val</span> <span class="o">&gt;</span> <span class="mi">100</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="o">-</span><span class="n">EINVAL</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">css</span><span class="o">-&gt;</span><span class="n">parent</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="n">memcg</span><span class="o">-&gt;</span><span class="n">swappiness</span> <span class="o">=</span> <span class="n">val</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">else</span>
+</span></span><span class="line"><span class="cl">		<span class="n">vm_swappiness</span> <span class="o">=</span> <span class="n">val</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h2 id="vm_swappiness-は-mem_cgroup_swappiness-関数で参照"><code>vm_swappiness</code> は <code>mem_cgroup_swappiness</code> 関数で参照</h2>
+<p><a href="https://github.com/torvalds/linux/blob/v5.6-rc1/include/linux/swap.h#L628-L646">include/linux/swap.h#L628-L646</a></p>
+<p>ビルド時の設定で <code>CONFIG_MEMCG</code> が定義されている場合は、条件によってメモリ cgroup の swapiness あるいはグローバルの <code>vm_swappiness</code> を参照することが分かります。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cp">#ifdef CONFIG_MEMCG
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="k">static</span> <span class="kr">inline</span> <span class="kt">int</span> <span class="nf">mem_cgroup_swappiness</span><span class="p">(</span><span class="k">struct</span> <span class="n">mem_cgroup</span> <span class="o">*</span><span class="n">memcg</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="cm">/* Cgroup2 doesn&#39;t have per-cgroup swappiness */</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="nf">cgroup_subsys_on_dfl</span><span class="p">(</span><span class="n">memory_cgrp_subsys</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">vm_swappiness</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cm">/* root ? */</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="nf">mem_cgroup_disabled</span><span class="p">()</span> <span class="o">||</span> <span class="nf">mem_cgroup_is_root</span><span class="p">(</span><span class="n">memcg</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">vm_swappiness</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">memcg</span><span class="o">-&gt;</span><span class="n">swappiness</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="cp">#else
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="k">static</span> <span class="kr">inline</span> <span class="kt">int</span> <span class="nf">mem_cgroup_swappiness</span><span class="p">(</span><span class="k">struct</span> <span class="n">mem_cgroup</span> <span class="o">*</span><span class="n">mem</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">vm_swappiness</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="cp">#endif
+</span></span></span></code></pre></div><h2 id="vm_swappiness-のデフォルト値は-60"><code>vm_swappiness</code> のデフォルト値は 60</h2>
+<p><a href="https://github.com/torvalds/linux/blob/v5.6-rc1/mm/vmscan.c#L163-L166">mm/vmscan.c#L163-L166</a></p>
+<p>グローバル変数の <code>vm_swappiness</code> の宣言箇所でデフォルト値の 60 を設定しています。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * From 0 .. 100.  Higher means more swappy.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
+</span></span><span class="line"><span class="cl"><span class="kt">int</span> <span class="n">vm_swappiness</span> <span class="o">=</span> <span class="mi">60</span><span class="p">;</span>
+</span></span></code></pre></div><h2 id="get_scan_count-関数"><code>get_scan_count</code> 関数</h2>
+<p><a href="https://github.com/torvalds/linux/blob/v5.6-rc1/mm/vmscan.c#L2221-L2439">mm/vmscan.c#L2221-L2439</a></p>
+<p>長いので分割して引用します。</p>
+<h3 id="関数のコメントとシグネチャ">関数のコメントとシグネチャ</h3>
+<p><a href="https://github.com/torvalds/linux/blob/v5.6-rc1/mm/vmscan.c#L2221-L2232">mm/vmscan.c#L2221-L2232</a></p>
+<p>冒頭のコメントによると anonymous と file メモリの LRU リストをどれぐらいアグレッシブにスキャンするかを決定する関数だそうです。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * Determine how aggressively the anon and file LRU lists should be
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * scanned.  The relative value of each set of LRU lists is determined
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * by looking at the fraction of the pages scanned we did rotate back
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * onto the active list instead of evict.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * nr[0] = anon inactive pages to scan; nr[1] = anon active pages to scan
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * nr[2] = file inactive pages to scan; nr[3] = file active pages to scan
+</span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">void</span> <span class="nf">get_scan_count</span><span class="p">(</span><span class="k">struct</span> <span class="n">lruvec</span> <span class="o">*</span><span class="n">lruvec</span><span class="p">,</span> <span class="k">struct</span> <span class="n">scan_control</span> <span class="o">*</span><span class="n">sc</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">			   <span class="kt">unsigned</span> <span class="kt">long</span> <span class="o">*</span><span class="n">nr</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span></code></pre></div><h3 id="関数内のローカル変数宣言">関数内のローカル変数宣言</h3>
+<p><a href="https://github.com/torvalds/linux/blob/v5.6-rc1/mm/vmscan.c#L2233-L2244">mm/vmscan.c#L2233-L2244</a></p>
+<p>上述の <code>mem_cgroup_swappiness</code> 関数で値を取得してローカル変数の <code>swappiness</code> に設定しています。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">mem_cgroup</span> <span class="o">*</span><span class="n">memcg</span> <span class="o">=</span> <span class="nf">lruvec_memcg</span><span class="p">(</span><span class="n">lruvec</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">int</span> <span class="n">swappiness</span> <span class="o">=</span> <span class="nf">mem_cgroup_swappiness</span><span class="p">(</span><span class="n">memcg</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">zone_reclaim_stat</span> <span class="o">*</span><span class="n">reclaim_stat</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">lruvec</span><span class="o">-&gt;</span><span class="n">reclaim_stat</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">u64</span> <span class="n">fraction</span><span class="p">[</span><span class="mi">2</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">	<span class="n">u64</span> <span class="n">denominator</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>	<span class="cm">/* gcc */</span>
+</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">pglist_data</span> <span class="o">*</span><span class="n">pgdat</span> <span class="o">=</span> <span class="nf">lruvec_pgdat</span><span class="p">(</span><span class="n">lruvec</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">anon_prio</span><span class="p">,</span> <span class="n">file_prio</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">enum</span> <span class="n">scan_balance</span> <span class="n">scan_balance</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">anon</span><span class="p">,</span> <span class="n">file</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">ap</span><span class="p">,</span> <span class="n">fp</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">enum</span> <span class="n">lru_list</span> <span class="n">lru</span><span class="p">;</span>
+</span></span></code></pre></div><h3 id="enum-scan_balance"><code>enum scan_balance</code></h3>
+<p><code>enum scan_balance</code> の定義は <code>get_scan_count</code> 関数の上にあります。</p>
+<p><a href="https://github.com/torvalds/linux/blob/v5.6-rc1/mm/vmscan.c#L2214-L2219">mm/vmscan.c#L2214-L2219</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">enum</span> <span class="n">scan_balance</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">SCAN_EQUAL</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">SCAN_FRACT</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">SCAN_ANON</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">SCAN_FILE</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span></code></pre></div><p>次項の <code>get_scan_count</code> 関数の「条件に応じた <code>scan_balance</code> の設定」の箇所を見た感じでは以下のような意味のようです。</p>
+<ul>
+<li><code>SCAN_EQUAL</code>: anonymous メモリと file メモリを同程度に回収する。</li>
+<li><code>SCAN_FRACT</code>: <code>swapiness</code> の値に応じた割合で anonymous メモリと file メモリを回収する。 FRACT は fraction (割合) の略。</li>
+<li><code>SCAN_ANON</code>: anonymous メモリを優先で回収する。</li>
+<li><code>SCAN_FILE</code>: file メモリを優先で回収する。</li>
+</ul>
+<h3 id="条件に応じた-scan_balance-の設定">条件に応じた <code>scan_balance</code> の設定</h3>
+<p><a href="https://github.com/torvalds/linux/blob/v5.6-rc1/mm/vmscan.c#L2245-L2298">mm/vmscan.c#L2245-L2298</a></p>
+<p>以下のコードを見ると様々な条件によって <code>scan_balance</code> が選択されることが分かります。
+<code>swapiness</code> の設定値 0～100 のうち 0 だけ特別扱いされるのも 2 箇所あります。</p>
+<p><a href="https://chrisdown.name/ja/2018/01/02/in-defence-of-swap.html">スワップの弁護：よくある誤解を解く</a> の記事の「swappiness の設定はどうするべきでしょうか？」の項にあった swappiness の値がそのまま <code>anon_prio</code> になり、 <code>file_prio</code> は <code>200 - swappiness</code> になるというのは下記の引用の最後に出てきます。これは <code>scan_balance</code> が <code>SCAN_FRACT</code> の場合の話だったんですね。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">	<span class="cm">/* If we have no swap space, do not bother scanning anon pages. */</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">sc</span><span class="o">-&gt;</span><span class="n">may_swap</span> <span class="o">||</span> <span class="nf">mem_cgroup_get_nr_swap_pages</span><span class="p">(</span><span class="n">memcg</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">scan_balance</span> <span class="o">=</span> <span class="n">SCAN_FILE</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">goto</span> <span class="n">out</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * Global reclaim will swap to prevent OOM even with no
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * swappiness, but memcg users want to use this knob to
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * disable swapping for individual groups completely when
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * using the memory controller&#39;s swap limit feature would be
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * too expensive.
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 */</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="nf">cgroup_reclaim</span><span class="p">(</span><span class="n">sc</span><span class="p">)</span> <span class="o">&amp;&amp;</span> <span class="o">!</span><span class="n">swappiness</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">scan_balance</span> <span class="o">=</span> <span class="n">SCAN_FILE</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">goto</span> <span class="n">out</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * Do not apply any pressure balancing cleverness when the
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * system is close to OOM, scan both anon and file equally
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * (unless the swappiness setting disagrees with swapping).
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 */</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">sc</span><span class="o">-&gt;</span><span class="n">priority</span> <span class="o">&amp;&amp;</span> <span class="n">swappiness</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">scan_balance</span> <span class="o">=</span> <span class="n">SCAN_EQUAL</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">goto</span> <span class="n">out</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * If the system is almost out of file pages, force-scan anon.
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 */</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">sc</span><span class="o">-&gt;</span><span class="n">file_is_tiny</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">scan_balance</span> <span class="o">=</span> <span class="n">SCAN_ANON</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">goto</span> <span class="n">out</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * If there is enough inactive page cache, we do not reclaim
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * anything from the anonymous working right now.
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 */</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">sc</span><span class="o">-&gt;</span><span class="n">cache_trim_mode</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">scan_balance</span> <span class="o">=</span> <span class="n">SCAN_FILE</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">goto</span> <span class="n">out</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">scan_balance</span> <span class="o">=</span> <span class="n">SCAN_FRACT</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * With swappiness at 100, anonymous and file have the same priority.
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * This scanning priority is essentially the inverse of IO cost.
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 */</span>
+</span></span><span class="line"><span class="cl">	<span class="n">anon_prio</span> <span class="o">=</span> <span class="n">swappiness</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">file_prio</span> <span class="o">=</span> <span class="mi">200</span> <span class="o">-</span> <span class="n">anon_prio</span><span class="p">;</span>
+</span></span></code></pre></div><p><a href="https://github.com/torvalds/linux/blob/v5.6-rc1/mm/vmscan.c#L2299-L2341">mm/vmscan.c#L2299-L2341</a></p>
+<p><code>scan_balance</code> が <code>SCAN_FRACT</code> に annoymous メモリと file メモリを回収する「圧力」を計算する。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">	<span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * OK, so we have swap space and a fair amount of page cache
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * pages.  We use the recently rotated / recently scanned
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * ratios to determine how valuable each cache is.
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 *
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * Because workloads change over time (and to avoid overflow)
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * we keep these statistics as a floating average, which ends
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * up weighing recent references more than old ones.
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 *
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * anon in [0], file in [1]
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 */</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">anon</span>  <span class="o">=</span> <span class="nf">lruvec_lru_size</span><span class="p">(</span><span class="n">lruvec</span><span class="p">,</span> <span class="n">LRU_ACTIVE_ANON</span><span class="p">,</span> <span class="n">MAX_NR_ZONES</span><span class="p">)</span> <span class="o">+</span>
+</span></span><span class="line"><span class="cl">		<span class="nf">lruvec_lru_size</span><span class="p">(</span><span class="n">lruvec</span><span class="p">,</span> <span class="n">LRU_INACTIVE_ANON</span><span class="p">,</span> <span class="n">MAX_NR_ZONES</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="n">file</span>  <span class="o">=</span> <span class="nf">lruvec_lru_size</span><span class="p">(</span><span class="n">lruvec</span><span class="p">,</span> <span class="n">LRU_ACTIVE_FILE</span><span class="p">,</span> <span class="n">MAX_NR_ZONES</span><span class="p">)</span> <span class="o">+</span>
+</span></span><span class="line"><span class="cl">		<span class="nf">lruvec_lru_size</span><span class="p">(</span><span class="n">lruvec</span><span class="p">,</span> <span class="n">LRU_INACTIVE_FILE</span><span class="p">,</span> <span class="n">MAX_NR_ZONES</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nf">spin_lock_irq</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pgdat</span><span class="o">-&gt;</span><span class="n">lru_lock</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="nf">unlikely</span><span class="p">(</span><span class="n">reclaim_stat</span><span class="o">-&gt;</span><span class="n">recent_scanned</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">anon</span> <span class="o">/</span> <span class="mi">4</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">reclaim_stat</span><span class="o">-&gt;</span><span class="n">recent_scanned</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/=</span> <span class="mi">2</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">reclaim_stat</span><span class="o">-&gt;</span><span class="n">recent_rotated</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/=</span> <span class="mi">2</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="nf">unlikely</span><span class="p">(</span><span class="n">reclaim_stat</span><span class="o">-&gt;</span><span class="n">recent_scanned</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">file</span> <span class="o">/</span> <span class="mi">4</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">reclaim_stat</span><span class="o">-&gt;</span><span class="n">recent_scanned</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/=</span> <span class="mi">2</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">reclaim_stat</span><span class="o">-&gt;</span><span class="n">recent_rotated</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/=</span> <span class="mi">2</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * The amount of pressure on anon vs file pages is inversely
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * proportional to the fraction of recently scanned pages on
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 * each list that were recently referenced and in active use.
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 */</span>
+</span></span><span class="line"><span class="cl">	<span class="n">ap</span> <span class="o">=</span> <span class="n">anon_prio</span> <span class="o">*</span> <span class="p">(</span><span class="n">reclaim_stat</span><span class="o">-&gt;</span><span class="n">recent_scanned</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="n">ap</span> <span class="o">/=</span> <span class="n">reclaim_stat</span><span class="o">-&gt;</span><span class="n">recent_rotated</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">fp</span> <span class="o">=</span> <span class="n">file_prio</span> <span class="o">*</span> <span class="p">(</span><span class="n">reclaim_stat</span><span class="o">-&gt;</span><span class="n">recent_scanned</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="n">fp</span> <span class="o">/=</span> <span class="n">reclaim_stat</span><span class="o">-&gt;</span><span class="n">recent_rotated</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">spin_unlock_irq</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pgdat</span><span class="o">-&gt;</span><span class="n">lru_lock</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">fraction</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">ap</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">fraction</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">fp</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">denominator</span> <span class="o">=</span> <span class="n">ap</span> <span class="o">+</span> <span class="n">fp</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
+</span></span></code></pre></div><h3 id="enum-lru_list"><code>enum lru_list</code></h3>
+<p>先に進む前にローカル変数宣言の <code>lru</code> について確認します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">	<span class="k">enum</span> <span class="n">lru_list</span> <span class="n">lru</span><span class="p">;</span>
+</span></span></code></pre></div><p><a href="https://github.com/torvalds/linux/blob/v5.6-rc1/include/linux/mmzone.h#L249-L273">include/linux/mmzone.h#L249-L273</a></p>
+<p>anonymous, file メモリのそれぞれに inactive と active な LRU リストと unevictable (退去不可、つまりスワップできない) LRU リストがあることが分かります。</p>
+<p>次項で出てくる <code>for_each_evictable_lru</code> マクロの定義を見ると <code>LRU_INACTIVE_ANON</code>, <code>LRU_ACTIVE_ANON</code>, <code>LRU_INACTIVE_FILE</code>, <code>LRU_ACTIVE_FILE</code> の 4 つについて <code>for</code> ループで回すことが分かります。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * We do arithmetic on the LRU lists in various places in the code,
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * so it is important to keep the active lists LRU_ACTIVE higher in
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * the array than the corresponding inactive lists, and to keep
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * the *_FILE lists LRU_FILE higher than the corresponding _ANON lists.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * This has to be kept in sync with the statistics in zone_stat_item
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * above and the descriptions in vmstat_text in mm/vmstat.c
+</span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
+</span></span><span class="line"><span class="cl"><span class="cp">#define LRU_BASE 0
+</span></span></span><span class="line"><span class="cl"><span class="cp">#define LRU_ACTIVE 1
+</span></span></span><span class="line"><span class="cl"><span class="cp">#define LRU_FILE 2
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="k">enum</span> <span class="n">lru_list</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">LRU_INACTIVE_ANON</span> <span class="o">=</span> <span class="n">LRU_BASE</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">LRU_ACTIVE_ANON</span> <span class="o">=</span> <span class="n">LRU_BASE</span> <span class="o">+</span> <span class="n">LRU_ACTIVE</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">LRU_INACTIVE_FILE</span> <span class="o">=</span> <span class="n">LRU_BASE</span> <span class="o">+</span> <span class="n">LRU_FILE</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">LRU_ACTIVE_FILE</span> <span class="o">=</span> <span class="n">LRU_BASE</span> <span class="o">+</span> <span class="n">LRU_FILE</span> <span class="o">+</span> <span class="n">LRU_ACTIVE</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">LRU_UNEVICTABLE</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">NR_LRU_LISTS</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="cp">#define for_each_lru(lru) for (lru = 0; lru &lt; NR_LRU_LISTS; lru++)
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="cp">#define for_each_evictable_lru(lru) for (lru = 0; lru &lt;= LRU_ACTIVE_FILE; lru++)
+</span></span></span></code></pre></div><h3 id="lru-についてのループ処理その1"><code>lru</code> についてのループ処理その1</h3>
+<p><a href="https://github.com/torvalds/linux/blob/v5.6-rc1/mm/vmscan.c#L2342-L2352">mm/vmscan.c#L2342-L2352</a></p>
+<p><code>scan_balance</code> のすべての値に共通な処理。 <code>lru</code> のそれぞれについてループしています。
+まずループの開始部分。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="nl">out</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">for_each_evictable_lru</span><span class="p">(</span><span class="n">lru</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">int</span> <span class="n">file</span> <span class="o">=</span> <span class="nf">is_file_lru</span><span class="p">(</span><span class="n">lru</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">lruvec_size</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">scan</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">protection</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="n">lruvec_size</span> <span class="o">=</span> <span class="nf">lruvec_lru_size</span><span class="p">(</span><span class="n">lruvec</span><span class="p">,</span> <span class="n">lru</span><span class="p">,</span> <span class="n">sc</span><span class="o">-&gt;</span><span class="n">reclaim_idx</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="n">protection</span> <span class="o">=</span> <span class="nf">mem_cgroup_protection</span><span class="p">(</span><span class="n">memcg</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">						   <span class="n">sc</span><span class="o">-&gt;</span><span class="n">memcg_low_reclaim</span><span class="p">);</span>
+</span></span></code></pre></div><h3 id="mem_cgroup_protection-関数"><code>mem_cgroup_protection</code> 関数</h3>
+<p><a href="https://github.com/torvalds/linux/blob/v5.6-rc1/include/linux/memcontrol.h#L64">include/linux/memcontrol.h#L64</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cp">#ifdef CONFIG_MEMCG
+</span></span></span></code></pre></div><p>上記の <code>CONFIG_MEMCG</code> が定義されている場合の <code>mem_cgroup_protection</code> 関数の実装。
+<a href="https://github.com/torvalds/linux/blob/v5.6-rc1/include/linux/memcontrol.h#L347-L358">include/linux/memcontrol.h#L347-L358</a></p>
+<ul>
+<li>メモリ cgroup が無効な場合は 0 になる</li>
+<li>メモリ cgroup が有効な場合
+<ul>
+<li><code>in_low_reclaim</code> が <code>true</code> の場合は <code>memcg-&gt;memory.emin</code> の値になる</li>
+<li><code>in_low_reclaim</code> が <code>false</code> の場合は <code>memcg-&gt;memory.emin</code> と <code>memcg-&gt;memory.elow)</code> の大きいほうの値になる</li>
+</ul>
+</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">static</span> <span class="kr">inline</span> <span class="kt">unsigned</span> <span class="kt">long</span> <span class="nf">mem_cgroup_protection</span><span class="p">(</span><span class="k">struct</span> <span class="n">mem_cgroup</span> <span class="o">*</span><span class="n">memcg</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">						  <span class="kt">bool</span> <span class="n">in_low_reclaim</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="nf">mem_cgroup_disabled</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">in_low_reclaim</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nf">READ_ONCE</span><span class="p">(</span><span class="n">memcg</span><span class="o">-&gt;</span><span class="n">memory</span><span class="p">.</span><span class="n">emin</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nf">max</span><span class="p">(</span><span class="nf">READ_ONCE</span><span class="p">(</span><span class="n">memcg</span><span class="o">-&gt;</span><span class="n">memory</span><span class="p">.</span><span class="n">emin</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">		   <span class="nf">READ_ONCE</span><span class="p">(</span><span class="n">memcg</span><span class="o">-&gt;</span><span class="n">memory</span><span class="p">.</span><span class="n">elow</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>上記の <code>CONFIG_MEMCG</code> が定義されていない場合の <code>mem_cgroup_protection</code> 関数の実装。</p>
+<p><a href="https://github.com/torvalds/linux/blob/v5.6-rc1/include/linux/memcontrol.h#L837-L841">include/linux/memcontrol.h#L837-L841</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">static</span> <span class="kr">inline</span> <span class="kt">unsigned</span> <span class="kt">long</span> <span class="nf">mem_cgroup_protection</span><span class="p">(</span><span class="k">struct</span> <span class="n">mem_cgroup</span> <span class="o">*</span><span class="n">memcg</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">						  <span class="kt">bool</span> <span class="n">in_low_reclaim</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h3 id="lru-についてのループ処理その2"><code>lru</code> についてのループ処理その2</h3>
+<p><a href="https://github.com/torvalds/linux/blob/v5.6-rc1/mm/vmscan.c#L2353-L2402">mm/vmscan.c#L2353-L2402</a></p>
+<p>前項の <code>mem_cgroup_protection</code> 関数で返された <code>protection</code> が 0 以外か 0 かに応じて異なるルールで <code>scan</code> の値が一旦設定された後、 <code>sc-&gt;priority</code> の値で調整されます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">protection</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * Scale a cgroup&#39;s reclaim pressure by proportioning
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * its current usage to its memory.low or memory.min
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * setting.
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 *
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * This is important, as otherwise scanning aggression
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * becomes extremely binary -- from nothing as we
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * approach the memory protection threshold, to totally
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * nominal as we exceed it.  This results in requiring
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * setting extremely liberal protection thresholds. It
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * also means we simply get no protection at all if we
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * set it too low, which is not ideal.
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 *
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * If there is any protection in place, we reduce scan
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * pressure by how much of the total memory used is
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * within protection thresholds.
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 *
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * There is one special case: in the first reclaim pass,
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * we skip over all groups that are within their low
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * protection. If that fails to reclaim enough pages to
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * satisfy the reclaim goal, we come back and override
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * the best-effort low protection. However, we still
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * ideally want to honor how well-behaved groups are in
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * that case instead of simply punishing them all
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * equally. As such, we reclaim them based on how much
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * memory they are using, reducing the scan pressure
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * again by how much of the total memory used is under
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * hard protection.
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 */</span>
+</span></span><span class="line"><span class="cl">			<span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">cgroup_size</span> <span class="o">=</span> <span class="nf">mem_cgroup_size</span><span class="p">(</span><span class="n">memcg</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">			<span class="cm">/* Avoid TOCTOU with earlier protection check */</span>
+</span></span><span class="line"><span class="cl">			<span class="n">cgroup_size</span> <span class="o">=</span> <span class="nf">max</span><span class="p">(</span><span class="n">cgroup_size</span><span class="p">,</span> <span class="n">protection</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">			<span class="n">scan</span> <span class="o">=</span> <span class="n">lruvec_size</span> <span class="o">-</span> <span class="n">lruvec_size</span> <span class="o">*</span> <span class="n">protection</span> <span class="o">/</span>
+</span></span><span class="line"><span class="cl">				<span class="n">cgroup_size</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">			<span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * Minimally target SWAP_CLUSTER_MAX pages to keep
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * reclaim moving forwards, avoiding decremeting
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * sc-&gt;priority further than desirable.
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 */</span>
+</span></span><span class="line"><span class="cl">			<span class="n">scan</span> <span class="o">=</span> <span class="nf">max</span><span class="p">(</span><span class="n">scan</span><span class="p">,</span> <span class="n">SWAP_CLUSTER_MAX</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">scan</span> <span class="o">=</span> <span class="n">lruvec_size</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="n">scan</span> <span class="o">&gt;&gt;=</span> <span class="n">sc</span><span class="o">-&gt;</span><span class="n">priority</span><span class="p">;</span>
+</span></span></code></pre></div><h3 id="lru-についてのループ処理その3"><code>lru</code> についてのループ処理その3</h3>
+<p><a href="https://github.com/torvalds/linux/blob/v5.6-rc1/mm/vmscan.c#L2403-L2409">mm/vmscan.c#L2403-L2409</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">		<span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">		 * If the cgroup&#39;s already been deleted, make sure to
+</span></span></span><span class="line"><span class="cl"><span class="cm">		 * scrape out the remaining cache.
+</span></span></span><span class="line"><span class="cl"><span class="cm">		 */</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">scan</span> <span class="o">&amp;&amp;</span> <span class="o">!</span><span class="nf">mem_cgroup_online</span><span class="p">(</span><span class="n">memcg</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">			<span class="n">scan</span> <span class="o">=</span> <span class="nf">min</span><span class="p">(</span><span class="n">lruvec_size</span><span class="p">,</span> <span class="n">SWAP_CLUSTER_MAX</span><span class="p">);</span>
+</span></span></code></pre></div><h3 id="mem_cgroup_online-関数"><code>mem_cgroup_online</code> 関数</h3>
+<p><a href="https://github.com/torvalds/linux/blob/v5.6-rc1/include/linux/memcontrol.h#L514-L519">include/linux/memcontrol.h#L514-L519</a></p>
+<p><code>CONFIG_MEMCG</code> が定義されている場合の <code>mem_cgroup_online</code> 関数の実装。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">static</span> <span class="kr">inline</span> <span class="kt">bool</span> <span class="nf">mem_cgroup_online</span><span class="p">(</span><span class="k">struct</span> <span class="n">mem_cgroup</span> <span class="o">*</span><span class="n">memcg</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="nf">mem_cgroup_disabled</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nb">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="o">!!</span><span class="p">(</span><span class="n">memcg</span><span class="o">-&gt;</span><span class="n">css</span><span class="p">.</span><span class="n">flags</span> <span class="o">&amp;</span> <span class="n">CSS_ONLINE</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><a href="https://github.com/torvalds/linux/blob/v5.6-rc1/include/linux/memcontrol.h#L970-L973">include/linux/memcontrol.h#L970-L973</a></p>
+<p><code>CONFIG_MEMCG</code> が定義されていない場合の <code>mem_cgroup_online</code> 関数の実装。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">static</span> <span class="kr">inline</span> <span class="kt">bool</span> <span class="nf">mem_cgroup_online</span><span class="p">(</span><span class="k">struct</span> <span class="n">mem_cgroup</span> <span class="o">*</span><span class="n">memcg</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nb">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h3 id="lru-についてのループ処理その4"><code>lru</code> についてのループ処理その4</h3>
+<p><a href="https://github.com/torvalds/linux/blob/v5.6-rc1/mm/vmscan.c#L2410-L2439">mm/vmscan.c#L2410-L2439</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">		<span class="k">switch</span> <span class="p">(</span><span class="n">scan_balance</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="nl">SCAN_EQUAL</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">			<span class="cm">/* Scan lists relative to size */</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="nl">SCAN_FRACT</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">			<span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * Scan types proportional to swappiness and
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * their relative recent reclaim efficiency.
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * Make sure we don&#39;t miss the last page
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 * because of a round-off error.
+</span></span></span><span class="line"><span class="cl"><span class="cm">			 */</span>
+</span></span><span class="line"><span class="cl">			<span class="n">scan</span> <span class="o">=</span> <span class="nf">DIV64_U64_ROUND_UP</span><span class="p">(</span><span class="n">scan</span> <span class="o">*</span> <span class="n">fraction</span><span class="p">[</span><span class="n">file</span><span class="p">],</span>
+</span></span><span class="line"><span class="cl">						  <span class="n">denominator</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="nl">SCAN_FILE</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="nl">SCAN_ANON</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">			<span class="cm">/* Scan one type exclusively */</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">((</span><span class="n">scan_balance</span> <span class="o">==</span> <span class="n">SCAN_FILE</span><span class="p">)</span> <span class="o">!=</span> <span class="n">file</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="n">lruvec_size</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">				<span class="n">scan</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">default</span><span class="o">:</span>
+</span></span><span class="line"><span class="cl">			<span class="cm">/* Look ma, no brain */</span>
+</span></span><span class="line"><span class="cl">			<span class="nf">BUG</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="n">nr</span><span class="p">[</span><span class="n">lru</span><span class="p">]</span> <span class="o">=</span> <span class="n">scan</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>上記のループの最後で <code>nr[lru]</code> に値を設定していて、これは <code>get_scan_count</code> 関数の前のコメントの下記の部分に対応しています。 <code>nr</code> は number の略でコメントと合わせると LRU の種別毎にスキャンするページ数ということのようです。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"> <span class="o">*</span> <span class="n">nr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">anon</span> <span class="n">inactive</span> <span class="n">pages</span> <span class="n">to</span> <span class="n">scan</span><span class="p">;</span> <span class="n">nr</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">anon</span> <span class="n">active</span> <span class="n">pages</span> <span class="n">to</span> <span class="n">scan</span>
+</span></span><span class="line"><span class="cl"> <span class="o">*</span> <span class="n">nr</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">file</span> <span class="n">inactive</span> <span class="n">pages</span> <span class="n">to</span> <span class="n">scan</span><span class="p">;</span> <span class="n">nr</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">file</span> <span class="n">active</span> <span class="n">pages</span> <span class="n">to</span> <span class="n">scan</span>
+</span></span></code></pre></div><p><code>get_scan_count</code> 関数で設定した <code>nr</code> の値を使ってページをスキャンする処理のほうも気になりますが、長くなってきたので今回はこの辺で。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

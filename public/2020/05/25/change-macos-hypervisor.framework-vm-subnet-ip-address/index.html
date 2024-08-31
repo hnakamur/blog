@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>macOSでHypervisor.frameworkのVMのサブネットIPアドレスを変える &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>macOSでHypervisor.frameworkのVMのサブネットIPアドレスを変える</h1>
+  <time datetime=2020-05-25T14:10:55&#43;0900 class="post-date">2020-05-25</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#multipass-のvm停止">multipass のVM停止</a></li>
+    <li><a href="#vmnet-の設定変更">vmnet の設定変更</a></li>
+    <li><a href="#dhcp-のリースファイル削除">DHCP のリースファイル削除</a></li>
+    <li><a href="#multipass-のvm起動">multipass のVM起動</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="https://multipass.run/docs/troubleshooting-networking-on-macos">Troubleshooting networking on macOS | Multipass documentation</a> に Hypervisor.framework のVMのIPアドレスの変更方法が書いてあるのを見つけて試してみたのでメモ。</p>
+<h2 id="multipass-のvm停止">multipass のVM停止</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">multipass stop
+</span></span></span></code></pre></div><h2 id="vmnet-の設定変更">vmnet の設定変更</h2>
+<p><code>/Library/Preferences/SystemConfiguration/com.apple.vmnet.plist</code> という設定ファイルにVMのサブネットのアドレス設定があります。</p>
+<p>ちなみに vmnet macOS で検索すると macOS には vmnet というframeworkがあることがわかりました。
+<a href="https://developer.apple.com/documentation/vmnet">vmnet | Apple Developer Documentation</a></p>
+<p>拡張子の <code>.plist</code> はプロパティリスト形式の設定ファイルを意味しています。</p>
+<p>以下のコマンドを実行して編集します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo vim /Library/Preferences/SystemConfiguration/com.apple.vmnet.plist
+</span></span></span></code></pre></div><p>ファイルの最後の方に以下のような行があります。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-xml" data-lang="xml"><span class="line"><span class="cl">        <span class="nt">&lt;key&gt;</span>Shared_Net_Address<span class="nt">&lt;/key&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="nt">&lt;string&gt;</span>192.168.64.1<span class="nt">&lt;/string&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="nt">&lt;key&gt;</span>Shared_Net_Mask<span class="nt">&lt;/key&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="nt">&lt;string&gt;</span>255.255.255.0<span class="nt">&lt;/string&gt;</span>
+</span></span></code></pre></div><p><code>Shared_Net_Address</code> をお好みで <code>192.168.254.1</code> などと変更します（私はVMを <code>192.168.254.0/24</code> でVM上のLXDコンテナを <code>192.168.255.0/24</code> にしてます）。</p>
+<p><a href="https://multipass.run/docs/troubleshooting-networking-on-macos">Troubleshooting networking on macOS | Multipass documentation</a> の
+&ldquo;Possible other option - configure Multipass to use a different subnet?&rdquo; には <code>192.168.</code> が multipass 内にハードコーディングされているので <code>192.168.</code> 以外にはしないよう書かれています。ソースコードを検索した限りではそうでもなさそうでしたが、 <code>192.168.</code> 以外のアドレスは試していません。</p>
+<h2 id="dhcp-のリースファイル削除">DHCP のリースファイル削除</h2>
+<p>私の環境では multipass で primary という名前でVMを作っていて、それが 192.168.64.2 というIPアドレスでしたが、
+<code>/var/db/dhcpd_leases</code> が以下のような内容になっていました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">{
+</span></span><span class="line"><span class="cl">        name=primary
+</span></span><span class="line"><span class="cl">        ip_address=192.168.64.2
+</span></span><span class="line"><span class="cl">        hw_address=1,XX:XX:XX:X:XX:XX
+</span></span><span class="line"><span class="cl">        identifier=1,XX:XX:XX:X:XX:XX
+</span></span><span class="line"><span class="cl">        lease=0x5ecc5f63
+</span></span><span class="line"><span class="cl">}
+</span></span></code></pre></div><p><code>hw_address</code> と <code>identifier</code> のMACアドレスは伏せてますが、VMの <code>enp0s2</code> インタフェースのMACアドレスで先頭の0は外したものになっていました。</p>
+<p>以下のコマンドでDHCPのリースファイルを削除します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo rm /var/db/dhcpd_leases
+</span></span></span></code></pre></div><h2 id="multipass-のvm起動">multipass のVM起動</h2>
+<p>以下のコマンドで起動します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">multipass start
+</span></span></span></code></pre></div><p>以下のよう起動がタイムアウトになる場合がありました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">%</span> multipass start
+</span></span><span class="line"><span class="cl"><span class="go">start failed: The following errors occurred:                                    
+</span></span></span><span class="line"><span class="cl"><span class="go">primary: timed out waiting for response
+</span></span></span></code></pre></div><p><code>multipass list</code> で確認すると状態が Unknown で IPv4 アドレスも不明になっています。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">%</span> multipass list 
+</span></span><span class="line"><span class="cl"><span class="go">Name                    State             IPv4             Image
+</span></span></span><span class="line"><span class="cl"><span class="go">primary                 Unknown           --               Ubuntu 18.04 LTS
+</span></span></span></code></pre></div><p>試しに再度 <code>multipass start</code> を実行してみると、今度は成功して <code>multipass list</code> でも正しく状態が確認できるようになりました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">%</span> multipass list
+</span></span><span class="line"><span class="cl"><span class="go">Name                    State             IPv4             Image
+</span></span></span><span class="line"><span class="cl"><span class="go">primary                 Running           192.168.254.2     Ubuntu 18.04 LTS
+</span></span></span></code></pre></div>
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

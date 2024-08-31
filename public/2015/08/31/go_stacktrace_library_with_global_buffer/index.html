@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Goでグローバルなバッファを使いまわしてスタックトレースを取得するライブラリを書いてみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Goでグローバルなバッファを使いまわしてスタックトレースを取得するライブラリを書いてみた</h1>
+  <time datetime=2015-08-31T00:43:56&#43;0900 class="post-date">2015-08-31</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景と経緯">背景と経緯</a></li>
+    <li><a href="#実装と使い方">実装と使い方</a></li>
+  </ul>
+</nav>
+  <h2 id="背景と経緯">背景と経緯</h2>
+<p>Goでもエラー処理にpanicを使えばスタックトレースが出力されます。でも、ライブラリでは <code>panic</code> するとエラー処理して続行したいときに困るのでpanicではなく <code>return err</code> を使うのが普通です。すると今度はスタックトレースが取れないのが残念だと思っていました。エラーが出た箇所でログ出力はするとして、やはりスタックトレースがあるほうがその関数までの呼出経路がわかってデバッグが捗ります。</p>
+<p>標準ライブラリを見てみると、<a href="http://golang.org/pkg/runtime/debug/#PrintStack">runtime.debug.PrintStack()</a> という便利そうな関数を見つけました。が、これは出力先が標準エラー出力固定となっています。私はログファイルに出したいんですよね。</p>
+<p>そこでドキュメントの関数のリンクをクリックしてソースを見てみます。
+<a href="http://golang.org/src/runtime/debug/stack.go?s=516:533#L15">src/runtime/debug/stack.go - The Go Programming Language</a></p>
+<pre tabindex="0"><code>func PrintStack() {
+  os.Stderr.Write(stack())
+}
+
+// Stack returns a formatted stack trace of the goroutine that calls it.
+// For each routine, it includes the source line information and PC value,
+// then attempts to discover, for Go functions, the calling function or
+// method and the text of the line containing the invocation.
+//
+// Deprecated: Use package runtime&#39;s Stack instead.
+func Stack() []byte {
+  return stack()
+}
+</code></pre><p>お、<code>Stack()</code> のほうを使えば <code>[]byte</code> で取得できるじゃないですか。あれ、でもdeprecatedなので <a href="http://golang.org/pkg/runtime/#Stack">runtime.Stack</a> のほうを使えとあります。シグネチャ見ると <code>func Stack(buf []byte, all bool) int</code> となっていて、こちらからバッファを渡す必要があるんですね。</p>
+<p>関数定義 <a href="http://golang.org/src/runtime/mprof.go?s=15278:15314#L552">src/runtime/mprof.go - The Go Programming Language</a>を見てみると、バッファサイズが足りない場合は、途中までしか書かれないようです。またどれだけのサイズがあれば大丈夫かを調べる方法もないようです。</p>
+<pre tabindex="0"><code>func Stack(buf []byte, all bool) int {
+  if all {
+    stopTheWorld(&#34;stack trace&#34;)
+  }
+
+  n := 0
+  if len(buf) &gt; 0 {
+    gp := getg()
+    sp := getcallersp(unsafe.Pointer(&amp;buf))
+    pc := getcallerpc(unsafe.Pointer(&amp;buf))
+    systemstack(func() {
+      g0 := getg()
+      g0.writebuf = buf[0:0:len(buf)]
+      goroutineheader(gp)
+      traceback(pc, sp, 0, gp)
+      if all {
+        tracebackothers(gp)
+      }
+      n = len(g0.writebuf)
+      g0.writebuf = nil
+    })
+  }
+
+  if all {
+    startTheWorld()
+  }
+  return n
+}
+</code></pre><p>実はさっきの <code>stack()</code> の定義<a href="http://golang.org/src/runtime/debug/stack.go?s=516:533#L40">src/runtime/debug/stack.go - The Go Programming Language</a>を見ると<a href="http://golang.org/pkg/runtime/#Caller">runtime.Caller</a>というより低レベルな関数があってこれを使って自前で実装すれば好きに作れそうではあります。</p>
+<p>しかし、私は手抜きで済ませたいので大きめのバッファをグローバルに予め確保しておいてそれを<a href="http://golang.org/pkg/runtime/#Stack">runtime.Stack</a>に渡す方式にしました。
+バッファを予め確保しておくのは、エラーが起きてからメモリ確保しようとして失敗するケースを避けたいからです。</p>
+<p>と言いつつ、<a href="http://golang.org/pkg/runtime/#Stack">runtime.Stack</a>内でメモリ割り当てが発生するかまでは確認していません。</p>
+<h2 id="実装と使い方">実装と使い方</h2>
+<p>というわけで実装してみました。レポジトリは<a href="https://github.com/hnakamur/stacktrace">hnakamur/stacktrace</a>で、ライセンスはMITです。</p>
+<p>使用例はこちらです。<a href="https://github.com/hnakamur/stacktrace/blob/ed0a2c8b61528e59f349f6c108a84a6b9dd8e981/example/main.go">example.go</a></p>
+<pre tabindex="0"><code>package main
+
+import (
+  &#34;errors&#34;
+  &#34;log&#34;
+
+  &#34;github.com/hnakamur/stacktrace&#34;
+)
+
+func logErrorWithStackTrace(msg interface{}) {
+  log.Printf(&#34;error: %s\nstacktrace: %s\n&#34;, msg, stacktrace.LockBufAndGetStackWithSkip(2))
+  defer stacktrace.UnlockBuf()
+}
+
+func b() {
+  err := errors.New(&#34;some error&#34;)
+  logErrorWithStackTrace(err)
+}
+
+func a() {
+  b()
+}
+
+func main() {
+  a()
+}
+</code></pre><p>まずお好みのロギングライブラリ用にスタックトレースを取得してログ出力する関数を定義します。この例の場合は <code>logErrorWithStackTrace</code> です。メモリ割り当て回数を最低限にしたかったので、 <code>stacktrace.LockBufAndGetStackWithSkip()</code> はグローバルバッファをロックした状態でそのまま返すようにしています。ですので使い終わったら、<code>stacktrace.UnlockBuf()</code> でロックを解放する必要があります。</p>
+<p><code>stacktrace.LockBufAndGetStackWithSkip()</code> の引数で2を渡しているのはスタックトレースから <code>stacktrace.LockBufAndGetStackWithSkip</code> と <code>logErrorWithStackTrace</code> の2つを除外するためです。</p>
+<p>出力例は以下の通りです。</p>
+<pre tabindex="0"><code>$ go run main.go
+2015/08/31 01:24:42 error: some error
+stacktrace: goroutine 1 [running]:
+main.b()
+        /Users/hnakamur/gocode/src/github.com/hnakamur/stacktrace/example/main.go:17 +0xce
+main.a()
+        /Users/hnakamur/gocode/src/github.com/hnakamur/stacktrace/example/main.go:21 +0x14
+main.main()
+        /Users/hnakamur/gocode/src/github.com/hnakamur/stacktrace/example/main.go:25 +0x14
+</code></pre><p>これでスタックトレース付きのエラーログを簡単に出力できて快適ですね！</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

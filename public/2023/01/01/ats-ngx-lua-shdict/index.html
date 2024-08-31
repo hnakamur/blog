@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Apache Traffic Serverとnginxで使えるLuaJIT用shared dictを作ってみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Apache Traffic Serverとnginxで使えるLuaJIT用shared dictを作ってみた</h1>
+  <time datetime=2023-01-01T15:53:38&#43;0900 class="post-date">2023-01-01</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#共有メモリにアドレスをそのまま書く方式だと複数サービス間では共有できない">共有メモリにアドレスをそのまま書く方式だと複数サービス間では共有できない</a>
+      <ul>
+        <li><a href="#横道-nginxの共有メモリ">横道: nginxの共有メモリ</a></li>
+      </ul>
+    </li>
+    <li><a href="#ベースアドレスからのオフセットを書くように改変して対応">ベースアドレスからのオフセットを書くように改変して対応</a>
+      <ul>
+        <li><a href="#オフセットを表す型定義">オフセットを表す型定義</a></li>
+      </ul>
+    </li>
+    <li><a href="#文字列キーのハッシュ関数はngx_crc32_shortからngx_murmur_hash2に変更">文字列キーのハッシュ関数はngx_crc32_shortからngx_murmur_hash2に変更</a></li>
+    <li><a href="#nginxとtrafficserverのログ出力関数の利用">nginxとtrafficserverのログ出力関数の利用</a>
+      <ul>
+        <li><a href="#2023-01-02-ログ書式をvsnprintfに統一しました">2023-01-02 ログ書式をvsnprintfに統一しました</a></li>
+      </ul>
+    </li>
+    <li><a href="#リスト関連のメソッドlpush-rpush-lpop-rpop-llen">リスト関連のメソッド(lpush, rpush, lpop, rpop, llen)</a></li>
+    <li><a href="#単体テストとカバレッジ">単体テストとカバレッジ</a></li>
+    <li><a href="#関連-handles-are-the-better-pointers">関連: Handles are the better pointers</a></li>
+    <li><a href="#データベースではmmapは使うべきではないという話">データベースではmmapは使うべきではないという話</a></li>
+    <li><a href="#共有メモリに加えてメモリマップトファイルも対応してみました">共有メモリに加えてメモリマップトファイルも対応してみました</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>レポジトリは<a href="https://github.com/hnakamur/ats-ngx-lua-shdict">hnakamur/ats-ngx-lua-shdict</a>です。</p>
+<p>作ってみたといっても、0から作り上げたわけではなく、nginxとlua-nginx-moduleの<a href="https://github.com/openresty/lua-nginx-module#ngxshareddict">ngx.shared.DICT</a>のソースをコピペして改変しただけです。私がLinuxでしか使う予定がないので、対象環境はLinuxのみです。</p>
+<p>コミットログを見ると去年の12月11日から作り始めていたので3週間かかっています。</p>
+<p>なお、現状はとりあえず実装と単体テストを書いただけで、実運用に耐えるレベルなのかは不明です。が、このタイミングでメモしておかないと、この後他の事をするとだんだん忘れてきて、後からだと書くのが面倒になってくるので今書いておきます。</p>
+<p>背景として、私は<a href="http://nginx.org/">NGINX</a>の<a href="https://github.com/openresty/lua-nginx-module">openresty/lua-nginx-module</a>と<a href="https://trafficserver.apache.org/">Apache Traffic Server</a>の<a href="https://docs.trafficserver.apache.org/en/latest/admin-guide/plugins/lua.en.html">Lua Plugin</a>でLuaJITでスクリプトを書いて大変便利に使っています。</p>
+<p>その中でも<a href="https://github.com/openresty/lua-nginx-module#ngxshareddict">ngx.shared.DICT</a>という共有メモリ上のキーバリューストアのような仕組みが便利で、各種設定を登録・参照するのに使っているのですが、Traffic Serverでも似たような仕組みが欲しいなと思っていました。
+nginxはワーカープロセスがマルチプロセス構成なのに対して、Traffic Serverはシングルプロセスでマルチスレッドなので、実は普通にメモリ上にデータ構造作ってmutexで排他制御すれば良いという話もあります。</p>
+<p>ただ、<a href="https://docs.trafficserver.apache.org/en/latest/admin-guide/configuration/hierarchical-caching.en.html?highlight=hierarchical%20cache#hierarchical-caching">Hierarchical Caching</a>を使って、かつ1台のサーバにnginxのサービス1組とtrafficserverのサービスを2組動かして、それを複数台並べる構成だと、1台のサーバ上の1組のnginxと2組のtrafficserverのサービス間でもデータを共有したいという思いがありました。</p>
+<h2 id="共有メモリにアドレスをそのまま書く方式だと複数サービス間では共有できない">共有メモリにアドレスをそのまま書く方式だと複数サービス間では共有できない</h2>
+<p><a href="http://192.168.2.202:1313/blog/2022/12/04/tried-shared-memory-in-luajit-and-ffi/">LuaJIT+FFIで共有メモリを試してみた · hnakamur&rsquo;s blog</a>の次のステップとして、<a href="https://manpages.ubuntu.com/manpages/jammy/en/man3/shm_open.3.html">shm_open</a>で開いた共有メモリを<a href="https://manpages.ubuntu.com/manpages/kinetic/en/man3/mmap.3posix.html">mmap</a>でメモリにマップして、その上に<a href="https://github.com/openresty/lua-nginx-module#ngxshareddict">ngx.shared.DICT</a>のデータ構造を作るのを試してみました。</p>
+<p>プロセス終了後も<code>/dev/shm/</code>配下に共有メモリのファイル(<code>/dev/shm/</code>配下は疑似的なファイルシステムなので実際はメモリ上のデータです)が残るので、再度プロセスを起動した場合はそれを開いて利用するように実装したのですが、Segmentation faultが起きました。</p>
+<p>ちょっと考えるとそれは当たり前で、<a href="https://github.com/openresty/lua-nginx-module#ngxshareddict">ngx.shared.DICT</a>ではポインタのアドレスをそのままメモリ上に書いていて、それが<code>/dev/shm/</code>配下の共有メモリに書かれますが、次にプロセスが起動してそれを開いてmmapしたり、別のプロセスから開いてmmapすると、最初とは別のアドレスにマップされるので、保存されていたアドレスの値は変なところを指しているからです。</p>
+<h3 id="横道-nginxの共有メモリ">横道: nginxの共有メモリ</h3>
+<p>なお、nginxの場合は、<a href="https://github.com/nginx/nginx/blob/release-1.23.3/src/core/ngx_cycle.c#L413-L500">managerプロセスで共有メモリを作成</a>して、それを複数のworkerプロセスに渡しているので、同じアドレスのまま参照できているということのようです。そして<a href="https://github.com/nginx/nginx/blob/release-1.23.3/src/os/unix/ngx_shmem.c#L14-L28">ngx_shm_alloc</a>関数ではLinuxなど<code>MAP_ANON</code>が利用できる環境では<a href="https://manpages.ubuntu.com/manpages/jammy/en/man2/mmap.2.html">mmap (2)</a>で<code>flags</code>に<code>MAP_ANON|MAP_SHARED</code>を指定して共有メモリを作っています。</p>
+<p>この方式だと<code>/dev/shm/</code>配下にはファイルは作られず、nginxを終了すると内容は失われ、nginxを再起動すると新たに作られることになります。</p>
+<h2 id="ベースアドレスからのオフセットを書くように改変して対応">ベースアドレスからのオフセットを書くように改変して対応</h2>
+<p>そこで、共有メモリ上のデータ構造内ではポインタの代わりにmmapしたときのベースアドレスからのオフセットを持つようにしてみました。</p>
+<p><a href="https://github.com/openresty/lua-nginx-module#ngxshareddict">ngx.shared.DICT</a>はnginxの<a href="http://nginx.org/en/docs/dev/development_guide.html#shared_memory">共有メモリ</a>の仕組みの上にスラブアロケータ(ngx_slab_pool_t)、<a href="http://nginx.org/en/docs/dev/development_guide.html#red_black_tree">赤黒木 (ngx_rbtree_t)</a>、<a href="http://nginx.org/en/docs/dev/development_guide.html#queue">キュー (ngx_queue_t)</a>を使って実装されています。キューは双方向リンクトリストで共有メモリがいっぱいになったときにLeast Recently Used (LRU)アルゴリズムで古いキーを破棄するために使っています。</p>
+<h3 id="オフセットを表す型定義">オフセットを表す型定義</h3>
+<p>オフセットを表す型として<a href="https://github.com/hnakamur/ats-ngx-lua-shdict/blob/8565c6e379beec724cdab58dc492ec4caa773dc5/src/mps_slab.h#L18"><code>typedef uintptr mps_ptroff_t;</code></a>というのを定義しました(mps_は今回作ったソフトウェアの接頭辞でmulti process sharedの略です)。</p>
+<p>C++だと<a href="https://cpprefjp.github.io/reference/cstddef/ptrdiff_t.html">std::ptrdiff_t - cpprefjp C++日本語リファレンス</a>というのがあるそうなのですが、こちらはdiffでポインタ同士の差分ということで符号付き整数型となっています。</p>
+<p>今回表したいのはベースアドレスからのオフセットなので符号無しで良いので、これとは違う名前にしてみました。Cの<code>off_t</code>も符号付きなので紛らわしいかもとは思ったのですが、他に良い名前が思いつかず。</p>
+<p>元のポインタは対応する構造体へのポインタですが、<code>mps_ptroff_t</code>だとどの構造体に対するオフセットだったかという情報は欠落してしまっています。RustやC++ならそれぞれの構造体に対するオフセット型を導入して違う方のオフセットを間違って使わないようにとかしそうな気がします(深く考えずにそんな感じかなと思ってるだけ)が、今回はCなのと構造体の種類も少ししかないのでこれで十分です。</p>
+<p><a href="https://github.com/hnakamur/ats-ngx-lua-shdict/blob/8565c6e379beec724cdab58dc492ec4caa773dc5/src/mps_slab.h#L55-L57">オフセットとポインタの相互変換用のマクロを定義</a>しています。</p>
+<pre tabindex="0"><code>#define mps_offset(pool, ptr) (mps_ptroff_t)((u_char *)(ptr) - (u_char *)(pool))
+
+#define mps_ptr(pool, offset) ((u_char *)(pool) + (offset))
+</code></pre><p>スラブアロケータの<code>mps_slab_pool_t *pool</code>が共有メモリのベースアドレスです。
+また、NULLポインタに対応するオフセットは <code>#define mps_nulloff 0</code> と定義しています。これはpoolの先頭にはスラブアロケータの管理データがあり、スラブアロケータで割り当てられるメモリ領域は絶対にpoolとは異なる値になるため、オフセットが0になることはないからです。</p>
+<p>オフセット用の型を用意したら、あとは以下の方針で書き換えていきました。</p>
+<ul>
+<li>スラブアロケータとそれで割り当てる構造体のフィールドのポインタ型を全てオフセット型に変更。</li>
+<li>ローカル変数は基本的にはポインタ型にして、値をオフセットからポインタに変換して保持。</li>
+<li>構造体のフィールドのオフセットに設定する際に、値をポインタからオフセットに変換して設定。</li>
+</ul>
+<h2 id="文字列キーのハッシュ関数はngx_crc32_shortからngx_murmur_hash2に変更">文字列キーのハッシュ関数はngx_crc32_shortからngx_murmur_hash2に変更</h2>
+<p><a href="https://github.com/nginx/nginx/blob/release-1.23.3/src/core/ngx_crc32.h#L20-L35">ngx_crc32_short</a>は<a href="https://github.com/nginx/nginx/blob/release-1.23.3/src/core/ngx_crc32.c#L26-L31">uint32_t  ngx_crc32_table16[]</a>をCPUのキャッシュラインのサイズに応じて<a href="https://github.com/nginx/nginx/blob/release-1.23.3/src/core/ngx_crc32.c#L105-L129">ngx_crc32_table_init</a>でアラインしなおすという処理が必要でちょっと面倒なのと、<a href="https://github.com/hnakamur/ats-ngx-lua-shdict/commit/e278ac8e4a1589c52e117b96b19c4c9e5b2870ca">マイクロベンチマーク</a>をしてみた感じでは<a href="https://github.com/nginx/nginx/blob/release-1.23.3/src/core/ngx_murmurhash.c#L11-L52">ngx_murmur_hash2</a>のほうが約10倍速かったので、こちらに変更しました。</p>
+<p>どちらも、入力は長さ指定の文字列で、出力は<code>uint32_t</code>と同じです。</p>
+<h2 id="nginxとtrafficserverのログ出力関数の利用">nginxとtrafficserverのログ出力関数の利用</h2>
+<p><a href="https://github.com/openresty/lua-nginx-module#ngxshareddict">ngx.shared.DICT</a>はnginxのモジュールとして実装されていますが、今回作ったのは単なる共有ライブラリでLuaJITから<a href="https://luajit.org/ext_ffi_api.html#ffi_load">ffi.load</a>で読み込んで使う方式としています。実際はFFIの関数をラップするLuaJITのスクリプトファイルを提供していて、それを<a href="http://www.lua.org/manual/5.1/manual.html#pdf-require">require</a>して使います。</p>
+<p>nginx用とtrafficserver用で別々の共有ライブラリを作るようにしていて、nginx用では
+<a href="https://github.com/nginx/nginx/blob/release-1.23.3/src/core/ngx_log.h#L85-L86">ngx_log_error</a>と<a href="https://github.com/nginx/nginx/blob/release-1.23.3/src/core/ngx_log.h#L91-L93">ngx_log_debug</a>を、trafficserver用では
+<a href="https://github.com/apache/trafficserver/blob/9.1.4-rc0/include/ts/ts.h#L280-L283">TSStatus, TSNote, TSWarning, TSError</a>と<a href="https://github.com/apache/trafficserver/blob/9.1.4-rc0/include/ts/ts.h#L2146">TSDebug</a>を使うようにしています。</p>
+<p>nginxの<a href="https://github.com/nginx/nginx/blob/release-1.23.3/src/core/ngx_log.h#L85-L86">ngx_log_error</a>用の<a href="https://github.com/nginx/nginx/blob/release-1.23.3/src/core/ngx_log.h#L17-L23">ログレベル定義</a>とtrafficserverの<a href="https://github.com/apache/trafficserver/blob/9.1.4-rc0/include/ts/ts.h#L280-L286">TSNote～TSEmergency</a>は数が同じなので、当初は全て使おうかと思ったのですが、TSFatal, TSAlert, TSEmergencyはログ出力後プロセスを終了するようになっていて、一方nginxのほうは全レベルで終了しないという違いがあって、運用時に紛らわしいことになりそうと思ったので、TSFatal, TSAlert, TSEmergencyのレベルはこのライブラリでは使わないことにしました。</p>
+<p>ということでnginxとlua-nginx-module内で<code>NGX_LOG_CRIT</code>以上のレベルでログ出力していた箇所も<code>NGX_LOG_ERR</code>相当に変更しました。</p>
+<p><a href="https://github.com/hnakamur/ats-ngx-lua-shdict/blob/8565c6e379beec724cdab58dc492ec4caa773dc5/src/mps_log.h">mps_log.h</a>で<code>mps_log_debug</code>、<code>mps_log_status</code>、<code>mps_log_note</code>、<code>mps_log_warning</code>、<code>mps_log_error</code>を定義してビルド時に<code>#ifdef</code>でnginx用のログ関数を使うか、trafficserver用のログ関数を使うか、単体テスト用に標準エラー出力に出力する関数を使うかを切り替えるようにしています。</p>
+<p>なお、メッセージのフォーマット文字列内の<code>%</code>での指定方法に違いがあるので、真っ当にはnginxかtrafficserverのどちらかに合わせるような関数を書いてラップするほうが良いかもしれません。</p>
+<p>nginxのほうは最終的には<a href="https://github.com/nginx/nginx/blob/release-1.23.3/src/core/ngx_string.c#L164-L481">ngx_vslprintf</a>に行きついてこちらは<a href="https://github.com/nginx/nginx/blob/release-1.23.3/src/core/ngx_string.c#L90-L119">src/core/ngx_string.c#L90-L119</a>のフォーマットをサポートしています。</p>
+<p>一方trafficserverのほうは最終的には<a href="https://github.com/apache/trafficserver/blob/9.1.4-rc0/src/tscore/Diags.cc#L222-L332">Diags::print_va</a>に行きついてこれは<a href="https://manpages.ubuntu.com/manpages/jammy/en/man3/vfprintf.3.html">vfprintf (3)</a>を呼んでいます。</p>
+<p>最大長さを指定した文字列出力はnginxでは<code>%*s</code>、trafficserverでは<code>%.*s</code>と違う指定が必要なので、<a href="https://github.com/hnakamur/ats-ngx-lua-shdict/blob/8565c6e379beec724cdab58dc492ec4caa773dc5/src/mps_log.h">mps_log.h</a>に<code>LogLenStr</code>というマクロを定義してとりあえずしのいでいます。</p>
+<h3 id="2023-01-02-ログ書式をvsnprintfに統一しました">2023-01-02 ログ書式をvsnprintfに統一しました</h3>
+<p><a href="https://github.com/hnakamur/ats-ngx-lua-shdict/commit/e14b679436c202d7a6d4835e94d0648bb7b4d4b6">e14b679</a>と<a href="https://github.com/hnakamur/ats-ngx-lua-shdict/commit/8cdd4befa63d4038485293e80f78b8ba0a1cd768">8cdd4be</a>のコミットで統一しました。</p>
+<p><code>&quot;%&quot; PRId64</code>みたいに書くのは割と面倒なので、<a href="https://github.com/nginx/nginx/blob/release-1.23.3/src/core/ngx_string.c#L164-L481">ngx_vslprintf</a>をコピペ改変しようかと一度は思ったのですが、書式と引数が一致しないときにコンパイル時に警告が出るのは便利だなと思い直して、nginx用のログ出力をvsnprintfを使って文字列を作ってからnginxのログ出力関数に渡すように改修しました。</p>
+<p>また、<a href="https://github.com/hnakamur/ats-ngx-lua-shdict/blob/8cdd4befa63d4038485293e80f78b8ba0a1cd768/src/tslog.h">tslog.h</a>で使用されていた<a href="https://clang.llvm.org/docs/AttributeReference.html#format">Clang format attribute</a>を、nginxと標準エラー出力用のログ関数にも付けました。</p>
+<p>これで上に書いた<code>LogLenStr</code>のマクロは不要になったので直接<code>&quot;%.*s&quot;</code>と書くようにしました。
+なお、テストでは面倒だったので<code>&quot;%&quot; PRId64</code>ではなく<code>&quot;%ld&quot;</code>のように書いています。</p>
+<p>このへんを試していて気づいたのですが、フォーマット文字列と値の間で改行が入っていると、以下のように警告メッセージにフォーマット文字列が出力されないんですね。</p>
+<pre tabindex="0"><code>src/mps_slab.c:108:9: warning: format specifies type &#39;int&#39; but the argument has type &#39;ngx_uint_t&#39; (aka &#39;unsigned long&#39;) [-Wformat]
+        mps_pagesize, mps_slab_max_size, mps_slab_exact_size);
+        ^~~~~~~~~~~~
+src/mps_log.h:11:48: note: expanded from macro &#39;mps_log_debug&#39;
+#define mps_log_debug(tag, ...) TSDebug((tag), __VA_ARGS__)
+                                               ^~~~~~~~~~~
+1 warning generated.
+</code></pre><p>フォーマット文字列と値の間に改行が入っていない場合は、フォーマット文字列と修正後のフォーマットも出力されます。</p>
+<pre tabindex="0"><code>src/mps_slab.c:105:51: warning: format specifies type &#39;int&#39; but the argument has type &#39;ngx_uint_t&#39; (aka &#39;unsigned long&#39;) [-Wformat]
+    mps_log_debug(MPS_LOG_TAG, &#34;mps_pagesize=%d&#34;, mps_pagesize);
+                                             ~~   ^~~~~~~~~~~~
+                                             %lu
+src/mps_log.h:20:48: note: expanded from macro &#39;mps_log_debug&#39;
+#define mps_log_debug(tag, ...) TSDebug((tag), __VA_ARGS__)
+                                               ^~~~~~~~~~~
+1 warning generated.
+</code></pre><p>1回のログ出力で多数の値を出してフォーマット文字列が長くなりがちな私としてはちょっと残念ですが、警告メッセージを見れば分かるので慣れればよいかという気もしました。</p>
+<h2 id="リスト関連のメソッドlpush-rpush-lpop-rpop-llen">リスト関連のメソッド(lpush, rpush, lpop, rpop, llen)</h2>
+<p><a href="https://github.com/openresty/lua-nginx-module#ngxshareddict">ngx.shared.DICT</a>にはLuaの文字列、Number、booleanの値の設定・取得などのメソッドに加えて、リスト関連のメソッド(lpush, rpush, lpop, rpop, llen)も用意されています。</p>
+<p>個人的には使ってないので、非対応にしようかとも思ったのですが、一旦対応してみました。getなどのメソッドはLuaJIT FFI用の関数が実装されているのですが、リスト関連のメソッドはLua用の関数しかなかったのでFFI用の関数に改変して対応しました。</p>
+<p>LuaJIT FFI用の関数は普通のCの関数として書けばよいので楽で、これに慣れると<a href="http://www.lua.org/manual/5.1/manual.html#lua_pushlstring">lua_pushlstring</a>などを使ってLua用の関数を書くのはかなり面倒に感じます。Luaの入出力のスタックから引数を取得したり戻り値をスタックに積むときに、インデクスを随時意識する必要があるのがかなり大変ですし、LuaJIT FFIのほうが実行時の呼び出しも速いとのことなので、個人的にはLuaJIT FFI一択です。</p>
+<h2 id="単体テストとカバレッジ">単体テストとカバレッジ</h2>
+<p>単体テストは<a href="https://github.com/ThrowTheSwitch/Unity">ThrowTheSwitch/Unity: Simple Unit Testing for C</a>というフレームワークを初めて使ってみました。テストの<code>.c</code>ファイルを分けるとアサーションエラーの時にファイル名が正しく出ないようだったので、とりあえず<code>.c</code>ファイルは1つにしました(深く調査してないです)。</p>
+<p>カバレッジは<a href="https://llvm.org/docs/CommandGuide/llvm-cov.html">llvm-cov - emit coverage information</a>で出力しています。<a href="https://hnakamur.github.io/blog/2022/07/09/targeted-cache-control-impl/">Targeted Cache Control のライブラリをC言語で書いた · hnakamur&rsquo;s blog</a>で初めて使って、今回が2回目です。行単位ではなく式単位でカバレッジが表示されるのが便利です。</p>
+<p><code>make test</code>でテストを実行して<code>make cov</code>でカバレッジを出力するようにしています。端末にそのまま出力されるのでtmuxでスクロールをさかのぼってすぐに確認できるのが良いです。</p>
+<h2 id="関連-handles-are-the-better-pointers">関連: Handles are the better pointers</h2>
+<p>ポインタの代わりにオフセットを使うというので、似た話をどこかで聞いたようなと思ったのですが
+<a href="https://media.handmade-seattle.com/practical-data-oriented-design/">A Practical Guide to Applying Data-Oriented Design</a>
+の13:49あたりからのポインタの代わりにインデクスを使うという話でした。</p>
+<p>こちらはメモリ使用量削減のために64bitのポインタの代わりに32bitとかのインデクスの整数を使って、
+構造体のサイズを削減するという文脈です。</p>
+<p>その中で<a href="https://floooh.github.io/2018/06/17/handles-vs-pointers.html">Handles are the better pointers</a>が紹介されていました(<a href="https://news.ycombinator.com/item?id=24141541">Handles Are the Better Pointers (2018) | Hacker News</a>)。</p>
+<p>インデクスにするには構造体の種類ごとに別の配列に集める必要があると思うのですが、lua-nginx-moduleだと
+<a href="https://github.com/openresty/lua-nginx-module/blob/f488965b89238e0bba11c13fdb9b11b4a0f20d67/src/ngx_http_lua_shdict.c#L1495-L1500">ngx_http_lua_shdict.c#L1495-L1500</a>のようにノードの構造体とキーと値を連結したものを1回のメモリ割り当てで作成するといういかにもC言語的な手法を使っていてサイズがまちまちなので、インデクス方式にするにはさらに改変が必要になりそうです。</p>
+<p>ということで、とりあえず現状で使ってみて問題なければこのままでも良いかなという気分です。
+もし、将来さらに性能が必要となったときには検討してもよいかもしれません。</p>
+<h2 id="データベースではmmapは使うべきではないという話">データベースではmmapは使うべきではないという話</h2>
+<p>以前<a href="https://www.youtube.com/@CMUDatabaseGroup">CMU Database Group - YouTube</a>でAndy Pavloさんのデータベース講義のオンラインコースを見たのですが、その中でもデータベースではmmapを使うべきではないという話が出ていました。</p>
+<p>検索してみると<a href="https://shekhargulati.com/2022/01/23/issues-with-mmap/">Issues with mmap – Shekhar Gulati</a>に良いまとめがありました。</p>
+<p>私の場合はLinux対応のみで良いので、Windowsでmmapが使えないというのは置いておくとして、ディスクへの書き込みが同期的でブロッキングするのが良くないというのと、ディスクへの読み書きの際にキャッシュ管理をカーネル任せにするのではなくデータベースシステムが自分で管理すべきという話です。</p>
+<p>データベースの場合はトランザクションのコミットでディスクに確実に書き込んだことを確認する必要があるので納得です。ちなみに<a href="https://github.com/etcd-io/bbolt">etcd-io/bbolt: An embedded key/value database for Go.</a>は読み取り専用でmmapを使って書き込みは自前で行っています。</p>
+<p>一方、私の用途は元データは別にあって、キャッシュ的に保持する用途なので、そこまで厳密に書き込みを制御できなくても大丈夫です。RAMディスク上のファイルであれば、同期的でブロッキングというのも特に問題にならないのかなと思っていたところに<a href="https://stackoverflow.com/questions/42628949/using-pthread-mutex-shared-between-processes-correctly">linux - Using pthread mutex shared between processes correctly - Stack Overflow</a>で<code>shm_open</code>を使った共有メモリのほうがさらに良いと知ってこれで良さそうとなった次第です。</p>
+<h2 id="共有メモリに加えてメモリマップトファイルも対応してみました">共有メモリに加えてメモリマップトファイルも対応してみました</h2>
+<p>一方で、たまにしか書き込みしない用途ならディスク上のファイルでも良いかも、と思って<code>shm_open</code>の代わりに<code>open</code>でファイルを作るまたは開くのも対応してみました。引数ではファイル名を指定するようにして<code>/dev/shm/</code>で始まっていれば<code>shm_open</code>を使い、そうでなければ<code>open</code>を使うようにしているだけです。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

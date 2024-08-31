@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>io_uringのサンプルを試してみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>io_uringのサンプルを試してみた</h1>
+  <time datetime=2020-04-07T17:34:14&#43;0900 class="post-date">2020-04-07</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#環境構築">環境構築</a>
+      <ul>
+        <li><a href="#ubuntu-1910-を-ubuntu-2004-lts-beta-にアップグレード">Ubuntu 19.10 を Ubuntu 20.04 LTS beta にアップグレード</a></li>
+      </ul>
+    </li>
+    <li><a href="#mainline-のカーネルをインストール">mainline のカーネルをインストール</a></li>
+    <li><a href="#liburing-の-deb-のビルドとインストール">liburing の deb のビルドとインストール</a></li>
+    <li><a href="#サンプルのビルドと実行">サンプルのビルドと実行</a></li>
+    <li><a href="#io_uring-に期待しているわけ">io_uring に期待しているわけ</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>io_uring について以下の素晴らしい入門記事を知ったので試してみたメモです。</p>
+<ul>
+<li><a href="https://unixism.net/2020/04/io-uring-by-example-article-series/">io_uring By Example: An Article Series - Unixism</a></li>
+<li><a href="https://unixism.net/2020/04/io-uring-by-example-part-1-introduction/">io_uring by example: Part 1 - Introduction - Unixism</a></li>
+<li><a href="https://unixism.net/2020/04/io-uring-by-example-part-2-queuing-multiple-requests/">io_uring By Example: Part 2 - Queuing multiple requests - Unixism</a></li>
+<li><a href="https://unixism.net/2020/04/io-uring-by-example-part-3-a-web-server-with-io-uring/">io_uring By Example: Part 3 - A Web Server with io_uring - Unixism</a></li>
+</ul>
+<p>サンプルソースコード
+<a href="https://github.com/shuveb/io_uring-by-example">shuveb/io_uring-by-example: A companion repository for the io_uring by Example article series</a>
+README に書いてありますが Linux カーネル 5.5 以上が必要となります。</p>
+<p>Hacker News のスレッド
+<a href="https://news.ycombinator.com/item?id=22794396">Io_uring By Example: cat, cp and a web server with io_uring | Hacker News</a></p>
+<h2 id="環境構築">環境構築</h2>
+<p>自宅サーバーの Ubuntu 18.04 LTS に <code>linux-generic-hwe-18.04</code> を入れていますが、これの Linux カーネルは 5.3.x です。この環境に mainline のカーネルは入れたくなかったので別に環境を作ることにしました。</p>
+<h3 id="ubuntu-1910-を-ubuntu-2004-lts-beta-にアップグレード">Ubuntu 19.10 を Ubuntu 20.04 LTS beta にアップグレード</h3>
+<p>別の自宅サーバーで Ubuntu 19.10 があったのでこれをアップグレードしました。</p>
+<p><a href="https://linuxconfig.org/how-to-upgrade-ubuntu-to-20-04-lts-focal-fossa">How To Upgrade Ubuntu To 20.04 LTS Focal Fossa - LinuxConfig.org</a> の手順を参考にしました。</p>
+<p>まず元のバージョンで最新にします。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> sudo apt update 
+</span></span><span class="line"><span class="cl"><span class="gp">$</span> sudo apt upgrade
+</span></span><span class="line"><span class="cl"><span class="gp">$</span> sudo apt dist-upgrade
+</span></span><span class="line"><span class="cl"><span class="gp">$</span> sudo apt autoremove
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> sudo apt install update-manager-core
+</span></span></code></pre></div><p>の後</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> sudo <span class="k">do</span>-release-upgrade
+</span></span></code></pre></div><p>は <code>No new release found</code> となりました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> sudo <span class="k">do</span>-release-upgrade -d
+</span></span></code></pre></div><p>を試すと先に再起動をするようメッセージが出たので、再起動後再度実行したら Ubuntu 20.04 LTS Focal Fossa beta のダウンロードとインストールが始まりました。</p>
+<p>TUI のインストーラーで途中何回か設定ファイルをパッケージので上書きするか聞かれたので、差分を確認しつつ選択しました。</p>
+<p>Ubuntu 20.04 LTS のインストールが終わったら再起動して、 Linux カーネルのバージョンを確認すると 5.4.x でした。 <code>apt show linux-generic-hwe-20.04</code> も同じバージョンでした。まだリリース前だからですかね。</p>
+<h2 id="mainline-のカーネルをインストール">mainline のカーネルをインストール</h2>
+<p><a href="http://ubuntuhandbook.org/index.php/2020/03/install-kernel-5-6-ubuntu-linux-mint/">How to Install Kernel 5.6 in Ubuntu / Linux Mint | UbuntuHandbook</a> を参考にインストールしました。</p>
+<p>上の記事に赤背景で警告が書かれていますが、 mainline カーネルは Ubuntu 提供のドライバーやパッチが含まれておらず、サポート対象外で、本番利用には不適切とのことですのでご注意ください。</p>
+<p>今回のマシンは検証用環境なので気兼ねなく mainline カーネルを入れてみました。</p>
+<p><a href="https://kernel.ubuntu.com/~kernel-ppa/mainline/">Index of /~kernel-ppa/mainline/</a> の <a href="https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.6/">v5.6</a> から amd64 の <code>-all</code> と <code>-generic</code> の deb をダウンロードしました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> curl -LO https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.6/linux-headers-5.6.0-050600_5.6.0-050600.202003292333_all.deb
+</span></span><span class="line"><span class="cl"><span class="gp">$</span> curl -LO https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.6/linux-headers-5.6.0-050600-generic_5.6.0-050600.202003292333_amd64.deb
+</span></span><span class="line"><span class="cl"><span class="gp">$</span> curl -LO https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.6/linux-headers-5.6.0-050600-generic_5.6.0-050600.202003292333_amd64.deb
+</span></span><span class="line"><span class="cl"><span class="gp">$</span> curl -LO https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.6/linux-modules-5.6.0-050600-generic_5.6.0-050600.202003292333_amd64.deb
+</span></span></code></pre></div><p>その後以下のコマンドでインストールしました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo dpkg -i *.deb
+</span></span></span></code></pre></div><h2 id="liburing-の-deb-のビルドとインストール">liburing の deb のビルドとインストール</h2>
+<p><a href="https://github.com/axboe/liburing">axboe/liburing</a> を見ると debian というディレクトリがあったので` ローカルで deb パッケージをビルドしてインストールしました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> git clone https://github.com/axboe/liburing
+</span></span><span class="line"><span class="cl"><span class="gp">$</span> <span class="nb">cd</span> liburing
+</span></span></code></pre></div><p><code>build-essential</code> と <code>mk-build-deps</code> を使うために必要なパッケージをインストールします。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> sudo apt install build-essential devscripts equivs
+</span></span></code></pre></div><p>liburing のビルドに必要なパッケージをインストールするためのパッケージをビルド、インストールします。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> sudo mk-build-deps -i
+</span></span></code></pre></div><p><code>dpkg -l liburing-build-deps</code> でインストールされたことを確認します。</p>
+<p>作成された <code>liburing-build-deps_0.4-2_all.deb</code> を親ディレクトリに移動します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> mv liburing-build-deps_0.4-2_all.deb ..
+</span></span></code></pre></div><p>liburing の deb パッケージをビルドします。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> dpkg-buildpackage -b --no-sign
+</span></span></code></pre></div><p>完了したら <code>ls ../*.deb</code> で作成されたパッケージを確認し、インストールします。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> sudo dpkg -i ../liburing1_0.4-2_amd64.deb ../liburing-dev_0.4-2_amd64.deb
+</span></span></code></pre></div><p>また <code>liburing-build-deps</code> パッケージはアンインストールしておきます。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> sudo dpkg -e ../liburing-build-deps_0.4-2_all.deb
+</span></span></code></pre></div><h2 id="サンプルのビルドと実行">サンプルのビルドと実行</h2>
+<p><a href="https://github.com/shuveb/io_uring-by-example">shuveb/io_uring-by-example: A companion repository for the io_uring by Example article series</a> の <code>01_regular_cat</code> と <code>02_cat_uring</code> はディレクトリに cd して以下のようにビルドしました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> cc main.c
+</span></span></code></pre></div><p>実行は <code>./a.out 対象ファイル名</code> です。</p>
+<p><code>03_cat_liburing</code>, <code>04_cp_liburing</code>, <code>05_webserver_liburing</code> は liburing が必要なので以下のようにビルドします。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> cc main.c -luring
+</span></span></code></pre></div><p>実行は以下のようにします。</p>
+<ul>
+<li><code>03_cat_liburing</code> は <code>./a.out 対象ファイル名</code></li>
+<li><code>04_cp_liburing</code> は <code>./a.out コピー元ファイル名 コピー先ファイル名</code></li>
+<li><code>05_webserver_liburing</code> は <code>public</code> ディレクトリーを作ってそこに index.html などのファイルを作成し、別端末で <code>curl -v http://localhost:8000/</code> などとアクセスする感じです。</li>
+</ul>
+<p><code>05_webserver_liburing</code> のサンプル内には
+<code>Linux kernel 5.5 has support for readv, but not for recv() or read()</code>
+というコメントがありますが 5.6 ではサポートされているので、書き換えて試してみたいところです。</p>
+<h2 id="io_uring-に期待しているわけ">io_uring に期待しているわけ</h2>
+<p>私見ですが今考えていることをメモ。</p>
+<p>nginx には大変お世話になっていますが、複数のワーカープロセスの構成はちょっと面倒だと思っています。これのせいでワーカープロセスをまたいで状態を保持するには共有メモリを使う必要があるからです。
+すると RocksDB のようなプロセス内にエンベッドするようなキーバリューストアは使いにくいです。</p>
+<p>nginx は結局一部ではマルチスレッドが導入されているので、単一プロセスでマルチスレッドだったら良かったのにと思いますが、おそらく歴史的経緯だろうから仕方ないかと思っています。</p>
+<p>で、 io_uring が無かったときはファイル操作はスレッドプールで同期I/Oを実行してepollなどでさばくしかなかったわけですが、 io_uring でファイル操作もネットワーク通信も出来るようになると、スレッドプール無しの単一プロセス構成でもスケールするのではないかと予想しています。</p>
+<p>CPU メインの処理がある場合は別として、 I/O がほとんどというアプリケーションであれば io_uring のサブミッションポートに投げて、コンプリーションポートから受け取ってまたサブミッションポートに投げての繰り返しぐらいしかしないからです。</p>
+<p>そしてアプリケーションは単一プロセスでもカーネル側で複数CPUコアを活用して処理してくれるのではないかと期待しています。</p>
+<p>で、スレッドが不要になると C 言語でも十分書きやすいのではないかと目論んでいます。
+仕様がしっかり固まった部分は C 言語で書いて、いろいろ変えたいところは LuaJIT FFI で書くという併用が良さそうかと思っています。</p>
+<p>というわけで io_uring の今後が楽しみです。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

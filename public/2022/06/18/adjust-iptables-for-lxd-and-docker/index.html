@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>LXDとDockerを同時利用するためにiptables設定を調整 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>LXDとDockerを同時利用するためにiptables設定を調整</h1>
+  <time datetime=2022-06-18T15:49:54&#43;0900 class="post-date">2022-06-18</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#設定手順">設定手順</a></li>
+    <li><a href="#iptablesの設定の自動化-2022-09-23追記">iptablesの設定の自動化 (2022-09-23追記)</a></li>
+    <li><a href="#nftablesのコマンドを直接使うよう切り替え-2022-10-25追記">nftablesのコマンドを直接使うよう切り替え (2022-10-25追記)</a>
+      <ul>
+        <li><a href="#ubuntu-2110-以降は-iptables-は-nftables-のラッパになっている">Ubuntu 21.10 以降は iptables は nftables のラッパになっている</a></li>
+        <li><a href="#nft-コマンドを使う">nft コマンドを使う</a></li>
+      </ul>
+    </li>
+    <li><a href="#やっぱりiptablesコマンドを使うように戻した-2024-04-29追記">やっぱりiptablesコマンドを使うように戻した (2024-04-29追記)</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>Ubuntu 22.04 LTS 上で snapcraft で入れた LXD 5.2 と Docker 公式パッケージの docker-ce 20.10.17 を入れているのですが、 LXD コンテナから <code>ping 8.8.8.8</code> のように実行しても通信できないという症状が起きていました。</p>
+<p><a href="https://lxd-ja.readthedocs.io/ja/latest/howto/network_bridge_firewalld/">ファイアウォールを設定するには - LXD ドキュメント</a> の <a href="https://lxd-ja.readthedocs.io/ja/latest/howto/network_bridge_firewalld/#lxd-docker">LXD と Docker の問題を回避する</a> のコマンドも試してみたのですが、通信できませんでした（正しく指定できたかは自信なし）。</p>
+<p>LXD のフォーラムで <a href="https://discuss.linuxcontainers.org/t/lxd-and-docker-firewall-redux-how-to-deal-with-forward-policy-set-to-drop/9953">Lxd and Docker Firewall Redux - How to deal with FORWARD policy set to drop - LXD - Linux Containers Forum</a> の <a href="https://discuss.linuxcontainers.org/t/lxd-and-docker-firewall-redux-how-to-deal-with-forward-policy-set-to-drop/9953/7">コメント</a> の手順で無事通信できるようになったということでメモ。</p>
+<h2 id="設定手順">設定手順</h2>
+<p>事前の iptables の設定確認</p>
+<pre tabindex="0"><code>sudo iptables -n -L
+</code></pre><p>と</p>
+<pre tabindex="0"><code>sudo iptables-save
+</code></pre><p>で確認します。</p>
+<p><code>-A FORWARD -j DOCKER-USER</code> の前に <code>lxdbr0</code> のブリッジに関する設定を追加するということで、以下のコマンドで先頭と2行目に入れるようにしました。</p>
+<pre tabindex="0"><code>sudo iptables -I FORWARD -o lxdbr0 -m comment --comment &#34;generated for LXD network lxdbr0&#34; -j ACCEPT
+sudo iptables -I FORWARD 2 -i lxdbr0 -m comment --comment &#34;generated for LXD network lxdbr0&#34; -j ACCEPT
+</code></pre><h2 id="iptablesの設定の自動化-2022-09-23追記">iptablesの設定の自動化 (2022-09-23追記)</h2>
+<p>OS再起動の度に起動時に毎回上記のコマンドを手動で実行するのは面倒なので、OS起動時に自動実行するように設定するスクリプト <a href="https://github.com/hnakamur/setup-my-ubuntu-desktop/blob/acea2b1b7fe854b00654a47a65a7db10482fb435/setup-iptables-for-lxd-with-docker.sh">setup-iptables-for-lxd-with-docker.sh</a> を書きました。</p>
+<p>このスクリプトでは以下のような systemd の service 定義ファイルを <code>/etc/systemd/system/iptables-for-lxd-with-docker.service</code> というファイル名で作成します。</p>
+<pre tabindex="0"><code>[Unit]
+Description=Add iptables rules for LXD coexisting with Docker
+After=docker.service
+
+[Service]
+Type=oneshot
+# https://discuss.linuxcontainers.org/t/lxd-and-docker-firewall-redux-how-to-deal-with-forward-policy-set-to-drop/9953/7
+ExecStart=iptables -I FORWARD -o lxdbr0 -m comment --comment &#34;generated for LXD network lxdbr0&#34; -j ACCEPT
+ExecStart=iptables -I FORWARD 2 -i lxdbr0 -m comment --comment &#34;generated for LXD network lxdbr0&#34; -j ACCEPT
+
+[Install]
+WantedBy=multi-user.target
+</code></pre><p><code>After=docker.service</code> によってDockerのサービスが起動してDocker用のiptables設定が投入された後に実行されるようにしています。</p>
+<p>iptablesコマンドを実行するだけなのでTypeはoneshotとし、ExecStartは複数指定可能なので2つのコマンドを実行するのに2つのExecStartを使っています。</p>
+<p><code>/etc/systemd/system/iptables-for-lxd-with-docker.service</code> を作成した後、以下のコマンドでOS起動時に自動実行されるように登録します。</p>
+<pre tabindex="0"><code>sudo systemctl daemon-reload
+sudo systemctl enable --now iptables-for-lxd-with-docker
+</code></pre><p>また初回はその場でも実行したいので <code>systemctl enable</code> の <code>--now</code> オプションを使っています。これは <a href="https://zaki-hmkc.hatenablog.com/entry/2020/03/19/183459">(小ネタ) systemctlでサービスの有効化と起動を同時に設定 - zaki work log</a> で知りました。</p>
+<h2 id="nftablesのコマンドを直接使うよう切り替え-2022-10-25追記">nftablesのコマンドを直接使うよう切り替え (2022-10-25追記)</h2>
+<h3 id="ubuntu-2110-以降は-iptables-は-nftables-のラッパになっている">Ubuntu 21.10 以降は iptables は nftables のラッパになっている</h3>
+<p><a href="https://askubuntu.com/questions/1370901/ubuntu-21-10-switched-to-nftables-so-why-is-iptables-still-available">ufw - Ubuntu 21.10 switched to nftables, so why is iptables still available? - Ask Ubuntu</a> と <a href="https://discourse.ubuntu.com/t/impish-indri-release-notes/21951">Impish Indri Release Notes - Release - Ubuntu Community Hub</a> によると Ubuntu 21.10 から nftables がデフォルトのファイアウォールとして使用されています。</p>
+<p>Ubuntu 22.04 LTS でも iptables コマンドはまだ使えますが、 <code>/usr/sbin/iptables</code> からシンボリックリンクをたどると <code>/usr/sbin/xtables-nft-multi</code> となっています。</p>
+<pre tabindex="0"><code>$ ls -l /usr/sbin/iptables
+lrwxrwxrwx 1 root root 26 May  7 18:14 /usr/sbin/iptables -&gt; /etc/alternatives/iptables
+$ ls -l /etc/alternatives/iptables
+lrwxrwxrwx 1 root root 22 May  7 18:14 /etc/alternatives/iptables -&gt; /usr/sbin/iptables-nft
+$ ls -l /usr/sbin/iptables-nft
+lrwxrwxrwx 1 root root 17 May  7 18:14 /usr/sbin/iptables-nft -&gt; xtables-nft-multi
+</code></pre><p><code>man xtables-nft-multi</code> すると iptables using nftables kernel api とのことでした。</p>
+<h3 id="nft-コマンドを使う">nft コマンドを使う</h3>
+<p>実は2022-09-23に追記したときも、一旦 nftables のネイティブの nft コマンドを使う手順も調べていて、そちらも書こうかと思ったのですが、 Ubuntu 20.04 LTS を使うときは iptables になるから iptables のほうだけで良いかと思って書いてませんでした(あと記事が長くなりすぎかなと思って)。</p>
+<p>が、今日 <code>sudo iptables --flush</code> しても <code>sudo iptables -n -L</code> ではルールが空になっているように見えるけど <code>sudo nft list table ip nat</code> ではDockerのルールが残っているというケースに遭遇したので、やっぱり直接 nft を使うようにしたほうが良いなと思いました。</p>
+<p><a href="https://wiki.nftables.org/wiki-nftables/index.php/Moving_from_iptables_to_nftables">Moving from iptables to nftables - nftables wiki</a> の iptables-translate コマンドを使うと iptables のコマンドを nft のコマンドに変換できます。</p>
+<p>実行例:</p>
+<pre tabindex="0"><code>$ iptables-translate -I FORWARD -o lxdbr0 -m comment --comment &#34;generated for LXD network lxdbr0&#34; -j ACCEPT
+nft insert rule ip filter FORWARD oifname &#34;lxdbr0&#34; counter accept comment \&#34;generated for LXD network lxdbr0\&#34;
+$ iptables-translate -I FORWARD 2 -i lxdbr0 -m comment --comment &#34;generated for LXD network lxdbr0&#34; -j ACCEPT
+nft insert rule ip filter FORWARD iifname &#34;lxdbr0&#34; counter accept comment \&#34;generated for LXD network lxdbr0\&#34;
+</code></pre><p>というわけで上記のサービス定義ファイルを nft で書き直すと以下のようになります。
+ファイル名は <code>/etc/systemd/system/nftables-for-lxd-with-docker.service</code> に変えました。</p>
+<pre tabindex="0"><code>[Unit]
+Description=Add iptables rules for LXD coexisting with Docker
+After=docker.service
+
+[Service]
+Type=oneshot
+# https://discuss.linuxcontainers.org/t/lxd-and-docker-firewall-redux-how-to-deal-with-forward-policy-set-to-drop/9953/7
+ExecStart=nft insert rule ip filter FORWARD oifname &#34;lxdbr0&#34; counter accept comment \&#34;generated for LXD network lxdbr0\&#34;
+ExecStart=nft insert rule ip filter FORWARD iifname &#34;lxdbr0&#34; counter accept comment \&#34;generated for LXD network lxdbr0\&#34;
+
+[Install]
+WantedBy=multi-user.target
+</code></pre><p>nft の使い方は <a href="https://wiki.nftables.org/wiki-nftables/index.php/Quick_reference-nftables_in_10_minutes">Quick reference-nftables in 10 minutes - nftables wiki</a> がわかりやすかったです。</p>
+<p>まずはテーブル一覧を表示。</p>
+<pre tabindex="0"><code>$ sudo nft list tables
+table ip nat
+table ip filter
+table inet lxd
+</code></pre><p>テーブルの中身の確認の例。</p>
+<pre tabindex="0"><code>$ sudo nft list table ip filter
+table ip filter {
+        chain DOCKER {
+                iifname != &#34;br-6c11e51eda49&#34; oifname &#34;br-6c11e51eda49&#34; meta l4proto tcp ip daddr 172.27.0.2 tcp dport 6443 counter packets 0 bytes 0 accept
+        }
+
+        chain DOCKER-ISOLATION-STAGE-1 {
+                iifname &#34;docker0&#34; oifname != &#34;docker0&#34; counter packets 0 bytes 0 jump DOCKER-ISOLATION-STAGE-2
+                iifname &#34;br-bf4815aedad2&#34; oifname != &#34;br-bf4815aedad2&#34; counter packets 0 bytes 0 jump DOCKER-ISOLATION-STAGE-2
+…(略)…
+        }
+
+        chain DOCKER-ISOLATION-STAGE-2 {
+                oifname &#34;docker0&#34; counter packets 0 bytes 0 drop
+                oifname &#34;br-bf4815aedad2&#34; counter packets 0 bytes 0 drop
+…(略)…
+        }
+
+        chain FORWARD {
+                type filter hook forward priority filter; policy drop;
+                iifname &#34;lxdbr0&#34; counter packets 102 bytes 19387 accept comment &#34;generated for LXD network lxdbr0&#34;
+                oifname &#34;lxdbr0&#34; counter packets 0 bytes 0 accept comment &#34;generated for LXD network lxdbr0&#34;
+…(略)…
+</code></pre><p><code>/etc/systemd/system/nftables-for-lxd-with-docker.service</code> で指定したルールが追加されていることを確認できました。</p>
+<p>この状態でのコンテナからインターネットと、コンテナ間の通信の動作確認。
+コンテナからインターネット上のIPv4アドレスと他のコンテナのIPv4アドレスを指定して通信が通ることを確認。
+コンテナから他のコンテナ名を指定して通信すると IPv6 アドレスでの通信になっている。</p>
+<pre tabindex="0"><code>$ lxc list
++-----------+---------+---------------------+-----------------------------------------------+-----------+-----------+
+|   NAME    |  STATE  |        IPV4         |                     IPV6                      |   TYPE    | SNAPSHOTS |
++-----------+---------+---------------------+-----------------------------------------------+-----------+-----------+
+| apt-cache | STOPPED |                     |                                               | CONTAINER | 0         |
++-----------+---------+---------------------+-----------------------------------------------+-----------+-----------+
+| server1   | RUNNING | 10.2.210.94 (eth0)  | fd42:b136:20b6:1c77:216:3eff:feca:f6f5 (eth0) | CONTAINER | 0         |
++-----------+---------+---------------------+-----------------------------------------------+-----------+-----------+
+| server2   | RUNNING | 10.2.210.121 (eth0) | fd42:b136:20b6:1c77:216:3eff:feaf:a4fd (eth0) | CONTAINER | 0         |
++-----------+---------+---------------------+-----------------------------------------------+-----------+-----------+
+| server3   | RUNNING | 10.2.210.21 (eth0)  | fd42:b136:20b6:1c77:216:3eff:fe24:8455 (eth0) | CONTAINER | 0         |
++-----------+---------+---------------------+-----------------------------------------------+-----------+-----------+
+$ lxc exec server1 -- ping -c 1 8.8.8.8
+PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
+64 bytes from 8.8.8.8: icmp_seq=1 ttl=118 time=6.19 ms
+
+--- 8.8.8.8 ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+rtt min/avg/max/mdev = 6.189/6.189/6.189/0.000 ms
+$ lxc exec server1 -- ping -c 1 10.2.210.121
+PING 10.2.210.121 (10.2.210.121) 56(84) bytes of data.
+64 bytes from 10.2.210.121: icmp_seq=1 ttl=64 time=0.064 ms
+
+--- 10.2.210.121 ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+rtt min/avg/max/mdev = 0.064/0.064/0.064/0.000 ms
+$ lxc exec server1 -- ping -c 1 server2
+PING server2(server2.lxd (fd42:b136:20b6:1c77:216:3eff:feaf:a4fd)) 56 data bytes
+64 bytes from server2.lxd (fd42:b136:20b6:1c77:216:3eff:feaf:a4fd): icmp_seq=1 ttl=64 time=0.048 ms
+
+--- server2 ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+rtt min/avg/max/mdev = 0.048/0.048/0.048/0.000 ms
+</code></pre><h2 id="やっぱりiptablesコマンドを使うように戻した-2024-04-29追記">やっぱりiptablesコマンドを使うように戻した (2024-04-29追記)</h2>
+<p>Debian 12のIncusで同じことを試していたら <code>sudo nft list table ip filter</code> や <code>sudo nft list ruleset</code> の結果に</p>
+<pre tabindex="0"><code># Warning: table ip filter is managed by iptables-nft, do not touch!
+</code></pre><p>という警告が出ていることに気づきました。</p>
+<p>Dockerがiptablesでルールを追加する結果iptables-nftで管理されているので、
+そこにルールを追加する際もiptablesを使うほうが無難そうということでそちらに戻しました。</p>
+<p>設定するスクリプトを
+<a href="https://github.com/hnakamur/setup-my-ubuntu-desktop/blob/1d7c4a4cfd2af2dd8ecb20991d03c97f48bd8c53/setup-iptables-for-lxd-with-docker.sh">https://github.com/hnakamur/setup-my-ubuntu-desktop/blob/1d7c4a4cfd2af2dd8ecb20991d03c97f48bd8c53/setup-iptables-for-lxd-with-docker.sh</a>
+に置きました。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

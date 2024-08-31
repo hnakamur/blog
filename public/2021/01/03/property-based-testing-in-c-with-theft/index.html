@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>theftを使ってC言語で property based testing を試してみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>theftを使ってC言語で property based testing を試してみた</h1>
+  <time datetime=2021-01-03T17:49:10&#43;0900 class="post-date">2021-01-03</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#例の実行方法とログの場所">例の実行方法とログの場所</a></li>
+    <li><a href="#ランダムな入力パラメータを複数使う方法">ランダムな入力パラメータを複数使う方法</a></li>
+    <li><a href="#theft-にビルトインのランダムな入力値生成">theft にビルトインのランダムな入力値生成</a></li>
+    <li><a href="#カスタムなランダム値生成の際に使える関数群">カスタムなランダム値生成の際に使える関数群</a></li>
+    <li><a href="#今回試した簡単な例について">今回試した簡単な例について</a></li>
+    <li><a href="#関連記事と動画のメモ">関連記事と動画のメモ</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>これまで私は Go 言語では <a href="https://github.com/flyingmutant/rapid">flyingmutant/rapid</a> (<a href="https://github.com/hnakamur/property-based-test-example">例</a>)、 C++ では
+<a href="https://github.com/emil-e/rapidcheck">emil-e/rapidcheck</a> (<a href="https://github.com/hnakamur/rapidcheck-experiment">例</a>) を使って property based testing を試してみました。</p>
+<p>先日 <a href="https://hypothesis.works/articles/quickcheck-in-every-language/">QuickCheck in Every Language - Hypothesis</a> で C言語用にも <a href="https://github.com/silentbicycle/theft">silentbicycle/theft</a> というライブラリーがあることを知ったので試してみました。</p>
+<p>まず README からリンクされている <a href="https://github.com/silentbicycle/theft/blob/master/doc/usage.md">doc/usage.md</a> と作者のブログ記事 <a href="https://spin.atomicobject.com/2014/09/17/property-based-testing-c/">Introducing theft Property-Based Testing for C</a> を眺めたのですが、サンプルコードの断片はありますが完全なコードがありませんでした。</p>
+<p>ブログ記事からリンクされている <a href="https://github.com/atomicobject/heatshrink">atomicobject/heatshrink: data compression library for embedded/real-time systems</a> に <a href="https://github.com/atomicobject/heatshrink/blob/master/test_heatshrink_dynamic_theft.c">test_heatshrink_dynamic_theft.c</a> というテストがあったのですが、 <code>rbuf_alloc_cb</code> 関数のシグネチャーが <a href="https://github.com/silentbicycle/theft/blob/master/doc/usage.md">doc/usage.md</a> の <a href="https://github.com/silentbicycle/theft/blob/master/doc/usage.md#alloc---allocate-an-instance-from-a-random-bit-stream">alloc - allocate an instance from a random bit stream</a> とは違いました。たぶん使っている theft のバージョンが違うのでしょう。</p>
+<p>ということで theft のソースをちら見しつつ自分で例を書いてみましたのでメモです。</p>
+<p>書いてみた例は
+<a href="https://github.com/hnakamur/c-property-based-testing-example">hnakamur/c-property-based-testing-example: An example of property based testing in C programming language using theft</a> に置きました。</p>
+<p>使い方自体は <a href="https://github.com/silentbicycle/theft/blob/master/doc/usage.md">doc/usage.md</a> を読む前提でこの記事ではそれ以外の点についてメモしておきます。</p>
+<h2 id="例の実行方法とログの場所">例の実行方法とログの場所</h2>
+<p><a href="https://github.com/hnakamur/c-property-based-testing-example">hnakamur/c-property-based-testing-example: An example of property based testing in C programming language using theft</a> の例は <code>cmake</code> が必要です。</p>
+<p>ただ、 <code>cmake</code> のコマンドを引数付きで入力するのが面倒なのでそのための Makefile を置いていて、 <code>make test</code> でビルドとテストが実行されます。</p>
+<p>テスト結果の概要は標準出力に出ます。テストのログは <code>build/test/Testing/Temporary/LastTest.log</code> に出力されます。テスト失敗時はこのログを見ます。</p>
+<h2 id="ランダムな入力パラメータを複数使う方法">ランダムな入力パラメータを複数使う方法</h2>
+<p><a href="https://github.com/silentbicycle/theft/blob/master/doc/usage.md">doc/usage.md</a>
+の先頭にプロパティーの関数定義の例が載っていて引数が <code>struct theft *t, void *arg1</code> となっていますが、 <code>void *arg2</code> を追加すればランダムな入力パラメータを2つに出来ます。</p>
+<p><a href="https://github.com/silentbicycle/theft/blob/62e093d9e33bb4218736dce2535eedda2904b8ba/inc/theft_types.h#L61-L76">inc/theft_types.h#L61-L76</a> で分かりますが、ランダムな入力パラメータは最大7個です。</p>
+<p><a href="https://github.com/silentbicycle/theft/blob/master/doc/usage.md">doc/usage.md</a> の <code>theft_run</code> を呼ぶところで <code>theft_run_config</code> 構造体の <code>prop1</code> というメンバーにプロパティーの関数を設定していますが、ランダムな入力パラメータが 2 つの場合は <code>prop2</code> メンバーに設定します。</p>
+<p><a href="https://github.com/silentbicycle/theft/blob/62e093d9e33bb4218736dce2535eedda2904b8ba/inc/theft_types.h#L481-L493">inc/theft_types.h#L481-L493</a> の通り <code>prop1</code> ～ <code>prop7</code> まで用意されています。</p>
+<p>また <a href="https://github.com/silentbicycle/theft/blob/62e093d9e33bb4218736dce2535eedda2904b8ba/inc/theft_types.h#L495-L497">theft/theft_types.h at master · silentbicycle/theft</a> と <a href="https://github.com/silentbicycle/theft/blob/62e093d9e33bb4218736dce2535eedda2904b8ba/inc/theft_types.h#L472-L473">inc/theft_types.h#L472-L473</a> で分かるように <code>type_info</code> も要素数が 7 の配列となっています。</p>
+<p><a href="https://github.com/silentbicycle/theft/blob/master/doc/usage.md">doc/usage.md</a>
+の例では <code>type_info</code> は要素は 1 つですが、ランダムな入力パラメータが 2 つの場合は <code>type_info</code> の配列要素も 2 つ指定する必要があります。</p>
+<h2 id="theft-にビルトインのランダムな入力値生成">theft にビルトインのランダムな入力値生成</h2>
+<p><a href="https://github.com/silentbicycle/theft/blob/master/doc/usage.md">doc/usage.md</a>
+では <code>theft_type_info</code> 構造体の <code>alloc</code>, <code>free</code>, <code>print</code> メンバーにそれぞれコールバック関数を設定してカスタムなランダム値生成を行うように説明されていますが、 <a href="https://github.com/silentbicycle/theft/blob/62e093d9e33bb4218736dce2535eedda2904b8ba/inc/theft.h#L174-L235">inc/theft.h#L174-L235</a> を見ると Built-in generators  というのが用意されています。</p>
+<p>例えば <code>THEFT_BUILTIN_uint64_t</code> の <code>alloc</code> コールバックは
+<a href="https://github.com/silentbicycle/theft/blob/62e093d9e33bb4218736dce2535eedda2904b8ba/src/theft_aux_builtin.c#L126-L129">src/theft_aux_builtin.c#L126-L129</a>
+と <a href="https://github.com/silentbicycle/theft/blob/62e093d9e33bb4218736dce2535eedda2904b8ba/src/theft_aux_builtin.c#L25-L46">ALLOC_USCALAR</a> マクロを使って定義されています。
+unsigned な整数型は <code>ALLOC_USCALAR</code> で signed な整数型は <code>ALLOC_SSCALAR</code>、浮動小数点数の型は <code>ALLOC_FSCALAR</code> を使っています。</p>
+<p>Built-in generators のコメントの
+<a href="https://github.com/silentbicycle/theft/blob/62e093d9e33bb4218736dce2535eedda2904b8ba/inc/theft.h#L189-L194">inc/theft.h#L189-L194</a> に値の範囲を限定するサンプルコードが書かれていますが、マクロの実装を見ると
+<a href="https://github.com/silentbicycle/theft/blob/62e093d9e33bb4218736dce2535eedda2904b8ba/src/theft_aux_builtin.c#L39-L43">src/theft_aux_builtin.c#L39-L43</a> のように <code>limit</code> で割った剰余を使っています。
+一様な乱数を生成したいときにはこの手法だと偏りが出るのでまずいですが、 property based testing の入力値として使う分には完全に一様である必要もないので問題ないという判断なのかなと思いました。</p>
+<p>また <a href="https://github.com/silentbicycle/theft/blob/62e093d9e33bb4218736dce2535eedda2904b8ba/src/theft_aux_builtin.c#L30-L36">src/theft_aux_builtin.c#L30-L36</a> の箇所を見ると一定の確率で <a href="https://github.com/silentbicycle/theft/blob/62e093d9e33bb4218736dce2535eedda2904b8ba/src/theft_aux_builtin.c#L127-L129">src/theft_aux_builtin.c#L127-L129</a> に指定した値を生成するようになっていることが分かります。</p>
+<p>それ以外のケースでは <code>theft_random_bits</code> 関数を呼んでランダムなビット列を生成しています。</p>
+<h2 id="カスタムなランダム値生成の際に使える関数群">カスタムなランダム値生成の際に使える関数群</h2>
+<p><code>theft.h</code> の Getting random bits
+<a href="https://github.com/silentbicycle/theft/blob/62e093d9e33bb4218736dce2535eedda2904b8ba/inc/theft.h#L31-L63">inc/theft.h#L31-L63</a>
+にカスタムなランダム値生成の際に使える関数群が提供されています。</p>
+<p>上記の <code>theft_random_bits</code> 以外に 3 つの関数がありますが、かなり基本的なものになっています。</p>
+<p>脱線ですが property based testing ではなく fuzzing ですが
+<a href="https://github.com/dvyukov/go-fuzz">dvyukov/go-fuzz: Randomized testing for Go</a>
+には
+<a href="https://github.com/dvyukov/go-fuzz-corpus">dvyukov/go-fuzz-corpus: Corpus for github.com/dvyukov/go-fuzz examples</a>
+というのがあって、画像や HTTP リクエストなどさまざまな形式のランダムな入力を正しい例を元に生成する仕組みが用意されています。
+また <a href="https://github.com/dvyukov/go-fuzz#usage">Usage</a> にあるように生成された値に対して、 1, 0, -1 のどれかをフィードバックすることで、その後のランダム値生成でより効果的な値の列を得られるようになっています。</p>
+<p>この部分だけ切り出して汎用化できれば、 fuzzing でも property based testing でも使えて便利そうな気がします。</p>
+<h2 id="今回試した簡単な例について">今回試した簡単な例について</h2>
+<p><a href="https://www.leadingagile.com/2018/04/step-by-step-toward-property-based-testing/">Step by Step Toward Property Based Testing | LeadingAgile</a> では自明すぎる例だと property based testing をわざわざ使う価値が無い、逆に複雑すぎる例だと property based testing を既に知っている人でないとついていけないという話が書かれていました。</p>
+<p>確かにと思いつつ、今回はとても簡単なマクロ
+<a href="https://github.com/hnakamur/c-property-based-testing-example/blob/1abd77cd62721147d62acd503b6742bd30b655ea/source/round.h#L4">source/round.h#L4</a>
+を対象にしました（引数の名前 d と a は <a href="https://github.com/nginx/nginx/blob/release-1.19.6/src/core/ngx_config.h#L100">nginx/ngx_config.h at release-1.19.6 · nginx/nginx</a> に合わせました。ちなみにこちらは 2 のべき乗に切り上げるマクロです）。</p>
+<p>これを効率は少し悪いけどより愚直に実装したインライン関数
+<a href="https://github.com/hnakamur/c-property-based-testing-example/blob/1abd77cd62721147d62acd503b6742bd30b655ea/test/round_up_prop_test.c#L7-L10">test/round_up_prop_test.c#L7-L10</a>
+と突き合せて同じ結果になることを確認しました。</p>
+<p>property based testing の前に theft と同じ作者の方のユニットテストライブラリー <a href="https://github.com/silentbicycle/greatest">silentbicycle/greatest: A C testing library in 1 file. No dependencies, no dynamic allocation. ISC licensed.</a> を使って <a href="https://github.com/hnakamur/c-property-based-testing-example/blob/1abd77cd62721147d62acd503b6742bd30b655ea/test/round_up_test.c">test/round_up_test.c</a> でテストしてから property based testing に進みました。</p>
+<p>0 で割って異常終了になるケースと掛け算で uint64 の範囲を超えてオーバーフローしてエラーになるケースに気づかされました。と書きましたが、
+<a href="https://stackoverflow.com/questions/199333/how-do-i-detect-unsigned-integer-multiply-overflow">c++ - How do I detect unsigned integer multiply overflow? - Stack Overflow</a> の <a href="https://stackoverflow.com/questions/199333/how-do-i-detect-unsigned-integer-multiply-overflow/1514309#1514309">回答</a> と <a href="https://stackoverflow.com/questions/199333/how-do-i-detect-unsigned-integer-multiply-overflow/1514309#comment1368689_1514309">コメント</a> によると C/C++ では unsigned な整数にはオーバーフローという概念はなく signed な整数はオーバーフローは未定義動作 (Undefined Behavior、よく UB と略される) らしいです（私は一次情報未確認）。</p>
+<p>とりあえず今回は
+<a href="https://github.com/hnakamur/c-property-based-testing-example/blob/1abd77cd62721147d62acd503b6742bd30b655ea/test/round_up_prop_test.c#L17">test/round_up_prop_test.c#L17</a>
+のようにして分母 (d) が 0 な場合と (分母 * 分子) = (d * a) がオーバーフローする場合は <code>THEFT_TRIAL_SKIP</code> を返してスキップするようにしました。</p>
+<p>オーバーフローのほうは正確には <code>((d / a) + 1) * a</code> が uint64 に収まる必要があるので <code>d &gt; UINT64_MAX / a</code> ではだめなんじゃないかと思いつつ、とりあえず書いて何回かテスト実行してみたらエラーが起きなかったのでそのままにしています。</p>
+<p>任意の入力値を受け付ける場合は正確な条件でガードすべきところですが、今回試したマクロを実際に使う際は分母は固定で分子も管理者が設定ファイルで指定する想定なのでオーバーフローは起きないということでガード無しで良いかなと思います。</p>
+<p>ただ、 property based testing をすることで入力値によってはオーバーフローが起きることを思い出させてくれたというのは良かったです。暗黙の前提で忘れがちなので。</p>
+<h2 id="関連記事と動画のメモ">関連記事と動画のメモ</h2>
+<p>今回試すにあたっていろいろ読んだり見たりした記事と動画のメモです。</p>
+<ul>
+<li><a href="https://fsharpforfunandprofit.com/posts/property-based-testing-2/">Choosing properties for property-based testing | F# for fun and profit</a> と <a href="https://dev.to/jdsteinhauser/intro-to-property-based-testing-2cj8">Intro to Property-Based Testing - DEV Community 👩‍💻👨‍💻</a> にプロパティーの選び方のガイドが分かりやすくまとまっていて良かったです。</li>
+<li><a href="https://medium.com/@jlouis666/quickcheck-advice-c357efb4e7e6">QuickCheck Advice. hints and tips for the interested who… | by Jesper L. Andersen | Medium</a> property based testing をする際に様々な観点からのアドバイスが書かれています。</li>
+<li>リンク元を紛失してしまったのですが <a href="https://www.youtube.com/watch?v=zi0rHwfiX1Q">John Hughes - Testing the Hard Stuff and Staying Sane - YouTube</a> の <a href="https://www.youtube.com/watch?v=zi0rHwfiX1Q&amp;feature=youtu.be&amp;t=1739">28:59</a> から QuviQ 社の QuickCheck で Erlang のプログラムの race condition を検知する例を紹介されていました。 <a href="https://hypothesis.works/articles/quickcheck-in-every-language/">QuickCheck in Every Language - Hypothesis</a> の Special case: Erlang を見ると QuviQ 社の QuickCheck は有償製品で結構高価らしいですが race condition を検知できるのはすごいなと思いました。
+<ul>
+<li>property based testing ではないですが Rust + Tokio には <a href="https://github.com/tokio-rs/loom">tokio-rs/loom: Concurrency permutation testing tool for Rust.</a> というのがあってこれも便利そうです。</li>
+</ul>
+</li>
+<li>Shrinking について、いつか必要になったら <a href="https://spin.atomicobject.com/2014/09/17/property-based-testing-c/">Introducing theft Property-Based Testing for C</a> や <a href="https://propertesting.com/book_shrinking.html">Shrinking</a> が参考になりそうなのでじっくり読もうと思います。</li>
+<li>各種言語用のライブラリーについては <a href="https://hypothesis.works/articles/quickcheck-in-every-language/">QuickCheck in Every Language - Hypothesis</a> の他に <a href="https://en.wikipedia.org/wiki/QuickCheck">QuickCheck - Wikipedia</a> も充実していました。</li>
+</ul>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

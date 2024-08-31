@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Ubuntu16.04でセカンダリIPアドレス追加 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Ubuntu16.04でセカンダリIPアドレス追加</h1>
+  <time datetime=2018-04-21T12:30:00&#43;0900 class="post-date">2018-04-21</time>
+  <nav id="TableOfContents"></nav>
+  <p><a href="https://askubuntu.com/questions/313877/how-do-i-add-an-additional-ip-address-to-etc-network-interfaces?utm_medium=organic&amp;utm_source=google_rich_qa&amp;utm_campaign=google_rich_qa">networking - How do I add an additional IP address to /etc/network/interfaces? - Ask Ubuntu</a> とそこでコメントされていた
+<a href="https://wiki.debian.org/NetworkConfiguration#iproute2_method">NetworkConfiguration - Debian Wiki の iproute2 method</a>
+を見て試してみたメモです。</p>
+<p><a href="https://wiki.debian.org/NetworkConfiguration#iproute2_method">NetworkConfiguration - Debian Wiki の iproute2 method</a> で書かれていたのは <code>/etc/network/interfaces</code> で同じネットワークインタフェース名に対して <code>iface</code> セクションを繰り返して複数書くという方式です。ドライバとハードウェアの組み合わせによっては正しく動かず危険とのことなので要注意です。</p>
+<p><code>/etc/network/interfaces</code> を管理者権限で編集します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo vim /etc/network/interfaces
+</span></span></span></code></pre></div><p>私の手元の環境で <code>enp0s25</code> の設定を以下のようにして試してみました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">auto enp0s25
+</span></span><span class="line"><span class="cl">iface enp0s25 inet static
+</span></span><span class="line"><span class="cl">    address 192.168.2.200
+</span></span><span class="line"><span class="cl">    netmask 255.255.255.0
+</span></span><span class="line"><span class="cl">    gateway 192.168.2.1
+</span></span><span class="line"><span class="cl">    dns-nameservers 192.168.2.1
+</span></span><span class="line"><span class="cl">iface enp0s25 inet static
+</span></span><span class="line"><span class="cl">    address 192.168.2.203
+</span></span><span class="line"><span class="cl">    netmask 255.255.255.0
+</span></span></code></pre></div><p>ネットワーク再起動。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">sudo systemctl restart networking
+</span></span></span></code></pre></div><p>IPアドレスは期待通りついていました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> ip a s dev enp0s25 <span class="p">|</span> grep <span class="s1">&#39;inet &#39;</span>
+</span></span><span class="line"><span class="cl"><span class="go">    inet 192.168.2.200/24 brd 192.168.2.255 scope global enp0s25
+</span></span></span><span class="line"><span class="cl"><span class="go">    inet 192.168.2.203/24 brd 192.168.2.255 scope global secondary enp0s25
+</span></span></span></code></pre></div><p>ですが、DNSの名前解決ができない状態でした。
+具体的には <code>ping 8.8.8.8</code> はOKですが <code>ping ping google-public-dns-a.google.com</code> はNGでした。</p>
+<p><a href="https://wiki.debian.org/NetworkConfiguration#iproute2_method">NetworkConfiguration - Debian Wiki の iproute2 method</a> のManual approachを試してみるとこちらでは問題なかったです。
+が、 <code>label $IFACE:0</code> と <code>:0</code> 付きだと Legacy method と実質同じだったりしないのかなと気になりました。</p>
+<p><code>:0</code> を取って試してみようかとも思ったのですが、ふと思いついて以下のように2個めの <code>iface</code> にも <code>dns-nameservers</code> を書くようにしてみたら、DNSの名前解決もできました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">auto enp0s25
+</span></span><span class="line"><span class="cl">iface enp0s25 inet static
+</span></span><span class="line"><span class="cl">    address 192.168.2.200
+</span></span><span class="line"><span class="cl">    netmask 255.255.255.0
+</span></span><span class="line"><span class="cl">    gateway 192.168.2.1
+</span></span><span class="line"><span class="cl">    dns-nameservers 192.168.2.1
+</span></span><span class="line"><span class="cl">iface enp0s25 inet static
+</span></span><span class="line"><span class="cl">    address 192.168.2.203
+</span></span><span class="line"><span class="cl">    netmask 255.255.255.0
+</span></span><span class="line"><span class="cl">    dns-nameservers 192.168.2.1
+</span></span></code></pre></div><p>正しい方法かは不明ですが、とりあえず手元の環境ではこれでできたということでメモでした。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>LXDのproxyを使ってポートフォワーディング &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>LXDのproxyを使ってポートフォワーディング</h1>
+  <time datetime=2018-07-05T08:50:00&#43;0900 class="post-date">2018-07-05</time>
+  <nav id="TableOfContents"></nav>
+  <h1 id="はじめに">はじめに</h1>
+<p>LXDのコンテナでnginxを動かして、ホストからChromeなどのブラウザでアクセスしたいことがよくあります。</p>
+<p>LXDのイシューを見るとiptablesで実現可能とのことなのですが、iptablesとネットワークに弱い私がコマンド例を見て雰囲気で実行してもうまくできず、回避策としてホストでnginxを動かしてリバースプロキシでLXDコンテナのnginxに繋いで使っていました。</p>
+<p>しかし、これはhttpなら良いのですがhttpsの場合はホストでSSLを終端することになるのがいまいちです。</p>
+<p>検索してみるとLXD 3.0からproxyという種別のデバイスが追加されており (<a href="https://linuxcontainers.org/ja/lxd/news/">Linux Containers - LXD - ニュース</a> 参照) 、これを使えばポートフォワーディングできるようになっていました。</p>
+<p>公式ドキュメントは <a href="https://lxd.readthedocs.io/en/latest/containers/#type-proxy">Type: proxy</a> にあります。</p>
+<p>snapでインストールしたLXD 3.2で試してみたのでメモです。</p>
+<h1 id="プロキシーの追加">プロキシーの追加</h1>
+<p>例えば 192.0.2.2 というIPv4アドレスを持つ c1 というコンテナにホストの80番と443番ポートをそれぞれコンテナの80番と443番ポートにフォワーディングする場合は以下のようにします。以下で指定しているhttpとhttpsは追加するプロキシーデバイスの名前です。お好みで変えてください。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">lxc config device add c1 http proxy listen=tcp:0.0.0.0:80 connect=tcp:10.138.67.13:80 bind=host
+</span></span></span><span class="line"><span class="cl"><span class="go">lxc config device add c1 https proxy listen=tcp:0.0.0.0:443 connect=tcp:10.138.67.13:443 bind=host
+</span></span></span></code></pre></div><h1 id="状態確認">状態確認</h1>
+<p>以下のコマンドでc1というコンテナのデバイス一覧を表示します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">lxc config device show c1
+</span></span></span></code></pre></div><p>実行例を示します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> lxc config device show c1
+</span></span><span class="line"><span class="cl"><span class="go">http:
+</span></span></span><span class="line"><span class="cl"><span class="go">  bind: host
+</span></span></span><span class="line"><span class="cl"><span class="go">  connect: tcp:192.0.2.2:80
+</span></span></span><span class="line"><span class="cl"><span class="go">  listen: tcp:0.0.0.0:80
+</span></span></span><span class="line"><span class="cl"><span class="go">  type: proxy
+</span></span></span><span class="line"><span class="cl"><span class="go">https:
+</span></span></span><span class="line"><span class="cl"><span class="go">  bind: host
+</span></span></span><span class="line"><span class="cl"><span class="go">  connect: tcp:192.0.2.2:443
+</span></span></span><span class="line"><span class="cl"><span class="go">  listen: tcp:0.0.0.0:443
+</span></span></span><span class="line"><span class="cl"><span class="go">  type: proxy
+</span></span></span></code></pre></div><h1 id="プロキシーの削除">プロキシーの削除</h1>
+<p>例えば コンテナ c1 から http と https という名前のプロキシーデバイスを削除する場合は以下のようにします。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="go">lxc config device rm c1 http https
+</span></span></span></code></pre></div><p>実行例を示します。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> lxc config device rm c1 http https
+</span></span><span class="line"><span class="cl"><span class="go">Device http, https removed from c1
+</span></span></span></code></pre></div><p>デバイスがない状態で一覧表示するとJSONの空オブジェクトが表示されました。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console" data-lang="console"><span class="line"><span class="cl"><span class="gp">$</span> lxc config device show bionic
+</span></span><span class="line"><span class="cl"><span class="go">{}
+</span></span></span></code></pre></div>
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>
