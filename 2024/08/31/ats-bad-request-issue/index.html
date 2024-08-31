@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.133.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Apache Traffic Serverで400 Bad Reqeuestエラーが出る問題 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2024. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Apache Traffic Serverで400 Bad Reqeuestエラーが出る問題</h1>
+  <time datetime=2024-08-31T23:18:22&#43;0900 class="post-date">2024-08-31</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#ats-100x-ブランチhttpsgithubcomhnakamurats-nginx-bad-requesttreeats-100x"><a href="https://github.com/hnakamur/ats-nginx-bad-request/tree/ats-10.0.x">ats-10.0.x ブランチ</a></a></li>
+    <li><a href="#ats-100x-o2-ブランチhttpsgithubcomhnakamurats-nginx-bad-requesttreeats-100x-o2"><a href="https://github.com/hnakamur/ats-nginx-bad-request/tree/ats-10.0.x-O2">ats-10.0.x-O2 ブランチ</a></a></li>
+    <li><a href="#ats-100x-debug-tsan-ブランチhttpsgithubcomhnakamurats-nginx-bad-requesttreeats-100x-debug-tsan"><a href="https://github.com/hnakamur/ats-nginx-bad-request/tree/ats-10.0.x-debug-tsan">ats-10.0.x-debug-tsan ブランチ</a></a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>upstreamをnginxとしてApache Traffic Serverをリバースプロキシとして使う場合に、コンテンツありのリクエストを多数送ると、upstreamのnginxで400 Bad Requestが出る場合があるという問題があります。</p>
+<p>以前 <a href="https://github.com/hnakamur/ats-nginx-bad-request">hnakamur/ats-nginx-bad-request</a> に再現環境を作っていたのですが、<a href="https://github.com/apache/trafficserver/releases/tag/10.0.0">Release 10.0.0 · apache/trafficserver</a>が出たので再度確認してみたら再現しました。原因究明はできていませんが、とりあえずメモ。</p>
+<p>リクエストの送信は<a href="https://github.com/rakyll/hey">hey</a>を使っています。</p>
+<h2 id="ats-100x-ブランチhttpsgithubcomhnakamurats-nginx-bad-requesttreeats-100x"><a href="https://github.com/hnakamur/ats-nginx-bad-request/tree/ats-10.0.x">ats-10.0.x ブランチ</a></h2>
+<p>10.0.0でリリースビルドした環境。</p>
+<p><a href="https://github.com/hnakamur/ats-nginx-bad-request/blob/0ee064deb554191e170b29f5d5b3671b786affd8/hey.log#L88-L90">hey.log#L88-L90</a>に以下のように400 Bad Requestが出ています。</p>
+<pre tabindex="0"><code>Status code distribution:
+  [400]	2 responses
+  [405]	254 responses
+</code></pre><h2 id="ats-100x-o2-ブランチhttpsgithubcomhnakamurats-nginx-bad-requesttreeats-100x-o2"><a href="https://github.com/hnakamur/ats-nginx-bad-request/tree/ats-10.0.x-O2">ats-10.0.x-O2 ブランチ</a></h2>
+<p><a href="https://github.com/hnakamur/ats-nginx-bad-request/tree/ats-10.0.x">ats-10.0.x ブランチ</a>ではコンパイラの最適化オプションが<code>-O3</code>ですが、これを<code>-O2</code>にして試してみました。</p>
+<p>これでも 400 Bad Request は再現しました。<code>-O3</code>の問題では無さそうです。</p>
+<h2 id="ats-100x-debug-tsan-ブランチhttpsgithubcomhnakamurats-nginx-bad-requesttreeats-100x-debug-tsan"><a href="https://github.com/hnakamur/ats-nginx-bad-request/tree/ats-10.0.x-debug-tsan">ats-10.0.x-debug-tsan ブランチ</a></h2>
+<p>デバッグビルドにしてThread Sanitizer （以下TSAN）を使ってみた版。TSANを使うのは初めてです。</p>
+<p><a href="https://github.com/hnakamur/ats-nginx-bad-request/blob/71646840ca20b90da6f279a79340d45beef49da8/ats/Dockerfile#L36-L62">Dockerfile#L36-L62</a></p>
+<pre tabindex="0"><code>ARG GIT_COMMIT=63bb35dfa7926f468f66e0f2279dd5b529a18a84
+RUN curl -sSL https://github.com/apache/trafficserver/archive/${GIT_COMMIT}.tar.gz | tar zxf - --strip-component=1 -C ${SRC_DIR}/trafficserver
+WORKDIR ${SRC_DIR}/trafficserver
+ARG BUILD_DIR=/src/trafficserver/build
+RUN cmake -B ${BUILD_DIR} -G Ninja \
+	-DCMAKE_BUILD_TYPE=Debug \
+	-DCMAKE_CXX_FLAGS_DEBUG=&#34;-g -fsanitize=thread&#34; \
+	-DCMAKE_C_FLAGS_DEBUG=&#34;-g -fsanitize=thread&#34; \
+	-DCMAKE_INSTALL_PREFIX=/opt/trafficserver \
+	-DCMAKE_INSTALL_BINDIR=bin \
+	-DCMAKE_INSTALL_SBINDIR=bin \
+	-DCMAKE_INSTALL_LIBDIR=lib \
+	-DCMAKE_INSTALL_LIBEXECDIR=lib/modules \
+	-DCMAKE_INSTALL_SYSCONFDIR=etc \
+	-DCMAKE_INSTALL_LOCALSTATEDIR=var \
+	-DCMAKE_INSTALL_RUNSTATEDIR=var/run \
+	-DCMAKE_INSTALL_DATAROOTDIR=share \
+	-DCMAKE_INSTALL_DATADIR=share/data \
+	-DCMAKE_INSTALL_DOCDIR=share/doc \
+	-DCMAKE_INSTALL_LOGDIR=var/log \
+	-DCMAKE_INSTALL_CACHEDIR=var/cache \
+	-DBUILD_EXPERIMENTAL_PLUGINS=ON \
+	-DENABLE_MAXMIND_ACL=ON \
+	-DENABLE_URI_SIGNING=ON \
+	-DENABLE_JEMALLOC=ON \
+	-DENABLE_AUTEST=OFF
+RUN cmake --build ${BUILD_DIR} --parallel --verbose
+</code></pre><p>ビルド時に <code>FATAL: ThreadSanitizer: unexpected memory mapping</code> というエラーが出ました。
+<a href="https://stackoverflow.com/questions/77850769/fatal-threadsanitizer-unexpected-memory-mapping-when-running-on-linux-kernels">c - FATAL: ThreadSanitizer: unexpected memory mapping when running on Linux Kernels 6.6+ - Stack Overflow</a>というページによるとUbuntu 24.04では<code>vm.mmap_rnd_bits</code>が32でTSANを使うためには変更が必要とのこと。</p>
+<p>私はUbuntu 24.04上のIncusコンテナ内でDocker Composeを動かして試していました。
+ということでIncusホストのUbuntu 24.04上で以下のように28に変更してみました。</p>
+<pre tabindex="0"><code>sudo sysctl vm.mmap_rnd_bits=28
+</code></pre><p>これでビルドが通るようになりました。</p>
+<p>そしてこの環境でも 400 Bad Request は再現しました。</p>
+<p><a href="https://github.com/hnakamur/ats-nginx-bad-request/commit/d83a65c014f981ca7d7687d8ad4d3d3a23dad8a1">https://github.com/hnakamur/ats-nginx-bad-request/commit/d83a65c014f981ca7d7687d8ad4d3d3a23dad8a1</a>
+のコミットメッセージにTSANが報告したdata raceの出力の抜粋を含めています（完全な出力は<code>ats.log.zst</code>参照）。</p>
+<p>これらのdata raceが400 Bad Requestの原因かは不明です。一方data raceの出力の1つに<code>src/tscore/ink_queue.cc:559</code>があり、それは<a href="https://github.com/apache/trafficserver/issues/11640">TSan: ink atomic queue not so atomic · Issue #11640 · apache/trafficserver</a>にも報告されていました。</p>
+<p><a href="https://github.com/apache/trafficserver/issues?q=is%3Aissue+is%3Aopen+tsan">is:issue is:open tsanでissueを検索</a>すると他にもTSANで報告されたdata raceのイシューが上がってました。</p>
+<p><a href="https://github.com/hnakamur/ats-nginx-bad-request/commit/71646840ca20b90da6f279a79340d45beef49da8">https://github.com/hnakamur/ats-nginx-bad-request/commit/71646840ca20b90da6f279a79340d45beef49da8</a>
+のコミットではログやtcpdumpの出力を特定のポートのものに絞ったものを作っています。</p>
+<p>コミットメッセージにtcpdumpのログの抜粋を貼りましたが、リクエスト行の前にたぶんその前のリクエストのコンテンツの断片が送られており、このせいで400 Bad Requestになっているようです。リクエストのコンテンツはすべて1024バイトで試していたのですが、この断片は344バイトとなっていました。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>
