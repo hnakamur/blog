@@ -14,7 +14,7 @@ http/httpsからwebsocketにリバースプロキシする実験をしてみま�
 * [nodejitsu/node-http-proxy](https://github.com/nodejitsu/node-http-proxy)
 
 
-<pre>
+```
                               +---------------+
                        +------+ VHost1App/app |
                        |      | port 3000     |
@@ -24,7 +24,7 @@ http/httpsからwebsocketにリバースプロキシする実験をしてみま�
  +--------------+      +------+ VHost2App/app |
                               | port 3001     |
                               +---------------+
-</pre>
+```
 
 上記の構成で、
 vhost1.example.comというホスト名でアクセスしたらVHost1/app、

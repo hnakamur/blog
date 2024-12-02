@@ -28,9 +28,7 @@ chef-soloやknife実行時にオプションをなるべく指定不要にする
 [install_chef-solo.sh](https://github.com/hnakamur/setup_linux/blob/master/centos6/install_chef-solo.sh)
 を参照してください。
 
-ちょっと注意が必要なのは、shのヒアドキュメントで<code>\`hostname\`</code>が展開されるのを避けるために、<code>\\\`hostname\\\`</code>とエスケープしていることです。
-＃余談ですが、markdownだとバックスラッシュやバックティックはエスケープしないといけないんですね。
-
+ちょっと注意が必要なのは、shのヒアドキュメントで`` `hostname` ``が展開されるのを避けるために、`` \`hostname\` ``とエスケープしていることです。
 
 knife.rbの設定は
 [Base "knife" configuration for a standard chef-solo setup — Gist](https://gist.github.com/1039666) を書き換えて作りました。が、まだよく理解していません。

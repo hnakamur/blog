@@ -13,10 +13,6 @@ nginx や Go でプロキシーサーバーを構築することについて、�
 
 Envoy は moonjit という LuaJIT のフォーク版が組み込まれているが出来ることは限定的なので Dropbox ではこれは使わずに C++ で拡張しているとのことでした。
 
-<!--
-Envoy はバイナリパッケージを提供していますが、インストールしてみるとスタティックリンクの実行ファイルになっていました。
--->
-
 そこでまずは Hello world 的なものを探すと
 [envoyproxy/envoy-filter-example: Example of consuming Envoy and adding a custom filter](https://github.com/envoyproxy/envoy-filter-example)
 というのがありました。

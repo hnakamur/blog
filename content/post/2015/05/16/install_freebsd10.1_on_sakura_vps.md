@@ -59,29 +59,28 @@ HTML5版のVNCコンソールは、どうも日本語キーボードを想定し
 
 押したキーを左、入力された文字を右に示します。
 
-<table border="1">
-<tr><th style="padding:4px">押したキー</th><th style="padding:4px">入力された文字</th></tr>
-<tr><td style="padding:4px">`</td><td style="padding:4px">[</td></tr>
-<tr><td style="padding:4px">~ (Shift+`)</td><td style="padding:4px">+</td></tr>
-<tr><td style="padding:4px">@ (Shift+2)</td><td style="padding:4px">{</td></tr>
-<tr><td style="padding:4px">^ (Shift+6)</td><td style="padding:4px">+</td></tr>
-<tr><td style="padding:4px">& (Shift+7)</td><td style="padding:4px">^</td></tr>
-<tr><td style="padding:4px">* (Shift+8)</td><td style="padding:4px">"</td></tr>
-<tr><td style="padding:4px">( (Shift+9)</td><td style="padding:4px">*</td></tr>
-<tr><td style="padding:4px">) (Shift+0)</td><td style="padding:4px">(</td></tr>
-<tr><td style="padding:4px">_ (Shift+-)</td><td style="padding:4px">何も入力されない</td></tr>
-<tr><td style="padding:4px">=</td><td style="padding:4px">-</td></tr>
-<tr><td style="padding:4px">+ (Shift+=)</td><td style="padding:4px">:</td></tr>
-<tr><td style="padding:4px">[</td><td style="padding:4px">]</td></tr>
-<tr><td style="padding:4px">{ (Shift+[)</td><td style="padding:4px">}</td></tr>
-<tr><td style="padding:4px">]</td><td style="padding:4px">\</td></tr>
-<tr><td style="padding:4px">} (Shift+})</td><td style="padding:4px">|</td></tr>
-<tr><td style="padding:4px">\</td><td style="padding:4px">何も入力されない</td></tr>
-<tr><td style="padding:4px">| (Shift+\)</td><td style="padding:4px">何も入力されない</td></tr>
-<tr><td style="padding:4px">: (Shift+;)</td><td style="padding:4px">"</td></tr>
-<tr><td style="padding:4px">'</td><td style="padding:4px">7</td></tr>
-<tr><td style="padding:4px">" (Shift+')</td><td style="padding:4px">@</td></tr>
-</table>
+|押したキー|入力された文字|
+|----------|--------------|
+|`` ` ``|`[`|
+|``~ (Shift+`)``|`+`|
+|`@ (Shift+2)`|`{`|
+|`^ (Shift+6)`|`+`|
+|`& (Shift+7)`|`^`|
+|`* (Shift+8)`|`"`|
+|`( (Shift+9)`|`*`|
+|`) (Shift+0)`|`(`|
+|`_ (Shift+-)`|何も入力されない|
+|`=`|`-`|
+|`+ (Shift+=)`|`:`|
+|`[`|`]`|
+|`{ (Shift+[)`|`}`|
+|`]`|`\`|
+|`} (Shift+})`|`|`|
+|`\`|何も入力されない|
+|`\| (Shift+\)`|何も入力されない|
+|`: (Shift+;)`|`"`|
+|`'`|`7`|
+|`" (Shift+')`|`@`|
 
 ### ホスト名設定
 

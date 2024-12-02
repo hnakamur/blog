@@ -71,13 +71,13 @@ Storage detailsはDyamically allocated
 ### テキストモードでインストール開始
 1. [仮想マシン]/[起動]
 1. Welcome to CentOS 6.2!」の画面でTABを押す
-<pre>
+```
 > vmlinuz initrd=initrd.img
-</pre>
+```
 と表示されているところに、スペース、text、リターンを入力し
-<pre>
+```
 > vmlinuz initrd=initrd.img text
-</pre>
+```
 としてインストール開始
 
 ### Disc Found
@@ -173,27 +173,27 @@ IPADDR="192.168.56.101"
 NETMASK="255.255.255.0"
 ```
 
-<pre>
+```
 /etc/init.d/network restart
-</pre>
+```
 を実行しネットワークを再起動します。
 
 ### ネットワークの動作確認
 
 以下のコマンドを実行し、DNS名前解決とインターネットへのアクセスができることを確認。
-<pre>
+```
 ping ftp.riken.jp
-</pre>
+```
 
 ホストマシンから仮想マシンにアクセスできることを確認。
-<pre>
+```
 ping 192.168.56.101
-</pre>
+```
 
 確認できたら仮想マシンからログアウト
-<pre>
+```
 exit
-</pre>
+```
 
 以降はホストマシンからsshでログインして操作可能です。
 ```
