@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.140.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>IncusのUbuntuコンテナでcloud-initを使ってIPv6を無効化 &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2025. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>IncusのUbuntuコンテナでcloud-initを使ってIPv6を無効化</h1>
+  <time datetime=2024-11-17T17:51:14&#43;0900 class="post-date">2024-11-17</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#手順">手順</a></li>
+    <li><a href="#メモ">メモ</a>
+      <ul>
+        <li><a href="#試したけど良くなかった方法">試したけど良くなかった方法</a></li>
+        <li><a href="#冒頭の手順についての補足">冒頭の手順についての補足</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+  <h2 id="手順">手順</h2>
+<pre tabindex="0"><code>incus launch images:ubuntu/24.04/cloud &#34;$container_name&#34; \
+  -c user.network-config=&#34;#cloud-config
+network:
+  version: 2
+  ethernets:
+    eth0:
+      dhcp4: true
+      dhcp-identifier: mac
+      link-local: [ ipv4 ]&#34;
+</code></pre><h2 id="メモ">メモ</h2>
+<h3 id="試したけど良くなかった方法">試したけど良くなかった方法</h3>
+<p><a href="https://discuss.linuxcontainers.org/t/disable-ipv6-address-on-certain-containers/21485/6">Disable IPv6 address on certain containers - Incus - Linux Containers Forum</a>で<code>ipv6.address</code>を<code>none</code>にしたネットワークを作って、コンテナ作成時にそのネットワークを指定するという方法があり試してみました。
+しかしリンクローカルのIPv6アドレスがついてしまいました。</p>
+<h3 id="冒頭の手順についての補足">冒頭の手順についての補足</h3>
+<p>その後、<a href="https://ambiesoft.com/blog/archives/5978#primary">ubuntu serverでipv6を無効にする – ブーログ</a>でnetplanで<code>link-local</code>を<code>[ ipv4 ]</code>にするという方法を知りました。
+<a href="https://netplan.readthedocs.io/en/latest/netplan-yaml/">YAML configuration - Netplan documentation</a>も確認し、試してみるとこちらはうまくいきました。</p>
+<p>通常のIncusのUbuntuコンテナ(<code>images:ubuntu/24.04</code>)では
+<a href="https://github.com/lxc/lxc-ci/blob/2a6c9cdef744c05bec739bbdde94e486308831ee/images/ubuntu.yaml#L332-L345">https://github.com/lxc/lxc-ci/blob/2a6c9cdef744c05bec739bbdde94e486308831ee/images/ubuntu.yaml#L332-L345</a>
+の内容で <code>/etc/netplan/10-lxc.yaml</code> が作られていました。</p>
+<p>cloud-initを使うためには<code>images:ubuntu/24.04/cloud</code>と<code>/cloud</code>つきのイメージを使う必要があります。</p>
+<p>ということで冒頭の手順になりました。</p>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

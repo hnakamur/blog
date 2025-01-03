@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.140.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Prometheusのexporterのメトリックをcarbon-clickhouseに登録する &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2025. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Prometheusのexporterのメトリックをcarbon-clickhouseに登録する</h1>
+  <time datetime=2024-12-02T14:22:25&#43;0900 class="post-date">2024-12-02</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#prometheusのexporterが出力するメトリックの形式">Prometheusのexporterが出力するメトリックの形式</a>
+      <ul>
+        <li><a href="#テキスト形式">テキスト形式</a></li>
+        <li><a href="#protocol-buffers形式">Protocol Buffers形式</a></li>
+      </ul>
+    </li>
+    <li><a href="#carbon-clickhouseへのメトリック登録">carbon-clickhouseへのメトリック登録</a>
+      <ul>
+        <li><a href="#graphiteのplaintext形式でのデータ登録">Graphiteのplaintext形式でのデータ登録</a></li>
+        <li><a href="#prometheusの形式でのメトリック登録">Prometheusの形式でのメトリック登録</a></li>
+      </ul>
+    </li>
+    <li><a href="#clickhouseでのデータ格納形式">ClickHouseでのデータ格納形式</a></li>
+    <li><a href="#goでcarbon-clickhouseのパッケージを使う際の注意">Goでcarbon-clickhouseのパッケージを使う際の注意</a></li>
+    <li><a href="#データ参照はgrahite-clickhouseを使う">データ参照はgrahite-clickhouseを使う</a></li>
+    <li><a href="#試してみたコード">試してみたコード</a>
+      <ul>
+        <li><a href="#環境構築用ansible-playobok">環境構築用Ansible playobok</a></li>
+        <li><a href="#exporterからのデータをcarbon-clickhouseに登録するサーバー">exporterからのデータをcarbon-clickhouseに登録するサーバー</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>Prometheusのexporterのメトリックを<a href="https://github.com/go-graphite/carbon-clickhouse">carbon-clickhouse</a>に登録しようとして調べてみた際のメモです。
+実際に調べたのは、<a href="https://github.com/prometheus/node_exporter">prometheus/node_exporter: Exporter for machine metrics</a>だけなので、他のexporterだと違うことがあるかもしれません。</p>
+<p><a href="https://github.com/prometheus/prometheus">prometheus/prometheus: The Prometheus monitoring system and time series database.</a>のソースも拾い読みしましたが、レポジトリがいろいろ分かれていて、正しい箇所を見れているかは不明です。</p>
+<h2 id="prometheusのexporterが出力するメトリックの形式">Prometheusのexporterが出力するメトリックの形式</h2>
+<h3 id="テキスト形式">テキスト形式</h3>
+<ul>
+<li><a href="https://prometheus.io/docs/concepts/data_model/">Data model | Prometheus</a>にメトリック名とラベルの形式について書かれている。</li>
+<li>例：<code>metric_name{label1=&quot;value1&quot;,label2=&quot;value2&quot;} 123</code></li>
+<li>メトリック名は<code>[a-zA-Z_:][a-zA-Z0-9_:]*</code>の正規表現にマッチすること。</li>
+<li>ラベル名は<code>[a-zA-Z_][a-zA-Z0-9_]*</code>の正規表現にマッチすること。
+<ul>
+<li><code>__</code>で始まる名前は内部用で予約されているので使用禁止。</li>
+</ul>
+</li>
+<li>ラベルの値は任意のUnicodeの文字を使用可。
+<ul>
+<li><code>&quot;</code>と<code>\</code>（実際は任意の文字）は<code>\</code>でエスケープ可能。
+<a href="https://github.com/prometheus/prometheus/blob/v2.55.1/model/textparse/promlex.l#L77">https://github.com/prometheus/prometheus/blob/v2.55.1/model/textparse/promlex.l#L77</a>
+<a href="https://github.com/prometheus/prometheus/blob/v3.0.1/model/textparse/promlex.l#L81">https://github.com/prometheus/prometheus/blob/v3.0.1/model/textparse/promlex.l#L81</a></li>
+</ul>
+</li>
+<li>ラベルの値が空文字列の場合は、そのラベルを指定しないのと同じ扱いになる。</li>
+<li><a href="https://github.com/prometheus/prometheus/blob/v2.55.1/model/textparse/promparse.go#L265-L273"><code>prompaser.nextToken()</code></a>でTABと半角空白は読み飛ばす。
+<ul>
+<li>上記の例だと <code>metric_name { label1 = &quot;value1&quot; , label2 = &quot;value2&quot; } 123</code> のように空白を入れても同じ内容になる。</li>
+</ul>
+</li>
+</ul>
+<h3 id="protocol-buffers形式">Protocol Buffers形式</h3>
+<p>Protocol Buffersは以下protobufと略します。</p>
+<ul>
+<li><code>Accept</code>ヘッダーに<code>application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited</code>と指定して<code>http://${node_exporter_address}:9100/metrics</code>にリクエストを送ると、Protocol Buffers形式のレスポンスボディが返ってくる。
+<ul>
+<li>この値は<a href="https://pkg.go.dev/github.com/prometheus/common@v0.60.1/expfmt#pkg-constants">github.com/prometheus/common/expfmtパッケージの定数</a>の<code>FmtProtoDelim</code>に定義されているがdeprecated。
+<ul>
+<li>代わりに<code>expfmt.NewFormat(expfmt.TypeProtoDelim)</code>を使えとのこと。</li>
+<li>戻り値の型<a href="https://pkg.go.dev/github.com/prometheus/common@v0.60.1/expfmt#Format">expfmt.Format</a>は<code>string</code>に<code>typedef</code>されているので、文字列に変換するには<code>string(Formatの値)</code>で良い。</li>
+</ul>
+</li>
+<li>レスポンスボディは<a href="https://pkg.go.dev/github.com/prometheus/client_model@v0.6.1/go#MetricFamily">github.com/prometheus/client_model/go.MetricFamily</a>のインスタンスが複数並べられた形式になる。</li>
+</ul>
+</li>
+<li><a href="https://github.com/prometheus/client_model">prometheus/client_model: Data model artifacts for Prometheus.</a>
+<ul>
+<li>Deprecation noteを以下に抜粋。</li>
+<li>Prometheus v2.0.0からPrometheusサーバーはprotobuf形式でのデータ取り込みはしなくなっていた。</li>
+<li>そのため、Go以外の言語用のライブラリではprotobufサポートは外された。</li>
+<li>しかしGo用の<a href="https://github.com/prometheus/client_golang">prometheus/client_golang: Prometheus instrumentation library for Go applications</a>はprotobufサポートが消されずに残っている。</li>
+<li>v2.40.0からネイティブヒストグラムの実験的なサポートがprotobuf形式に追加されたため、設定で有効にすればPrometheusサーバーはprotobuf形式でのデータ取り込みが出来るようになった。</li>
+</ul>
+</li>
+</ul>
+<h2 id="carbon-clickhouseへのメトリック登録">carbon-clickhouseへのメトリック登録</h2>
+<p><a href="https://github.com/go-graphite/carbon-clickhouse">go-graphite/carbon-clickhouse: Graphite metrics receiver with ClickHouse as storage</a></p>
+<h3 id="graphiteのplaintext形式でのデータ登録">Graphiteのplaintext形式でのデータ登録</h3>
+<ul>
+<li><a href="https://graphite.readthedocs.io/en/latest/feeding-carbon.html#getting-your-data-into-graphite">Feeding In Your Data — Graphite 1.2.0 documentation</a>
+<ul>
+<li><code>メトリックのパス 値 タイムスタンプ\n</code>という形式でデータを送って登録（複数行指定可能）。</li>
+</ul>
+</li>
+<li>メトリックパスはタグも使える。
+<ul>
+<li><a href="https://graphite.readthedocs.io/en/latest/tags.html">Graphite Tag Support — Graphite 1.2.0 documentation</a></li>
+<li>例：<code>my.series_name;tag1=value1;tag2=value2</code></li>
+<li>タグ名は1文字以上で<code>;!^=</code>以外のASCII文字。</li>
+<li>タグの値は1文字以上で<code>;</code>以外のASCII文字。先頭に<code>~</code>は禁止。</li>
+<li>タグ名と値にUTF-8文字は動くかもしれないが、あまりテストされていない。</li>
+<li>少なくともplaintext形式でデータ登録する際は、タグ名はタグの値に半角空白は含められない。
+<ul>
+<li><a href="https://github.com/go-graphite/carbon-clickhouse/blob/v0.11.8/receiver/plain.go#L53-L63">receiver/Base.PlainParseLine</a>で行頭から半角空白を探しているため。</li>
+<li>なお、本家のGraphiteプロジェクトのcarbonでも
+<a href="https://github.com/graphite-project/carbon/blob/1.1.10/lib/carbon/protocols.py#L196">https://github.com/graphite-project/carbon/blob/1.1.10/lib/carbon/protocols.py#L196</a>
+で行頭から半角空白で分割している。</li>
+<li><a href="https://graphite.readthedocs.io/en/latest/feeding-carbon.html#the-pickle-protocol">pickleプロトコル</a>なら含められるかもしれない。
+<ul>
+<li>carbon-clickhouseでも<a href="https://github.com/go-graphite/carbon-clickhouse/blob/v0.11.8/receiver/pickle.go">receiver/pickle.go</a>で実装されている。</li>
+<li>ただし、登録した値をクエリで参照する際に問題が起きる可能性もあるので、半角空白は含めないほうが無難。</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>carbon-clickhouseへのデータ登録は<a href="https://github.com/go-graphite/carbon-clickhouse?tab=readme-ov-file#configuration">設定例</a>の<code>[udp]</code>か<code>[tcp]</code>の設定で指定したアドレスに上記の形式でデータを送ればよい。
+<ul>
+<li>この設定例を見ると<a href="https://github.com/lomik/carbon-clickhouse/blob/master/grpc/carbon.proto">carbon.proto</a>のprotobuf形式で<code>[grpc]</code>の設定のアドレスに送るという手もある。</li>
+</ul>
+</li>
+</ul>
+<h3 id="prometheusの形式でのメトリック登録">Prometheusの形式でのメトリック登録</h3>
+<ul>
+<li>carbon-clickhouseへのデータ登録は<a href="https://github.com/go-graphite/carbon-clickhouse?tab=readme-ov-file#configuration">設定例</a>の<code>[prometheus]</code>の設定を<code>enabled = true</code>に変更し、ここで指定したアドレスにデータを送ればよい。
+<ul>
+<li>carbon-clickhouseで受信する実装は<a href="https://github.com/go-graphite/carbon-clickhouse/blob/v0.11.8/receiver/prometheus.go#L173-L191">receiver/PrometheusRemoteWrite.ServeHTTP</a>にある。
+<ul>
+<li>リクエストボディをsnappyで解凍した後、<a href="https://github.com/go-graphite/carbon-clickhouse/blob/v0.11.8/helper/prompb/remote.proto">helper/prompb/remote.proto</a>の<a href="https://github.com/go-graphite/carbon-clickhouse/blob/v0.11.8/helper/prompb/remote.proto#L21-L23">WriteRequest</a>として解釈している。</li>
+<li>データ送信側は<code>WriteRequest</code>のインスタンスを作り<a href="https://github.com/go-graphite/carbon-clickhouse/blob/v0.11.8/helper/prompb/remote.pb.go#L147-L155">Marshal</a>メソッドでバイト列にシリアライズし、snappyで圧縮したものを送ればよい。</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="clickhouseでのデータ格納形式">ClickHouseでのデータ格納形式</h2>
+<ul>
+<li>carbon-clickhouseでは<a href="https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/graphitemergetree">GraphiteMergeTree</a>テーブルエンジンを使用。
+<ul>
+<li>Graphite形式で登録しても、Prometheus形式で登録しても、格納される先は同じ。</li>
+<li>テーブル定義例
+<ul>
+<li><a href="https://github.com/go-graphite/carbon-clickhouse?tab=readme-ov-file#clickhouse-configuration">ClickHouse configuration</a></li>
+<li><a href="https://github.com/go-graphite/graphite-clickhouse-tldr">go-graphite/graphite-clickhouse-tldr: Preconfigured graphite-web with ClickHouse backend</a>の<a href="https://github.com/go-graphite/graphite-clickhouse-tldr/blob/f2bf2f14bc58797fd111d5ffd067cd81fa05e399/init.sql">init.sql</a></li>
+<li><a href="https://medium.com/avitotech/we-have-been-developing-our-monitoring-system-since-two-years-ago-click-to-63d399c61192">We have been developing our monitoring system for two years. Click to… | by Vladimir Kolobaev | AvitoTech | Medium</a></li>
+</ul>
+</li>
+<li><code>Path</code>カラムに格納されるメトリック名の形式は<a href="https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/graphitemergetree">GraphiteMergeTree</a>の<code>rule_type</code>のコードブロックの<code>tagged</code>に説明がある。
+<ul>
+<li>具体的には<code>someName?tag1=value1&amp;tag2=value2&amp;tag3=value3</code>という形式になる。</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="goでcarbon-clickhouseのパッケージを使う際の注意">Goでcarbon-clickhouseのパッケージを使う際の注意</h2>
+<p>レポジトリのURLは <a href="https://github.com/go-graphite/carbon-clickhouse">https://github.com/go-graphite/carbon-clickhouse</a> だが、<a href="https://github.com/go-graphite/carbon-clickhouse/blob/v0.11.8/go.mod#L1">go.mod#L1</a>で<code>module github.com/lomik/carbon-clickhouse</code>と指定されている。Goからこのパッケージを使う際にはこのmoduleのパスのほうを指定する必要があるので要注意。</p>
+<h2 id="データ参照はgrahite-clickhouseを使う">データ参照はgrahite-clickhouseを使う</h2>
+<ul>
+<li><a href="https://github.com/go-graphite/graphite-clickhouse">go-graphite/graphite-clickhouse: Graphite cluster backend with ClickHouse support</a></li>
+<li><a href="https://github.com/go-graphite/graphite-clickhouse/blob/v0.14.0/doc/config.md">doc/config.md</a>の<code>[common]</code>のアドレスでGraphite形式、<code>[prometheus]</code>のアドレスでPrometheus形式でデータが取得できる。
+<ul>
+<li><a href="https://grafana.com/docs/grafana/latest/datasources/graphite/">Graphite data source</a>と<a href="https://grafana.com/docs/grafana/latest/datasources/prometheus/">Prometheus data source</a>で設定すればGrafanaのデータソースとして使える。</li>
+</ul>
+</li>
+<li>Graphiteデータソースでクエリを書く場合
+<ul>
+<li><a href="https://graphite.readthedocs.io/en/latest/tags.html">Graphite Tag Support</a>の<a href="https://graphite.readthedocs.io/en/latest/tags.html#querying">Querying</a>の項を参照。</li>
+<li>まず<code>seriesByTag('name=metric_name')</code>や<code>seriesByTag('tag1=value1')</code>などを使い、そこから必要に応じてさらに対象を絞ったり加工しつつ参照する。</li>
+</ul>
+</li>
+</ul>
+<h2 id="試してみたコード">試してみたコード</h2>
+<h3 id="環境構築用ansible-playobok">環境構築用Ansible playobok</h3>
+<p><a href="https://github.com/hnakamur/carbon-clickhouse-ansible-playbook">hnakamur/carbon-clickhouse-ansible-playbook</a></p>
+<ul>
+<li><a href="https://github.com/hnakamur/carbon-clickhouse-ansible-playbook/blob/main/create_incus_containers.sh">create_incus_containers.sh</a>で<a href="https://linuxcontainers.org/ja/incus/">Incus</a>のコンテナを作り、このplaybookを実行する。</li>
+<li><a href="https://github.com/go-graphite/graphite-clickhouse">graphite-clickhouse</a>のREADMEのTL;DRセクションの<a href="https://github.com/lomik/graphite-clickhouse-tldr">Preconfigured docker-compose</a>を参考にした。</li>
+</ul>
+<h3 id="exporterからのデータをcarbon-clickhouseに登録するサーバー">exporterからのデータをcarbon-clickhouseに登録するサーバー</h3>
+<p><a href="https://github.com/hnakamur/prometheus-exporter-to-carbon-clickhouse-relay">https://github.com/hnakamur/prometheus-exporter-to-carbon-clickhouse-relay</a></p>
+<ul>
+<li><a href="https://github.com/prometheus/node_exporter">prometheus/node_exporter</a>を稼働中に、これを動かすとnode_exporterからメトリックを読み取ってcarbon-clickhouseに登録する。</li>
+<li>現状はとりあえず動いたレベル。今後いろいろ変更するかも。</li>
+<li><a href="https://pkg.go.dev/github.com/prometheus/client_model@v0.6.1/go#MetricFamily">github.com/prometheus/client_model/go.MetricFamily</a>から<a href="https://github.com/go-graphite/carbon-clickhouse/blob/v0.11.8/helper/prompb/remote.proto#L21-L23">WriteRequest</a>の<a href="https://github.com/go-graphite/carbon-clickhouse/blob/v0.11.8/helper/prompb/types.proto#L26-L29">TimeSeries</a>への変換は<a href="https://github.com/hnakamur/prometheus-exporter-to-carbon-clickhouse-relay/blob/280b7e54430e8dbaf23e4696adc0a26c6670a1e6/main.go#L222-L330">convertOneMetricFamilyToTimeSeries</a>関数で実装。
+<ul>
+<li><a href="https://prometheus.io/docs/concepts/metric_types/">Metric types | Prometheus</a>（コードでは<a href="https://github.com/prometheus/client_model/blob/773bf3b3af440c3e678fc5fa7a0bdb3bdc0b94e0/io/prometheus/client/metrics.proto">client_model/io/prometheus/client/metrics.proto</a>の<a href="https://github.com/prometheus/client_model/blob/773bf3b3af440c3e678fc5fa7a0bdb3bdc0b94e0/io/prometheus/client/metrics.proto#L27-L40">enum MetricType</a>）に応じて変換。
+<ul>
+<li><code>COUNTER</code>、<code>GAUGE</code>、<code>SUMMARY</code>、<code>UNTYPED</code>は実装済み。
+<ul>
+<li><code>SUMMARY</code>は<code>node_exporter</code>のテキスト形式のメトリック出力を参考に、1つの<code>SUMMARY</code>を複数の<code>TimeSeries</code>に変換するようにした。</li>
+</ul>
+</li>
+<li><code>HISTOGRAM</code>、<code>GAUGE_HISTOGRAM</code>は未実装。
+<ul>
+<li><code>node_exporter</code>のデフォルト設定ではこれらのタイプのメトリックは出力されなかったため。</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>現状の実装ではどの<a href="https://prometheus.io/docs/concepts/metric_types/">Metric types</a>だったかの情報は、変換後は失われる。
+<ul>
+<li><code>metric_type</code>といったラベルを付与するようなオプションを付けるか要検討。</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>
