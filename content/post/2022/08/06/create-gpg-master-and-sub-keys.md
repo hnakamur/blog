@@ -379,7 +379,7 @@ gpg> quit
 Save changes? (y/N) y
 ```
 
-## プライマリーキーの執行証明書を作成
+## プライマリーキーの失効証明書を作成
 
 `gpg --output $KEYFP.gpg-revocation-certificate --gen-revoke $KEYFP` を実行すると以下のように理由が聞かれました。一旦 Q を入力してキャンセルして抜けました。
 
