@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.140.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>otelcol-contribでClickHouseにOpenTelemetryのデータ投入を試してみた &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="https://hnakamur.github.io/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="https://hnakamur.github.io/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="https://hnakamur.github.io/blog/favicon.png">
+
+  
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KMMXGG2Z56"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KMMXGG2Z56');
+</script>
+
+
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hnakamur.github.io/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2025. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>otelcol-contribでClickHouseにOpenTelemetryのデータ投入を試してみた</h1>
+  <time datetime=2025-01-06T21:11:06&#43;0900 class="post-date">2025-01-06</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#otelcol-contrib-について">otelcol-contrib について</a></li>
+    <li><a href="#clickhouse-exporterの設定オプションとテーブル名">ClickHouse exporterの設定オプションとテーブル名</a></li>
+    <li><a href="#clickhouseのメトリクスをclickhouseにデータ投入するのを試した">ClickHouseのメトリクスをClickHouseにデータ投入するのを試した</a></li>
+    <li><a href="#nginxのログとトレースをclickhouseにデータ投入するのを試した">nginxのログとトレースをClickHouseにデータ投入するのを試した</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p><a href="https://nonylene.hatenablog.jp/entry/2024/12/09/010951">ISUCON 14: ClickHouse と OpenTelemetry で ISUCON の計測環境を作ったら快適だった - Unyablog.</a>の記事を見て、私もClickHouseにOpenTelemetryのデータを投入するのは気になっていたので試してみた、というメモです。</p>
+<p>メトリクス、ログ、トレースの3種類のデータ投入を試しました。</p>
+<h2 id="otelcol-contrib-について">otelcol-contrib について</h2>
+<ul>
+<li>バイナリ配布用レポジトリ: <a href="https://github.com/open-telemetry/opentelemetry-collector-releases">https://github.com/open-telemetry/opentelemetry-collector-releases</a>
+<ul>
+<li><code>otelcol-contrib_${version}_linux_amd64.deb</code> のようなビルド済みバイナリが提供されています。</li>
+<li><code>otelcol-contrib_${version}_linux_amd64.deb</code>をインストールすると、systemdで<code>otelcol-contrib</code>というサービスが起動されます。</li>
+<li>使用する設定ファイルは<code>/etc/otelcol-contrib/config.yaml</code>です。</li>
+</ul>
+</li>
+<li>opentelemetry-collector-contribのソースレポジトリ: <a href="https://github.com/open-telemetry/opentelemetry-collector-contrib">https://github.com/open-telemetry/opentelemetry-collector-contrib</a>
+<ul>
+<li>レポジトリ名から察するに otelcolは opentelemetry-collector の略のようです。</li>
+<li>receiver、processor、exporterディレクトリにさまざまなレシーバー、プロセッサー、エクスポーターが含まれています。
+<ul>
+<li>レシーバーは外界から<code>otelcol-contrib</code>にデータを取り込むものです。</li>
+<li>プロセッサーは取り込んだデータを加工するものです。</li>
+<li>エクスポーターは加工したデータを外界に送るものです。
+<ul>
+<li>Prometheusの文脈だとexporterという用語はPrometheusがデータをスクレイピングしに来るところにメトリクスデータを提供するものですが、otelcolの文脈では外界からotelcolに取り込んだデータをClickHouseのような外界のデータベースに送るものということのようです。</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>今回試したものは以下のとおりです。
+<ul>
+<li><a href="https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/b938631b9c319da90de38e4d25d31a4916297ad7/receiver/filelogreceiver">File Log Receiver</a>
+<ul>
+<li>nginxなど外部のミドルウェアが出力したファイルを読んでotelcolにログデータを取り込むレシーバーです。</li>
+<li>READMEによると、2025-01-06時点での安定度はベータです。</li>
+</ul>
+</li>
+<li><a href="https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/b938631b9c319da90de38e4d25d31a4916297ad7/receiver/prometheusreceiver">Prometheus Receiver</a>
+<ul>
+<li>Prometheus用の各種exporterからメトリクスデータを読み取ってotelcolにログデータを取り込むreceiverです。</li>
+<li>READMEによると、2025-01-06時点での安定度はベータです。現在work in progressでいくつかの制限事項があり、それが問題になるケースでは使わないよう注意書きがあります。</li>
+</ul>
+</li>
+<li><a href="https://github.com/open-telemetry/opentelemetry-collector-releases/tree/main/distributions/otelcol-k8s">Attributes Processor</a>
+<ul>
+<li>各種receiverで取り込んだデータに、属性データを付与するプロセッサーです。</li>
+<li>READMEによると、2025-01-06時点での安定度はメトリクス、トレース、ログともにベータです。</li>
+<li>今回は取り込んだデータにホスト名を付与するのに使ってみました（が、こういう使い方で良いのかは未確認）。</li>
+</ul>
+</li>
+<li><a href="https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/b938631b9c319da90de38e4d25d31a4916297ad7/exporter/clickhouseexporter">ClickHouse Exporter</a>
+<ul>
+<li>OpenTelemetryのデータをClickHouseに送るためのエクスポーターです。</li>
+<li>READMEによると、2025-01-06時点での安定度はメトリクスはアルファ、トレースとログはベータです。</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>opentelemetry-collectorのソースレポジトリ: <a href="https://github.com/open-telemetry/opentelemetry-collector">https://github.com/open-telemetry/opentelemetry-collector</a>
+<ul>
+<li><code>otelcol-contrib</code>の実行ファイルに<code>opentelemetry-collector</code>の機能も含まれています。</li>
+<li>今回試したものは以下のとおりです。
+<ul>
+<li><a href="https://github.com/open-telemetry/opentelemetry-collector/tree/57c6c151279ee0b4988ac427feffbb2613926b22/receiver/otlpreceiver">OLTP Receiver</a>
+<ul>
+<li>READMEによると、2025-01-06時点での安定度はログがベータ、トレースとメトリクスはstableです。</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="clickhouse-exporterの設定オプションとテーブル名">ClickHouse exporterの設定オプションとテーブル名</h2>
+<p><a href="https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/b938631b9c319da90de38e4d25d31a4916297ad7/exporter/clickhouseexporter#configuration-options">Configuration options</a>に設定オプションについての説明があります。</p>
+<ul>
+<li><code>Connection options:</code>の項の<code>create_schema</code>（デフォルト値:true）が<code>true</code>だと<code>otelcol-contrib</code>がClickHouseに接続したときにデータベースとテーブルがない場合は作成します。</li>
+<li><code>ClickHouse tables:</code>にログ、トレース、メトリクスのデータを保管するテーブル名の設定があります。デフォルト値は以下のとおりです。
+<ul>
+<li>ログ：<code>otel_logs</code></li>
+<li>トレース：<code>otel_traces</code></li>
+<li>メトリクス
+<ul>
+<li><code>otel_metrics_gauge</code> Prometheusのgaugeのデータ保管用</li>
+<li><code>otel_metrics_sum</code> Prometheusのcounterのデータ保管用</li>
+<li><code>otel_metrics_summary</code> Prometheusのsummaryのデータ保管用</li>
+<li><code>otel_metrics_histogram</code> Prometheusのclassic(非native)ヒストグラムのデータ保管用</li>
+<li><code>otel_metrics_exp_histogram</code> Prometheusのnativeヒストグラムのデータ保管用</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="clickhouseのメトリクスをclickhouseにデータ投入するのを試した">ClickHouseのメトリクスをClickHouseにデータ投入するのを試した</h2>
+<ul>
+<li><a href="https://github.com/hnakamur/clickhouse-ansible-playbook">https://github.com/hnakamur/clickhouse-ansible-playbook</a> の <a href="https://github.com/hnakamur/clickhouse-ansible-playbook/commit/ec576b31d34c53fbd356350cc9d382baa08590c9">ec576b3</a>のコミットで試しました。</li>
+<li><code>otelcol-contrib</code>の設定ファイルのテンプレートは <a href="https://github.com/hnakamur/clickhouse-ansible-playbook/blob/ec576b31d34c53fbd356350cc9d382baa08590c9/roles/otelcol_contrib/templates/config.yaml.j2">roles/otelcol_contrib/templates/config.yaml.j2</a> です。</li>
+</ul>
+<h2 id="nginxのログとトレースをclickhouseにデータ投入するのを試した">nginxのログとトレースをClickHouseにデータ投入するのを試した</h2>
+<ul>
+<li>こちらはplaybook化していません。</li>
+<li><code>/etc/otelcol-contrib/config.yaml</code>の設定は以下のとおりです。</li>
+</ul>
+<pre tabindex="0"><code># https://clickhouse.com/docs/en/observability/integrating-opentelemetry
+# config-traces.yaml
+# clickhouse-config.yaml
+#
+# https://github.com/open-telemetry/opentelemetry-collector/issues/11337
+receivers:
+  filelog:
+    include:
+      - /var/log/nginx/access.json.log
+    start_at: beginning
+    operators:
+      - type: json_parser
+        timestamp:
+          parse_from: attributes.time_local
+          layout_type: &#39;gotime&#39;
+          layout: &#39;02/Jan/2006:15:04:05 -0700&#39;
+  prometheus/nginx:
+    config:
+      scrape_configs:
+      - job_name: &#39;otel-collector&#39;
+        scrape_interval: 10s
+        static_configs:
+        - targets: [&#39;127.0.0.1:9113&#39;]
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 127.0.0.1:4317
+
+processors:
+  attributes/host:
+    actions:
+    - key: host.name
+      value: &#39;ggear3&#39;
+      action: insert
+  attributes/nginx:
+    actions:
+    - key: middleware.id
+      value: &#39;nginx&#39;
+      action: insert
+  resource:
+    attributes:
+    - key: otel.host.name
+      value: &#39;ggear2&#39;
+      action: insert
+  batch:
+    timeout: 5s
+    send_batch_size: 5000
+exporters:
+  clickhouse:
+    endpoint: tcp://【ClickHouseのIPアドレス】:9000?dial_timeout=10s&amp;compress=lz4&amp;async_insert=1&amp;username=【ClickHouseのユーザー名】&amp;password=【ClickHouseのパスワード】
+    # ttl: 72h
+    traces_table_name: otel_traces
+    logs_table_name: otel_logs
+    create_schema: true
+    timeout: 5s
+    cluster_name: cluster01
+    table_engine:
+      name: ReplicatedMergeTree
+    database: otel
+    sending_queue:
+      queue_size: 1000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+service:
+  pipelines:
+    metrics:
+      receivers: [prometheus/nginx]
+      processors: [attributes/nginx, attributes/host, batch]
+      exporters: [clickhouse]
+    logs:
+      receivers: [filelog]
+      processors: [resource, attributes/host, batch]
+      exporters: [clickhouse]
+    traces:
+      receivers: [otlp]
+      processors: [resource, attributes/host, batch]
+      exporters: [clickhouse]
+</code></pre><ul>
+<li>上記の設定のserviceのpipelinesでデータの流れを定義しています。
+<ul>
+<li>メトリクスは<a href="https://github.com/nginxinc/nginx-prometheus-exporter">nginxinc/nginx-prometheus-exporter</a>から、receiversに指定したPrometheus receiverで読み取って、processorsに指定した加工を施して、exportersに指定したClickHouse exporterでClickHouseにデータ投入します。</li>
+<li>ログはnginxの設定でJSON形式で<code>/var/log/nginx/access.json.log</code>というファイルに出力するようにしていて、それをFile Log Receiverで読み取り、加工して、ClickHouseにデータ投入します。</li>
+<li>トレースは<a href="https://github.com/nginxinc/nginx-otel">nginxinc/nginx-otel</a>モジュールからOLTP Receiverにデータを送り、加工して、ClickHouseにデータ投入します。</li>
+</ul>
+</li>
+</ul>
+
+</div>
+
+
+<script src="https://hnakamur.github.io/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>

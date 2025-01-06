@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head><script src="/blog/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=blog/livereload" data-no-instant defer></script>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.140.1">
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>freightでGPGの副鍵を使ってaptレポジトリをセットアップ &middot; hnakamur&#39;s blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="http://192.168.10.4:1313/blog/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="http://192.168.10.4:1313/blog/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="http://192.168.10.4:1313/blog/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="http://192.168.10.4:1313/blog/css/copy-button.css">
+  <link type="text/css" rel="stylesheet" href="http://192.168.10.4:1313/blog/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="http://192.168.10.4:1313/blog/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="http://192.168.10.4:1313/blog/favicon.png">
+
+  
+  
+
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="http://192.168.10.4:1313/blog/"><h1>hnakamur&#39;s blog</h1></a>
+      <p class="lead">
+       my tech memo 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hnakamur.github.io/blog/"> blog home </a></li><li><a href="https://github.com/hnakamur"> github @hnakamur </a></li><li><a href="https://twitter.com/hnakamur2"> twitter @hnakamur2 </a></li>
+      </ul>
+    </nav>
+
+    <p>powered by <a href="http://gohugo.io">Hugo</a> and <a href="https://pages.github.com/">GitHub Pages</a></p>
+    <p>&copy; 2025. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>freightでGPGの副鍵を使ってaptレポジトリをセットアップ</h1>
+  <time datetime=2025-01-03T21:14:54&#43;0900 class="post-date">2025-01-03</time>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#はじめに">はじめに</a></li>
+    <li><a href="#gpgで署名用の副鍵を作る">GPGで署名用の副鍵を作る</a></li>
+    <li><a href="#freightのコンテナをセットアップする">freightのコンテナをセットアップする</a>
+      <ul>
+        <li><a href="#freight用のコンテナを作って署名用副鍵をインポート">freight用のコンテナを作って、署名用副鍵をインポート</a></li>
+        <li><a href="#インポートした署名用副鍵のパスフレーズを変更する">インポートした署名用副鍵のパスフレーズを変更する</a></li>
+        <li><a href="#freightをセットアップする">freightをセットアップする</a></li>
+      </ul>
+    </li>
+    <li><a href="#freightで作成したaptレポジトリにdebパッケージを追加する">freightで作成したaptレポジトリにdebパッケージを追加する</a></li>
+  </ul>
+</nav>
+  <h2 id="はじめに">はじめに</h2>
+<p>久しぶりにaptレポジトリをセットアップしたので手順のメモです。せっかくなので今回はGPGで署名用の副鍵を使うようにしました。</p>
+<p>昔<a href="https://hnakamur.github.io/blog/2017/08/05/create-private-deb-repository-with-freight/">freightでプライベートdebレポジトリ作成 · hnakamur&rsquo;s blog</a>という記事を書きました。
+しかし、その後<code>sudo apt install ./debファイル名</code>で依存パッケージも含めてインストールできることを知り、これで十分と思っていました。</p>
+<p>しかし、自作のパッケージが増えてきたので、aptレポジトリを作ることにしました。</p>
+<h2 id="gpgで署名用の副鍵を作る">GPGで署名用の副鍵を作る</h2>
+<p>作業用のIncusコンテナ名を変数に設定します。</p>
+<pre tabindex="0"><code>gpgwork_container=gpgwork
+</code></pre><p>以下のコマンドを実行してUbuntu 24.04のIncusコンテナを作ります。下記では<code>sources_list</code>の<code>URIs</code>をデフォルトの<code>http://archive.ubuntu.com/ubuntu</code>からさくらインターネットの非公式ミラーに変更しています。</p>
+<pre tabindex="0"><code>incus launch images:ubuntu/24.04/cloud &#34;$gpgwork_container&#34; -c user.user-data=&#34;#cloud-config
+timezone: Asia/Tokyo
+apt:
+  sources_list: |
+    Types: deb deb-src
+    URIs: http://ftp.sakura.ad.jp/ubuntu/
+    Suites: noble noble-updates noble-backports
+    Components: main universe restricted multiverse
+    Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+    
+    Types: deb deb-src
+    URIs: http://security.ubuntu.com/ubuntu/
+    Suites: noble-security
+    Components: main universe restricted multiverse
+    Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+package_update: true
+package_upgrade: true
+packages:
+  - gpg
+&#34;
+</code></pre><p>以下のコマンドを実行してIncusコンテナにシェルを起動します。</p>
+<pre tabindex="0"><code>incus shell &#34;$gpgwork_container&#34;
+</code></pre><p><code>eth0</code>をリンクダウンしてネットワークをオフラインにします。</p>
+<pre tabindex="0"><code>ip link set dev eth0 down
+</code></pre>
+<details>
+  <summary>(参考) 使用したgpgのバージョンは2.4.4。</summary>
+  <pre tabindex="0"><code>root@gpgnaruh:~# gpg --version
+gpg (GnuPG) 2.4.4
+libgcrypt 1.10.3
+Copyright (C) 2024 g10 Code GmbH
+License GNU GPL-3.0-or-later &lt;https://gnu.org/licenses/gpl.html&gt;
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
+Home: /root/.gnupg
+Supported algorithms:
+Pubkey: RSA, ELG, DSA, ECDH, ECDSA, EDDSA
+Cipher: IDEA, 3DES, CAST5, BLOWFISH, AES, AES192, AES256, TWOFISH,
+        CAMELLIA128, CAMELLIA192, CAMELLIA256
+Hash: SHA1, RIPEMD160, SHA256, SHA384, SHA512, SHA224
+Compression: Uncompressed, ZIP, ZLIB, BZIP2
+</code></pre></details>
+
+<p>この後使う変数を設定しておきます。値は適宜してください。</p>
+<pre tabindex="0"><code>NAME_REAL=&#34;Hiroaki Nakamura&#34;
+NAME_COMMENT=&#34;for apt.naruh.org&#34;
+NAME_EMAIL=hnakamur@naruh.org
+USER_ID=&#34;$NAME_REAL &lt;$NAME_EMAIL&gt; $NAME_COMMENT&#34;
+PASSPHRASE=パスフレーズ
+</code></pre><p>GPGで主鍵を作成します。下記ではアルゴリズムはed25519で有効期限は無期限としています。</p>
+<pre tabindex="0"><code>gpg --batch --passphrase &#34;$passphrase&#34; \
+ --quick-gen-key &#34;$user_id&#34; ed25519 cert never
+</code></pre><p>今作成した鍵のフィンガープリントを下記で利用するため<code>KEY</code>変数に設定します。</p>
+<pre tabindex="0"><code>KEY=$(gpg --list-options show-only-fpr-mbox --list-secret-keys $NAME_EMAIL | cut -d &#39; &#39; -f 1)
+</code></pre><p>署名用の副鍵を作成します。下記ではアルゴリズムはed25519で有効期限は1年としています。</p>
+<pre tabindex="0"><code>gpg --batch --passphrase &#34;$PASSPHRASE&#34; --pinentry-mode=loopback \
+ --quick-add-key $KEY ed25519 sign 1y
+</code></pre><p>副鍵をエクスポートします。</p>
+<pre tabindex="0"><code>gpg --batch --passphrase &#34;$PASSPHRASE&#34; --pinentry-mode=loopback \
+ --output $NAME_EMAIL-gpg-subkeys.gpg \
+ --export-secret-subkeys $KEY
+</code></pre><p><code>$gpgwork_container</code>のコンテナから抜けます。</p>
+<pre tabindex="0"><code>exit
+</code></pre><p>Incusのホストで以下のコマンドを実行して、上記でエクスポートした副鍵をホストにコピーします。</p>
+<pre tabindex="0"><code>NAME_EMAIL=hnakamur@naruh.org
+</code></pre><pre tabindex="0"><code>incus file pull $gpgwork_container/root/$NAME_EMAIL-gpg-subkeys.gpg .
+</code></pre><h2 id="freightのコンテナをセットアップする">freightのコンテナをセットアップする</h2>
+<h3 id="freight用のコンテナを作って署名用副鍵をインポート">freight用のコンテナを作って、署名用副鍵をインポート</h3>
+<p>freight用のIncusコンテナ名を変数に設定します。</p>
+<pre tabindex="0"><code>freight_container=freight
+</code></pre><p>以下のコマンドを実行してUbuntu 24.04のIncusコンテナを作ります。今回は<code>gpg</code>に加えて<code>git</code>と<code>make</code>パッケージもインストールします。</p>
+<pre tabindex="0"><code>incus launch images:ubuntu/24.04/cloud &#34;$freight_container&#34; -c user.user-data=&#34;
+#cloud-config
+timezone: Asia/Tokyo
+apt:
+  sources_list: |
+    Types: deb deb-src
+    URIs: http://ftp.sakura.ad.jp/ubuntu/
+    Suites: noble noble-updates noble-backports
+    Components: main universe restricted multiverse
+    Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+    
+    Types: deb deb-src
+    URIs: http://security.ubuntu.com/ubuntu/
+    Suites: noble-security
+    Components: main universe restricted multiverse
+    Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+runcmd:
+  - [touch, /run/cloud.init.ran.debug]
+package_update: true
+package_upgrade: true
+packages:
+  - gpg
+  - git
+  - make
+&#34;
+</code></pre>
+<details>
+  <summary>(注意) 上記のYAMLのリストのインデントは必須</summary>
+  <p><code>packages</code>のリストは上記のようにインデントが必須です。
+以下のようにインデントなしで書くと、パッケージがインストールされませんでした。</p>
+<pre tabindex="0"><code>packages:
+- gpg
+- git
+</code></pre></details>
+
+<p>署名用の副鍵をfreight用のコンテナにコピー。</p>
+<pre tabindex="0"><code>incus file push $NAME_EMAIL-gpg-subkeys.gpg $freight_container/root/
+</code></pre><p>freight用のコンテナでシェルを起動。</p>
+<pre tabindex="0"><code>incus shell $freight_container
+</code></pre><p>cloud-initの処理が終わるのを待つ。</p>
+<pre tabindex="0"><code>cloud-init status -w
+</code></pre>
+<details>
+  <summary>cloud-init status -wの出力例</summary>
+  <pre tabindex="0"><code>root@freight:~# cloud-init status -w
+.......................................status: done
+</code></pre></details>
+
+<p>この後使う変数を設定しておきます。GPG鍵を作った時と同じ値を設定してください。</p>
+<pre tabindex="0"><code>NAME_EMAIL=hnakamur@naruh.org
+PASSPHRASE=パスフレーズ
+</code></pre><p>署名用の副鍵をインポートします。</p>
+<pre tabindex="0"><code>gpg --batch --passphrase &#34;$PASSPHRASE&#34; --pinentry-mode=loopback \
+ --import $NAME_EMAIL-gpg-subkeys.gpg
+</code></pre>
+<details>
+  <summary>上記のコマンドの出力例</summary>
+  <pre tabindex="0"><code>root@docker:~# gpg --batch --passphrase &#34;$PASSPHRASE&#34; --pinentry-mode=loopback \
+ --import hnakamur\@naruh.org-gpg-subkeys.gpg
+gpg: /root/.gnupg/trustdb.gpg: trustdb created
+gpg: key E867B9D8764E1BD5: public key &#34;Hiroaki Nakamura &lt;hnakamur@naruh.org&gt; for apt.naruh.org&#34; imported
+gpg: To migrate &#39;secring.gpg&#39;, with each smartcard, run: gpg --card-status
+gpg: key E867B9D8764E1BD5: secret key imported
+gpg: Total number processed: 1
+gpg:               imported: 1
+gpg:       secret keys read: 1
+gpg:   secret keys imported: 1
+</code></pre></details>
+
+<p>下記で使用するため、インポートした鍵のフィンガープリントを変数に設定しておきます。</p>
+<pre tabindex="0"><code>KEY=$(gpg --list-options show-only-fpr-mbox --list-secret-keys $NAME_EMAIL | cut -d &#39; &#39; -f 1)
+</code></pre><h3 id="インポートした署名用副鍵のパスフレーズを変更する">インポートした署名用副鍵のパスフレーズを変更する</h3>
+<p>前項に引き続き、freight用のコンテナで作業します。</p>
+<p>この後使う変数を設定します。</p>
+<pre tabindex="0"><code>NEW_PASSPHRASE=副鍵用の新しいパスフレーズ
+</code></pre><p>インポートした鍵のパスフレーズを変更します。</p>
+<pre tabindex="0"><code>gpg --command-fd 0 --pinentry-mode loopback \
+ --change-passphrase $KEY &lt;&lt;EOF
+$PASSPHRASE
+$NEW_PASSPHRASE
+EOF
+</code></pre><p>新しいパスフレーズをファイルに保存します。これは、のちほどaptレポジトリにdebパッケージを追加する際に使用します。</p>
+<pre tabindex="0"><code>echo &#34;$NEW_PASSPHRASE&#34; &gt; ~/.config/gpg-sign-subkey-passphrase
+</code></pre><h3 id="freightをセットアップする">freightをセットアップする</h3>
+<p>freightのgitレポジトリをcloneします。</p>
+<pre tabindex="0"><code>git clone https://github.com/freight-team/freight.git
+</code></pre><p>レポジトリのディレクトリに移動します。</p>
+<pre tabindex="0"><code>cd freight
+</code></pre><p>freightをインストールします。</p>
+<pre tabindex="0"><code>make install
+</code></pre><p>freightの設定ファイルを作成します。</p>
+<pre tabindex="0"><code>cat &lt;&lt;EOF &gt; /etc/freight.conf
+VARLIB=&#34;/var/lib/freight&#34;
+VARCACHE=&#34;/var/cache/freight&#34;
+ORIGIN=&#34;Freight&#34;
+LABEL=&#34;Freight&#34;
+CACHE=&#34;off&#34;
+GPG=&#34;${NAME_EMAIL}&#34;
+GPG_DIGEST_ALGO=&#34;SHA512&#34;
+SYMLINKS=&#34;off&#34;
+EOF
+</code></pre><h2 id="freightで作成したaptレポジトリにdebパッケージを追加する">freightで作成したaptレポジトリにdebパッケージを追加する</h2>
+
+</div>
+
+
+<script src="http://192.168.10.4:1313/blog/js/copy-button.js"></script>
+    </main>
+  </body>
+</html>
