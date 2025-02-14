@@ -563,3 +563,8 @@ root@freebsd:~ # gpart show da0
   156249976          7       - free -  (3.5K)
 ```
 {{< /details >}}
+
+## macvlanではなくincusbr0を使う方式は別記事で
+
+[ZFSを使っているUbuntuのIncus上でincusbr0を使ってFreeBSDの仮想マシンを動かす · hnakamur's blog](../freebsd-vm-incus-incusbr0/)を参照してください。
+
