@@ -7,6 +7,15 @@ date: 2025-04-28T01:15:43+09:00
 
 結論から言うと、並列化無しで1時間46分かかっていたのを、24コアのPCで24並列で5分以下に短縮できました。
 
+正確には記事の最後のログのとおり、269.6秒です。
+
+```
+$ python3 -c 'print((60+46)*60/269.6)'
+23.590504451038573
+```
+
+24並列で1/23.59の時間になったということで、いわゆる[Embarrassingly parallel - Wikipedia](https://en.wikipedia.org/wiki/Embarrassingly_parallel)と言われる理想的なケースです。
+
 試したことをメモしておきます。
 
 ## Apache Traffic ServerのAutestによるテストについて
@@ -96,7 +105,7 @@ autestの[--filter (-f)](https://autestsuite.bitbucket.io/usage/cli.html#cmdopti
 
 ### 単純に分割して別のシャードで並列に実行したら早くなった
 
-テストケースごとにtrafficserverを起動・停止する方式はそのままで、単純に[tests/gold_tests/remap/remap_acl.test.py](https://github.com/apache/trafficserver/blob/590fb85acf100ba2debdfd117a3701044ae840cc/tests/gold_tests/remap/remap_acl.test.py)内のテストケースのブロックを4分割して、別のシャードで実行するようにしたところ速くなりました。
+テストケースごとにtrafficserverを起動・停止する方式はそのままで、単純に[tests/gold_tests/remap/remap_acl.test.py](https://github.com/apache/trafficserver/blob/590fb85acf100ba2debdfd117a3701044ae840cc/tests/gold_tests/remap/remap_acl.test.py)内のテストケースを4分割して、別のシャードで実行するようにしたところ速くなりました。
 
 試したコードは[hnakamur/trafficserver at split_remap_acl_tests](https://github.com/hnakamur/trafficserver/tree/split_remap_acl_tests)に置いています。
 
@@ -117,7 +126,7 @@ remap_acl_part3 195.9 s
 
 [hnakamur/ats-autest](https://github.com/hnakamur/ats-autest)に置いてます。実際は先にこちらを作って試していました。現行のCIのように最初に分担を決めて実行する方式だと、早く終わったシャードは終了してしまい、効率がいまいちです。そこで複数のワーカーが1つのタスクキューからテスト名を受け取って実行するような方式にしました。
 
-シェルスクリプトよりPythonのasyncioを使ったほうが楽に書けそうだったのでPythonで書いてみました。AuTest自体やtrafficserverのAuTestのテストケースもPythonで書かれているので、それに合わせたというのもあります。とはいえバリバリのPython使いではないので、asyncioも初めて使ったのですが、ChatGPTにいろいろ聞きつつ公式ドキュメントを見て書きました。できればvenv環境を作らずに済ませたいということで、標準ライブラリだけを使うようにしています。
+シェルスクリプトよりPythonのasyncioを使ったほうが楽に書けそうだったのでPythonで書いてみました。AuTest自体やtrafficserverのAuTestのテストケースもPythonで書かれているので、それに合わせたというのもあります。とはいえ私はバリバリのPython使いではないので、asyncioも初めて使ったのですがChatGPTにいろいろ聞きつつ公式ドキュメントを見て書きました。できればvenv環境を作らずに手軽に実行できるようにしたいと思って、標準ライブラリだけを使うようにしてみました。
 
 ### ソケットの空きポートを探す方式を変更
 
