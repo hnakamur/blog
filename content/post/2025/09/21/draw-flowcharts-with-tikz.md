@@ -1,6 +1,7 @@
 ---
 title: "TikZでフローチャートを書く"
 date: 2025-09-21T09:26:49+09:00
+lastmod: 2025-09-21T21:06:00+09:00
 ---
 
 ## はじめに
@@ -39,15 +40,13 @@ $ dpkg -L texlive-lang-japanese | grep -F jlreq.cls
 
 {{< details summary="ソース：RESPONSE-980-CORRELATION.tex" >}}
 
-```
+```latex
 \documentclass[tikz, border=8pt]{standalone}
 \usepackage{tikz}
 \usetikzlibrary{shapes.geometric}
 \usetikzlibrary {shapes.misc}
 \usetikzlibrary{positioning}
-
 \begin{document}
-
 \begin{tikzpicture}
   \tikzset{Terminal/.style={rounded rectangle, draw, text centered, text width=5cm, minimum height=1.5cm}};
   \tikzset{Process/.style={rectangle, draw, text centered, text width=5cm, minimum height=1.5cm}};
@@ -57,56 +56,55 @@ $ dpkg -L texlive-lang-japanese | grep -F jlreq.cls
   \draw[->, thick] (start) -- (id_980041);
 
   \node[Decision, below=1 of id_980041.south](id_980042){REPORTING\_LEVEL >= 5};
-  \draw[->, thick] (id_980041.south)node[below, xshift=10]{No} -- (id_980042);
+  \draw[->, thick] (id_980041.south) -- (id_980042) node[pos=0, anchor=north west]{No};
 
   \node[Decision, below=1 of id_980042.south](id_980043){DETECTION\_ANOMALY\_SCORE == 0};
-  \draw[->, thick] (id_980042.south)node[below, xshift=10]{No} -- (id_980043);
+  \draw[->, thick] (id_980042.south) -- (id_980043) node[pos=0, anchor=north west]{No};
 
   \node[Decision, below=1 of id_980043.south](id_980044){BLOCKING\_INBOUND\_ANOMALY\_SCORE >= inbound\_anomaly\_score\_threshold};
-  \draw[->, thick] (id_980043.south)node[below, xshift=10]{No} -- (id_980044);
+  \draw[->, thick] (id_980043.south) -- (id_980044) node[pos=0, anchor=north west]{No};
 
   \node[Decision, below=1 of id_980044.south](id_980045){BLOCKING\_OUTBOUND\_ANOMALY\_SCORE >= outbound\_anomaly\_score\_threshold};
-  \draw[->, thick] (id_980044.south)node[below, xshift=10]{No} -- (id_980045);
+  \draw[->, thick] (id_980044.south) -- (id_980045) node[pos=0, anchor=north west]{No};
 
   \node[Decision, below=1 of id_980045.south](id_980046){REPORTING\_LEVEL < 2};
-  \draw[->, thick] (id_980045.south)node[below, xshift=10]{No} -- (id_980046);
+  \draw[->, thick] (id_980045.south) -- (id_980046) node[pos=0, anchor=north west]{No};
 
   \node[Decision, below=1 of id_980046.south](id_980047){DETECTION\_INBOUND\_ANOMALY\_SCORE >= inbound\_anomaly\_score\_threshold};
-  \draw[->, thick] (id_980046.south)node[below, xshift=10]{No} -- (id_980047);
+  \draw[->, thick] (id_980046.south) -- (id_980047) node[pos=0, anchor=north west]{No};
 
   \node[Decision, below=1 of id_980047.south](id_980048){DETECTION\_OUTBOUND\_ANOMALY\_SCORE >= outbound\_anomaly\_score\_threshold};
-  \draw[->, thick] (id_980047.south)node[below, xshift=10]{No} -- (id_980048);
+  \draw[->, thick] (id_980047.south) -- (id_980048) node[pos=0, anchor=north west]{No};
 
   \node[Decision, below=1 of id_980048.south](id_980049){REPORTING\_LEVEL < 3};
-  \draw[->, thick] (id_980048.south)node[below, xshift=10]{No} -- (id_980049);
+  \draw[->, thick] (id_980048.south) -- (id_980049) node[pos=0, anchor=north west]{No};
 
   \node[Decision, below=1 of id_980049.south](id_980050){BLOCKING\_ANOMALY\_SCORE > 0};
-  \draw[->, thick] (id_980049.south)node[below, xshift=10]{No} -- (id_980050);
+  \draw[->, thick] (id_980049.south) -- (id_980050) node[pos=0, anchor=north west]{No};
 
   \node[Decision, below=1 of id_980050.south](id_980051){REPORTING\_LEVEL < 4};
-  \draw[->, thick] (id_980050.south)node[below, xshift=10]{No} -- (id_980051);
+  \draw[->, thick] (id_980050.south) -- (id_980051) node[pos=0, anchor=north west]{No};
 
   \node[Terminal, below=1 of id_980051.south](log_reporting){LOG-REPORTING};
-  \draw[->, thick] (id_980051.south)node[below, xshift=10]{No} -- (log_reporting);
-  \draw[->, thick] (id_980042)node[below, xshift=-200]{Yes} -- ++(-10,0) |- (log_reporting.west);
-  \draw[-, thick] (id_980044)node[below, xshift=-250]{Yes} -- ++(-10,0);
-  \draw[-, thick] (id_980045)node[below, xshift=-250]{Yes} -- ++(-10,0);
-  \draw[-, thick] (id_980047)node[below, xshift=-250]{Yes} -- ++(-10,0);
-  \draw[-, thick] (id_980048)node[below, xshift=-250]{Yes} -- ++(-10,0);
-  \draw[-, thick] (id_980050)node[below, xshift=-200]{Yes} -- ++(-10,0);
+  \draw[->, thick] (id_980051.south) -- (log_reporting) node[pos=0, anchor=north west]{No};
+  \draw[->, thick] (id_980042) -- ++(-10,0) node[pos=0, anchor=north east]{Yes} |- (log_reporting.west);
+  \draw[-, thick] (id_980044) -- ++(-10,0) node[pos=0, anchor=north east]{Yes};
+  \draw[-, thick] (id_980045) -- ++(-10,0) node[pos=0, anchor=north east]{Yes};
+  \draw[-, thick] (id_980047) -- ++(-10,0) node[pos=0, anchor=north east]{Yes};
+  \draw[-, thick] (id_980048) -- ++(-10,0) node[pos=0, anchor=north east]{Yes};
+  \draw[-, thick] (id_980050) -- ++(-10,0) node[pos=0, anchor=north east]{Yes};
 
   \node[Process, below=1 of log_reporting.south](id_980170){msg: Anomaly Scores};
   \draw[->, thick] (log_reporting) --(id_980170);
 
   \node[Terminal, below=1 of id_980170.south](end_reporting){END-REPORTING};
   \draw[->, thick] (id_980170) --(end_reporting);
-  \draw[->, thick] (id_980041)node[below, xshift=200]{Yes} -- ++(10,0) |- (end_reporting.east);
-  \draw[-, thick] (id_980043)node[below, xshift=200]{Yes} -- ++(10,0);
-  \draw[-, thick] (id_980046)node[below, xshift=200]{Yes} -- ++(10,0);
-  \draw[-, thick] (id_980049)node[below, xshift=200]{Yes} -- ++(10,0);
-  \draw[-, thick] (id_980051)node[below, xshift=200]{Yes} -- ++(10,0);
+  \draw[->, thick] (id_980041) -- ++(10,0) node[pos=0, anchor=north west]{Yes} |- (end_reporting.east);
+  \draw[-, thick] (id_980043) -- ++(10,0) node[pos=0, anchor=north west]{Yes};
+  \draw[-, thick] (id_980046) -- ++(10,0) node[pos=0, anchor=north west]{Yes};
+  \draw[-, thick] (id_980049) -- ++(10,0) node[pos=0, anchor=north west]{Yes};
+  \draw[-, thick] (id_980051) -- ++(10,0) node[pos=0, anchor=north west]{Yes};
 \end{tikzpicture}
-
 \end{document}
 ```
 {{< /details >}}
@@ -163,6 +161,18 @@ Transcript written on RESPONSE-980-CORRELATION.log.
 pdftocairo -svg pdfファイル名
 ```
 ファイル名の拡張子を.svgにしたファイルが生成されます。
+
+## 「TikZの使い方」(2025-09-21 21:06 追記)
+
+TikZの公式マニュアルは[PGF/TikZ Manual - Complete Online Documentation](https://tikz.dev/)です。
+フッターの[Official PDF version](https://pgf-tikz.github.io/pgf/pgfmanual.pdf)でPDFもダウンロードできます。
+このPDFは英語で書かれていて1323ページ(2025-09-21時点)と長大です。
+
+[TikZ - TeX Wiki](https://www.amazon.co.jp/TikZ%E3%81%AE%E4%BD%BF%E3%81%84%E6%96%B9-alg-d/dp/B0D1MJJBVD)からリンクされていた
+[TeXについて | 壱大整域](https://alg-d.com/math/tex.html)からダウンロードできる
+[TikZの使い方](https://alg-d.com/math/tikz.pdf)というPDFは日本語で書かれていて111ページ(2025-09-21時点)です。
+
+というわけで、まずはこちらをありがたく読むのが良さそうです。
 
 ## 余談
 
@@ -231,17 +241,28 @@ text widthに固定の長さを指定していますが、文字数が増える�
 
 そのため、`.west`は省略して中心から引くようにしています。
 
-### 判断からの線のYesラベルの配置
+### 判断からの線のYesラベルの配置はposとanchorを使うのが良い (2025-09-21 21:06更新)
 
-前項のとおり、菱形の判断から横に伸びる線は判断の中心から引いているため、Yesのラベルを配置する際は`xshift`に中心からの距離を指定する必要があります。
+~~前項のとおり、菱形の判断から横に伸びる線は判断の中心から引いているため、Yesのラベルを配置する際は`xshift`に中心からの距離を指定する必要があります。~~
 
 ```
   \draw[->, thick] (id_980042.west)node[below, xshift=-200]{Yes} -- ++(-10,0) |- (log_reporting.west);
   \draw[-, thick] (id_980044.west)node[below, xshift=-250]{Yes} -- ++(-10,0);
 ```
 
-実は単位がよくわかっていないのですが、試行錯誤して希望の配置になるような数値を指定しています。
+~~実は単位がよくわかっていないのですが、試行錯誤して希望の配置になるような数値を指定しています。~~
 
-判断が文字数に応じてサイズが変わるので、それに合わせてxshiftも調整する必要があります。
+~~判断が文字数に応じてサイズが変わるので、それに合わせてxshiftも調整する必要があります。~~
 
-ここはもう少し良い方法を調べたいところです。
+~~ここはもう少し良い方法を調べたいところです。~~
+
+(↑xshiftの単位を省略したときのデフォルトはptでした。)
+
+上記の[TikZの使い方](https://alg-d.com/math/tikz.pdf)を読んで、線の横に書くYesやNoのラベルの配置はposとanchorを使うのが良いことが分かりました。
+
+```
+  \draw[->, thick] (id_980051.south) -- (log_reporting) node[pos=0, anchor=north west]{No};
+  \draw[->, thick] (id_980042) -- ++(-10,0) node[pos=0, anchor=north east]{Yes} |- (log_reporting.west);
+```
+
+上記の「ソース：RESPONSE-980-CORRELATION.tex」の箇所もこの方式で書き換えたもので更新済みです。
