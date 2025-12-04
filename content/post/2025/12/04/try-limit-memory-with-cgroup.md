@@ -175,3 +175,10 @@ GOGCとGOMEMLIMIT環境変数で設定した値を確認する方法がふと気
 GOGCとGOMEMLIMIT環境変数についてはGo公式ブログ記事[A Guide to the Go Garbage Collector](https://go.dev/doc/gc-guide)を参照してください。
 
 環境変数の他にmetrics/debugパッケージの[SetGCPercent](https://pkg.go.dev/runtime/debug#SetGCPercent)と[SetMemoryLimit](https://pkg.go.dev/runtime/debug#SetMemoryLimit)関数でも設定できるということで、反映先の値を見る方法が気になったという経緯でした。
+
+## 参考記事
+
+- [第56回　Linuxカーネルのコンテナ機能 ーcgroup v2から使うメモリコントローラ（1） | gihyo.jp](https://gihyo.jp/about/site)
+  - `memory.max`や`memory.swap.max`に加えて`memory.high`についても詳しく解説されています。
+- [【Linux】systemd/cgroupを利用してサービスのリソース制限を試してみる - APC 技術ブログ](https://techblog.ap-com.co.jp/entry/2025/12/02/110000)
+  - systemdのサービスで`memory.max`を指定する方法などが書かれています。
